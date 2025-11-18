@@ -487,7 +487,7 @@ test('my test', async ({ page }) => {
 
 ### Get More Help
 
-1. Read the full [README.md](README.md)
+1. Read the full [README.md](../README.md)
 2. Check [LEARNING.md](LEARNING.md) for code explanations
 3. Review [PROJECT_STRUCTURE.md](PROJECT_STRUCTURE.md) for file locations
 

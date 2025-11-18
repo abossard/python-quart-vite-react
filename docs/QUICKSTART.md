@@ -105,7 +105,7 @@ npm install
 
 ## Next Steps
 
-- Read the full [README.md](README.md) for detailed documentation
+- Read the full [README.md](../README.md) for detailed documentation
 - Run tests: `npm run test:e2e:ui`
 - Explore the code and try modifying it!
 

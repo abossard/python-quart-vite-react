@@ -13,6 +13,18 @@
 - Frontend: React 18, Vite, FluentUI components, feature-first structure under `frontend/src/features`
 - Tests: Playwright E2E (`tests/e2e/app.spec.js`)
 
+## Documentation
+
+All deep-dive guides now live under `docs/` for easier discovery:
+
+- [Quick Start](docs/QUICKSTART.md) – fastest path from clone to running servers
+- [Learning Guide](docs/LEARNING.md) – principles behind the architecture and code style
+- [Project Structure](docs/PROJECT_STRUCTURE.md) – file-by-file overview of the repo
+- [Pydantic Architecture](docs/PYDANTIC_ARCHITECTURE.md) – how models, validation, and operations fit together
+- [Unified Architecture](docs/UNIFIED_ARCHITECTURE.md) – REST + MCP integration details and extension ideas
+- [Troubleshooting](docs/TROUBLESHOOTING.md) – common issues and fixes for setup, dev, and tests
+
+
 ## 5-minute quick start (TL;DR)
 1. Clone the repo: `git clone <your-fork-url> && cd python-quart-vite-react`
 2. Run the automated bootstrap: `./setup.sh` (creates the backend venv, installs frontend deps, installs Playwright)

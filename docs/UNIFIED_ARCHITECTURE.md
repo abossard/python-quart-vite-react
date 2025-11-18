@@ -310,4 +310,4 @@ All without duplicating business logic or metadata!
 - See [app.py](backend/app.py) for the implementation
 - See [api_decorators.py](backend/api_decorators.py) for the decorator system
 - See [tasks/service.py](backend/tasks/service.py) for business logic
-- See [README.md](README.md) for usage instructions
+- See [README.md](../README.md) for usage instructions

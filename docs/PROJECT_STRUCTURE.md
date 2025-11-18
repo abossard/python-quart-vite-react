@@ -55,10 +55,14 @@ python-quart-vite-react/
 ├── setup.sh                     # Automated setup script
 ├── start-dev.sh                 # Development server launcher
 │
-├── README.md                    # Main documentation
-├── QUICKSTART.md               # Quick start guide
-├── LEARNING.md                 # Learning guide and principles
-└── PROJECT_STRUCTURE.md        # This file
+├── docs/                       # Supplemental documentation
+│   ├── LEARNING.md             # Learning guide and principles
+│   ├── PROJECT_STRUCTURE.md    # This file
+│   ├── PYDANTIC_ARCHITECTURE.md # Deep dive into Pydantic models
+│   ├── QUICKSTART.md           # Quick start guide
+│   ├── TROUBLESHOOTING.md      # Common issues and fixes
+│   └── UNIFIED_ARCHITECTURE.md # REST + MCP architecture guide
+└── README.md                   # Main documentation
 ```
 
 ## File Purposes
@@ -111,10 +115,13 @@ python-quart-vite-react/
 
 | File | Purpose |
 |------|---------|
-| `README.md` | Complete documentation with setup instructions |
+| `../README.md` | Complete documentation with setup instructions |
 | `QUICKSTART.md` | Fast setup guide for quick start |
 | `LEARNING.md` | Explains code principles and patterns |
 | `PROJECT_STRUCTURE.md` | This file - project organization |
+| `PYDANTIC_ARCHITECTURE.md` | Deep dive into Pydantic models and validation |
+| `UNIFIED_ARCHITECTURE.md` | Unified REST + MCP architecture reference |
+| `TROUBLESHOOTING.md` | Common setup, dev, and test fixes |
 
 ### Scripts
 
@@ -230,6 +237,6 @@ If a file grows beyond these guidelines, consider splitting it into smaller modu
 ## Questions?
 
 Refer to:
-- [README.md](README.md) for setup and running
+- [README.md](../README.md) for setup and running
 - [QUICKSTART.md](QUICKSTART.md) for fast setup
 - [LEARNING.md](LEARNING.md) for understanding the code principles
