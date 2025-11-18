@@ -1,93 +1,35 @@
 """
-Quart Backend Application
+Unified Quart Backend with REST and MCP
 
-This module demonstrates a simple Quart web application following principles from:
-- Grokking Simplicity: Separating actions, calculations, and data
-- A Philosophy of Software Design: Deep modules with clear interfaces
+Clean architecture with Pydantic:
+- Type-safe with automatic validation
+- Single process for REST API and MCP JSON-RPC
+- Zero duplication: types and schemas defined once
+- Pydantic models drive everything
 
-The app provides:
-- RESTful API endpoints for task management (CRUD)
-- Server-Sent Events (SSE) for real-time time updates
-- Current date/time information
+Architecture layers:
+- tasks.py: Pydantic models + business logic
+- api_decorators.py: Unified operation system
+- This file: REST routes + MCP JSON-RPC
+
+Key insight: Define operation with type hints, get REST + MCP + validation automatically!
 """
 
 from quart import Quart, jsonify, request
 from quart_cors import cors
 from datetime import datetime
 import asyncio
-from typing import Dict, List
-import uuid
 import json
+from pydantic import ValidationError
 
+# Import Pydantic models and service
+from tasks import (
+    Task, TaskCreate, TaskUpdate, TaskFilter, TaskStats,
+    TaskService
+)
 
-# ============================================================================
-# DATA LAYER - Pure data structures
-# ============================================================================
-
-tasks_db: Dict[str, dict] = {}
-
-
-# ============================================================================
-# CALCULATIONS - Pure functions with no I/O
-# ============================================================================
-
-def format_datetime(dt: datetime) -> str:
-    """Format datetime to ISO 8601 string."""
-    return dt.isoformat()
-
-
-def create_task_data(title: str, description: str = "") -> dict:
-    """Create a new task data structure."""
-    return {
-        "id": str(uuid.uuid4()),
-        "title": title,
-        "description": description,
-        "completed": False,
-        "created_at": format_datetime(datetime.now())
-    }
-
-
-def update_task_data(task: dict, updates: dict) -> dict:
-    """Create updated task data without mutating original."""
-    return {**task, **updates}
-
-
-def filter_completed_tasks(tasks: List[dict]) -> List[dict]:
-    """Filter tasks to show only completed ones."""
-    return [task for task in tasks if task.get("completed", False)]
-
-
-def filter_pending_tasks(tasks: List[dict]) -> List[dict]:
-    """Filter tasks to show only pending ones."""
-    return [task for task in tasks if not task.get("completed", False)]
-
-
-# ============================================================================
-# ACTIONS - Functions with I/O side effects
-# ============================================================================
-
-def get_all_tasks() -> List[dict]:
-    """Retrieve all tasks from the database."""
-    return list(tasks_db.values())
-
-
-def get_task_by_id(task_id: str) -> dict | None:
-    """Retrieve a specific task by ID."""
-    return tasks_db.get(task_id)
-
-
-def save_task(task: dict) -> dict:
-    """Save a task to the database."""
-    tasks_db[task["id"]] = task
-    return task
-
-
-def delete_task(task_id: str) -> bool:
-    """Delete a task from the database."""
-    if task_id in tasks_db:
-        del tasks_db[task_id]
-        return True
-    return False
+# Import unified operation system
+from api_decorators import operation, get_mcp_tools, get_operation
 
 
 # ============================================================================
@@ -97,23 +39,216 @@ def delete_task(task_id: str) -> bool:
 app = Quart(__name__)
 app = cors(app, allow_origin="*")
 
+# Service instance
+task_service = TaskService()
+
 
 # ============================================================================
-# ROUTE HANDLERS - API Endpoints
+# UTILITY FUNCTIONS
+# ============================================================================
+
+def format_datetime(dt: datetime) -> str:
+    """Format datetime to ISO 8601 string."""
+    return dt.isoformat()
+
+
+# ============================================================================
+# UNIFIED OPERATIONS
+# Define once with Pydantic types, use for both REST and MCP!
+# ============================================================================
+
+@operation(
+    name="list_tasks",
+    description="List all tasks with optional filtering by completion status",
+    http_method="GET",
+    http_path="/api/tasks"
+)
+async def op_list_tasks(filter: TaskFilter = TaskFilter.ALL) -> list[Task]:
+    """
+    List tasks with optional filtering.
+
+    This operation serves BOTH:
+    - REST API: GET /api/tasks?filter=...
+    - MCP tool: list_tasks(filter=...)
+
+    Pydantic's TaskFilter enum automatically generates MCP schema!
+    """
+    return task_service.list_tasks(filter)
+
+
+@operation(
+    name="create_task",
+    description="Create a new task with validation",
+    http_method="POST",
+    http_path="/api/tasks"
+)
+async def op_create_task(data: TaskCreate) -> Task:
+    """
+    Create a new task.
+
+    Pydantic automatically:
+    - Validates title is not empty
+    - Trims whitespace
+    - Generates JSON schema for MCP
+
+    Returns the created Task model.
+    """
+    return task_service.create_task(data)
+
+
+@operation(
+    name="get_task",
+    description="Retrieve a specific task by its unique identifier",
+    http_method="GET",
+    http_path="/api/tasks/{task_id}"
+)
+async def op_get_task(task_id: str) -> Task | None:
+    """
+    Get task by ID.
+
+    Returns None if not found - caller handles 404.
+    """
+    return task_service.get_task(task_id)
+
+
+@operation(
+    name="update_task",
+    description="Update an existing task's properties",
+    http_method="PUT",
+    http_path="/api/tasks/{task_id}"
+)
+async def op_update_task(task_id: str, data: TaskUpdate) -> Task | None:
+    """
+    Update task with validation.
+
+    TaskUpdate has all optional fields - only provided fields are updated.
+    Pydantic validates any provided values automatically.
+
+    Returns None if task not found.
+    """
+    return task_service.update_task(task_id, data)
+
+
+@operation(
+    name="delete_task",
+    description="Delete a task permanently by its identifier",
+    http_method="DELETE",
+    http_path="/api/tasks/{task_id}"
+)
+async def op_delete_task(task_id: str) -> bool:
+    """
+    Delete task.
+
+    Returns True if deleted, False if not found.
+    """
+    return task_service.delete_task(task_id)
+
+
+@operation(
+    name="get_task_stats",
+    description="Get summary statistics for all tasks",
+    http_method="GET",
+    http_path="/api/tasks/stats"
+)
+async def op_get_task_stats() -> TaskStats:
+    """
+    Get task statistics.
+
+    Returns Pydantic TaskStats model with total, completed, pending counts.
+    """
+    return task_service.get_stats()
+
+
+# ============================================================================
+# REST API WRAPPERS
+# These handle HTTP concerns and call the operations
+# ============================================================================
+
+@app.route("/api/tasks", methods=["GET"])
+async def rest_list_tasks():
+    """REST wrapper: list tasks."""
+    filter_param = request.args.get("filter", "all")
+    try:
+        filter_enum = TaskFilter(filter_param)
+        tasks = await op_list_tasks(filter_enum)
+        return jsonify([task.model_dump() for task in tasks])
+    except ValueError:
+        return jsonify({"error": f"Invalid filter: {filter_param}"}), 400
+
+
+@app.route("/api/tasks", methods=["POST"])
+async def rest_create_task():
+    """REST wrapper: create task with Pydantic validation."""
+    try:
+        data = await request.get_json()
+        task_data = TaskCreate(**data)
+        task = await op_create_task(task_data)
+        return jsonify(task.model_dump()), 201
+    except ValidationError as e:
+        return jsonify({"error": str(e)}), 400
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+@app.route("/api/tasks/<task_id>", methods=["GET"])
+async def rest_get_task(task_id: str):
+    """REST wrapper: get task by ID."""
+    task = await op_get_task(task_id)
+    if not task:
+        return jsonify({"error": "Task not found"}), 404
+    return jsonify(task.model_dump())
+
+
+@app.route("/api/tasks/<task_id>", methods=["PUT"])
+async def rest_update_task(task_id: str):
+    """REST wrapper: update task with Pydantic validation."""
+    try:
+        data = await request.get_json()
+        update_data = TaskUpdate(**data)
+        task = await op_update_task(task_id, update_data)
+        if not task:
+            return jsonify({"error": "Task not found"}), 404
+        return jsonify(task.model_dump())
+    except ValidationError as e:
+        return jsonify({"error": str(e)}), 400
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+@app.route("/api/tasks/<task_id>", methods=["DELETE"])
+async def rest_delete_task(task_id: str):
+    """REST wrapper: delete task."""
+    success = await op_delete_task(task_id)
+    if not success:
+        return jsonify({"error": "Task not found"}), 404
+    return jsonify({"message": "Task deleted successfully"}), 200
+
+
+@app.route("/api/tasks/stats", methods=["GET"])
+async def rest_get_stats():
+    """REST wrapper: get task statistics."""
+    stats = await op_get_task_stats()
+    return jsonify(stats.model_dump())
+
+
+# ============================================================================
+# NON-TASK ENDPOINTS
 # ============================================================================
 
 @app.route("/api/health", methods=["GET"])
 async def health_check():
-    """Health check endpoint to verify server is running."""
+    """Health check endpoint."""
     return jsonify({
         "status": "healthy",
-        "timestamp": format_datetime(datetime.now())
+        "timestamp": format_datetime(datetime.now()),
+        "interfaces": ["REST", "MCP"],
+        "features": ["Pydantic validation", "Type safety", "Auto schemas"]
     })
 
 
 @app.route("/api/date", methods=["GET"])
 async def get_current_date():
-    """Get the current date and time."""
+    """Get current date and time."""
     now = datetime.now()
     return jsonify({
         "date": now.strftime("%Y-%m-%d"),
@@ -125,13 +260,8 @@ async def get_current_date():
 
 @app.route("/api/time-stream", methods=["GET"])
 async def time_stream():
-    """
-    Server-Sent Events endpoint that streams current time every second.
-
-    This demonstrates real-time server-to-client communication.
-    """
+    """Server-Sent Events endpoint for real-time updates."""
     async def generate_time_events():
-        """Generate time update events."""
         try:
             while True:
                 now = datetime.now()
@@ -140,11 +270,9 @@ async def time_stream():
                     "date": now.strftime("%Y-%m-%d"),
                     "timestamp": now.timestamp()
                 }
-                # SSE format: data: <json>\n\n
                 yield f"data: {json.dumps(time_data)}\n\n"
                 await asyncio.sleep(1)
         except asyncio.CancelledError:
-            # Client disconnected
             pass
 
     return generate_time_events(), {
@@ -154,82 +282,124 @@ async def time_stream():
     }
 
 
-@app.route("/api/tasks", methods=["GET"])
-async def list_tasks():
-    """Get all tasks, optionally filtered by status."""
-    filter_param = request.args.get("filter", "all")
+# ============================================================================
+# MCP JSON-RPC ENDPOINT
+# ============================================================================
 
-    all_tasks = get_all_tasks()
+@app.route("/mcp", methods=["POST"])
+async def mcp_json_rpc():
+    """
+    MCP JSON-RPC 2.0 over HTTP.
 
-    if filter_param == "completed":
-        tasks = filter_completed_tasks(all_tasks)
-    elif filter_param == "pending":
-        tasks = filter_pending_tasks(all_tasks)
-    else:
-        tasks = all_tasks
+    Uses the SAME operations as REST, with schemas auto-generated from Pydantic!
 
-    return jsonify(tasks)
+    Supported methods:
+    - initialize: Initialize MCP session
+    - tools/list: List available tools (generated from @operation decorators + Pydantic)
+    - tools/call: Execute a tool (uses same functions as REST)
+    """
+    try:
+        data = await request.get_json()
 
+        if not data or "jsonrpc" not in data:
+            return jsonify({
+                "jsonrpc": "2.0",
+                "error": {"code": -32600, "message": "Invalid Request"},
+                "id": data.get("id") if data else None
+            }), 400
 
-@app.route("/api/tasks", methods=["POST"])
-async def create_task():
-    """Create a new task."""
-    data = await request.get_json()
+        method = data.get("method")
+        params = data.get("params", {})
+        request_id = data.get("id")
 
-    if not data or "title" not in data:
-        return jsonify({"error": "Title is required"}), 400
+        # Initialize
+        if method == "initialize":
+            return jsonify({
+                "jsonrpc": "2.0",
+                "result": {
+                    "protocolVersion": "2024-11-05",
+                    "capabilities": {"tools": {}},
+                    "serverInfo": {
+                        "name": "quart-pydantic-task-server",
+                        "version": "2.0.0"
+                    }
+                },
+                "id": request_id
+            })
 
-    # Create new task using pure function
-    new_task = create_task_data(
-        title=data["title"],
-        description=data.get("description", "")
-    )
+        # List tools (auto-generated from Pydantic models!)
+        elif method == "tools/list":
+            tools = get_mcp_tools()
+            return jsonify({
+                "jsonrpc": "2.0",
+                "result": {"tools": tools},
+                "id": request_id
+            })
 
-    # Save to database (action)
-    saved_task = save_task(new_task)
+        # Call tool with Pydantic validation
+        elif method == "tools/call":
+            tool_name = params.get("name")
+            arguments = params.get("arguments", {})
 
-    return jsonify(saved_task), 201
+            op = get_operation(tool_name)
+            if not op:
+                return jsonify({
+                    "jsonrpc": "2.0",
+                    "error": {"code": -32601, "message": f"Tool not found: {tool_name}"},
+                    "id": request_id
+                }), 404
 
+            try:
+                # Call operation with validation
+                result = await op.handler(**arguments)
 
-@app.route("/api/tasks/<task_id>", methods=["GET"])
-async def get_task(task_id: str):
-    """Get a specific task by ID."""
-    task = get_task_by_id(task_id)
+                # Serialize Pydantic models
+                if isinstance(result, list):
+                    result_text = json.dumps([item.model_dump() if hasattr(item, 'model_dump') else item for item in result], indent=2)
+                elif hasattr(result, 'model_dump'):
+                    result_text = json.dumps(result.model_dump(), indent=2)
+                elif isinstance(result, bool):
+                    result_text = f"Success: {result}"
+                else:
+                    result_text = json.dumps(result, indent=2)
 
-    if not task:
-        return jsonify({"error": "Task not found"}), 404
+                return jsonify({
+                    "jsonrpc": "2.0",
+                    "result": {
+                        "content": [{
+                            "type": "text",
+                            "text": result_text
+                        }]
+                    },
+                    "id": request_id
+                })
 
-    return jsonify(task)
+            except ValidationError as e:
+                return jsonify({
+                    "jsonrpc": "2.0",
+                    "error": {"code": -32602, "message": f"Validation error: {str(e)}"},
+                    "id": request_id
+                }), 400
+            except Exception as e:
+                return jsonify({
+                    "jsonrpc": "2.0",
+                    "error": {"code": -32603, "message": f"Internal error: {str(e)}"},
+                    "id": request_id
+                }), 500
 
+        else:
+            return jsonify({
+                "jsonrpc": "2.0",
+                "error": {"code": -32601, "message": f"Method not found: {method}"},
+                "id": request_id
+            }), 404
 
-@app.route("/api/tasks/<task_id>", methods=["PUT"])
-async def update_task(task_id: str):
-    """Update an existing task."""
-    existing_task = get_task_by_id(task_id)
-
-    if not existing_task:
-        return jsonify({"error": "Task not found"}), 404
-
-    data = await request.get_json()
-
-    # Create updated task using pure function
-    updated_task = update_task_data(existing_task, data)
-
-    # Save to database (action)
-    saved_task = save_task(updated_task)
-
-    return jsonify(saved_task)
-
-
-@app.route("/api/tasks/<task_id>", methods=["DELETE"])
-async def remove_task(task_id: str):
-    """Delete a task."""
-    success = delete_task(task_id)
-
-    if not success:
-        return jsonify({"error": "Task not found"}), 404
-
-    return jsonify({"message": "Task deleted successfully"}), 200
+    except Exception as e:
+        return jsonify({
+            "jsonrpc": "2.0",
+            "error": {"code": -32603, "message": f"Internal error: {str(e)}"},
+            "id": None
+        }), 500
 
 
 # ============================================================================
@@ -237,19 +407,25 @@ async def remove_task(task_id: str):
 # ============================================================================
 
 if __name__ == "__main__":
-    # Add some sample data for demonstration
-    sample_tasks = [
-        create_task_data("Learn Quart", "Explore the Quart web framework"),
-        create_task_data("Build React UI", "Create a modern UI with FluentUI"),
-        create_task_data("Write tests", "Add Playwright E2E tests")
-    ]
+    # Initialize sample data
+    num_tasks = task_service.initialize_sample_data()
 
-    for task in sample_tasks:
-        save_task(task)
-
-    print("🚀 Starting Quart server...")
-    print("📝 Sample tasks loaded")
-    print("🔗 API available at http://localhost:5001")
-    print("💡 Note: Using port 5001 (port 5000 is used by macOS AirPlay)")
+    print("=" * 70)
+    print("🚀 Unified Quart Server with Pydantic")
+    print("=" * 70)
+    print(f"📝 {num_tasks} sample tasks loaded")
+    print()
+    print("✨ Key Features:")
+    print("   • Single process serving REST API + MCP JSON-RPC")
+    print("   • Pydantic models for type safety and validation")
+    print("   • Automatic schema generation from type hints")
+    print("   • Zero duplication between interfaces")
+    print()
+    print("🌐 Available Interfaces:")
+    print("   REST API:     http://localhost:5001/api/*")
+    print("   MCP JSON-RPC: http://localhost:5001/mcp")
+    print()
+    print("💡 Port 5001 (macOS AirPlay uses 5000)")
+    print("=" * 70)
 
     app.run(debug=True, host="0.0.0.0", port=5001)

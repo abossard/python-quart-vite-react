@@ -14,7 +14,9 @@
       "Bash(python3:*)",
       "Bash(npx playwright install chromium)",
       "Bash(npx playwright test --project=chromium --reporter=line)",
-      "Bash(npx playwright test:*)"
+      "Bash(npx playwright test:*)",
+      "Bash(find:*)",
+      "Bash(python:*)"
     ],
     "deny": [],
     "ask": []

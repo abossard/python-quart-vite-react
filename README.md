@@ -13,26 +13,81 @@ A modern, educational full-stack web application demonstrating best practices in
 
 ## Architecture
 
+This project demonstrates **advanced software design** with **zero duplication**:
+
+- **Single Process**: Both REST API and MCP server run in one process
+- **Shared Metadata**: Operations defined once using decorators, exposed as both REST and MCP
+- **Deep Modules**: Business logic (`tasks.service`) separate from interface concerns
+- **No Code Duplication**: Metadata, routes, and schemas defined in one place
+
 ```
 python-quart-vite-react/
-├── backend/              # Python Quart application
-│   ├── app.py           # Main application with API endpoints
-│   └── requirements.txt # Python dependencies
-├── frontend/            # React application
+├── backend/                  # Python Quart Backend
+│   ├── app.py               # Unified server (REST + MCP JSON-RPC over HTTP)
+│   ├── api_decorators.py    # Shared metadata system
+│   ├── tasks/               # Reusable task management module
+│   │   ├── __init__.py
+│   │   └── service.py       # Core business logic (deep module)
+│   └── requirements.txt     # Python dependencies
+├── frontend/                # React application
 │   ├── src/
-│   │   ├── components/  # Reusable UI components
-│   │   ├── features/    # Feature-based modules
+│   │   ├── components/      # Reusable UI components
+│   │   ├── features/        # Feature-based modules
 │   │   │   ├── dashboard/
 │   │   │   └── tasks/
-│   │   ├── services/    # API service layer
-│   │   ├── App.jsx      # Main application component
-│   │   └── main.jsx     # Application entry point
-│   ├── package.json     # Node.js dependencies
-│   └── vite.config.js   # Vite configuration
+│   │   ├── services/        # API service layer
+│   │   ├── App.jsx          # Main application component
+│   │   └── main.jsx         # Application entry point
+│   ├── package.json         # Node.js dependencies
+│   └── vite.config.js       # Vite configuration
 ├── tests/
-│   └── e2e/             # Playwright E2E tests
-└── .vscode/             # VSCode configuration
+│   └── e2e/                 # Playwright E2E tests
+└── .vscode/                 # VSCode configuration
 ```
+
+### Advanced Backend Architecture
+
+The backend showcases **cutting-edge design patterns**:
+
+#### 1. Unified Operation System ([api_decorators.py](backend/api_decorators.py))
+Define an operation once, expose it everywhere:
+
+```python
+@operation(
+    name="create_task",
+    description="Create a new task",
+    parameters=[
+        Parameter("title", "string", "Task title", required=True),
+        Parameter("description", "string", "Task description")
+    ],
+    http_method="POST",
+    http_path="/api/tasks"
+)
+async def op_create_task(title: str, description: str = ""):
+    return tasks_service.create_task(title, description)
+```
+
+This single decorator:
+
+- ✅ Generates REST endpoint: `POST /api/tasks`
+- ✅ Generates MCP tool: `create_task`
+- ✅ Defines schemas for both automatically
+- ✅ **Zero duplication** of metadata!
+
+#### 2. Deep Module Design ([tasks/service.py](backend/tasks/service.py))
+
+- Simple interface, complex implementation
+- Pure functions (calculations) + I/O functions (actions)
+- Used by all interfaces without modification
+
+#### 3. Single Process, Multiple Interfaces ([app.py](backend/app.py))
+
+- REST API: `http://localhost:5001/api/*`
+- MCP JSON-RPC: `http://localhost:5001/mcp`
+- Same data, same logic, different protocols
+- No inter-process communication needed
+
+**Example**: Create a task via MCP, see it via REST immediately!
 
 ## Prerequisites
 
@@ -164,6 +219,47 @@ npm run build
 # The built files will be in frontend/dist/
 # You can serve these with any static file server
 ```
+
+### Using the MCP Interface
+
+The backend serves **both REST API and MCP in a single process**! This demonstrates:
+
+- **Zero duplication**: Metadata defined once, exposed as both REST and MCP
+- **Single process**: No need to run separate servers
+- **Instant sync**: Changes via one interface immediately visible in the other
+
+**MCP JSON-RPC Endpoint:**
+```
+POST http://localhost:5001/mcp
+```
+
+**Available MCP Tools** (auto-generated from @operation decorators):
+
+- `create_task` - Create a new task
+- `list_tasks` - List tasks with optional filtering (all/completed/pending)
+- `get_task` - Get a specific task by ID
+- `update_task` - Update task details
+- `delete_task` - Delete a task
+- `get_task_stats` - Get task statistics
+
+**Testing MCP:**
+
+```bash
+# List available tools
+curl -X POST http://localhost:5001/mcp \
+  -H 'Content-Type: application/json' \
+  -d '{"jsonrpc":"2.0","method":"tools/list","params":{},"id":1}'
+
+# Create a task via MCP
+curl -X POST http://localhost:5001/mcp \
+  -H 'Content-Type: application/json' \
+  -d '{"jsonrpc":"2.0","method":"tools/call","params":{"name":"create_task","arguments":{"title":"MCP Task","description":"Created via MCP"}},"id":2}'
+
+# Verify it's visible via REST API
+curl http://localhost:5001/api/tasks
+```
+
+**Key Architecture Benefit:** The same @operation decorator at [app.py:98](backend/app.py#L98) generates both the REST endpoint AND the MCP tool schema. Change it once, both interfaces update!
 
 ## Running Tests
 

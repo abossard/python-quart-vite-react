@@ -6,7 +6,11 @@ Complete overview of all files and directories in this project.
 python-quart-vite-react/
 │
 ├── backend/                      # Python Quart Backend
-│   ├── app.py                   # Main application file
+│   ├── app.py                   # REST API endpoints (uses tasks.service)
+│   ├── mcp_server.py            # MCP server (uses tasks.service)
+│   ├── tasks/                   # Reusable task management module
+│   │   ├── __init__.py         # Module initialization
+│   │   └── service.py          # Core business logic (deep module)
 │   ├── requirements.txt         # Python dependencies
 │   └── venv/                    # Virtual environment (created during setup)
 │
@@ -63,8 +67,11 @@ python-quart-vite-react/
 
 | File | Purpose |
 |------|---------|
-| `backend/app.py` | Main Quart application with all API endpoints and SSE |
-| `backend/requirements.txt` | Python package dependencies |
+| `backend/app.py` | REST API endpoints using tasks.service module |
+| `backend/mcp_server.py` | MCP server using tasks.service module |
+| `backend/tasks/service.py` | Core business logic - deep module with simple interface |
+| `backend/tasks/__init__.py` | Module initialization file |
+| `backend/requirements.txt` | Python package dependencies (Quart, MCP, etc.) |
 | `backend/venv/` | Isolated Python environment (gitignored) |
 
 ### Frontend Files
@@ -119,12 +126,20 @@ python-quart-vite-react/
 ## Key Directories Explained
 
 ### `/backend`
-Contains the Python Quart web server. This is completely independent of the frontend and provides a RESTful API.
+Contains the Python backend with multiple interfaces sharing the same business logic.
+
+**Architecture Pattern - Deep Modules:**
+- `tasks/service.py` - Core business logic (calculations, actions, data)
+- `app.py` - REST API interface (uses tasks.service)
+- `mcp_server.py` - MCP interface (uses tasks.service)
 
 **Main responsibilities:**
 - Serve API endpoints (`/api/*`)
 - Handle Server-Sent Events for real-time updates
 - Manage task data (in-memory for demo)
+- Demonstrate code reusability across different interfaces
+
+**Key Benefit:** Business logic is written once in `tasks.service` and reused by both REST API and MCP server. Adding a new interface (CLI, GraphQL, etc.) requires zero changes to business logic!
 
 ### `/frontend/src/features`
 Feature-based organization. Each feature is self-contained:
@@ -157,6 +172,14 @@ VSCode-specific configuration for a better development experience:
 
 When adding a new feature, follow this structure:
 
+**Backend (modular approach):**
+```
+backend/my-feature/
+├── __init__.py           # Module initialization
+└── service.py            # Business logic (calculations, actions, data)
+```
+
+**Frontend:**
 ```
 frontend/src/features/my-feature/
 ├── MyFeature.jsx          # Main component
@@ -165,10 +188,14 @@ frontend/src/features/my-feature/
 ```
 
 Then:
-1. Add API endpoints in `backend/app.py`
-2. Add API client functions in `frontend/src/services/api.js`
-3. Import and use in `frontend/src/App.jsx`
-4. Add tests in `tests/e2e/`
+1. Create business logic in `backend/my-feature/service.py`
+2. Add REST API endpoints in `backend/app.py` that use `my-feature.service`
+3. (Optional) Add MCP tools in `backend/mcp_server.py` that use `my-feature.service`
+4. Add API client functions in `frontend/src/services/api.js`
+5. Import and use in `frontend/src/App.jsx`
+6. Add tests in `tests/e2e/`
+
+**Key Principle:** Keep business logic separate from interface concerns. This allows the same code to be used by REST API, MCP, CLI, or any other interface!
 
 ## Development Workflow
 
