@@ -1,0 +1,24 @@
+{
+  "name": "quart-vite-react-demo",
+  "version": "1.0.0",
+  "description": "A modern full-stack demo application with Python Quart and React",
+  "private": true,
+  "scripts": {
+    "test:e2e": "playwright test",
+    "test:e2e:ui": "playwright test --ui",
+    "test:e2e:report": "playwright show-report"
+  },
+  "keywords": [
+    "quart",
+    "react",
+    "vite",
+    "fluentui",
+    "fullstack",
+    "demo"
+  ],
+  "author": "",
+  "license": "MIT",
+  "devDependencies": {
+    "@playwright/test": "^1.42.1"
+  }
+}
