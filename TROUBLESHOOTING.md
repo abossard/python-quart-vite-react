@@ -142,7 +142,7 @@ pip install -r backend/requirements.txt --force-reinstall
 **Problem:**
 ```
 Access to fetch at 'http://localhost:5001/api/tasks' from origin
-'http://localhost:3000' has been blocked by CORS policy
+'http://localhost:3001' has been blocked by CORS policy
 ```
 
 **Solution:**
@@ -183,22 +183,21 @@ python app.py
 
 ## Frontend Issues
 
-### Port 3000 Already in Use
+### Port 3001 Already in Use
 
 **Problem:**
 ```
-Port 3000 is in use, trying another port...
+Port 3001 is in use, trying another port...
 ```
 
 **Solution:**
 ```bash
-# Option 1: Kill the process using port 3000
-sudo lsof -i :3000
+# Option 1: Kill the process using port 3001
+sudo lsof -i :3001
 sudo kill -9 <PID>
 
-# Option 2: Use the port Vite suggests (usually 3001)
-# Or modify vite.config.js:
-# server: { port: 3001 }
+# Option 2: Update vite.config.js to another open port (e.g., 3002)
+# server: { port: 3002 }
 ```
 
 ### npm install Fails
@@ -419,7 +418,7 @@ sudo apt-get install -y \
 
 **Problem:**
 ```
-Error: connect ECONNREFUSED 127.0.0.1:3000
+Error: connect ECONNREFUSED 127.0.0.1:3001
 ```
 
 **Solution:**
@@ -479,7 +478,7 @@ test('my test', async ({ page }) => {
 
    # Frontend should show:
    # VITE v5.x.x  ready in XXX ms
-   # ➜  Local:   http://localhost:3000/
+  # ➜  Local:   http://localhost:3001/
    ```
 
 4. **Check browser console for errors** (F12)

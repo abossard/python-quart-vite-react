@@ -26,7 +26,7 @@ sudo apt install python3 python3-pip python3-venv nodejs npm
 ./start-dev.sh
 ```
 
-Open http://localhost:3000 in your browser!
+Open http://localhost:3001 in your browser!
 
 ## Option 2: Manual Setup (5 minutes)
 
@@ -52,7 +52,7 @@ npm run dev
 
 ### 3. Open the App
 
-Go to http://localhost:3000
+Go to http://localhost:3001
 
 ## What You'll See
 
@@ -83,8 +83,8 @@ Try creating a task:
 sudo lsof -i :5001
 sudo kill -9 <PID>
 
-# Frontend (port 3000)
-sudo lsof -i :3000
+# Frontend (port 3001)
+sudo lsof -i :3001
 sudo kill -9 <PID>
 ```
 
