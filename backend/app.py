@@ -15,22 +15,20 @@ Architecture layers:
 Key insight: Define operation with type hints, get REST + MCP + validation automatically!
 """
 
-from quart import Quart, jsonify, request
-from quart_cors import cors
-from datetime import datetime
 import asyncio
 import json
-from pydantic import ValidationError
-
-# Import Pydantic models and service
-from tasks import (
-    Task, TaskCreate, TaskUpdate, TaskFilter, TaskStats,
-    TaskService
-)
+import os
+from datetime import datetime
+from pathlib import Path
 
 # Import unified operation system
-from api_decorators import operation, get_mcp_tools, get_operation
-
+from api_decorators import get_mcp_tools, get_operation, operation
+from pydantic import ValidationError
+from quart import Quart, jsonify, request, send_from_directory
+from quart_cors import cors
+# Import Pydantic models and service
+from tasks import (Task, TaskCreate, TaskFilter, TaskService, TaskStats,
+                   TaskUpdate)
 
 # ============================================================================
 # APPLICATION SETUP
@@ -282,6 +280,28 @@ async def time_stream():
     }
 
 
+frontend_dist_path = Path(
+    os.getenv(
+        "FRONTEND_DIST",
+        Path(__file__).resolve().parents[1] / "frontend" / "dist"
+    )
+)
+
+if frontend_dist_path.exists() and (frontend_dist_path / "index.html").exists():
+    @app.route("/", defaults={"path": ""})
+    @app.route("/<path:path>")
+    async def serve_frontend(path: str):
+        """Serve the built frontend assets when available."""
+        if path.startswith("api") or path.startswith("mcp"):
+            return jsonify({"error": "Not Found"}), 404
+
+        candidate = frontend_dist_path / path
+        if path and candidate.exists() and candidate.is_file():
+            return await send_from_directory(frontend_dist_path, path)
+
+        return await send_from_directory(frontend_dist_path, "index.html")
+
+
 # ============================================================================
 # MCP JSON-RPC ENDPOINT
 # ============================================================================
@@ -311,6 +331,14 @@ async def mcp_json_rpc():
         method = data.get("method")
         params = data.get("params", {})
         request_id = data.get("id")
+
+        # Notifications (no response required but we acknowledge for logs)
+        if method == "notifications/initialized":
+            return jsonify({
+                "jsonrpc": "2.0",
+                "result": None,
+                "id": request_id
+            }), 200
 
         # Initialize
         if method == "initialize":

@@ -57,6 +57,19 @@ Use the “Full Stack: Backend + Frontend” launch config to start backend + fr
 - Tasks tab should show three sample tasks (seeded by `TaskService.initialize_sample_data()`)
 - Create a task, mark it complete, delete it—confirm state updates instantly
 
+## Docker (one command delivery)
+
+Need everything in a single container? The repo now includes a multi-stage `Dockerfile` that builds the Vite frontend, copies the static assets next to the Quart app, and serves everything through Hypercorn on port `5001`.
+
+```bash
+docker build -t quart-react-demo .
+docker run --rm -p 5001:5001 quart-react-demo
+```
+
+- The container exposes only the backend port; the frontend is served by Quart from the built assets, so open `http://localhost:5001`.
+- Set `-e FRONTEND_DIST=/custom/path` if you mount a different build output at runtime.
+- Hot reloading is not part of the container flow—use the regular dev servers for iterative work and Docker for demos or deployment.
+
 ## Using the app
 - **Dashboard tab:** Streams `{"time","date","timestamp"}` via EventSource; connection errors show inline.
 - **Tasks tab:** Uses FluentUI `DataGrid` + dialogs; `frontend/src/features/tasks/TaskList.jsx` keeps calculations (`getTaskStats`) separate from actions (API calls).
