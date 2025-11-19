@@ -35,10 +35,10 @@ Open http://localhost:3001 in your browser!
 ### 1. Backend Setup
 
 ```bash
+python3 -m venv .venv
+source .venv/bin/activate
+pip install -r backend/requirements.txt
 cd backend
-python3 -m venv venv
-source venv/bin/activate
-pip install -r requirements.txt
 python app.py
 ```
 
@@ -93,11 +93,10 @@ sudo kill -9 <PID>
 **Dependencies not installing?**
 ```bash
 # Python
-cd backend
-rm -rf venv
-python3 -m venv venv
-source venv/bin/activate
-pip install -r requirements.txt
+rm -rf .venv
+python3 -m venv .venv
+source .venv/bin/activate
+pip install -r backend/requirements.txt
 
 # Node.js
 cd frontend
