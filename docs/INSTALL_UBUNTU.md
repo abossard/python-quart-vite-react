@@ -52,12 +52,16 @@ sudo apt install -y python3-pip build-essential
 curl -fsSL https://deb.nodesource.com/setup_20.x | sudo -E bash -
 sudo apt install -y nodejs
 
+# Install Chromium (auto-updates via Snap; works on x86_64 and ARM64)
+sudo snap install chromium
+
 # Verify installations
 git --version
 code --version
 python3.13 --version
 node --version
 npm --version
+chromium --version
 ```
 
 All prerequisites are now installed and will receive automatic updates through their respective package managers.
@@ -163,6 +167,20 @@ npm --version
 - Includes npx for running packages
 
 **Note:** This installs Node.js 20.x, which is the current LTS version and will receive updates until April 2026.
+
+### 6. Chromium Installation
+
+Chromium (the open-source base of Google Chrome) ships via Snap for both x86_64 and ARM64, so it works on Macs running ARM VMs and still provides the DevTools experience our stack expects.
+
+```bash
+# Install Chromium via Snap (auto-updates enabled by default)
+sudo snap install chromium
+
+# Verify installation
+chromium --version
+```
+
+**Auto-updates:** Snap refreshes Chromium automatically. To force an update manually, run `sudo snap refresh chromium`.
 
 ## Verification
 
