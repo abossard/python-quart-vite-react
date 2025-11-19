@@ -11,8 +11,7 @@ python-quart-vite-react/
 │   ├── tasks/                   # Reusable task management module
 │   │   ├── __init__.py         # Module initialization
 │   │   └── service.py          # Core business logic (deep module)
-│   ├── requirements.txt         # Python dependencies
-│   └── venv/                    # Virtual environment (created during setup)
+│   └── requirements.txt         # Python dependencies
 │
 ├── frontend/                     # React Frontend
 │   ├── src/
@@ -48,6 +47,7 @@ python-quart-vite-react/
 │   ├── settings.json            # Workspace settings
 │   └── extensions.json          # Recommended extensions
 │
+├── .venv/                      # Top-level Python virtual environment (gitignored)
 ├── .gitignore                   # Git ignore rules
 ├── package.json                 # Root package.json for Playwright
 ├── playwright.config.js         # Playwright configuration
@@ -76,7 +76,7 @@ python-quart-vite-react/
 | `backend/tasks/service.py` | Core business logic - deep module with simple interface |
 | `backend/tasks/__init__.py` | Module initialization file |
 | `backend/requirements.txt` | Python package dependencies (Quart, MCP, etc.) |
-| `backend/venv/` | Isolated Python environment (gitignored) |
+| `.venv/` | Repo-level Python virtual environment (gitignored) |
 
 ### Frontend Files
 

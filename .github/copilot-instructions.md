@@ -23,8 +23,8 @@
 
 ## Workflows
 
-- One-time setup: run `./setup.sh` from the repo root to create the backend venv, install frontend deps, and provision Playwright browsers.
-- Dev loop: `cd backend && source venv/bin/activate && python app.py` (serves on 5001) plus `cd frontend && npm run dev`; `./start-dev.sh` or the VS Code “Full Stack: Backend + Frontend” launch config will start both for you.
+- One-time setup: run `./setup.sh` from the repo root to create the repo-level `.venv`, install frontend deps, and provision Playwright browsers.
+- Dev loop: `source .venv/bin/activate && cd backend && python app.py` (serves on 5001) plus `cd frontend && npm run dev`; `./start-dev.sh` or the VS Code “Full Stack: Backend + Frontend” launch config will start both for you.
 - MCP testing uses JSON-RPC POSTs to `http://localhost:5001/mcp` (`tools/list`, `tools/call`); no extra process is required because the Quart server already exposes it.
 
 ## Testing

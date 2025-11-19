@@ -11,10 +11,12 @@ Make sure you have:
 If not, install them:
 
 ```bash
-# Ubuntu/Debian
+# Ubuntu 22.04 LTS - Quick install
 sudo apt update
 sudo apt install python3 python3-pip python3-venv nodejs npm
 ```
+
+**For detailed installation instructions for Ubuntu 22.04 LTS** (including Python 3.13 and Node.js 20 LTS with auto-updates), see the [Ubuntu Installation Guide](INSTALL_UBUNTU.md).
 
 ## Option 1: Automated Setup (Easiest!)
 
@@ -33,10 +35,10 @@ Open http://localhost:3001 in your browser!
 ### 1. Backend Setup
 
 ```bash
+python3 -m venv .venv
+source .venv/bin/activate
+pip install -r backend/requirements.txt
 cd backend
-python3 -m venv venv
-source venv/bin/activate
-pip install -r requirements.txt
 python app.py
 ```
 
@@ -91,11 +93,10 @@ sudo kill -9 <PID>
 **Dependencies not installing?**
 ```bash
 # Python
-cd backend
-rm -rf venv
-python3 -m venv venv
-source venv/bin/activate
-pip install -r requirements.txt
+rm -rf .venv
+python3 -m venv .venv
+source .venv/bin/activate
+pip install -r backend/requirements.txt
 
 # Node.js
 cd frontend
