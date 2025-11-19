@@ -17,6 +17,7 @@
 
 All deep-dive guides now live under `docs/` for easier discovery:
 
+- [Ubuntu Installation Guide](docs/INSTALL_UBUNTU.md) – complete prerequisites installation for Ubuntu 22.04 LTS and 24.04 LTS
 - [Quick Start](docs/QUICKSTART.md) – fastest path from clone to running servers
 - [Learning Guide](docs/LEARNING.md) – principles behind the architecture and code style
 - [Project Structure](docs/PROJECT_STRUCTURE.md) – file-by-file overview of the repo

@@ -11,10 +11,12 @@ Make sure you have:
 If not, install them:
 
 ```bash
-# Ubuntu/Debian
+# Ubuntu 22.04 LTS / 24.04 LTS
 sudo apt update
 sudo apt install python3 python3-pip python3-venv nodejs npm
 ```
+
+**For detailed installation instructions for Ubuntu 22.04 LTS and 24.04 LTS**, see the [Ubuntu Installation Guide](INSTALL_UBUNTU.md).
 
 ## Option 1: Automated Setup (Easiest!)
 
