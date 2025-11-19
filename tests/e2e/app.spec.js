@@ -14,6 +14,14 @@ function uniqueTitle(prefix) {
   return `${prefix} ${suffix}`;
 }
 
+const APP_URL = process.env.E2E_APP_URL || "http://localhost:3001";
+
+async function visit(page, path = "/") {
+  const url = path === "/" ? APP_URL : `${APP_URL}${path}`;
+  await page.goto(url, { waitUntil: "load" });
+  await waitForAppToLoad(page);
+}
+
 // Helper function to wait for React app to load
 async function waitForAppToLoad(page) {
   // Listen for console errors
@@ -35,8 +43,7 @@ async function waitForAppToLoad(page) {
 
 test.describe("Dashboard - Time is on our side", () => {
   test("shows the live server time ticking away", async ({ page }) => {
-    await page.goto("http://localhost:3001", { waitUntil: "load" });
-    await waitForAppToLoad(page);
+    await visit(page);
 
     // Check that we're on the dashboard
     await expect(page.getByTestId("tab-dashboard")).toHaveAttribute(
@@ -54,8 +61,7 @@ test.describe("Dashboard - Time is on our side", () => {
   });
 
   test("displays server date from API", async ({ page }) => {
-    await page.goto("http://localhost:3001", { waitUntil: "load" });
-    await waitForAppToLoad(page);
+    await visit(page);
 
     // The server knows what day it is!
     const dateElement = page.getByTestId("server-date");
@@ -77,10 +83,7 @@ test.describe("Dashboard - Time is on our side", () => {
 
 test.describe("Task Management - Getting stuff done", () => {
   test.beforeEach(async ({ page }) => {
-    await page.goto("http://localhost:3001", { waitUntil: "load" });
-    await waitForAppToLoad(page);
-    // Navigate to Tasks tab
-    await page.getByTestId("tab-tasks").click();
+    await visit(page, "/tasks");
     await expect(page.getByTestId("tab-tasks")).toHaveAttribute(
       "aria-selected",
       "true"
@@ -252,8 +255,7 @@ test.describe("Task Management - Getting stuff done", () => {
 
 test.describe("Navigation - Exploring the app", () => {
   test("navigates between tabs smoothly", async ({ page }) => {
-    await page.goto("http://localhost:3001", { waitUntil: "load" });
-    await waitForAppToLoad(page);
+    await visit(page);
 
     // Start on Dashboard
     await expect(page.getByTestId("tab-dashboard")).toHaveAttribute(
@@ -286,13 +288,34 @@ test.describe("Navigation - Exploring the app", () => {
   });
 
   test("shows the awesome project title", async ({ page }) => {
-    await page.goto("http://localhost:3001", { waitUntil: "load" });
-    await waitForAppToLoad(page);
+    await visit(page);
 
     // Our glorious header should be visible
     await expect(
       page.getByText("Quart + React Demo Application")
     ).toBeVisible();
+  });
+
+  test("supports direct URL navigation for each tab", async ({ page }) => {
+    await visit(page, "/tasks");
+    await expect(page.getByTestId("tab-tasks")).toHaveAttribute(
+      "aria-selected",
+      "true"
+    );
+    await expect(page.getByText("Task Management")).toBeVisible();
+
+    await visit(page, "/about");
+    await expect(page.getByTestId("tab-about")).toHaveAttribute(
+      "aria-selected",
+      "true"
+    );
+    await expect(page.getByText("About This Project")).toBeVisible();
+
+    await visit(page, "/dashboard");
+    await expect(page.getByTestId("tab-dashboard")).toHaveAttribute(
+      "aria-selected",
+      "true"
+    );
   });
 });
 
@@ -302,9 +325,7 @@ test.describe("Navigation - Exploring the app", () => {
 
 test.describe("About Page - All the good info", () => {
   test.beforeEach(async ({ page }) => {
-    await page.goto("http://localhost:3001", { waitUntil: "load" });
-    await waitForAppToLoad(page);
-    await page.getByTestId("tab-about").click();
+    await visit(page, "/about");
   });
 
   test("displays project information", async ({ page }) => {
