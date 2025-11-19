@@ -16,6 +16,21 @@ function uniqueTitle(prefix) {
 
 const APP_URL = process.env.E2E_APP_URL || "http://localhost:3001";
 
+const MOCK_SUPPORT_TICKET = {
+  ticket_id: "SUP-2025-0042",
+  subject: "Unable to access premium dashboard",
+  customer: {
+    name: "Dana Rivera",
+    account: "ACME-8891",
+  },
+  priority: "urgent",
+  status: "open",
+  service: "Microsoft Teams",
+  last_updated: "2025-11-19T14:22:05.123Z",
+  description:
+    "Customer reports a 403 when loading the premium dashboard after upgrading their plan.",
+};
+
 async function visit(page, path = "/") {
   const url = path === "/" ? APP_URL : `${APP_URL}${path}`;
   await page.goto(url, { waitUntil: "load" });
@@ -343,5 +358,55 @@ test.describe("About Page - All the good info", () => {
     await expect(page.getByText(/Python Quart/).first()).toBeVisible();
     await expect(page.getByText(/React 18/).first()).toBeVisible();
     await expect(page.getByText(/FluentUI/).first()).toBeVisible();
+  });
+});
+
+// ============================================================================
+// SUPPORT TICKET TESTS - Helping our customers fast
+// ============================================================================
+
+test.describe("Support Ticket - Helping customers", () => {
+  test.beforeEach(async ({ page }) => {
+    await visit(page, "/support-ticket");
+    await expect(page.getByTestId("tab-support")).toHaveAttribute(
+      "aria-selected",
+      "true"
+    );
+  });
+
+  test("loads and displays support ticket details", async ({ page }) => {
+    await page.route("**/api/support-ticket", async (route) => {
+      await route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify(MOCK_SUPPORT_TICKET),
+      });
+    });
+
+    await page.getByTestId("load-support-ticket").click();
+
+    await expect(page.getByTestId("support-ticket-card")).toBeVisible();
+    await expect(page.getByTestId("ticket-subject")).toHaveText(
+      MOCK_SUPPORT_TICKET.subject
+    );
+    await expect(page.getByTestId("ticket-priority")).toHaveText(
+      MOCK_SUPPORT_TICKET.priority
+    );
+  });
+
+  test("shows an error message when loading fails", async ({ page }) => {
+    await page.route("**/api/support-ticket", async (route) => {
+      await route.fulfill({
+        status: 500,
+        contentType: "application/json",
+        body: JSON.stringify({ error: "Internal Server Error" }),
+      });
+    });
+
+    const loadButton = page.getByTestId("load-support-ticket");
+    await loadButton.click();
+
+    await expect(page.getByText("Unable to fetch support ticket")).toBeVisible();
+    await expect(loadButton).toBeEnabled();
   });
 });

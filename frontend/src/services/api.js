@@ -103,3 +103,7 @@ export async function deleteTask(taskId) {
     method: 'DELETE',
   })
 }
+
+export async function getSupportTicket() {
+  return fetchJSON(`${API_BASE_URL}/support-ticket`)
+}

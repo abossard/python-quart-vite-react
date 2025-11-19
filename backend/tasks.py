@@ -125,6 +125,42 @@ class TaskError(BaseModel):
     error: str = Field(..., description="Error message")
 
 
+class SupportCustomer(BaseModel):
+    """Customer metadata for support tickets."""
+    name: str = Field(..., description="Customer full name")
+    account: str = Field(..., description="Customer or account identifier")
+
+
+class SupportTicket(BaseModel):
+    """Support ticket representation."""
+    ticket_id: str = Field(..., description="Unique support ticket identifier")
+    subject: str = Field(..., description="Short ticket subject")
+    customer: SupportCustomer = Field(..., description="Customer associated with the ticket")
+    priority: str = Field(..., description="Ticket priority label")
+    status: str = Field(..., description="Current ticket status")
+    service: str = Field(..., description="Affected product or service")
+    last_updated: datetime = Field(default_factory=datetime.now, description="Last update timestamp")
+    description: str = Field(..., description="Detailed ticket description")
+
+    model_config = {
+        "json_schema_extra": {
+            "examples": [{
+                "ticket_id": "SUP-2025-0042",
+                "subject": "Unable to access premium dashboard",
+                "customer": {
+                    "name": "Dana Rivera",
+                    "account": "ACME-8891"
+                },
+                "priority": "urgent",
+                "status": "open",
+                "service": "Microsoft Teams",
+                "last_updated": "2025-11-19T14:22:05.123456",
+                "description": "Customer reports a 403 when loading the premium dashboard after upgrading their plan."
+            }]
+        }
+    }
+
+
 # ============================================================================
 # DATA STORAGE - In-memory database
 # ============================================================================
@@ -282,12 +318,34 @@ class TaskService:
         return len(samples)
 
 
+class SupportTicketService:
+    """Service responsible for supplying mock support tickets."""
+
+    @staticmethod
+    def get_latest_ticket() -> SupportTicket:
+        """Return a deterministic mock support ticket payload."""
+        return SupportTicket(
+            ticket_id="SUP-2025-0042",
+            subject="Unable to access premium dashboard",
+            customer=SupportCustomer(name="Dana Rivera", account="ACME-8891"),
+            priority="urgent",
+            status="open",
+            service="Microsoft Teams",
+            last_updated=datetime.now(),
+            description=(
+                "Customer reports a 403 when loading the premium dashboard after upgrading their plan. "
+                "Access works for other team members, suggesting a provisioning issue."
+            ),
+        )
+
+
 # ============================================================================
 # CONVENIENCE EXPORTS
 # ============================================================================
 
 # Export service for easy importing
 service = TaskService()
+support_ticket_service = SupportTicketService()
 
 # Export models for type hints
 __all__ = [
@@ -297,6 +355,10 @@ __all__ = [
     'TaskFilter',
     'TaskStats',
     'TaskError',
+    'SupportCustomer',
+    'SupportTicket',
     'TaskService',
-    'service'
+    'SupportTicketService',
+    'service',
+    'support_ticket_service'
 ]

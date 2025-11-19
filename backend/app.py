@@ -27,8 +27,8 @@ from pydantic import ValidationError
 from quart import Quart, jsonify, request, send_from_directory
 from quart_cors import cors
 # Import Pydantic models and service
-from tasks import (Task, TaskCreate, TaskFilter, TaskService, TaskStats,
-                   TaskUpdate)
+from tasks import (SupportTicket, Task, TaskCreate, TaskFilter, TaskService,
+                   TaskStats, TaskUpdate, support_ticket_service)
 
 # ============================================================================
 # APPLICATION SETUP
@@ -157,6 +157,17 @@ async def op_get_task_stats() -> TaskStats:
     return task_service.get_stats()
 
 
+@operation(
+    name="get_support_ticket",
+    description="Retrieve the latest mock support ticket",
+    http_method="GET",
+    http_path="/api/support-ticket"
+)
+async def op_get_support_ticket() -> SupportTicket:
+    """Return a deterministic mock support ticket payload."""
+    return support_ticket_service.get_latest_ticket()
+
+
 # ============================================================================
 # REST API WRAPPERS
 # These handle HTTP concerns and call the operations
@@ -227,6 +238,13 @@ async def rest_get_stats():
     """REST wrapper: get task statistics."""
     stats = await op_get_task_stats()
     return jsonify(stats.model_dump())
+
+
+@app.route("/api/support-ticket", methods=["GET"])
+async def rest_get_support_ticket():
+    """REST wrapper: fetch mock support ticket."""
+    ticket = await op_get_support_ticket()
+    return jsonify(ticket.model_dump())
 
 
 # ============================================================================
