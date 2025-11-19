@@ -1,6 +1,6 @@
-# Ubuntu Prerequisites Installation Guide
+# Ubuntu 22.04 LTS Prerequisites Installation Guide
 
-Complete guide for installing all prerequisites for the Quart + Vite + React Demo Application on **Ubuntu 22.04 LTS and Ubuntu 24.04 LTS**.
+Complete guide for installing all prerequisites for the Quart + Vite + React Demo Application on **Ubuntu 22.04 LTS (Jammy Jellyfish)**.
 
 ## Table of Contents
 - [Overview](#overview)
@@ -9,59 +9,58 @@ Complete guide for installing all prerequisites for the Quart + Vite + React Dem
   - [1. System Update](#1-system-update)
   - [2. Git Installation](#2-git-installation)
   - [3. VS Code Installation](#3-vs-code-installation)
-  - [4. Python 3.10+ Installation](#4-python-310-installation)
+  - [4. Python 3.13 Installation](#4-python-313-installation)
   - [5. Node.js LTS Installation](#5-nodejs-lts-installation)
-- [Alternative Installation Methods](#alternative-installation-methods)
 - [Verification](#verification)
 - [Automatic Updates](#automatic-updates)
 - [Next Steps](#next-steps)
 
 ## Overview
 
-**Supported Ubuntu Versions:**
-- **Ubuntu 22.04 LTS (Jammy Jellyfish)** - Recommended, stable
-- **Ubuntu 24.04 LTS (Noble Numbat)** - Latest LTS release
+**Supported Ubuntu Version:**
+- **Ubuntu 22.04 LTS (Jammy Jellyfish)**
 
 **Required Software:**
-- **Git** - Version control system
-- **VS Code** - Recommended IDE with auto-update capabilities
-- **Python 3.10+** - Backend runtime (3.10 in 22.04, 3.12 in 24.04)
-- **Node.js 18+ (LTS)** - Frontend build tools and runtime
+- **Git** - Version control system (from Ubuntu repositories)
+- **VS Code** - IDE with automatic updates via Snap
+- **Python 3.13** - Latest stable Python with automatic updates via deadsnakes PPA
+- **Node.js 20 LTS** - Frontend build tools with automatic updates via NodeSource
 
-All tools will be installed using package managers for automatic updates.
+All tools are installed using package managers that provide automatic updates.
 
 ## Quick Install
 
-One-command installation for all prerequisites:
+Copy and paste these commands to install all prerequisites:
 
 ```bash
 # Update system
 sudo apt update && sudo apt upgrade -y
 
-# Install Git
+# Install Git (from Ubuntu repositories)
 sudo apt install -y git
 
-# Install VS Code via Snap (auto-updates)
+# Install VS Code (auto-updates via Snap)
 sudo snap install code --classic
 
-# Install Python 3.10+ and development tools (already included in 22.04+)
-sudo apt install -y python3 python3-pip python3-venv python3-dev build-essential
+# Install Python 3.13 with automatic updates
+sudo add-apt-repository ppa:deadsnakes/ppa -y
+sudo apt update
+sudo apt install -y python3.13 python3.13-venv python3.13-dev
+sudo apt install -y python3-pip build-essential
 
-# Install Node.js LTS via NodeSource
-curl -fsSL https://deb.nodesource.com/setup_lts.x | sudo -E bash -
+# Install Node.js 20 LTS (auto-updates via NodeSource)
+curl -fsSL https://deb.nodesource.com/setup_20.x | sudo -E bash -
 sudo apt install -y nodejs
 
 # Verify installations
 git --version
 code --version
-python3 --version
+python3.13 --version
 node --version
 npm --version
 ```
 
-That's it! All prerequisites are now installed with automatic update capabilities.
-
-For more control or alternative methods, continue with the detailed steps below.
+All prerequisites are now installed and will receive automatic updates through their respective package managers.
 
 ## Detailed Installation Steps
 
@@ -76,7 +75,7 @@ sudo apt upgrade -y
 
 ### 2. Git Installation
 
-Git is available in the default Ubuntu repositories:
+Install Git from the Ubuntu system repositories:
 
 ```bash
 # Install Git
@@ -90,101 +89,64 @@ git config --global user.name "Your Name"
 git config --global user.email "your.email@example.com"
 ```
 
-**For the latest Git version**, use the official Git PPA:
-
-```bash
-# Add Git PPA for latest stable version
-sudo add-apt-repository ppa:git-core/ppa -y
-sudo apt update
-sudo apt install -y git
-```
+Git will be automatically updated when you run `sudo apt update && sudo apt upgrade`.
 
 ### 3. VS Code Installation
 
-VS Code can be installed via Snap (recommended for auto-updates) or the official Microsoft repository.
-
-#### Option A: Snap (Recommended - Auto-updates)
+Install VS Code via Snap for automatic updates:
 
 ```bash
-# Install VS Code via Snap
+# Install VS Code
 sudo snap install code --classic
 
 # Verify installation
 code --version
 ```
 
-**Advantages:**
-- Automatic updates managed by Snap
-- Works on all Ubuntu versions
-- Sandboxed for security
+**Auto-updates:** VS Code installed via Snap updates automatically in the background. You don't need to do anything to keep it current.
 
-#### Option B: Microsoft Repository (Traditional)
+### 4. Python 3.13 Installation
+
+Ubuntu 22.04 ships with Python 3.10 by default. To get Python 3.13 (latest stable version) with automatic updates, use the deadsnakes PPA:
 
 ```bash
-# Import Microsoft GPG key
-wget -qO- https://packages.microsoft.com/keys/microsoft.asc | gpg --dearmor > packages.microsoft.gpg
-sudo install -D -o root -g root -m 644 packages.microsoft.gpg /etc/apt/keyrings/packages.microsoft.gpg
-rm packages.microsoft.gpg
-
-# Add VS Code repository
-echo "deb [arch=amd64,arm64,armhf signed-by=/etc/apt/keyrings/packages.microsoft.gpg] https://packages.microsoft.com/repos/code stable main" | sudo tee /etc/apt/sources.list.d/vscode.list > /dev/null
-
-# Update and install
+# Add deadsnakes PPA for latest Python versions
+sudo add-apt-repository ppa:deadsnakes/ppa -y
 sudo apt update
-sudo apt install -y code
+
+# Install Python 3.13 and essential tools
+sudo apt install -y python3.13 python3.13-venv python3.13-dev
+sudo apt install -y python3-pip build-essential
 
 # Verify installation
-code --version
-```
-
-**Advantages:**
-- Integrates with system package manager
-- Updates via `apt upgrade`
-
-### 4. Python 3.10+ Installation
-
-Both Ubuntu 22.04 LTS and 24.04 LTS ship with Python 3.10+ by default:
-
-- **Ubuntu 22.04 LTS:** Python 3.10
-- **Ubuntu 24.04 LTS:** Python 3.12
-
-Installation is straightforward:
-
-```bash
-# Install Python and essential development tools
-sudo apt install -y python3 python3-pip python3-venv python3-dev build-essential
-
-# Verify version
-python3 --version
-# Ubuntu 22.04: Python 3.10.x
-# Ubuntu 24.04: Python 3.12.x
+python3.13 --version
 ```
 
 **What gets installed:**
-- `python3` - Python interpreter
+- `python3.13` - Python 3.13 interpreter
+- `python3.13-venv` - Virtual environment support
+- `python3.13-dev` - Header files for C extensions
 - `python3-pip` - Package installer for Python
-- `python3-venv` - Virtual environment support
-- `python3-dev` - Header files for Python C extensions
-- `build-essential` - Compiler and build tools (gcc, make, etc.)
+- `build-essential` - Compiler and build tools
 
-**Verify pip installation:**
+**Auto-updates:** The deadsnakes PPA provides automatic updates. When you run `sudo apt update && sudo apt upgrade`, Python 3.13 will be updated to the latest patch version.
 
+**Using Python 3.13:**
 ```bash
-pip3 --version
-# or
-python3 -m pip --version
+# Create virtual environment with Python 3.13
+python3.13 -m venv venv
+source venv/bin/activate
+
+# Now python and pip will use Python 3.13
+python --version
 ```
 
 ### 5. Node.js LTS Installation
 
-Multiple installation methods are available. Choose based on your needs.
-
-#### Option A: NodeSource Repository (Recommended)
-
-Provides the latest LTS version with automatic updates via apt:
+Install Node.js 20 LTS (latest LTS version) via the NodeSource repository for automatic updates:
 
 ```bash
-# Install Node.js 20 LTS (recommended)
+# Install Node.js 20 LTS
 curl -fsSL https://deb.nodesource.com/setup_20.x | sudo -E bash -
 sudo apt install -y nodejs
 
@@ -193,96 +155,14 @@ node --version
 npm --version
 ```
 
-**For Node.js 18 LTS** (if you need the previous LTS):
+**Auto-updates:** NodeSource repository provides automatic updates. When you run `sudo apt update && sudo apt upgrade`, Node.js will be updated to the latest LTS patch version.
 
-```bash
-curl -fsSL https://deb.nodesource.com/setup_18.x | sudo -E bash -
-sudo apt install -y nodejs
-```
+**What gets installed:**
+- `nodejs` - Node.js runtime and npm package manager
+- Includes npm for package management
+- Includes npx for running packages
 
-#### Option B: NVM (Node Version Manager)
-
-Best for developers who need multiple Node.js versions:
-
-```bash
-# Install NVM
-curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.39.7/install.sh | bash
-
-# Reload shell configuration
-source ~/.bashrc
-# or for zsh:
-# source ~/.zshrc
-
-# Install Node.js LTS
-nvm install --lts
-
-# Set default version
-nvm alias default node
-
-# Verify installation
-node --version
-npm --version
-```
-
-**NVM Advantages:**
-- Switch between Node.js versions easily
-- Per-project Node.js versions
-- No sudo required for global packages
-
-#### Option C: Snap (Quick but limited)
-
-```bash
-# Install Node.js via Snap
-sudo snap install node --classic
-
-# Verify installation
-node --version
-npm --version
-```
-
-**Note:** Snap version may lag behind latest LTS and has some limitations with file permissions.
-
-## Alternative Installation Methods
-
-### Using pyenv for Python (Advanced)
-
-For fine-grained Python version control:
-
-```bash
-# Install dependencies
-sudo apt install -y make build-essential libssl-dev zlib1g-dev \
-libbz2-dev libreadline-dev libsqlite3-dev wget curl llvm \
-libncursesw5-dev xz-utils tk-dev libxml2-dev libxmlsec1-dev \
-libffi-dev liblzma-dev
-
-# Install pyenv
-curl https://pyenv.run | bash
-
-# Add to shell configuration (~/.bashrc or ~/.zshrc)
-echo 'export PYENV_ROOT="$HOME/.pyenv"' >> ~/.bashrc
-echo 'command -v pyenv >/dev/null || export PATH="$PYENV_ROOT/bin:$PATH"' >> ~/.bashrc
-echo 'eval "$(pyenv init -)"' >> ~/.bashrc
-
-# Reload shell
-source ~/.bashrc
-
-# Install Python 3.10
-pyenv install 3.10.13
-pyenv global 3.10.13
-
-# Verify
-python --version
-```
-
-### Using Snap for Everything (Simple but Isolated)
-
-All tools can be installed via Snap for maximum isolation:
-
-```bash
-sudo snap install code --classic
-sudo snap install node --classic
-# Note: Git and Python are best installed via apt
-```
+**Note:** This installs Node.js 20.x, which is the current LTS version and will receive updates until April 2026.
 
 ## Verification
 
@@ -297,68 +177,17 @@ git --version
 code --version
 # Expected: Version number displayed
 
-# Check Python
-python3 --version
-# Expected: Python 3.10.x or higher
-
-# Check pip
-pip3 --version
-# Expected: pip 20.x or higher
+# Check Python 3.13
+python3.13 --version
+# Expected: Python 3.13.x
 
 # Check Node.js
 node --version
-# Expected: v18.x.x or v20.x.x
+# Expected: v20.x.x
 
 # Check npm
 npm --version
-# Expected: 9.x.x or 10.x.x
-```
-
-**Create a test script** to verify everything:
-
-```bash
-cat > /tmp/verify-install.sh << 'EOF'
-#!/bin/bash
-echo "Verification Script for Quart + React Prerequisites"
-echo "===================================================="
-echo ""
-
-check_command() {
-    if command -v $1 &> /dev/null; then
-        echo "✅ $1: $($1 --version 2>&1 | head -n1)"
-    else
-        echo "❌ $1: NOT FOUND"
-    fi
-}
-
-check_command git
-check_command code
-check_command python3
-check_command pip3
-check_command node
-check_command npm
-
-echo ""
-echo "Python version check:"
-PYTHON_VERSION=$(python3 -c 'import sys; print(".".join(map(str, sys.version_info[:2])))')
-if [ $(echo "$PYTHON_VERSION >= 3.10" | bc -l) -eq 1 ]; then
-    echo "✅ Python $PYTHON_VERSION (>= 3.10 required)"
-else
-    echo "❌ Python $PYTHON_VERSION (>= 3.10 required)"
-fi
-
-echo ""
-echo "Node.js version check:"
-NODE_MAJOR=$(node --version | cut -d'v' -f2 | cut -d'.' -f1)
-if [ "$NODE_MAJOR" -ge 18 ]; then
-    echo "✅ Node.js v$NODE_MAJOR (>= 18 required)"
-else
-    echo "❌ Node.js v$NODE_MAJOR (>= 18 required)"
-fi
-EOF
-
-chmod +x /tmp/verify-install.sh
-/tmp/verify-install.sh
+# Expected: 10.x.x
 ```
 
 ## Next Steps
@@ -391,36 +220,36 @@ For more details, see:
 
 ## Automatic Updates
 
-### Keeping Tools Updated
+All installed tools will receive automatic updates through their respective package managers.
 
-#### Git (via PPA)
-```bash
-sudo apt update && sudo apt upgrade git
-```
+### How Updates Work
 
-#### VS Code
-- **Snap:** Updates automatically in the background
-- **Apt:** Run `sudo apt update && sudo apt upgrade code`
+**Git:**
+- Updates automatically with system updates
+- Run: `sudo apt update && sudo apt upgrade`
 
-#### Python
-- **System packages:** `sudo apt update && sudo apt upgrade python3`
-- **pyenv:** `pyenv install <new-version>` and `pyenv global <new-version>`
+**VS Code:**
+- Updates automatically in the background via Snap
+- No manual action required
 
-#### Node.js
-- **NodeSource:** `sudo apt update && sudo apt upgrade nodejs`
-- **NVM:** `nvm install --lts` and `nvm alias default node`
+**Python 3.13:**
+- Updates automatically via deadsnakes PPA
+- Run: `sudo apt update && sudo apt upgrade`
+- Gets latest Python 3.13 patch versions
+
+**Node.js 20 LTS:**
+- Updates automatically via NodeSource repository
+- Run: `sudo apt update && sudo apt upgrade`
+- Gets latest Node.js 20.x patch versions
 
 ### Recommended Update Schedule
 
 ```bash
-# Weekly system update (includes Git, VS Code via apt, Node.js via NodeSource)
+# Weekly system update (updates Git, Python, and Node.js)
 sudo apt update && sudo apt upgrade -y
 
-# Check for VS Code updates (if using Snap)
-snap refresh code
-
-# Check for Node.js LTS updates (if using NVM)
-nvm install --lts --reinstall-packages-from=current
+# VS Code updates automatically, but you can manually trigger:
+sudo snap refresh code
 ```
 
 ## Troubleshooting
@@ -429,7 +258,7 @@ nvm install --lts --reinstall-packages-from=current
 
 **"Permission denied" when installing npm packages:**
 - Don't use sudo with npm
-- If using system Node.js, configure npm to use a local directory:
+- Configure npm to use a local directory:
   ```bash
   mkdir ~/.npm-global
   npm config set prefix '~/.npm-global'
@@ -441,23 +270,22 @@ nvm install --lts --reinstall-packages-from=current
 - Check if Snap is properly enabled: `sudo systemctl status snapd`
 - Restart Snap daemon: `sudo systemctl restart snapd`
 
-**Node.js version conflicts:**
-- If using NVM, ensure NVM is loaded: `source ~/.bashrc`
-- Check active version: `nvm current`
-- Switch version: `nvm use --lts`
-
 **"Unable to locate package" errors:**
 - Run `sudo apt update` first
-- Ensure you're on Ubuntu 22.04 LTS or 24.04 LTS
+- Ensure you're on Ubuntu 22.04 LTS
+- Check if PPA was added correctly: `apt-cache policy python3.13`
+
+**Python 3.13 not found after installation:**
+- Use `python3.13` explicitly (not `python3` or `python`)
+- When creating venv: `python3.13 -m venv venv`
 
 For more troubleshooting help, see [TROUBLESHOOTING.md](TROUBLESHOOTING.md).
 
 ## Security Considerations
 
 - Always verify scripts before running them (especially curl | bash commands)
-- Keep your system updated regularly
-- Use LTS versions for production environments
-- Consider using version managers (pyenv, nvm) in development for isolation
+- Keep your system updated regularly with `sudo apt update && sudo apt upgrade`
+- Ubuntu 22.04 LTS receives security updates until April 2027
 
 ## Additional Resources
 
@@ -470,4 +298,4 @@ For more troubleshooting help, see [TROUBLESHOOTING.md](TROUBLESHOOTING.md).
 ---
 
 **Last Updated:** November 2024  
-**Target Platforms:** Ubuntu 22.04 LTS (Jammy Jellyfish), Ubuntu 24.04 LTS (Noble Numbat)
+**Target Platform:** Ubuntu 22.04 LTS (Jammy Jellyfish)
