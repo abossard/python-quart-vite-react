@@ -37,7 +37,7 @@ export default defineConfig({
   // Run dev server before starting tests
   webServer: [
     {
-      command: "cd backend && source venv/bin/activate && python app.py",
+      command: "source .venv/bin/activate && cd backend && python app.py",
       port: 5001,
       reuseExistingServer: !process.env.CI,
     },

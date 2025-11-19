@@ -2,7 +2,7 @@
   "permissions": {
     "allow": [
       "Bash(chmod:*)",
-      "Bash(source venv/bin/activate)",
+      "Bash(source .venv/bin/activate)",
       "Bash(python app.py:*)",
       "Bash(pip install:*)",
       "Bash(lsof:*)",

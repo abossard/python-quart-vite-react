@@ -37,7 +37,7 @@ Copy and paste these commands to install all prerequisites:
 sudo apt update && sudo apt upgrade -y
 
 # Install Git (from Ubuntu repositories)
-sudo apt install -y git
+sudo apt install -y git gh curl
 
 # Install VS Code (auto-updates via Snap)
 sudo snap install code --classic
@@ -79,7 +79,7 @@ Install Git from the Ubuntu system repositories:
 
 ```bash
 # Install Git
-sudo apt install -y git
+sudo apt install -y git gh curl
 
 # Verify installation
 git --version
@@ -134,8 +134,8 @@ python3.13 --version
 **Using Python 3.13:**
 ```bash
 # Create virtual environment with Python 3.13
-python3.13 -m venv venv
-source venv/bin/activate
+python3.13 -m venv .venv
+source .venv/bin/activate
 
 # Now python and pip will use Python 3.13
 python --version
@@ -277,7 +277,7 @@ sudo snap refresh code
 
 **Python 3.13 not found after installation:**
 - Use `python3.13` explicitly (not `python3` or `python`)
-- When creating venv: `python3.13 -m venv venv`
+- When creating the env: `python3.13 -m venv .venv`
 
 For more troubleshooting help, see [TROUBLESHOOTING.md](TROUBLESHOOTING.md).
 

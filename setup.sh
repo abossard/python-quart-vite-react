@@ -37,26 +37,23 @@ echo "✅ Found Node.js $NODE_VERSION"
 
 echo ""
 echo "🐍 Setting up Python backend..."
-cd backend
 
-# Create virtual environment
-if [ -d "venv" ]; then
-    echo "⚠️  Virtual environment already exists, skipping..."
+# Create virtual environment at repo root
+if [ -d ".venv" ]; then
+    echo "⚠️  Virtual environment already exists at .venv, skipping..."
 else
-    echo "Creating virtual environment..."
-    python3 -m venv venv
+    echo "Creating virtual environment at .venv..."
+    python3 -m venv .venv
 fi
 
 # Activate and install dependencies
 echo "Installing Python dependencies..."
-source venv/bin/activate
+source .venv/bin/activate
 pip install --upgrade pip
-pip install -r requirements.txt
+pip install -r backend/requirements.txt
 deactivate
 
 echo "✅ Backend setup complete!"
-
-cd ..
 
 echo ""
 echo "⚛️  Setting up React frontend..."
@@ -84,7 +81,7 @@ echo "Option 1 - Use the start script (easiest):"
 echo "  ./start-dev.sh"
 echo ""
 echo "Option 2 - Run manually in separate terminals:"
-echo "  Terminal 1: cd backend && source venv/bin/activate && python app.py"
+echo "  Terminal 1: source .venv/bin/activate && cd backend && python app.py"
 echo "  Terminal 2: cd frontend && npm run dev"
 echo ""
 echo "Option 3 - Use VSCode:"
