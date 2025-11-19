@@ -9,13 +9,12 @@ echo "🚀 Starting Quart + React Demo Application"
 echo ""
 
 # Check if Python virtual environment exists
-if [ ! -d "backend/venv" ]; then
+if [ ! -d ".venv" ]; then
     echo "❌ Virtual environment not found!"
     echo "Please run setup first:"
-    echo "  cd backend"
-    echo "  python3 -m venv venv"
-    echo "  source venv/bin/activate"
-    echo "  pip install -r requirements.txt"
+    echo "  python3 -m venv .venv"
+    echo "  source .venv/bin/activate"
+    echo "  pip install -r backend/requirements.txt"
     exit 1
 fi
 
@@ -41,11 +40,12 @@ trap cleanup SIGINT SIGTERM
 
 # Start backend
 echo "🐍 Starting Python Quart backend..."
+source .venv/bin/activate
 cd backend
-source venv/bin/activate
 python app.py &
 BACKEND_PID=$!
 cd ..
+deactivate
 
 # Wait a bit for backend to start
 sleep 2

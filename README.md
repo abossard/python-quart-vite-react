@@ -17,6 +17,7 @@
 
 All deep-dive guides now live under `docs/` for easier discovery:
 
+- [Ubuntu Installation Guide](docs/INSTALL_UBUNTU.md) – complete prerequisites installation for Ubuntu 22.04 LTS
 - [Quick Start](docs/QUICKSTART.md) – fastest path from clone to running servers
 - [Learning Guide](docs/LEARNING.md) – principles behind the architecture and code style
 - [Project Structure](docs/PROJECT_STRUCTURE.md) – file-by-file overview of the repo
@@ -27,7 +28,7 @@ All deep-dive guides now live under `docs/` for easier discovery:
 
 ## 5-minute quick start (TL;DR)
 1. Clone the repo: `git clone <your-fork-url> && cd python-quart-vite-react`
-2. Run the automated bootstrap: `./setup.sh` (creates the backend venv, installs frontend deps, installs Playwright)
+2. Run the automated bootstrap: `./setup.sh` (creates the repo-level `.venv`, installs frontend deps, installs Playwright)
 3. Start both servers: `./start-dev.sh` *(or)* use the VS Code “Full Stack: Backend + Frontend” launch config
 4. Open `http://localhost:3001`, switch to the **Tasks** tab, and create a task—the backend and frontend are now synced
 5. (Optional) Run the Playwright suite from the repo root: `npm run test:e2e`
@@ -36,8 +37,8 @@ All deep-dive guides now live under `docs/` for easier discovery:
 
 ### 1. Backend requirements
 - Python 3.10+
-- `cd backend && python3 -m venv venv`
-- `source venv/bin/activate`
+- `python3 -m venv .venv`
+- `source .venv/bin/activate`
 - `pip install -r requirements.txt`
 
 ### 2. Frontend requirements
@@ -54,7 +55,7 @@ npx playwright install chromium
 ## Run & verify
 
 ### Option A — Manual terminals
-1. **Backend:** `cd backend && source venv/bin/activate && python app.py` → serves REST + MCP on `http://localhost:5001`
+1. **Backend:** `source .venv/bin/activate && cd backend && python app.py` → serves REST + MCP on `http://localhost:5001`
 2. **Frontend:** `cd frontend && npm run dev` → launches Vite dev server on `http://localhost:3001`
 
 ### Option B — Helper script
@@ -102,7 +103,7 @@ TaskService + Pydantic models (backend/tasks.py)
 - Frontend features live under `frontend/src/features/*`, each with their own state, calculations, and FluentUI layout; all network requests go through `frontend/src/services/api.js` (`fetchJSON` centralizes error handling).
 
 1. Clone the repo: `git clone <your-fork-url> && cd python-quart-vite-react`
-2. Run the automated bootstrap: `./setup.sh` (creates the backend venv, installs frontend deps, installs Playwright)
+2. Run the automated bootstrap: `./setup.sh` (creates the repo-level `.venv`, installs frontend deps, installs Playwright)
 3. Start both servers: `./start-dev.sh` *(or)* use the VS Code “Full Stack: Backend + Frontend” launch config
 4. Open `http://localhost:3001`, switch to the **Tasks** tab, and create a task—the backend and frontend are now synced
 5. (Optional) Run the Playwright suite from the repo root: `npm run test:e2e`
@@ -112,8 +113,8 @@ TaskService + Pydantic models (backend/tasks.py)
 1. Start servers (script or terminals)
 
 - Python 3.10+
-- `cd backend && python3 -m venv venv`
-- `source venv/bin/activate`
+- `python3 -m venv .venv`
+- `source .venv/bin/activate`
 - `pip install -r requirements.txt`
 ### Helpful commands
 - Reseed sample data: restart the backend (or call `TaskService.initialize_sample_data()` in a shell)
@@ -134,14 +135,14 @@ npx playwright install chromium
   - Stable `data-testid` attributes in the React components
   - SSE payload shape `{ time, date, timestamp }`
 
-1. **Backend:** `cd backend && source venv/bin/activate && python app.py` → serves REST + MCP on `http://localhost:5001`
+1. **Backend:** `source .venv/bin/activate && cd backend && python app.py` → serves REST + MCP on `http://localhost:5001`
 2. **Frontend:** `cd frontend && npm run dev` → launches Vite dev server on `http://localhost:3001`
 
 | Issue | Fix |
 
 `./start-dev.sh` (verifies dependencies, starts both servers, stops on Ctrl+C)
 | Port 5001 in use | `sudo lsof -i :5001` then kill the process (macOS uses 5000 for AirPlay, so backend defaults to 5001) |
-| `source venv/bin/activate` fails | Recreate the env: `rm -rf backend/venv && python3 -m venv backend/venv && pip install -r backend/requirements.txt` |
+| `source .venv/bin/activate` fails | Recreate the env: `rm -rf .venv && python3 -m venv .venv && pip install -r backend/requirements.txt` |
 
 Use the “Full Stack: Backend + Frontend” launch config to start backend + frontend with attached debuggers.
 | `npm install` errors | `npm cache clean --force && rm -rf node_modules package-lock.json && npm install` |

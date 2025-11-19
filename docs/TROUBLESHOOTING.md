@@ -51,26 +51,26 @@ npm --version
 
 **Problem:**
 ```bash
-source venv/bin/activate  # Does nothing
+source .venv/bin/activate  # Does nothing
 ```
 
 **Solution:**
 ```bash
-# Make sure you're in the backend directory
-cd backend
+# Run these commands from the repo root
 
-# Remove old venv if it exists
-rm -rf venv
+# Remove old .venv if it exists
+rm -rf .venv
 
-# Create new virtual environment
-python3 -m venv venv
+# Create new virtual environment at the top level
+python3 -m venv .venv
 
 # Activate it
-source venv/bin/activate
+source .venv/bin/activate
 
-# You should see (venv) in your prompt
-# Install dependencies
-pip install -r requirements.txt
+# You should see (.venv) in your prompt
+
+# Install backend dependencies
+pip install -r backend/requirements.txt
 ```
 
 ### Permission Denied on Scripts
@@ -125,9 +125,9 @@ ModuleNotFoundError: No module named 'quart'
 **Solution:**
 ```bash
 # Make sure virtual environment is activated
-source backend/venv/bin/activate
+source .venv/bin/activate
 
-# You should see (venv) in your prompt
+# You should see (.venv) in your prompt
 
 # Reinstall dependencies
 pip install -r backend/requirements.txt
@@ -150,8 +150,8 @@ This should already be handled by `quart-cors` in the backend, but if you see th
 
 ```bash
 # Make sure quart-cors is installed
+source .venv/bin/activate
 cd backend
-source venv/bin/activate
 pip install quart-cors
 
 # Verify it's in requirements.txt
@@ -175,7 +175,7 @@ python3 --version
 cd backend
 
 # Make sure virtual environment is activated
-source venv/bin/activate
+source ../.venv/bin/activate
 
 # Try running with more verbose output
 python app.py
@@ -274,8 +274,8 @@ Browser shows blank page, no errors in terminal.
 
 # Common causes:
 # 1. Backend not running
+source .venv/bin/activate
 cd backend
-source venv/bin/activate
 python app.py
 
 # 2. Check API proxy in vite.config.js
@@ -426,8 +426,8 @@ Error: connect ECONNREFUSED 127.0.0.1:3001
 # Make sure both servers are running
 
 # Terminal 1
+source .venv/bin/activate
 cd backend
-source venv/bin/activate
 python app.py
 
 # Terminal 2
@@ -467,9 +467,9 @@ test('my test', async ({ page }) => {
    ```
 
 2. **Is the virtual environment activated?** (for backend work)
-   ```bash
-   # Should see (venv) in prompt when in backend/
-   ```
+  ```bash
+  # Should see (.venv) in your prompt
+  ```
 
 3. **Are both servers running?**
    ```bash
@@ -497,15 +497,14 @@ If all else fails, start fresh:
 
 ```bash
 # Backend
-cd backend
-rm -rf venv
-python3 -m venv venv
-source venv/bin/activate
+rm -rf .venv
+python3 -m venv .venv
+source .venv/bin/activate
 pip install --upgrade pip
-pip install -r requirements.txt
+pip install -r backend/requirements.txt
 
 # Frontend
-cd ../frontend
+cd frontend
 rm -rf node_modules package-lock.json
 npm install
 
