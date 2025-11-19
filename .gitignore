@@ -11,6 +11,7 @@ ENV/
 *.egg-info/
 dist/
 build/
+.vscode-chromium-profile
 
 # Node.js
 node_modules/
