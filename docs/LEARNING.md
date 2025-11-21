@@ -17,9 +17,11 @@ This document explains the coding principles and patterns used in this project. 
 This book teaches us to separate our code into three categories:
 
 #### 1. Actions (I/O - Impure)
+
 Functions that interact with the outside world (databases, networks, files, time).
 
 **Backend Example:**
+
 ```python
 # ACTION - Reads from database
 def get_all_tasks() -> List[dict]:
@@ -32,6 +34,7 @@ def save_task(task: dict) -> dict:
 ```
 
 **Frontend Example:**
+
 ```javascript
 // ACTION - Makes HTTP request
 export async function getTasks(filter = 'all') {
@@ -41,9 +44,11 @@ export async function getTasks(filter = 'all') {
 ```
 
 #### 2. Calculations (Pure Functions)
+
 Functions that transform data without side effects. Same input = same output.
 
 **Backend Example:**
+
 ```python
 # CALCULATION - Pure function
 def format_datetime(dt: datetime) -> str:
@@ -61,6 +66,7 @@ def create_task_data(title: str, description: str = "") -> dict:
 ```
 
 **Frontend Example:**
+
 ```javascript
 // CALCULATION - Pure function
 function formatDate(isoString) {
@@ -79,6 +85,7 @@ function getTaskStats(tasks) {
 ```
 
 #### 3. Data (Immutable Structures)
+
 Plain data structures that don't do anything.
 
 ```python
@@ -100,6 +107,7 @@ const task = {
 ```
 
 **Why This Matters:**
+
 - **Calculations** are easiest to test (no mocking needed)
 - **Actions** are isolated, making bugs easier to find
 - **Data** is predictable and safe to share
@@ -110,7 +118,7 @@ const task = {
 
 A module should have a simple interface but handle complex functionality inside.
 
-**Example: API Service Module**
+##### Example: API Service Module
 
 ```javascript
 // Simple interface
@@ -142,6 +150,7 @@ Users of `createTask` don't need to know about error handling, headers, or JSON 
 Hide implementation details behind clean interfaces.
 
 **Backend Example:**
+
 ```python
 # Public interface - simple
 @app.route("/api/tasks", methods=["POST"])
@@ -161,7 +170,7 @@ def create_task_data(title: str, description: str = "") -> dict:
 
 Organize code by feature, not by technical layer.
 
-```
+```ascii
 frontend/src/
 ├── features/
 │   ├── dashboard/     # Everything for dashboard feature
@@ -220,6 +229,7 @@ async def time_stream():
 ```
 
 **Frontend consumption:**
+
 ```javascript
 export function connectToTimeStream(onMessage, onError) {
   const eventSource = new EventSource(`${API_BASE_URL}/time-stream`)
@@ -278,6 +288,7 @@ import {
 ```
 
 **Key patterns:**
+
 - Use `makeStyles` for styling
 - Components are controlled (state-driven)
 - Accessibility built-in
@@ -323,11 +334,13 @@ test('creates a new task like a boss', async ({ page }) => {
 ```
 
 **Why E2E tests?**
+
 - Test the full stack integration
 - Catch issues users would encounter
 - Serve as documentation of features
 
 **Test Selectors:**
+
 - Use `data-testid` for test-specific selectors
 - Keeps tests independent of CSS/structure changes
 - Makes intent clear
@@ -352,8 +365,6 @@ Try these to deepen your understanding:
    - Modify card layouts
    - Customize button styles
 
-### Intermediate
-
 4. **Add sorting to task list**
    - Sort by creation date
    - Sort by title
@@ -368,8 +379,6 @@ Try these to deepen your understanding:
    - Animate task list changes
    - Add loading states
    - Smooth transitions between tabs
-
-### Advanced
 
 7. **Add persistence**
    - Replace in-memory storage with SQLite

@@ -3,11 +3,13 @@
 > A teaching-oriented full-stack sample that pairs a Python Quart backend with a React + FluentUI frontend, real-time Server-Sent Events (SSE), and Playwright tests.
 
 ## Why this repo?
+
 - Shows how to keep REST and MCP JSON-RPC in a single Quart process
 - Demonstrates “Grokking Simplicity” (actions vs. calculations vs. data) and “A Philosophy of Software Design” (deep modules)
 - Provides an approachable playground for FluentUI v9, Vite, and Playwright
 
 ## Tech stack at a glance
+
 - Backend: Quart, Pydantic 2, MCP JSON-RPC, Async SSE (`backend/app.py`)
 - Business logic: `TaskService` + models in `backend/tasks.py`
 - Frontend: React 18, Vite, FluentUI components, feature-first structure under `frontend/src/features`
@@ -24,8 +26,8 @@ All deep-dive guides now live under `docs/` for easier discovery:
 - [Unified Architecture](docs/UNIFIED_ARCHITECTURE.md) – REST + MCP integration details and extension ideas
 - [Troubleshooting](docs/TROUBLESHOOTING.md) – common issues and fixes for setup, dev, and tests
 
-
 ## 5-minute quick start (TL;DR)
+
 1. Clone the repo: `git clone <your-fork-url> && cd python-quart-vite-react`
 2. Run the automated bootstrap: `./setup.sh` (creates the backend venv, installs frontend deps, installs Playwright)
 3. Start both servers: `./start-dev.sh` *(or)* use the VS Code “Full Stack: Backend + Frontend” launch config
@@ -35,6 +37,7 @@ All deep-dive guides now live under `docs/` for easier discovery:
 ## Detailed setup (first-time users)
 
 ### 1. Backend requirements
+
 - Python 3.10+
 - `cd backend && python3 -m venv venv`
 - `source venv/bin/activate`
