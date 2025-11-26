@@ -18,6 +18,7 @@ Key insight: Define operation with type hints, get REST + MCP + validation autom
 import asyncio
 import json
 import os
+import random
 from datetime import datetime
 from pathlib import Path
 
@@ -454,6 +455,78 @@ async def time_stream():
             pass
 
     return generate_time_events(), {
+        "Content-Type": "text/event-stream",
+        "Cache-Control": "no-cache",
+        "X-Accel-Buffering": "no"
+    }
+
+
+@app.route("/api/support/live-stream", methods=["GET"])
+async def support_live_stream():
+    """
+    Server-Sent Events endpoint for real-time IT support metrics.
+    
+    Streams system health metrics every 5 seconds with:
+    - Random walk algorithm for smooth transitions
+    - Occasional spikes to simulate incidents (10% chance)
+    - Realistic bounds for all metrics
+    """
+    async def generate_support_events():
+        # Initialize with random starting values
+        current_queue = random.randint(5, 12)
+        current_connections = random.randint(200, 280)
+        current_response_time = random.randint(120, 180)
+        current_error_rate = round(random.uniform(0.05, 0.20), 2)
+        
+        try:
+            while True:
+                now = datetime.now()
+                
+                # 10% chance of incident spike
+                has_spike = random.random() < 0.10
+                
+                if has_spike:
+                    # Spike values
+                    current_queue = random.randint(20, 35)
+                    current_response_time = random.randint(250, 400)
+                    current_error_rate = round(random.uniform(0.8, 1.5), 2)
+                else:
+                    # Random walk with bounds
+                    # Queue depth: walks between 5-15
+                    queue_delta = random.randint(-2, 2)
+                    current_queue = max(5, min(15, current_queue + queue_delta))
+                    
+                    # Active connections: walks between 200-280
+                    conn_delta = random.randint(-10, 10)
+                    current_connections = max(200, min(280, current_connections + conn_delta))
+                    
+                    # Response time: walks 120-180ms, occasional spikes
+                    if random.random() < 0.05:  # 5% chance of mini-spike
+                        current_response_time = random.randint(250, 400)
+                    else:
+                        time_delta = random.randint(-15, 15)
+                        current_response_time = max(120, min(180, current_response_time + time_delta))
+                    
+                    # Error rate: walks 0.05-0.25%
+                    error_delta = round(random.uniform(-0.05, 0.05), 2)
+                    current_error_rate = max(0.05, min(0.25, current_error_rate + error_delta))
+                    current_error_rate = round(current_error_rate, 2)
+                
+                health_data = {
+                    "queue_depth": current_queue,
+                    "active_connections": current_connections,
+                    "response_time_ms": current_response_time,
+                    "error_rate": current_error_rate,
+                    "timestamp": format_datetime(now)
+                }
+                
+                yield f"data: {json.dumps(health_data)}\n\n"
+                await asyncio.sleep(5)  # Send update every 5 seconds
+                
+        except asyncio.CancelledError:
+            pass
+    
+    return generate_support_events(), {
         "Content-Type": "text/event-stream",
         "Cache-Control": "no-cache",
         "X-Accel-Buffering": "no"
