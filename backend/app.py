@@ -31,6 +31,8 @@ from tasks import (Task, TaskCreate, TaskFilter, TaskService, TaskStats,
                    TaskUpdate)
 from ollama_service import (ChatRequest, ChatResponse, ModelListResponse,
                              OllamaService)
+from agents import (AgentRequest, AgentResponse, AgentService, AgentType)
+from task_overview_agent import TaskOverviewAgent
 
 # ============================================================================
 # APPLICATION SETUP
@@ -42,6 +44,7 @@ app = cors(app, allow_origin="*")
 # Service instances
 task_service = TaskService()
 ollama_service = OllamaService()
+agent_service = AgentService()
 
 
 # ============================================================================
@@ -193,6 +196,39 @@ async def op_list_ollama_models() -> ModelListResponse:
     return await ollama_service.list_models()
 
 
+@operation(
+    name="execute_agent",
+    description="Execute an AI agent with specified type and context",
+    http_method="POST",
+    http_path="/api/agents/execute"
+)
+async def op_execute_agent(request: AgentRequest) -> AgentResponse:
+    """
+    Execute an AI agent.
+
+    Supports various agent types for task analysis and insights.
+    Pydantic validates agent type and parameters automatically.
+
+    Returns agent response with result and execution metadata.
+    """
+    return await agent_service.execute_agent(request)
+
+
+@operation(
+    name="list_agent_types",
+    description="List all available agent types that can be executed",
+    http_method="GET",
+    http_path="/api/agents/types"
+)
+async def op_list_agent_types() -> list[str]:
+    """
+    List available agent types.
+
+    Returns list of agent type strings that can be used in execute_agent.
+    """
+    return agent_service.list_available_agents()
+
+
 # ============================================================================
 # REST API WRAPPERS
 # These handle HTTP concerns and call the operations
@@ -289,6 +325,30 @@ async def rest_list_ollama_models():
         return jsonify(models.model_dump()), 200
     except ValueError as e:
         return jsonify({"error": str(e)}), 503
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+@app.route("/api/agents/execute", methods=["POST"])
+async def rest_execute_agent():
+    """REST wrapper: execute an AI agent."""
+    try:
+        data = await request.get_json()
+        agent_request = AgentRequest(**data)
+        response = await op_execute_agent(agent_request)
+        return jsonify(response.model_dump()), 200
+    except ValidationError as e:
+        return jsonify({"error": str(e)}), 400
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+@app.route("/api/agents/types", methods=["GET"])
+async def rest_list_agent_types():
+    """REST wrapper: list available agent types."""
+    try:
+        agent_types = await op_list_agent_types()
+        return jsonify({"agent_types": agent_types}), 200
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
@@ -502,16 +562,21 @@ if __name__ == "__main__":
     # Initialize sample data
     num_tasks = task_service.initialize_sample_data()
 
+    # Register agents
+    agent_service.register(AgentType.TASK_OVERVIEW, TaskOverviewAgent())
+
     print("=" * 70)
     print("🚀 Unified Quart Server with Pydantic")
     print("=" * 70)
     print(f"📝 {num_tasks} sample tasks loaded")
+    print(f"🤖 {len(agent_service.list_available_agents())} AI agents registered")
     print()
     print("✨ Key Features:")
     print("   • Single process serving REST API + MCP JSON-RPC")
     print("   • Pydantic models for type safety and validation")
     print("   • Automatic schema generation from type hints")
     print("   • Zero duplication between interfaces")
+    print("   • AI agents for intelligent task analysis")
     print()
     print("🌐 Available Interfaces:")
     print("   REST API:     http://localhost:5001/api/*")

@@ -127,3 +127,27 @@ export async function ollamaChat(chatRequest) {
 export async function listOllamaModels() {
   return fetchJSON(`${API_BASE_URL}/ollama/models`)
 }
+
+// ============================================================================
+// Agent APIs
+// ============================================================================
+
+/**
+ * Execute an AI agent with specified type and context
+ * @param {Object} agentRequest - Request with agent_type, context_data, options
+ * @returns {Promise<Object>} Response with result and metadata
+ */
+export async function executeAgent(agentRequest) {
+  return fetchJSON(`${API_BASE_URL}/agents/execute`, {
+    method: 'POST',
+    body: JSON.stringify(agentRequest),
+  })
+}
+
+/**
+ * List all available agent types
+ * @returns {Promise<Object>} Response with agent_types array
+ */
+export async function listAgentTypes() {
+  return fetchJSON(`${API_BASE_URL}/agents/types`)
+}
