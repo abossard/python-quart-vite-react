@@ -29,6 +29,8 @@ from quart_cors import cors
 # Import Pydantic models and service
 from tasks import (Task, TaskCreate, TaskFilter, TaskService, TaskStats,
                    TaskUpdate)
+from ollama_service import (ChatRequest, ChatResponse, ModelListResponse,
+                             OllamaService)
 
 # ============================================================================
 # APPLICATION SETUP
@@ -37,8 +39,9 @@ from tasks import (Task, TaskCreate, TaskFilter, TaskService, TaskStats,
 app = Quart(__name__)
 app = cors(app, allow_origin="*")
 
-# Service instance
+# Service instances
 task_service = TaskService()
+ollama_service = OllamaService()
 
 
 # ============================================================================
@@ -157,6 +160,39 @@ async def op_get_task_stats() -> TaskStats:
     return task_service.get_stats()
 
 
+@operation(
+    name="ollama_chat",
+    description="Generate a chat completion using local Ollama LLM",
+    http_method="POST",
+    http_path="/api/ollama/chat"
+)
+async def op_ollama_chat(request: ChatRequest) -> ChatResponse:
+    """
+    Chat with Ollama LLM.
+
+    Supports conversation history and configurable temperature.
+    Pydantic automatically validates message format and parameters.
+
+    Returns the generated response with metadata.
+    """
+    return await ollama_service.chat(request)
+
+
+@operation(
+    name="list_ollama_models",
+    description="List all available Ollama models on the local system",
+    http_method="GET",
+    http_path="/api/ollama/models"
+)
+async def op_list_ollama_models() -> ModelListResponse:
+    """
+    List available Ollama models.
+
+    Returns list of models with name, size, and modification time.
+    """
+    return await ollama_service.list_models()
+
+
 # ============================================================================
 # REST API WRAPPERS
 # These handle HTTP concerns and call the operations
@@ -227,6 +263,34 @@ async def rest_get_stats():
     """REST wrapper: get task statistics."""
     stats = await op_get_task_stats()
     return jsonify(stats.model_dump())
+
+
+@app.route("/api/ollama/chat", methods=["POST"])
+async def rest_ollama_chat():
+    """REST wrapper: chat with Ollama LLM."""
+    try:
+        data = await request.get_json()
+        chat_request = ChatRequest(**data)
+        response = await op_ollama_chat(chat_request)
+        return jsonify(response.model_dump()), 200
+    except ValidationError as e:
+        return jsonify({"error": str(e)}), 400
+    except ValueError as e:
+        return jsonify({"error": str(e)}), 503
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+@app.route("/api/ollama/models", methods=["GET"])
+async def rest_list_ollama_models():
+    """REST wrapper: list available Ollama models."""
+    try:
+        models = await op_list_ollama_models()
+        return jsonify(models.model_dump()), 200
+    except ValueError as e:
+        return jsonify({"error": str(e)}), 503
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
 
 
 # ============================================================================

@@ -19,11 +19,13 @@ import {
   Home24Regular,
   Info24Regular,
   TaskListLtr24Regular,
+  Bot24Regular,
 } from '@fluentui/react-icons'
 import { Navigate, Route, Routes, useLocation, useNavigate } from 'react-router-dom'
 import About from './components/About'
 import Dashboard from './features/dashboard/Dashboard'
 import TaskList from './features/tasks/TaskList'
+import OllamaChat from './features/ollama/OllamaChat'
 
 const useStyles = makeStyles({
   app: {
@@ -62,6 +64,7 @@ export default function App() {
   const tabs = [
     { value: 'dashboard', label: 'Dashboard', icon: <Home24Regular />, path: '/dashboard', testId: 'tab-dashboard' },
     { value: 'tasks', label: 'Tasks', icon: <TaskListLtr24Regular />, path: '/tasks', testId: 'tab-tasks' },
+    { value: 'ollama', label: 'AI Chat', icon: <Bot24Regular />, path: '/ollama', testId: 'tab-ollama' },
     { value: 'about', label: 'About', icon: <Info24Regular />, path: '/about', testId: 'tab-about' },
   ]
   const activeTab = tabs.find((tab) => location.pathname.startsWith(tab.path))?.value ?? 'dashboard'
@@ -99,6 +102,7 @@ export default function App() {
           <Route path="/" element={<Navigate to="/dashboard" replace />} />
           <Route path="/dashboard" element={<Dashboard />} />
           <Route path="/tasks" element={<TaskList />} />
+          <Route path="/ollama" element={<OllamaChat />} />
           <Route path="/about" element={<About />} />
           <Route path="*" element={<Navigate to="/dashboard" replace />} />
         </Routes>

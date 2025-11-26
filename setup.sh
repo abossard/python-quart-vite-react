@@ -73,6 +73,33 @@ npm install
 npx playwright install chromium
 
 echo ""
+echo "🤖 Checking Ollama installation..."
+if command -v ollama &> /dev/null; then
+    OLLAMA_VERSION=$(ollama --version 2>&1 | head -n 1)
+    echo "✅ Found $OLLAMA_VERSION"
+    
+    echo "Pulling llama3.2:1b model (this may take a few minutes)..."
+    if ollama pull llama3.2:1b; then
+        echo "✅ Model llama3.2:1b ready"
+    else
+        echo "⚠️  Failed to pull model - you can do this manually later:"
+        echo "   ollama pull llama3.2:1b"
+    fi
+else
+    echo "⚠️  Ollama is not installed"
+    echo ""
+    echo "Ollama provides local LLM inference for AI features."
+    echo "To install Ollama:"
+    echo ""
+    echo "  curl -fsSL https://ollama.com/install.sh | sh"
+    echo ""
+    echo "After installation, pull the model:"
+    echo "  ollama pull llama3.2:1b"
+    echo ""
+    echo "The app will work without Ollama, but LLM features will be unavailable."
+fi
+
+echo ""
 echo "✅ Setup complete!"
 echo ""
 echo "🚀 Next steps:"
@@ -83,6 +110,9 @@ echo ""
 echo "Option 2 - Run manually in separate terminals:"
 echo "  Terminal 1: source .venv/bin/activate && cd backend && python app.py"
 echo "  Terminal 2: cd frontend && npm run dev"
+if command -v ollama &> /dev/null; then
+    echo "  Terminal 3: ollama serve  (if not already running)"
+fi
 echo ""
 echo "Option 3 - Use VSCode:"
 echo "  Open in VSCode, press F5, and select 'Full Stack: Backend + Frontend'"
