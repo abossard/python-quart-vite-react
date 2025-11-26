@@ -68,20 +68,20 @@
 
 ---
 
-### Step 5: Frontend Core Components ⬜
+### Step 5: Frontend Core Components ✅
 **Goal:** Build reusable dashboard UI components
 
 **Tasks:**
-- [ ] Create `frontend/src/features/support-dashboard/` folder
-- [ ] Build `MetricCard.jsx` with props (title, value, icon, trend, color, gradient)
-- [ ] Build `TicketTrendsChart.jsx` using Recharts LineChart
-- [ ] Build `CategoryPieChart.jsx` using Recharts PieChart
-- [ ] Build `SeverityBarChart.jsx` using Recharts BarChart
-- [ ] Build `TechnicianTable.jsx` using FluentUI DataGrid
-- [ ] Build `SystemHealthMonitor.jsx` with live SSE indicators
-- [ ] Test each component in isolation with mock props
+- [x] Create `frontend/src/features/support-dashboard/` folder
+- [x] Build `MetricCard.jsx` with props (title, value, icon, trend, color, gradient)
+- [x] Build `TicketTrendsChart.jsx` using Recharts LineChart
+- [x] Build `CategoryPieChart.jsx` using Recharts PieChart
+- [x] Build `SeverityBarChart.jsx` using Recharts BarChart
+- [x] Build `TechnicianTable.jsx` using FluentUI DataGrid
+- [x] Build `SystemHealthMonitor.jsx` with live SSE indicators
+- [x] Test each component in isolation with mock props
 
-**Success Criteria:** Each component renders correctly with sample data passed as props
+**Success Criteria:** Each component renders correctly with sample data passed as props ✅
 
 ---
 
