@@ -22,6 +22,7 @@ import {
   TaskListLtr24Regular,
   DocumentBulletList24Regular,
   Bot24Regular,
+  Clock24Regular,
 } from '@fluentui/react-icons'
 import { Navigate, Route, Routes, useLocation, useNavigate } from 'react-router-dom'
 import About from './components/About'
@@ -29,6 +30,7 @@ import Dashboard from './features/dashboard/Dashboard'
 import TaskList from './features/tasks/TaskList'
 import TicketOverview from './features/overview/TicketOverview'
 import AIChat from './features/ai-chat/AIChat'
+import TimeTrackingOverview from './features/time-tracking/TimeTrackingOverview'
 import { getRandomTheme, applyTheme } from './utils/colorThemes'
 
 const useStyles = makeStyles({
@@ -82,6 +84,7 @@ export default function App() {
     { value: 'dashboard', label: 'Dashboard', icon: <Home24Regular />, path: '/dashboard', testId: 'tab-dashboard' },
     { value: 'tasks', label: 'Tasks', icon: <TaskListLtr24Regular />, path: '/tasks', testId: 'tab-tasks' },
     { value: 'overview', label: 'Übersicht', icon: <DocumentBulletList24Regular />, path: '/overview', testId: 'tab-overview' },
+    { value: 'time-tracking', label: 'Zeiterfassung', icon: <Clock24Regular />, path: '/time-tracking', testId: 'tab-time-tracking' },
     { value: 'ai-chat', label: 'AI Chat', icon: <Bot24Regular />, path: '/ai-chat', testId: 'tab-ai-chat' },
     { value: 'about', label: 'About', icon: <Info24Regular />, path: '/about', testId: 'tab-about' },
   ]
@@ -122,6 +125,7 @@ export default function App() {
           <Route path="/dashboard" element={<Dashboard />} />
           <Route path="/tasks" element={<TaskList />} />
           <Route path="/overview" element={<TicketOverview />} />
+          <Route path="/time-tracking" element={<TimeTrackingOverview />} />
           <Route path="/ai-chat" element={<AIChat />} />
           <Route path="/about" element={<About />} />
           <Route path="*" element={<Navigate to="/dashboard" replace />} />

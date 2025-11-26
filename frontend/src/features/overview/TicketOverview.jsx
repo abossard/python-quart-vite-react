@@ -162,6 +162,14 @@ export default function TicketOverview() {
     return null
   }
 
+  // Calculate total time spent across all tasks
+  const allTasks = [
+    ...overview.tasks_by_status.completed,
+    ...overview.tasks_by_status.in_progress,
+    ...overview.tasks_by_status.pending
+  ]
+  const totalTimeSpent = allTasks.reduce((sum, task) => sum + (task.time_spent || 0), 0)
+
   return (
     <div className={styles.container}>
       <Card>
@@ -198,6 +206,10 @@ export default function TicketOverview() {
         <Card className={styles.statCard}>
           <div className={styles.statValue}>{overview.completion_rate}%</div>
           <div className={styles.statLabel}>Fortschritt</div>
+        </Card>
+        <Card className={styles.statCard}>
+          <div className={styles.statValue}>{formatTime(totalTimeSpent)}</div>
+          <div className={styles.statLabel}>Zeit verbucht</div>
         </Card>
       </div>
 
