@@ -50,21 +50,21 @@
 
 ---
 
-### Step 4: Frontend API Service Layer ⬜
+### Step 4: Frontend API Service Layer ✅
 **Goal:** Connect frontend to backend support APIs
 
 **Tasks:**
-- [ ] Install Recharts: `cd frontend && npm install recharts`
-- [ ] Extend `frontend/src/services/api.js` with `getSupportStats()`
-- [ ] Add `getTicketTrends(period)` function
-- [ ] Add `getCategoryBreakdown()` function
-- [ ] Add `getSeverityMetrics()` function
-- [ ] Add `getTechnicianPerformance()` function
-- [ ] Add `getSystemHealth()` function
-- [ ] Add `connectToSupportStream(onUpdate, onError)` SSE handler
-- [ ] Test API calls in browser console
+- [x] Install Recharts: `cd frontend && npm install recharts`
+- [x] Extend `frontend/src/services/api.js` with `getSupportStats()`
+- [x] Add `getTicketTrends(period)` function
+- [x] Add `getCategoryBreakdown()` function
+- [x] Add `getSeverityMetrics()` function
+- [x] Add `getTechnicianPerformance()` function
+- [x] Add `getSystemHealth()` function
+- [x] Add `connectToSupportStream(onUpdate, onError)` SSE handler
+- [x] Test API calls in browser console
 
-**Success Criteria:** Can fetch support data from browser: `api.getSupportStats().then(console.log)`
+**Success Criteria:** Can fetch support data from browser: `api.getSupportStats().then(console.log)` ✅
 
 ---
 
