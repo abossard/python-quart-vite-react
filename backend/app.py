@@ -29,6 +29,10 @@ from quart_cors import cors
 # Import Pydantic models and service
 from tasks import (Task, TaskCreate, TaskFilter, TaskService, TaskStats,
                    TaskUpdate)
+from support_stats import (
+    SupportService, TicketStats, CategoryBreakdown, SeverityMetrics,
+    TechnicianPerformance, TimeSeriesData, SystemHealth
+)
 
 # ============================================================================
 # APPLICATION SETUP
@@ -37,8 +41,9 @@ from tasks import (Task, TaskCreate, TaskFilter, TaskService, TaskStats,
 app = Quart(__name__)
 app = cors(app, allow_origin="*")
 
-# Service instance
+# Service instances
 task_service = TaskService()
+support_service = SupportService()
 
 
 # ============================================================================
@@ -158,6 +163,134 @@ async def op_get_task_stats() -> TaskStats:
 
 
 # ============================================================================
+# IT SUPPORT DASHBOARD OPERATIONS
+# ============================================================================
+
+@operation(
+    name="get_support_stats",
+    description="Get comprehensive IT support statistics with random mock data",
+    http_method="GET",
+    http_path="/api/support/stats"
+)
+async def op_get_support_stats() -> TicketStats:
+    """
+    Get IT support ticket statistics.
+    
+    Returns randomly generated realistic metrics including:
+    - Total tickets (24h, 7d, 30d)
+    - Open and in-progress counts
+    - Average resolution and response times
+    - Customer satisfaction scores
+    - System uptime
+    """
+    return support_service.get_ticket_stats()
+
+
+@operation(
+    name="get_ticket_trends",
+    description="Get ticket trends over time with specified period",
+    http_method="GET",
+    http_path="/api/support/trends"
+)
+async def op_get_ticket_trends(period: str = "24h") -> TimeSeriesData:
+    """
+    Get time-series data for ticket trends.
+    
+    Args:
+        period: Time period - "24h", "7d", or "30d"
+    
+    Returns randomly generated time-series with realistic patterns:
+    - Peak hours during business hours
+    - Lower activity at night and weekends
+    - Random variance and occasional spikes
+    """
+    # Validate period
+    if period not in ["24h", "7d", "30d"]:
+        period = "24h"
+    return support_service.get_time_series_data(period)
+
+
+@operation(
+    name="get_category_breakdown",
+    description="Get ticket breakdown by category",
+    http_method="GET",
+    http_path="/api/support/categories"
+)
+async def op_get_category_breakdown() -> CategoryBreakdown:
+    """
+    Get ticket category distribution.
+    
+    Returns randomly generated breakdown across:
+    - Hardware (~35%)
+    - Software (~30%)
+    - Network (~20%)
+    - Security (~10%)
+    - Other (~5%)
+    """
+    return support_service.get_category_breakdown()
+
+
+@operation(
+    name="get_severity_metrics",
+    description="Get ticket breakdown by severity level",
+    http_method="GET",
+    http_path="/api/support/severity"
+)
+async def op_get_severity_metrics() -> SeverityMetrics:
+    """
+    Get ticket severity distribution.
+    
+    Returns randomly generated breakdown across:
+    - Critical (2-4%)
+    - High (15-22%)
+    - Medium (45-52%)
+    - Low (28-35%)
+    """
+    return support_service.get_severity_metrics()
+
+
+@operation(
+    name="get_technician_performance",
+    description="Get performance metrics for all support technicians",
+    http_method="GET",
+    http_path="/api/support/technicians"
+)
+async def op_get_technician_performance() -> list[TechnicianPerformance]:
+    """
+    Get technician performance data.
+    
+    Returns randomly generated metrics for 8 technicians including:
+    - Tickets resolved in last 24h
+    - Average resolution time
+    - Customer rating
+    - Current status (online/away/offline)
+    """
+    return support_service.get_technician_performance()
+
+
+@operation(
+    name="get_system_health",
+    description="Get real-time system health metrics",
+    http_method="GET",
+    http_path="/api/support/health"
+)
+async def op_get_system_health() -> SystemHealth:
+    """
+    Get system health metrics.
+    
+    Returns randomly generated real-time metrics:
+    - System uptime percentage
+    - Average response time
+    - Active connections
+    - Queue depth
+    - Error rate
+    
+    Includes realistic spikes and variance to simulate live system.
+    """
+    return support_service.get_system_health()
+
+
+# ============================================================================
 # REST API WRAPPERS
 # These handle HTTP concerns and call the operations
 # ============================================================================
@@ -227,6 +360,53 @@ async def rest_get_stats():
     """REST wrapper: get task statistics."""
     stats = await op_get_task_stats()
     return jsonify(stats.model_dump())
+
+
+# ============================================================================
+# IT SUPPORT DASHBOARD REST WRAPPERS
+# ============================================================================
+
+@app.route("/api/support/stats", methods=["GET"])
+async def rest_get_support_stats():
+    """REST wrapper: get IT support statistics."""
+    stats = await op_get_support_stats()
+    return jsonify(stats.model_dump())
+
+
+@app.route("/api/support/trends", methods=["GET"])
+async def rest_get_ticket_trends():
+    """REST wrapper: get ticket trends."""
+    period = request.args.get("period", "24h")
+    trends = await op_get_ticket_trends(period)
+    return jsonify(trends.model_dump())
+
+
+@app.route("/api/support/categories", methods=["GET"])
+async def rest_get_category_breakdown():
+    """REST wrapper: get category breakdown."""
+    breakdown = await op_get_category_breakdown()
+    return jsonify(breakdown.model_dump())
+
+
+@app.route("/api/support/severity", methods=["GET"])
+async def rest_get_severity_metrics():
+    """REST wrapper: get severity metrics."""
+    metrics = await op_get_severity_metrics()
+    return jsonify(metrics.model_dump())
+
+
+@app.route("/api/support/technicians", methods=["GET"])
+async def rest_get_technician_performance():
+    """REST wrapper: get technician performance."""
+    techs = await op_get_technician_performance()
+    return jsonify([tech.model_dump() for tech in techs])
+
+
+@app.route("/api/support/health", methods=["GET"])
+async def rest_get_system_health():
+    """REST wrapper: get system health."""
+    health = await op_get_system_health()
+    return jsonify(health.model_dump())
 
 
 # ============================================================================

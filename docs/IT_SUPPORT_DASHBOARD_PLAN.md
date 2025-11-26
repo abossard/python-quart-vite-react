@@ -19,20 +19,20 @@
 
 ---
 
-### Step 2: Backend API Endpoints (REST + MCP) ⬜
+### Step 2: Backend API Endpoints (REST + MCP) ✅
 **Goal:** Expose support data through unified operations
 
 **Tasks:**
-- [ ] Add `@operation` for `get_support_stats` in `backend/app.py`
-- [ ] Add `@operation` for `get_ticket_trends` with period parameter
-- [ ] Add `@operation` for `get_category_breakdown`
-- [ ] Add `@operation` for `get_severity_metrics`
-- [ ] Add `@operation` for `get_technician_performance`
-- [ ] Add `@operation` for `get_system_health`
-- [ ] Create REST route wrappers for all operations
-- [ ] Test all endpoints with curl: `curl http://localhost:5001/api/support/stats`
+- [x] Add `@operation` for `get_support_stats` in `backend/app.py`
+- [x] Add `@operation` for `get_ticket_trends` with period parameter
+- [x] Add `@operation` for `get_category_breakdown`
+- [x] Add `@operation` for `get_severity_metrics`
+- [x] Add `@operation` for `get_technician_performance`
+- [x] Add `@operation` for `get_system_health`
+- [x] Create REST route wrappers for all operations
+- [x] Test all endpoints with curl: `curl http://localhost:5001/api/support/stats`
 
-**Success Criteria:** All 6 endpoints return valid JSON with random mock data; MCP tools/list shows new support operations
+**Success Criteria:** All 6 endpoints return valid JSON with random mock data; MCP tools/list shows new support operations ✅
 
 ---
 
