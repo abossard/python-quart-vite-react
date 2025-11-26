@@ -103,3 +103,27 @@ export async function deleteTask(taskId) {
     method: 'DELETE',
   })
 }
+
+// ============================================================================
+// Ollama LLM APIs
+// ============================================================================
+
+/**
+ * Send a chat message to Ollama and get a response
+ * @param {Object} chatRequest - Chat request with messages array, model, and temperature
+ * @returns {Promise<Object>} Response with message, model, and metadata
+ */
+export async function ollamaChat(chatRequest) {
+  return fetchJSON(`${API_BASE_URL}/ollama/chat`, {
+    method: 'POST',
+    body: JSON.stringify(chatRequest),
+  })
+}
+
+/**
+ * List all available Ollama models
+ * @returns {Promise<Object>} Response with models array
+ */
+export async function listOllamaModels() {
+  return fetchJSON(`${API_BASE_URL}/ollama/models`)
+}
