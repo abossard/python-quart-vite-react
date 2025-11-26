@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # Start Development Servers
-# This script starts both the backend and frontend servers
+# This script starts backend, frontend, and Ollama servers
 
 set -e
 
@@ -33,10 +33,49 @@ cleanup() {
     echo ""
     echo "🛑 Stopping servers..."
     kill $BACKEND_PID $FRONTEND_PID 2>/dev/null
+    if [ -n "$OLLAMA_PID" ]; then
+        kill $OLLAMA_PID 2>/dev/null
+    fi
     exit
 }
 
 trap cleanup SIGINT SIGTERM
+
+# Check if Ollama is installed
+if command -v ollama &> /dev/null; then
+    echo "🤖 Checking Ollama status..."
+    
+    # Check if Ollama is already running
+    if curl -s http://localhost:11434/api/tags > /dev/null 2>&1; then
+        echo "✅ Ollama is already running"
+        OLLAMA_PID=""
+    else
+        echo "🤖 Starting Ollama server..."
+        ollama serve > /dev/null 2>&1 &
+        OLLAMA_PID=$!
+        
+        # Wait for Ollama to start
+        echo "   Waiting for Ollama to be ready..."
+        for i in {1..10}; do
+            if curl -s http://localhost:11434/api/tags > /dev/null 2>&1; then
+                echo "✅ Ollama is ready"
+                break
+            fi
+            if [ $i -eq 10 ]; then
+                echo "⚠️  Ollama failed to start, continuing without it"
+                OLLAMA_PID=""
+            fi
+            sleep 1
+        done
+    fi
+else
+    echo "⚠️  Ollama not found - LLM features will not be available"
+    echo "   Install with: curl -fsSL https://ollama.com/install.sh | sh"
+    echo "   Then run: npm run ollama:pull"
+    OLLAMA_PID=""
+fi
+
+echo ""
 
 # Start backend
 echo "🐍 Starting Python Quart backend..."
@@ -60,8 +99,11 @@ cd ..
 echo ""
 echo "✨ Servers are starting!"
 echo ""
-echo "📍 Backend:  http://localhost:5000"
+echo "📍 Backend:  http://localhost:5001"
 echo "📍 Frontend: http://localhost:3001"
+if [ -n "$OLLAMA_PID" ] || curl -s http://localhost:11434/api/tags > /dev/null 2>&1; then
+    echo "📍 Ollama:   http://localhost:11434"
+fi
 echo ""
 echo "Press Ctrl+C to stop all servers"
 echo ""
