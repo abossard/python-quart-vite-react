@@ -34,6 +34,8 @@ import {
   MenuItem,
   Spinner,
   ToggleButton,
+  Tab,
+  TabList,
 } from '@fluentui/react-components'
 import {
   Add24Regular,
@@ -42,9 +44,14 @@ import {
   Delete20Regular,
   Checkmark20Regular,
   Dismiss20Regular,
+  Board20Regular,
+  CalendarLtr20Regular,
+  List20Regular,
 } from '@fluentui/react-icons'
 import { getTasks, deleteTask, updateTask } from '../../services/api'
 import TaskDialog from './TaskDialog'
+import KanbanBoard from './KanbanBoard'
+import Timeline from './Timeline'
 
 const useStyles = makeStyles({
   container: {
@@ -58,6 +65,10 @@ const useStyles = makeStyles({
     display: 'flex',
     justifyContent: 'space-between',
     alignItems: 'center',
+    width: '100%',
+  },
+  headerLeft: {
+    flex: 1,
   },
   filterBar: {
     display: 'flex',
@@ -103,6 +114,7 @@ export default function TaskList() {
   const [filter, setFilter] = useState('all')
   const [dialogOpen, setDialogOpen] = useState(false)
   const [editingTask, setEditingTask] = useState(null)
+  const [activeTab, setActiveTab] = useState('list')
 
   // Load tasks
   const loadTasks = async (filterValue = filter) => {
@@ -157,6 +169,19 @@ export default function TaskList() {
     if (shouldRefresh) {
       loadTasks()
     }
+  }
+
+  const handleTaskUpdate = async (taskId, updates) => {
+    try {
+      await updateTask(taskId, updates)
+      await loadTasks()
+    } catch (err) {
+      setError(err.message)
+    }
+  }
+
+  const handleTaskClick = (task) => {
+    handleEdit(task)
   }
 
   // Calculate stats
@@ -259,7 +284,7 @@ export default function TaskList() {
         <CardHeader
           header={
             <div className={styles.header}>
-              <div>
+              <div className={styles.headerLeft}>
                 <Text size={500} weight="semibold">
                   Task Management
                 </Text>
@@ -279,29 +304,45 @@ export default function TaskList() {
           }
         />
 
-        <div className={styles.filterBar}>
-          <ToggleButton
-            checked={filter === 'all'}
-            onClick={() => setFilter('all')}
-            data-testid="filter-all"
-          >
-            All
-          </ToggleButton>
-          <ToggleButton
-            checked={filter === 'pending'}
-            onClick={() => setFilter('pending')}
-            data-testid="filter-pending"
-          >
-            Pending
-          </ToggleButton>
-          <ToggleButton
-            checked={filter === 'completed'}
-            onClick={() => setFilter('completed')}
-            data-testid="filter-completed"
-          >
-            Completed
-          </ToggleButton>
-        </div>
+        <TabList selectedValue={activeTab} onTabSelect={(_, data) => setActiveTab(data.value)}>
+          <Tab icon={<List20Regular />} value="list">
+            List View
+          </Tab>
+          <Tab icon={<Board20Regular />} value="kanban">
+            Kanban Board
+          </Tab>
+          <Tab icon={<CalendarLtr20Regular />} value="timeline">
+            Timeline
+          </Tab>
+        </TabList>
+
+        {activeTab === 'list' && (
+          <>
+            <div className={styles.filterBar}>
+              <ToggleButton
+                checked={filter === 'all'}
+                onClick={() => setFilter('all')}
+                data-testid="filter-all"
+              >
+                All
+              </ToggleButton>
+              <ToggleButton
+                checked={filter === 'pending'}
+                onClick={() => setFilter('pending')}
+                data-testid="filter-pending"
+              >
+                Pending
+              </ToggleButton>
+              <ToggleButton
+                checked={filter === 'completed'}
+                onClick={() => setFilter('completed')}
+                data-testid="filter-completed"
+              >
+                Completed
+              </ToggleButton>
+            </div>
+          </>
+        )}
 
         {loading ? (
           <div className={styles.emptyState}>
@@ -319,27 +360,48 @@ export default function TaskList() {
             </Text>
           </div>
         ) : (
-          <DataGrid
-            items={tasks}
-            columns={columns}
-            sortable
-            getRowId={(item) => item.id}
-          >
-            <DataGridHeader>
-              <DataGridRow>
-                {({ renderHeaderCell }) => (
-                  <DataGridHeaderCell>{renderHeaderCell()}</DataGridHeaderCell>
-                )}
-              </DataGridRow>
-            </DataGridHeader>
-            <DataGridBody>
-              {({ item, rowId }) => (
-                <DataGridRow key={rowId}>
-                  {({ renderCell }) => <DataGridCell>{renderCell(item)}</DataGridCell>}
-                </DataGridRow>
-              )}
-            </DataGridBody>
-          </DataGrid>
+          <>
+            {activeTab === 'list' && (
+              <DataGrid
+                items={tasks}
+                columns={columns}
+                sortable
+                getRowId={(item) => item.id}
+              >
+                <DataGridHeader>
+                  <DataGridRow>
+                    {({ renderHeaderCell }) => (
+                      <DataGridHeaderCell>{renderHeaderCell()}</DataGridHeaderCell>
+                    )}
+                  </DataGridRow>
+                </DataGridHeader>
+                <DataGridBody>
+                  {({ item, rowId }) => (
+                    <DataGridRow key={rowId}>
+                      {({ renderCell }) => <DataGridCell>{renderCell(item)}</DataGridCell>}
+                    </DataGridRow>
+                  )}
+                </DataGridBody>
+              </DataGrid>
+            )}
+
+            {activeTab === 'kanban' && (
+              <KanbanBoard
+                tasks={tasks}
+                onTaskUpdate={handleTaskUpdate}
+                onTaskClick={handleTaskClick}
+                onTaskEdit={handleEdit}
+                onTaskDelete={handleDelete}
+              />
+            )}
+
+            {activeTab === 'timeline' && (
+              <Timeline
+                tasks={tasks}
+                onTaskClick={handleTaskClick}
+              />
+            )}
+          </>
         )}
       </Card>
 

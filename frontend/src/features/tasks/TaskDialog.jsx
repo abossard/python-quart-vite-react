@@ -18,6 +18,8 @@ import {
   Field,
   Input,
   Textarea,
+  Dropdown,
+  Option,
   makeStyles,
   tokens,
 } from '@fluentui/react-components'
@@ -37,6 +39,9 @@ export default function TaskDialog({ open, task, onClose }) {
   // Form state
   const [title, setTitle] = useState('')
   const [description, setDescription] = useState('')
+  const [status, setStatus] = useState('todo')
+  const [startDate, setStartDate] = useState('')
+  const [endDate, setEndDate] = useState('')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState(null)
 
@@ -45,9 +50,15 @@ export default function TaskDialog({ open, task, onClose }) {
     if (task) {
       setTitle(task.title || '')
       setDescription(task.description || '')
+      setStatus(task.status || 'todo')
+      setStartDate(task.start_date ? new Date(task.start_date).toISOString().split('T')[0] : '')
+      setEndDate(task.end_date ? new Date(task.end_date).toISOString().split('T')[0] : '')
     } else {
       setTitle('')
       setDescription('')
+      setStatus('todo')
+      setStartDate('')
+      setEndDate('')
     }
     setError(null)
   }, [task, open])
@@ -73,6 +84,9 @@ export default function TaskDialog({ open, task, onClose }) {
       const taskData = {
         title: title.trim(),
         description: description.trim(),
+        status: status,
+        start_date: startDate ? new Date(startDate).toISOString() : null,
+        end_date: endDate ? new Date(endDate).toISOString() : null,
       }
 
       if (task) {
@@ -124,6 +138,37 @@ export default function TaskDialog({ open, task, onClose }) {
                   placeholder="Enter task description..."
                   rows={4}
                   data-testid="task-description-input"
+                />
+              </Field>
+
+              <Field label="Status">
+                <Dropdown
+                  value={status === 'todo' ? 'To Do' : status === 'in_progress' ? 'In Progress' : 'Done'}
+                  selectedOptions={[status]}
+                  onOptionSelect={(_, data) => setStatus(data.optionValue)}
+                  data-testid="task-status-dropdown"
+                >
+                  <Option value="todo">To Do</Option>
+                  <Option value="in_progress">In Progress</Option>
+                  <Option value="done">Done</Option>
+                </Dropdown>
+              </Field>
+
+              <Field label="Start Date" hint="When does this task start?">
+                <Input
+                  type="date"
+                  value={startDate}
+                  onChange={(e) => setStartDate(e.target.value)}
+                  data-testid="task-start-date-input"
+                />
+              </Field>
+
+              <Field label="End Date" hint="When does this task end?">
+                <Input
+                  type="date"
+                  value={endDate}
+                  onChange={(e) => setEndDate(e.target.value)}
+                  data-testid="task-end-date-input"
                 />
               </Field>
             </DialogContent>

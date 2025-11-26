@@ -24,6 +24,13 @@ import uuid
 # DATA MODELS - Pydantic for validation and schema generation
 # ============================================================================
 
+class TaskStatus(str, Enum):
+    """Task status for Kanban board."""
+    TODO = "todo"
+    IN_PROGRESS = "in_progress"
+    DONE = "done"
+
+
 class Task(BaseModel):
     """
     Complete task representation.
@@ -38,6 +45,9 @@ class Task(BaseModel):
     title: str = Field(..., min_length=1, max_length=200, description="Task title")
     description: str = Field(default="", max_length=1000, description="Task description")
     completed: bool = Field(default=False, description="Completion status")
+    status: TaskStatus = Field(default=TaskStatus.TODO, description="Task status for Kanban board")
+    start_date: Optional[datetime] = Field(default=None, description="Task start date")
+    end_date: Optional[datetime] = Field(default=None, description="Task end date")
     created_at: datetime = Field(default_factory=datetime.now, description="Creation timestamp")
 
     model_config = {
@@ -69,6 +79,9 @@ class TaskCreate(BaseModel):
     """
     title: str = Field(..., min_length=1, max_length=200, description="Task title")
     description: str = Field(default="", max_length=1000, description="Optional task description")
+    status: TaskStatus = Field(default=TaskStatus.TODO, description="Task status for Kanban board")
+    start_date: Optional[datetime] = Field(default=None, description="Task start date")
+    end_date: Optional[datetime] = Field(default=None, description="Task end date")
 
     @field_validator('title')
     @classmethod
@@ -92,6 +105,9 @@ class TaskUpdate(BaseModel):
     title: Optional[str] = Field(None, min_length=1, max_length=200, description="New task title")
     description: Optional[str] = Field(None, max_length=1000, description="New task description")
     completed: Optional[bool] = Field(None, description="New completion status")
+    status: Optional[TaskStatus] = Field(None, description="New task status")
+    start_date: Optional[datetime] = Field(None, description="New task start date")
+    end_date: Optional[datetime] = Field(None, description="New task end date")
 
     @field_validator('title')
     @classmethod
@@ -260,19 +276,120 @@ class TaskService:
         # Clear existing data
         _tasks_db.clear()
 
-        # Create sample tasks
+        # Create sample tasks with varied statuses and dates
+        from datetime import timedelta
+        now = datetime.now()
+        
         samples = [
+            # In Progress Tasks
             TaskCreate(
-                title="Learn Quart",
-                description="Explore the Quart web framework"
+                title="Implement User Authentication",
+                description="Set up JWT-based authentication with refresh tokens and secure password hashing",
+                status=TaskStatus.IN_PROGRESS,
+                start_date=now - timedelta(days=3),
+                end_date=now + timedelta(days=2)
             ),
             TaskCreate(
-                title="Build React UI",
-                description="Create a modern UI with FluentUI"
+                title="Design Database Schema",
+                description="Create normalized database schema for user management, tasks, and projects",
+                status=TaskStatus.IN_PROGRESS,
+                start_date=now - timedelta(days=5),
+                end_date=now + timedelta(days=1)
             ),
             TaskCreate(
-                title="Write tests",
-                description="Add Playwright E2E tests"
+                title="API Documentation",
+                description="Write comprehensive API documentation with OpenAPI/Swagger specifications",
+                status=TaskStatus.IN_PROGRESS,
+                start_date=now - timedelta(days=1),
+                end_date=now + timedelta(days=4)
+            ),
+            
+            # To Do Tasks
+            TaskCreate(
+                title="Implement File Upload",
+                description="Add support for file uploads with validation, storage, and security checks",
+                status=TaskStatus.TODO,
+                start_date=now + timedelta(days=2),
+                end_date=now + timedelta(days=8)
+            ),
+            TaskCreate(
+                title="Create Dashboard Analytics",
+                description="Build interactive dashboard with charts showing task statistics and team performance",
+                status=TaskStatus.TODO,
+                start_date=now + timedelta(days=5),
+                end_date=now + timedelta(days=12)
+            ),
+            TaskCreate(
+                title="Setup CI/CD Pipeline",
+                description="Configure GitHub Actions for automated testing, linting, and deployment",
+                status=TaskStatus.TODO,
+                start_date=now + timedelta(days=7),
+                end_date=now + timedelta(days=14)
+            ),
+            TaskCreate(
+                title="Implement Real-time Notifications",
+                description="Add WebSocket support for real-time notifications and updates",
+                status=TaskStatus.TODO,
+                start_date=now + timedelta(days=10),
+                end_date=now + timedelta(days=17)
+            ),
+            TaskCreate(
+                title="Mobile Responsive Design",
+                description="Optimize UI for mobile devices and tablets with responsive layouts",
+                status=TaskStatus.TODO,
+                start_date=now + timedelta(days=3),
+                end_date=now + timedelta(days=9)
+            ),
+            TaskCreate(
+                title="Performance Optimization",
+                description="Improve application performance with code splitting, lazy loading, and caching",
+                status=TaskStatus.TODO,
+                start_date=now + timedelta(days=15),
+                end_date=now + timedelta(days=22)
+            ),
+            TaskCreate(
+                title="Add Search Functionality",
+                description="Implement full-text search with filters and advanced query options",
+                status=TaskStatus.TODO,
+                start_date=now + timedelta(days=8),
+                end_date=now + timedelta(days=13)
+            ),
+            
+            # Done Tasks
+            TaskCreate(
+                title="Project Setup",
+                description="Initialize project structure with Quart backend and React frontend",
+                status=TaskStatus.DONE,
+                start_date=now - timedelta(days=20),
+                end_date=now - timedelta(days=15)
+            ),
+            TaskCreate(
+                title="Setup Development Environment",
+                description="Configure VS Code, install dependencies, and setup dev tools",
+                status=TaskStatus.DONE,
+                start_date=now - timedelta(days=19),
+                end_date=now - timedelta(days=16)
+            ),
+            TaskCreate(
+                title="Create Task Model",
+                description="Define Pydantic models for tasks with validation and schema generation",
+                status=TaskStatus.DONE,
+                start_date=now - timedelta(days=14),
+                end_date=now - timedelta(days=10)
+            ),
+            TaskCreate(
+                title="Implement CRUD Operations",
+                description="Build REST API endpoints for creating, reading, updating, and deleting tasks",
+                status=TaskStatus.DONE,
+                start_date=now - timedelta(days=12),
+                end_date=now - timedelta(days=8)
+            ),
+            TaskCreate(
+                title="Setup FluentUI Components",
+                description="Integrate FluentUI v9 components and establish design system",
+                status=TaskStatus.DONE,
+                start_date=now - timedelta(days=10),
+                end_date=now - timedelta(days=6)
             )
         ]
 
@@ -296,6 +413,7 @@ __all__ = [
     'TaskUpdate',
     'TaskFilter',
     'TaskStats',
+    'TaskStatus',
     'TaskError',
     'TaskService',
     'service'
