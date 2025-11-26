@@ -22,7 +22,7 @@ import {
 } from '@fluentui/react-icons'
 import { Navigate, Route, Routes, useLocation, useNavigate } from 'react-router-dom'
 import About from './components/About'
-import Dashboard from './features/dashboard/Dashboard'
+import SupportDashboard from './features/support-dashboard/SupportDashboard'
 import TaskList from './features/tasks/TaskList'
 
 const useStyles = makeStyles({
@@ -60,7 +60,7 @@ export default function App() {
   const location = useLocation()
   const navigate = useNavigate()
   const tabs = [
-    { value: 'dashboard', label: 'Dashboard', icon: <Home24Regular />, path: '/dashboard', testId: 'tab-dashboard' },
+    { value: 'dashboard', label: 'IT Support', icon: <Home24Regular />, path: '/dashboard', testId: 'tab-dashboard' },
     { value: 'tasks', label: 'Tasks', icon: <TaskListLtr24Regular />, path: '/tasks', testId: 'tab-tasks' },
     { value: 'about', label: 'About', icon: <Info24Regular />, path: '/about', testId: 'tab-about' },
   ]
@@ -97,7 +97,7 @@ export default function App() {
       <main className={styles.content}>
         <Routes>
           <Route path="/" element={<Navigate to="/dashboard" replace />} />
-          <Route path="/dashboard" element={<Dashboard />} />
+          <Route path="/dashboard" element={<SupportDashboard />} />
           <Route path="/tasks" element={<TaskList />} />
           <Route path="/about" element={<About />} />
           <Route path="*" element={<Navigate to="/dashboard" replace />} />
