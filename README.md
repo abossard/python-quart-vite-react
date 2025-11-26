@@ -84,7 +84,13 @@ docker run --rm -p 5001:5001 quart-react-demo
 - Hot reloading is not part of the container flow—use the regular dev servers for iterative work and Docker for demos or deployment.
 
 ## Using the app
-- **Dashboard tab:** Streams `{"time","date","timestamp"}` via EventSource; connection errors show inline.
+- **IT Support Dashboard tab:** Comprehensive support metrics dashboard featuring:
+  - Real-time metrics cards showing total tickets, open tickets, avg resolution time, and satisfaction scores
+  - Interactive charts: ticket trends (line chart), category breakdown (pie chart), severity distribution (bar chart)
+  - Live system health monitor with SSE updates every 5 seconds
+  - Technician performance table with sortable columns
+  - Time range selector (24h/7d/30d) that dynamically updates all dashboard components
+  - All data is randomly generated mock data for demonstration purposes
 - **Tasks tab:** Uses FluentUI `DataGrid` + dialogs; `frontend/src/features/tasks/TaskList.jsx` keeps calculations (`getTaskStats`) separate from actions (API calls).
 - **About tab:** Summarizes tech choices and linkable resources.
 

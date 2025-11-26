@@ -214,54 +214,62 @@ export default function SupportDashboard() {
 
       <div className={styles.dashboard}>
         {/* Metric Cards Row */}
-        <div className={styles.metricGrid}>
-          <MetricCard
-            title="Total Tickets"
-            value={stats?.[`total_${timeRange}`] || 0}
-            subtitle={`In ${timeRange === '24h' ? '24 hours' : timeRange === '7d' ? '7 days' : '30 days'}`}
-            icon={DocumentBulletListClock24Regular}
-            color="info"
-            gradient
-            loading={loading}
-          />
-          <MetricCard
-            title="Open Tickets"
-            value={stats?.open || 0}
-            subtitle={`${stats?.in_progress || 0} in progress`}
-            icon={ClipboardTaskListLtr24Regular}
-            color="warning"
-            gradient
-            loading={loading}
-          />
-          <MetricCard
-            title="Avg Resolution Time"
-            value={stats ? formatTime(stats.avg_resolution_time_minutes) : '—'}
-            subtitle={`First response: ${stats ? formatTime(stats.avg_first_response_minutes) : '—'}`}
-            icon={Timer24Regular}
-            color="primary"
-            gradient
-            loading={loading}
-          />
-          <MetricCard
-            title="Satisfaction Score"
-            value={stats ? stats.satisfaction_score.toFixed(1) : '—'}
-            subtitle={`Uptime: ${stats ? stats.uptime_percent.toFixed(2) : '—'}%`}
-            icon={StarEmphasis24Regular}
-            color="success"
-            gradient
-            loading={loading}
-          />
+        <div className={styles.metricGrid} data-testid="metric-cards">
+          <div data-testid="total-tickets-card">
+            <MetricCard
+              title="Total Tickets"
+              value={stats?.[`total_${timeRange}`] || 0}
+              subtitle={`In ${timeRange === '24h' ? '24 hours' : timeRange === '7d' ? '7 days' : '30 days'}`}
+              icon={DocumentBulletListClock24Regular}
+              color="info"
+              gradient
+              loading={loading}
+            />
+          </div>
+          <div data-testid="open-tickets-card">
+            <MetricCard
+              title="Open Tickets"
+              value={stats?.open || 0}
+              subtitle={`${stats?.in_progress || 0} in progress`}
+              icon={ClipboardTaskListLtr24Regular}
+              color="warning"
+              gradient
+              loading={loading}
+            />
+          </div>
+          <div data-testid="avg-resolution-card">
+            <MetricCard
+              title="Avg Resolution Time"
+              value={stats ? formatTime(stats.avg_resolution_time_minutes) : '—'}
+              subtitle={`First response: ${stats ? formatTime(stats.avg_first_response_minutes) : '—'}`}
+              icon={Timer24Regular}
+              color="primary"
+              gradient
+              loading={loading}
+            />
+          </div>
+          <div data-testid="satisfaction-card">
+            <MetricCard
+              title="Satisfaction Score"
+              value={stats ? stats.satisfaction_score.toFixed(1) : '—'}
+              subtitle={`Uptime: ${stats ? stats.uptime_percent.toFixed(2) : '—'}%`}
+              icon={StarEmphasis24Regular}
+              color="success"
+              gradient
+              loading={loading}
+            />
+          </div>
         </div>
 
         {/* Charts Row 1: Trends and Categories */}
-        <div className={styles.chartHalf}>
+        <div className={styles.chartHalf} data-testid="trends-chart">
           <TicketTrendsChart
             data={trends}
             period={timeRange}
             loading={loading}
           />
         </div>
-        <div className={styles.chartHalf}>
+        <div className={styles.chartHalf} data-testid="category-chart">
           <CategoryPieChart
             data={categories}
             loading={loading}
@@ -269,18 +277,18 @@ export default function SupportDashboard() {
         </div>
 
         {/* Charts Row 2: Severity and System Health */}
-        <div className={styles.chartHalf}>
+        <div className={styles.chartHalf} data-testid="severity-chart">
           <SeverityBarChart
             data={severity}
             loading={loading}
           />
         </div>
-        <div className={styles.chartHalf}>
+        <div className={styles.chartHalf} data-testid="health-monitor">
           <SystemHealthMonitor />
         </div>
 
         {/* Full Width: Technician Performance Table */}
-        <div className={styles.chartFull}>
+        <div className={styles.chartFull} data-testid="technician-table">
           <TechnicianTable
             data={technicians}
             loading={loading}
