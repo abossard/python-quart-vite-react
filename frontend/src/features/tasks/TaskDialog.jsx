@@ -18,6 +18,8 @@ import {
   Field,
   Input,
   Textarea,
+  Dropdown,
+  Option,
   makeStyles,
   tokens,
 } from '@fluentui/react-components'
@@ -28,6 +30,8 @@ const useStyles = makeStyles({
     display: 'flex',
     flexDirection: 'column',
     gap: tokens.spacingVerticalM,
+    backgroundColor: 'var(--bg-color)',
+    color: 'var(--text-color)',
   },
 })
 
@@ -37,6 +41,7 @@ export default function TaskDialog({ open, task, onClose }) {
   // Form state
   const [title, setTitle] = useState('')
   const [description, setDescription] = useState('')
+  const [priority, setPriority] = useState('medium')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState(null)
 
@@ -45,9 +50,11 @@ export default function TaskDialog({ open, task, onClose }) {
     if (task) {
       setTitle(task.title || '')
       setDescription(task.description || '')
+      setPriority(task.priority || 'medium')
     } else {
       setTitle('')
       setDescription('')
+      setPriority('medium')
     }
     setError(null)
   }, [task, open])
@@ -73,6 +80,7 @@ export default function TaskDialog({ open, task, onClose }) {
       const taskData = {
         title: title.trim(),
         description: description.trim(),
+        priority: priority,
       }
 
       if (task) {
@@ -125,6 +133,20 @@ export default function TaskDialog({ open, task, onClose }) {
                   rows={4}
                   data-testid="task-description-input"
                 />
+              </Field>
+
+              <Field label="Priority" required>
+                <Dropdown
+                  value={priority}
+                  selectedOptions={[priority]}
+                  onOptionSelect={(_, data) => setPriority(data.optionValue)}
+                  data-testid="task-priority-dropdown"
+                >
+                  <Option value="low">Low</Option>
+                  <Option value="medium">Medium</Option>
+                  <Option value="high">High</Option>
+                  <Option value="urgent">Urgent</Option>
+                </Dropdown>
               </Field>
             </DialogContent>
             <DialogActions>

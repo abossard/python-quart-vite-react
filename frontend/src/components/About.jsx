@@ -22,11 +22,14 @@ import { Code24Regular } from '@fluentui/react-icons'
 const useStyles = makeStyles({
   container: {
     padding: tokens.spacingVerticalL,
+    backgroundColor: 'var(--bg-color)',
   },
   card: {
     maxWidth: '900px',
     margin: '0 auto',
     padding: tokens.spacingVerticalXL,
+    backgroundColor: 'var(--bg-color)',
+    color: 'var(--text-color)',
   },
   header: {
     display: 'flex',
@@ -47,11 +50,13 @@ const useStyles = makeStyles({
   },
   techItem: {
     padding: tokens.spacingVerticalS,
-    backgroundColor: tokens.colorNeutralBackground3,
+    backgroundColor: 'var(--bg-color)',
+    color: 'var(--text-color)',
     borderRadius: tokens.borderRadiusMedium,
   },
   codeBlock: {
-    backgroundColor: tokens.colorNeutralBackground5,
+    backgroundColor: 'var(--bg-color)',
+    color: 'var(--text-color)',
     padding: tokens.spacingVerticalM,
     borderRadius: tokens.borderRadiusMedium,
     fontFamily: 'monospace',

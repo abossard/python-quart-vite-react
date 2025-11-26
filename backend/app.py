@@ -28,7 +28,7 @@ from quart import Quart, jsonify, request, send_from_directory
 from quart_cors import cors
 # Import Pydantic models and service
 from tasks import (Task, TaskCreate, TaskFilter, TaskService, TaskStats,
-                   TaskUpdate)
+                   TaskUpdate, TaskOverview)
 
 # ============================================================================
 # APPLICATION SETUP
@@ -157,6 +157,25 @@ async def op_get_task_stats() -> TaskStats:
     return task_service.get_stats()
 
 
+@operation(
+    name="get_task_overview",
+    description="Get detailed task overview with priority breakdown and all data",
+    http_method="GET",
+    http_path="/api/tasks/overview"
+)
+async def op_get_task_overview() -> TaskOverview:
+    """
+    Get comprehensive task overview.
+
+    Returns detailed statistics including:
+    - Total, completed, pending counts
+    - Priority breakdown
+    - Completion rate
+    - All tasks grouped by status
+    """
+    return task_service.get_overview()
+
+
 # ============================================================================
 # REST API WRAPPERS
 # These handle HTTP concerns and call the operations
@@ -227,6 +246,13 @@ async def rest_get_stats():
     """REST wrapper: get task statistics."""
     stats = await op_get_task_stats()
     return jsonify(stats.model_dump())
+
+
+@app.route("/api/tasks/overview", methods=["GET"])
+async def rest_get_overview():
+    """REST wrapper: get detailed task overview."""
+    overview = await op_get_task_overview()
+    return jsonify(overview.model_dump())
 
 
 # ============================================================================

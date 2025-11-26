@@ -24,6 +24,13 @@ import uuid
 # DATA MODELS - Pydantic for validation and schema generation
 # ============================================================================
 
+class Priority(str, Enum):
+    """Task priority levels."""
+    LOW = "low"
+    MEDIUM = "medium"
+    HIGH = "high"
+    URGENT = "urgent"
+
 class Task(BaseModel):
     """
     Complete task representation.
@@ -38,6 +45,10 @@ class Task(BaseModel):
     title: str = Field(..., min_length=1, max_length=200, description="Task title")
     description: str = Field(default="", max_length=1000, description="Task description")
     completed: bool = Field(default=False, description="Completion status")
+    in_progress: bool = Field(default=False, description="In progress status")
+    priority: Priority = Field(default=Priority.MEDIUM, description="Task priority level")
+    time_spent: float = Field(default=0.0, description="Time spent in hours")
+    closed_at: Optional[datetime] = Field(default=None, description="Timestamp when task was closed")
     created_at: datetime = Field(default_factory=datetime.now, description="Creation timestamp")
 
     model_config = {
@@ -47,6 +58,7 @@ class Task(BaseModel):
                 "title": "Learn Pydantic",
                 "description": "Understand Pydantic models and validation",
                 "completed": False,
+                "priority": "medium",
                 "created_at": "2025-11-18T12:00:00"
             }]
         }
@@ -69,6 +81,7 @@ class TaskCreate(BaseModel):
     """
     title: str = Field(..., min_length=1, max_length=200, description="Task title")
     description: str = Field(default="", max_length=1000, description="Optional task description")
+    priority: Priority = Field(default=Priority.MEDIUM, description="Task priority level")
 
     @field_validator('title')
     @classmethod
@@ -92,6 +105,9 @@ class TaskUpdate(BaseModel):
     title: Optional[str] = Field(None, min_length=1, max_length=200, description="New task title")
     description: Optional[str] = Field(None, max_length=1000, description="New task description")
     completed: Optional[bool] = Field(None, description="New completion status")
+    in_progress: Optional[bool] = Field(None, description="New in progress status")
+    priority: Optional[Priority] = Field(None, description="New task priority level")
+    time_spent: Optional[float] = Field(None, description="Time spent in hours")
 
     @field_validator('title')
     @classmethod
@@ -118,6 +134,17 @@ class TaskStats(BaseModel):
     total: int = Field(..., description="Total number of tasks")
     completed: int = Field(..., description="Number of completed tasks")
     pending: int = Field(..., description="Number of pending tasks")
+
+
+class TaskOverview(BaseModel):
+    """Detailed task overview with priority breakdown."""
+    total: int = Field(..., description="Total number of tasks")
+    completed: int = Field(..., description="Number of completed tasks")
+    in_progress: int = Field(..., description="Number of tasks in progress")
+    pending: int = Field(..., description="Number of pending tasks")
+    by_priority: dict[str, int] = Field(..., description="Task count by priority")
+    completion_rate: float = Field(..., description="Completion rate as percentage")
+    tasks_by_status: dict[str, list[Task]] = Field(..., description="Tasks grouped by status")
 
 
 class TaskError(BaseModel):
@@ -163,7 +190,8 @@ class TaskService:
         """
         task = Task(
             title=data.title,
-            description=data.description
+            description=data.description,
+            priority=data.priority
         )
         _tasks_db[task.id] = task
         return task
@@ -211,6 +239,14 @@ class TaskService:
 
         # Apply updates (only fields that were provided)
         update_data = updates.model_dump(exclude_unset=True)
+        
+        # If marking as completed, set closed_at timestamp
+        if update_data.get('completed') is True and not task.completed:
+            update_data['closed_at'] = datetime.now()
+        # If reopening, clear closed_at
+        elif update_data.get('completed') is False:
+            update_data['closed_at'] = None
+        
         updated_task = task.model_copy(update=update_data)
 
         _tasks_db[task_id] = updated_task
@@ -243,6 +279,48 @@ class TaskService:
         )
 
     @staticmethod
+    def get_overview() -> TaskOverview:
+        """
+        Get detailed task overview with all statistics.
+        
+        Returns comprehensive overview including:
+        - Total, completed, in_progress, pending counts
+        - Priority breakdown
+        - Completion rate
+        - Tasks grouped by status
+        """
+        all_tasks = list(_tasks_db.values())
+        completed_tasks = [task for task in all_tasks if task.completed]
+        in_progress_tasks = [task for task in all_tasks if task.in_progress and not task.completed]
+        pending_tasks = [task for task in all_tasks if not task.completed and not task.in_progress]
+        
+        # Count by priority
+        by_priority = {
+            Priority.LOW.value: sum(1 for t in all_tasks if t.priority == Priority.LOW),
+            Priority.MEDIUM.value: sum(1 for t in all_tasks if t.priority == Priority.MEDIUM),
+            Priority.HIGH.value: sum(1 for t in all_tasks if t.priority == Priority.HIGH),
+            Priority.URGENT.value: sum(1 for t in all_tasks if t.priority == Priority.URGENT),
+        }
+        
+        # Calculate completion rate
+        total = len(all_tasks)
+        completion_rate = (len(completed_tasks) / total * 100) if total > 0 else 0.0
+        
+        return TaskOverview(
+            total=total,
+            completed=len(completed_tasks),
+            in_progress=len(in_progress_tasks),
+            pending=len(pending_tasks),
+            by_priority=by_priority,
+            completion_rate=round(completion_rate, 1),
+            tasks_by_status={
+                "completed": completed_tasks,
+                "in_progress": in_progress_tasks,
+                "pending": pending_tasks
+            }
+        )
+
+    @staticmethod
     def clear_all_tasks() -> int:
         """Clear all tasks. Returns count of tasks cleared."""
         count = len(_tasks_db)
@@ -260,24 +338,72 @@ class TaskService:
         # Clear existing data
         _tasks_db.clear()
 
-        # Create sample tasks
+        # Create 30 diverse sample tasks with various themes and priorities
         samples = [
-            TaskCreate(
-                title="Learn Quart",
-                description="Explore the Quart web framework"
-            ),
-            TaskCreate(
-                title="Build React UI",
-                description="Create a modern UI with FluentUI"
-            ),
-            TaskCreate(
-                title="Write tests",
-                description="Add Playwright E2E tests"
-            )
+            # IT Infrastructure
+            TaskCreate(title="Server-Migration durchführen", description="Produktion-Server auf neue Hardware migrieren", priority=Priority.URGENT),
+            TaskCreate(title="Backup-System testen", description="Wöchentlicher Test der Backup-Wiederherstellung", priority=Priority.HIGH),
+            TaskCreate(title="Firewall-Regeln aktualisieren", description="Neue Sicherheitsrichtlinien implementieren", priority=Priority.HIGH),
+            TaskCreate(title="Monitoring-Alerts konfigurieren", description="Schwellenwerte für CPU und RAM festlegen", priority=Priority.MEDIUM),
+            TaskCreate(title="VPN-Zugang einrichten", description="Neuer Mitarbeiter benötigt Remote-Zugang", priority=Priority.MEDIUM),
+            
+            # Software Development
+            TaskCreate(title="API-Dokumentation aktualisieren", description="REST-Endpoints dokumentieren mit OpenAPI", priority=Priority.LOW),
+            TaskCreate(title="Security-Patch einspielen", description="Kritische Sicherheitslücke in Abhängigkeit", priority=Priority.URGENT),
+            TaskCreate(title="Code-Review durchführen", description="Pull Request #245 überprüfen", priority=Priority.MEDIUM),
+            TaskCreate(title="Unit-Tests erweitern", description="Test-Coverage auf 80% erhöhen", priority=Priority.LOW),
+            TaskCreate(title="Performance-Optimierung", description="Datenbankabfragen beschleunigen", priority=Priority.HIGH),
+            
+            # User Support
+            TaskCreate(title="Benutzer-Schulung planen", description="Workshop für neue Software-Features", priority=Priority.MEDIUM),
+            TaskCreate(title="Passwort-Reset für Admin", description="Dringend: CEO hat Passwort vergessen", priority=Priority.URGENT),
+            TaskCreate(title="Drucker-Problem beheben", description="Etage 3, Raum 305 - Papierstau", priority=Priority.LOW),
+            TaskCreate(title="Email-Migration abschließen", description="100 Postfächer auf neuen Server", priority=Priority.HIGH),
+            TaskCreate(title="Software-Lizenz erneuern", description="Adobe Creative Suite läuft nächste Woche ab", priority=Priority.HIGH),
+            
+            # Database Management
+            TaskCreate(title="Datenbank-Index optimieren", description="Langsame Abfragen beschleunigen", priority=Priority.MEDIUM),
+            TaskCreate(title="Alte Logs archivieren", description="Daten älter als 2 Jahre verschieben", priority=Priority.LOW),
+            TaskCreate(title="Replikation einrichten", description="Master-Slave für Produktionsdatenbank", priority=Priority.HIGH),
+            TaskCreate(title="SQL-Injection Prüfung", description="Sicherheitsaudit aller Queries", priority=Priority.URGENT),
+            
+            # Network & Infrastructure
+            TaskCreate(title="WLAN-Abdeckung erweitern", description="Access Points im neuen Gebäudeflügel", priority=Priority.MEDIUM),
+            TaskCreate(title="Switch-Konfiguration prüfen", description="VLAN-Setup verifizieren", priority=Priority.LOW),
+            TaskCreate(title="DNS-Einträge aktualisieren", description="Neue Subdomain für Staging", priority=Priority.MEDIUM),
+            TaskCreate(title="Netzwerk-Verkehr analysieren", description="Ungewöhnlich hohe Auslastung untersuchen", priority=Priority.HIGH),
+            
+            # Security & Compliance
+            TaskCreate(title="GDPR-Audit durchführen", description="Datenschutz-Compliance überprüfen", priority=Priority.URGENT),
+            TaskCreate(title="Zugriffsrechte überprüfen", description="Quartalsweise Rechtevergabe kontrollieren", priority=Priority.MEDIUM),
+            TaskCreate(title="Sicherheits-Awareness Training", description="Phishing-Simulation für alle Mitarbeiter", priority=Priority.LOW),
+            
+            # Project Management
+            TaskCreate(title="Sprint-Planning vorbereiten", description="User Stories für nächsten Sprint priorisieren", priority=Priority.MEDIUM),
+            TaskCreate(title="Stakeholder-Meeting", description="Projekt-Update für Management präsentieren", priority=Priority.HIGH),
+            TaskCreate(title="Budget-Report erstellen", description="Q4 Ausgaben zusammenfassen", priority=Priority.MEDIUM),
+            TaskCreate(title="Deployment-Pipeline bauen", description="CI/CD mit Jenkins automatisieren", priority=Priority.HIGH),
         ]
 
+        # Create all tasks
+        created_tasks = []
         for sample_data in samples:
-            TaskService.create_task(sample_data)
+            task = TaskService.create_task(sample_data)
+            created_tasks.append(task)
+        
+        # Mark 7 tasks as completed
+        completed_indices = [1, 5, 7, 12, 16, 20, 25]  # Different priorities and categories
+        for idx in completed_indices:
+            if idx < len(created_tasks):
+                task_id = created_tasks[idx].id
+                TaskService.update_task(task_id, TaskUpdate(completed=True))
+        
+        # Mark 6 tasks as in progress
+        in_progress_indices = [0, 3, 6, 11, 18, 23]  # Different priorities and categories
+        for idx in in_progress_indices:
+            if idx < len(created_tasks):
+                task_id = created_tasks[idx].id
+                TaskService.update_task(task_id, TaskUpdate(in_progress=True))
 
         return len(samples)
 
@@ -295,7 +421,9 @@ __all__ = [
     'TaskCreate',
     'TaskUpdate',
     'TaskFilter',
+    'Priority',
     'TaskStats',
+    'TaskOverview',
     'TaskError',
     'TaskService',
     'service'

@@ -103,3 +103,11 @@ export async function deleteTask(taskId) {
     method: 'DELETE',
   })
 }
+
+export async function getTaskStats() {
+  return fetchJSON(`${API_BASE_URL}/tasks/stats`)
+}
+
+export async function getTaskOverview() {
+  return fetchJSON(`${API_BASE_URL}/tasks/overview`)
+}

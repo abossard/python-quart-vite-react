@@ -7,6 +7,7 @@
  * - Clear interfaces: Props and state flow is explicit
  */
 
+import { useEffect } from 'react'
 import {
   makeStyles,
   Subtitle1,
@@ -19,35 +20,46 @@ import {
   Home24Regular,
   Info24Regular,
   TaskListLtr24Regular,
+  DocumentBulletList24Regular,
+  Bot24Regular,
 } from '@fluentui/react-icons'
 import { Navigate, Route, Routes, useLocation, useNavigate } from 'react-router-dom'
 import About from './components/About'
 import Dashboard from './features/dashboard/Dashboard'
 import TaskList from './features/tasks/TaskList'
+import TicketOverview from './features/overview/TicketOverview'
+import AIChat from './features/ai-chat/AIChat'
+import { getRandomTheme, applyTheme } from './utils/colorThemes'
 
 const useStyles = makeStyles({
   app: {
     minHeight: '100vh',
-    backgroundColor: tokens.colorNeutralBackground3,
+    backgroundColor: 'var(--bg-color)',
   },
   header: {
-    backgroundColor: tokens.colorBrandBackground,
-    color: tokens.colorNeutralForegroundOnBrand,
+    backgroundColor: 'var(--bg-color)',
+    color: 'var(--text-color)',
     padding: `${tokens.spacingVerticalL} ${tokens.spacingHorizontalXL}`,
     boxShadow: tokens.shadow4,
   },
   title: {
-    color: tokens.colorNeutralForegroundOnBrand,
+    color: 'var(--text-color)',
   },
   subtitle: {
-    color: tokens.colorNeutralForegroundOnBrand,
+    color: 'var(--text-color)',
     opacity: 0.9,
     marginTop: tokens.spacingVerticalXS,
   },
   nav: {
-    backgroundColor: tokens.colorNeutralBackground1,
+    backgroundColor: 'var(--bg-color)',
     borderBottom: `1px solid ${tokens.colorNeutralStroke1}`,
     padding: `0 ${tokens.spacingHorizontalXL}`,
+    '& button': {
+      color: 'var(--text-color) !important',
+    },
+    '& svg': {
+      color: 'var(--text-color) !important',
+    },
   },
   content: {
     maxWidth: '1400px',
@@ -59,9 +71,18 @@ export default function App() {
   const styles = useStyles()
   const location = useLocation()
   const navigate = useNavigate()
+  
+  // Apply random theme on mount
+  useEffect(() => {
+    const theme = getRandomTheme()
+    applyTheme(theme)
+    console.log('Applied theme:', theme.name)
+  }, [])
   const tabs = [
     { value: 'dashboard', label: 'Dashboard', icon: <Home24Regular />, path: '/dashboard', testId: 'tab-dashboard' },
     { value: 'tasks', label: 'Tasks', icon: <TaskListLtr24Regular />, path: '/tasks', testId: 'tab-tasks' },
+    { value: 'overview', label: 'Übersicht', icon: <DocumentBulletList24Regular />, path: '/overview', testId: 'tab-overview' },
+    { value: 'ai-chat', label: 'AI Chat', icon: <Bot24Regular />, path: '/ai-chat', testId: 'tab-ai-chat' },
     { value: 'about', label: 'About', icon: <Info24Regular />, path: '/about', testId: 'tab-about' },
   ]
   const activeTab = tabs.find((tab) => location.pathname.startsWith(tab.path))?.value ?? 'dashboard'
@@ -85,9 +106,10 @@ export default function App() {
             }
           }}
           size="large"
+          style={{ color: 'yellow' }}
         >
           {tabs.map((tab) => (
-            <Tab key={tab.value} value={tab.value} icon={tab.icon} data-testid={tab.testId}>
+            <Tab key={tab.value} value={tab.value} icon={tab.icon} data-testid={tab.testId} style={{ color: 'yellow' }}>
               {tab.label}
             </Tab>
           ))}
@@ -99,6 +121,8 @@ export default function App() {
           <Route path="/" element={<Navigate to="/dashboard" replace />} />
           <Route path="/dashboard" element={<Dashboard />} />
           <Route path="/tasks" element={<TaskList />} />
+          <Route path="/overview" element={<TicketOverview />} />
+          <Route path="/ai-chat" element={<AIChat />} />
           <Route path="/about" element={<About />} />
           <Route path="*" element={<Navigate to="/dashboard" replace />} />
         </Routes>

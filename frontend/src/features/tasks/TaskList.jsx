@@ -42,17 +42,22 @@ import {
   Delete20Regular,
   Checkmark20Regular,
   Dismiss20Regular,
+  Clock20Regular,
 } from '@fluentui/react-icons'
 import { getTasks, deleteTask, updateTask } from '../../services/api'
 import TaskDialog from './TaskDialog'
+import TimeLogDialog from './TimeLogDialog'
 
 const useStyles = makeStyles({
   container: {
     padding: tokens.spacingVerticalL,
+    backgroundColor: 'var(--bg-color)',
   },
   card: {
     maxWidth: '1200px',
     margin: '0 auto',
+    backgroundColor: 'var(--bg-color)',
+    color: 'var(--text-color)',
   },
   header: {
     display: 'flex',
@@ -68,7 +73,7 @@ const useStyles = makeStyles({
   emptyState: {
     textAlign: 'center',
     padding: tokens.spacingVerticalXXXL,
-    color: tokens.colorNeutralForeground3,
+    color: 'var(--text-color)',
   },
 })
 
@@ -81,11 +86,42 @@ function formatDate(isoString) {
   return date.toLocaleDateString() + ' ' + date.toLocaleTimeString()
 }
 
+function formatTime(hours) {
+  if (!hours) return '0h'
+  if (hours < 1) {
+    return `${Math.round(hours * 60)}min`
+  }
+  const h = Math.floor(hours)
+  const m = Math.round((hours - h) * 60)
+  return m > 0 ? `${h}h ${m}min` : `${h}h`
+}
+
 function getTaskStats(tasks) {
   return {
     total: tasks.length,
     completed: tasks.filter((t) => t.completed).length,
     pending: tasks.filter((t) => !t.completed).length,
+  }
+}
+
+function sortTasks(tasks, sortBy) {
+  const sorted = [...tasks]
+  
+  switch (sortBy) {
+    case 'date':
+      return sorted.sort((a, b) => new Date(b.created_at) - new Date(a.created_at))
+    case 'title':
+      return sorted.sort((a, b) => a.title.localeCompare(b.title))
+    case 'status':
+      return sorted.sort((a, b) => {
+        if (a.completed === b.completed) return 0
+        return a.completed ? 1 : -1
+      })
+    case 'priority':
+      const priorityOrder = { urgent: 0, high: 1, medium: 2, low: 3 }
+      return sorted.sort((a, b) => priorityOrder[a.priority] - priorityOrder[b.priority])
+    default:
+      return sorted
   }
 }
 
@@ -101,8 +137,11 @@ export default function TaskList() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
   const [filter, setFilter] = useState('all')
+  const [sortBy, setSortBy] = useState('date')
   const [dialogOpen, setDialogOpen] = useState(false)
   const [editingTask, setEditingTask] = useState(null)
+  const [timeLogDialogOpen, setTimeLogDialogOpen] = useState(false)
+  const [timeLogTask, setTimeLogTask] = useState(null)
 
   // Load tasks
   const loadTasks = async (filterValue = filter) => {
@@ -159,8 +198,24 @@ export default function TaskList() {
     }
   }
 
+  const handleLogTime = (task) => {
+    setTimeLogTask(task)
+    setTimeLogDialogOpen(true)
+  }
+
+  const handleTimeLogClose = (shouldRefresh) => {
+    setTimeLogDialogOpen(false)
+    setTimeLogTask(null)
+    if (shouldRefresh) {
+      loadTasks()
+    }
+  }
+
   // Calculate stats
   const stats = getTaskStats(tasks)
+
+  // Sort tasks
+  const sortedTasks = sortTasks(tasks, sortBy)
 
   // Define columns
   const columns = [
@@ -179,6 +234,26 @@ export default function TaskList() {
       ),
     }),
     createTableColumn({
+      columnId: 'priority',
+      renderHeaderCell: () => 'Priority',
+      renderCell: (task) => {
+        const priorityConfig = {
+          urgent: { color: 'danger', label: 'Urgent' },
+          high: { color: 'warning', label: 'High' },
+          medium: { color: 'informative', label: 'Medium' },
+          low: { color: 'subtle', label: 'Low' },
+        }
+        const config = priorityConfig[task.priority] || priorityConfig.medium
+        return (
+          <TableCellLayout>
+            <Badge appearance="filled" color={config.color}>
+              {config.label}
+            </Badge>
+          </TableCellLayout>
+        )
+      },
+    }),
+    createTableColumn({
       columnId: 'title',
       renderHeaderCell: () => 'Title',
       renderCell: (task) => (
@@ -193,6 +268,15 @@ export default function TaskList() {
       renderCell: (task) => (
         <TableCellLayout>
           <Text>{task.description || '—'}</Text>
+        </TableCellLayout>
+      ),
+    }),
+    createTableColumn({
+      columnId: 'time',
+      renderHeaderCell: () => 'Zeit verbucht',
+      renderCell: (task) => (
+        <TableCellLayout>
+          <Text weight="semibold">{formatTime(task.time_spent || 0)}</Text>
         </TableCellLayout>
       ),
     }),
@@ -230,6 +314,13 @@ export default function TaskList() {
               </MenuTrigger>
               <MenuPopover>
                 <MenuList>
+                  <MenuItem
+                    icon={<Clock20Regular />}
+                    onClick={() => handleLogTime(task)}
+                    data-testid={`log-time-${task.id}`}
+                  >
+                    Zeit verbuchen
+                  </MenuItem>
                   <MenuItem
                     icon={<Edit20Regular />}
                     onClick={() => handleEdit(task)}
@@ -301,6 +392,38 @@ export default function TaskList() {
           >
             Completed
           </ToggleButton>
+          
+          <div style={{ marginLeft: 'auto', display: 'flex', gap: '8px', alignItems: 'center' }}>
+            <Text style={{ color: 'var(--text-color)' }}>Sort by:</Text>
+            <ToggleButton
+              checked={sortBy === 'date'}
+              onClick={() => setSortBy('date')}
+              data-testid="sort-date"
+            >
+              Date
+            </ToggleButton>
+            <ToggleButton
+              checked={sortBy === 'title'}
+              onClick={() => setSortBy('title')}
+              data-testid="sort-title"
+            >
+              Title
+            </ToggleButton>
+            <ToggleButton
+              checked={sortBy === 'status'}
+              onClick={() => setSortBy('status')}
+              data-testid="sort-status"
+            >
+              Status
+            </ToggleButton>
+            <ToggleButton
+              checked={sortBy === 'priority'}
+              onClick={() => setSortBy('priority')}
+              data-testid="sort-priority"
+            >
+              Priority
+            </ToggleButton>
+          </div>
         </div>
 
         {loading ? (
@@ -320,7 +443,7 @@ export default function TaskList() {
           </div>
         ) : (
           <DataGrid
-            items={tasks}
+            items={sortedTasks}
             columns={columns}
             sortable
             getRowId={(item) => item.id}
@@ -347,6 +470,12 @@ export default function TaskList() {
         open={dialogOpen}
         task={editingTask}
         onClose={handleDialogClose}
+      />
+      
+      <TimeLogDialog
+        open={timeLogDialogOpen}
+        task={timeLogTask}
+        onClose={handleTimeLogClose}
       />
     </div>
   )
