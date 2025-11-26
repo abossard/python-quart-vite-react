@@ -20,6 +20,7 @@ import json
 import os
 from datetime import datetime
 from pathlib import Path
+from typing import Optional
 
 # Import unified operation system
 from api_decorators import get_mcp_tools, get_operation, operation
@@ -29,6 +30,15 @@ from quart_cors import cors
 # Import Pydantic models and service
 from tasks import (Task, TaskCreate, TaskFilter, TaskService, TaskStats,
                    TaskUpdate)
+# Import support ticket models and service
+from support_tickets import (
+    SupportTicket, SupportTicketCreate, SupportTicketUpdate,
+    TicketCategory, Priority, TicketStatus,
+    DashboardStats, TicketTrend, CategoryPerformance, TechnicianPerformance,
+    Worklog, WorklogCreate,
+    SupportTicketService
+)
+from support_data import initialize_support_data
 
 # ============================================================================
 # APPLICATION SETUP
@@ -37,8 +47,9 @@ from tasks import (Task, TaskCreate, TaskFilter, TaskService, TaskStats,
 app = Quart(__name__)
 app = cors(app, allow_origin="*")
 
-# Service instance
+# Service instances
 task_service = TaskService()
+support_service = SupportTicketService()
 
 
 # ============================================================================
@@ -158,6 +169,137 @@ async def op_get_task_stats() -> TaskStats:
 
 
 # ============================================================================
+# SUPPORT TICKET OPERATIONS
+# ============================================================================
+
+@operation(
+    name="list_support_tickets",
+    description="List all support tickets with optional filtering",
+    http_method="GET",
+    http_path="/api/support/tickets"
+)
+async def op_list_support_tickets(
+    status: Optional[TicketStatus] = None,
+    category: Optional[TicketCategory] = None,
+    priority: Optional[Priority] = None,
+    limit: int = 100
+) -> list[SupportTicket]:
+    """List support tickets with optional filtering."""
+    tickets = support_service.list_tickets(status, category, priority)
+    return tickets[:limit]
+
+
+@operation(
+    name="create_support_ticket",
+    description="Create a new support ticket",
+    http_method="POST",
+    http_path="/api/support/tickets"
+)
+async def op_create_support_ticket(data: SupportTicketCreate) -> SupportTicket:
+    """Create a new support ticket."""
+    return support_service.create_ticket(data)
+
+
+@operation(
+    name="get_support_ticket",
+    description="Get a specific support ticket by ID",
+    http_method="GET",
+    http_path="/api/support/tickets/{ticket_id}"
+)
+async def op_get_support_ticket(ticket_id: str) -> SupportTicket | None:
+    """Get support ticket by ID."""
+    return support_service.get_ticket(ticket_id)
+
+
+@operation(
+    name="update_support_ticket",
+    description="Update an existing support ticket",
+    http_method="PUT",
+    http_path="/api/support/tickets/{ticket_id}"
+)
+async def op_update_support_ticket(ticket_id: str, data: SupportTicketUpdate) -> SupportTicket | None:
+    """Update support ticket."""
+    return support_service.update_ticket(ticket_id, data)
+
+
+@operation(
+    name="delete_support_ticket",
+    description="Delete a support ticket",
+    http_method="DELETE",
+    http_path="/api/support/tickets/{ticket_id}"
+)
+async def op_delete_support_ticket(ticket_id: str) -> bool:
+    """Delete support ticket."""
+    return support_service.delete_ticket(ticket_id)
+
+
+@operation(
+    name="get_dashboard_stats",
+    description="Get comprehensive dashboard statistics",
+    http_method="GET",
+    http_path="/api/support/stats"
+)
+async def op_get_dashboard_stats() -> DashboardStats:
+    """Get dashboard statistics."""
+    return support_service.get_stats()
+
+
+@operation(
+    name="get_ticket_trends",
+    description="Get daily ticket trends for the specified number of days",
+    http_method="GET",
+    http_path="/api/support/trends"
+)
+async def op_get_ticket_trends(days: int = 30) -> list[TicketTrend]:
+    """Get ticket trends over time."""
+    return support_service.get_ticket_trends(days)
+
+
+@operation(
+    name="get_category_performance",
+    description="Get performance metrics by category",
+    http_method="GET",
+    http_path="/api/support/category-performance"
+)
+async def op_get_category_performance() -> list[CategoryPerformance]:
+    """Get category performance metrics."""
+    return support_service.get_category_performance()
+
+
+@operation(
+    name="get_resolution_time_distribution",
+    description="Get distribution of resolution times in buckets",
+    http_method="GET",
+    http_path="/api/support/resolution-distribution"
+)
+async def op_get_resolution_time_distribution() -> dict[str, int]:
+    """Get resolution time distribution."""
+    return support_service.get_resolution_time_distribution()
+
+
+@operation(
+    name="add_worklog",
+    description="Add a worklog entry to a ticket",
+    http_method="POST",
+    http_path="/api/support/tickets/{ticket_id}/worklogs"
+)
+async def op_add_worklog(ticket_id: str, data: WorklogCreate) -> SupportTicket | None:
+    """Add worklog to ticket."""
+    return support_service.add_worklog(ticket_id, data)
+
+
+@operation(
+    name="get_technician_performance",
+    description="Get performance metrics for all technicians",
+    http_method="GET",
+    http_path="/api/support/technician-performance"
+)
+async def op_get_technician_performance() -> list[TechnicianPerformance]:
+    """Get technician performance metrics."""
+    return support_service.get_technician_performance()
+
+
+# ============================================================================
 # REST API WRAPPERS
 # These handle HTTP concerns and call the operations
 # ============================================================================
@@ -227,6 +369,149 @@ async def rest_get_stats():
     """REST wrapper: get task statistics."""
     stats = await op_get_task_stats()
     return jsonify(stats.model_dump())
+
+
+# ============================================================================
+# SUPPORT TICKET REST WRAPPERS
+# ============================================================================
+
+@app.route("/api/support/tickets", methods=["GET"])
+async def rest_list_support_tickets():
+    """REST wrapper: list support tickets with optional filtering."""
+    try:
+        status_param = request.args.get("status")
+        category_param = request.args.get("category")
+        priority_param = request.args.get("priority")
+        limit = int(request.args.get("limit", 100))
+        
+        status = TicketStatus(status_param) if status_param else None
+        category = TicketCategory(category_param) if category_param else None
+        priority = Priority(priority_param) if priority_param else None
+        
+        tickets = await op_list_support_tickets(status, category, priority, limit)
+        return jsonify([ticket.model_dump() for ticket in tickets])
+    except ValueError as e:
+        return jsonify({"error": f"Invalid parameter: {str(e)}"}), 400
+
+
+@app.route("/api/support/tickets", methods=["POST"])
+async def rest_create_support_ticket():
+    """REST wrapper: create support ticket."""
+    try:
+        data = await request.get_json()
+        ticket_data = SupportTicketCreate(**data)
+        ticket = await op_create_support_ticket(ticket_data)
+        return jsonify(ticket.model_dump()), 201
+    except ValidationError as e:
+        return jsonify({"error": str(e)}), 400
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+@app.route("/api/support/tickets/<ticket_id>", methods=["GET"])
+async def rest_get_support_ticket(ticket_id: str):
+    """REST wrapper: get support ticket by ID."""
+    ticket = await op_get_support_ticket(ticket_id)
+    if not ticket:
+        return jsonify({"error": "Ticket not found"}), 404
+    return jsonify(ticket.model_dump())
+
+
+@app.route("/api/support/tickets/<ticket_id>", methods=["PUT"])
+async def rest_update_support_ticket(ticket_id: str):
+    """REST wrapper: update support ticket."""
+    try:
+        data = await request.get_json()
+        update_data = SupportTicketUpdate(**data)
+        ticket = await op_update_support_ticket(ticket_id, update_data)
+        if not ticket:
+            return jsonify({"error": "Ticket not found"}), 404
+        return jsonify(ticket.model_dump())
+    except ValidationError as e:
+        return jsonify({"error": str(e)}), 400
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+@app.route("/api/support/tickets/<ticket_id>", methods=["DELETE"])
+async def rest_delete_support_ticket(ticket_id: str):
+    """REST wrapper: delete support ticket."""
+    success = await op_delete_support_ticket(ticket_id)
+    if not success:
+        return jsonify({"error": "Ticket not found"}), 404
+    return jsonify({"message": "Ticket deleted successfully"}), 200
+
+
+@app.route("/api/support/stats", methods=["GET"])
+async def rest_get_dashboard_stats():
+    """REST wrapper: get dashboard statistics."""
+    stats = await op_get_dashboard_stats()
+    return jsonify(stats.model_dump())
+
+
+@app.route("/api/support/trends", methods=["GET"])
+async def rest_get_ticket_trends():
+    """REST wrapper: get ticket trends."""
+    days = int(request.args.get("days", 30))
+    trends = await op_get_ticket_trends(days)
+    return jsonify([trend.model_dump() for trend in trends])
+
+
+@app.route("/api/support/category-performance", methods=["GET"])
+async def rest_get_category_performance():
+    """REST wrapper: get category performance."""
+    performance = await op_get_category_performance()
+    return jsonify([perf.model_dump() for perf in performance])
+
+
+@app.route("/api/support/resolution-distribution", methods=["GET"])
+async def rest_get_resolution_distribution():
+    """REST wrapper: get resolution time distribution."""
+    distribution = await op_get_resolution_time_distribution()
+    return jsonify(distribution)
+
+
+@app.route("/api/support/tickets/<ticket_id>/worklogs", methods=["POST"])
+async def rest_add_worklog(ticket_id: str):
+    """REST wrapper: add worklog to ticket."""
+    try:
+        data = await request.get_json()
+        worklog_data = WorklogCreate(**data)
+        ticket = await op_add_worklog(ticket_id, worklog_data)
+        if not ticket:
+            return jsonify({"error": "Ticket not found"}), 404
+        return jsonify(ticket.model_dump()), 200
+    except ValidationError as e:
+        return jsonify({"error": str(e)}), 400
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+@app.route("/api/support/technician-performance", methods=["GET"])
+async def rest_get_technician_performance():
+    """REST wrapper: get technician performance."""
+    performance = await op_get_technician_performance()
+    return jsonify([perf.model_dump() for perf in performance])
+
+
+@app.route("/api/support/stats-stream", methods=["GET"])
+async def support_stats_stream():
+    """Server-Sent Events endpoint for live dashboard updates."""
+    async def generate_stats_events():
+        try:
+            while True:
+                stats = await op_get_dashboard_stats()
+                stats_data = stats.model_dump()
+                yield f"data: {json.dumps(stats_data)}\n\n"
+                await asyncio.sleep(5)  # Update every 5 seconds
+        except asyncio.CancelledError:
+            pass
+    
+    return generate_stats_events(), {
+        "Content-Type": "text/event-stream",
+        "Cache-Control": "no-cache",
+        "X-Accel-Buffering": "no"
+    }
 
 
 # ============================================================================
@@ -437,21 +722,37 @@ async def mcp_json_rpc():
 if __name__ == "__main__":
     # Initialize sample data
     num_tasks = task_service.initialize_sample_data()
+    num_tickets = initialize_support_data(550)
+    
+    # Get quick stats
+    support_stats = support_service.get_stats()
 
     print("=" * 70)
     print("🚀 Unified Quart Server with Pydantic")
     print("=" * 70)
     print(f"📝 {num_tasks} sample tasks loaded")
     print()
-    print("✨ Key Features:")
-    print("   • Single process serving REST API + MCP JSON-RPC")
-    print("   • Pydantic models for type safety and validation")
-    print("   • Automatic schema generation from type hints")
-    print("   • Zero duplication between interfaces")
+    print("🎯 IT Support Dashboard - Sample Data Loaded")
+    print("=" * 70)
+    print(f"📊 Generated {num_tickets} realistic support tickets")
+    print(f"📅 Date Range: Last 90 days")
+    print(f"✅ Resolved: {support_stats.tickets_by_status.get('resolved', 0) + support_stats.tickets_by_status.get('closed', 0)}")
+    print(f"🔄 In Progress: {support_stats.in_progress_tickets}")
+    print(f"🆕 Open: {support_stats.open_tickets}")
+    print(f"⭐ Avg Satisfaction: {support_stats.customer_satisfaction_avg:.2f}/5.0")
+    print(f"⏱️  Avg Resolution: {support_stats.avg_resolution_time_hours:.1f} hours")
+    print()
+    print("✨ Dashboard Features:")
+    print("   • 90 days of historical ticket data")
+    print("   • Realistic issue descriptions and categories")
+    print("   • Simulated technician assignments")
+    print("   • Live activity stream (SSE) at /api/support/stats-stream")
+    print("   • Interactive charts with real trends")
     print()
     print("🌐 Available Interfaces:")
-    print("   REST API:     http://localhost:5001/api/*")
-    print("   MCP JSON-RPC: http://localhost:5001/mcp")
+    print("   REST API:       http://localhost:5001/api/*")
+    print("   Support API:    http://localhost:5001/api/support/*")
+    print("   MCP JSON-RPC:   http://localhost:5001/mcp")
     print()
     print("💡 Port 5001 (macOS AirPlay uses 5000)")
     print("=" * 70)

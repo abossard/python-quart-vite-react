@@ -19,11 +19,15 @@ import {
   Home24Regular,
   Info24Regular,
   TaskListLtr24Regular,
+  Headset24Regular,
+  People24Regular,
 } from '@fluentui/react-icons'
 import { Navigate, Route, Routes, useLocation, useNavigate } from 'react-router-dom'
 import About from './components/About'
 import Dashboard from './features/dashboard/Dashboard'
 import TaskList from './features/tasks/TaskList'
+import SupportDashboard from './features/support-dashboard/SupportDashboard'
+import { TechnicianDashboard } from './features/support-dashboard/components/TechnicianDashboard'
 
 const useStyles = makeStyles({
   app: {
@@ -61,10 +65,12 @@ export default function App() {
   const navigate = useNavigate()
   const tabs = [
     { value: 'dashboard', label: 'Dashboard', icon: <Home24Regular />, path: '/dashboard', testId: 'tab-dashboard' },
+    { value: 'support', label: 'IT Support', icon: <Headset24Regular />, path: '/support', testId: 'tab-support' },
+    { value: 'technicians', label: 'Technicians', icon: <People24Regular />, path: '/technicians', testId: 'tab-technicians' },
     { value: 'tasks', label: 'Tasks', icon: <TaskListLtr24Regular />, path: '/tasks', testId: 'tab-tasks' },
     { value: 'about', label: 'About', icon: <Info24Regular />, path: '/about', testId: 'tab-about' },
   ]
-  const activeTab = tabs.find((tab) => location.pathname.startsWith(tab.path))?.value ?? 'dashboard'
+  const activeTab = tabs.find((tab) => location.pathname.startsWith(tab.path))?.value ?? 'support'
 
   return (
     <div className={styles.app}>
@@ -96,11 +102,13 @@ export default function App() {
 
       <main className={styles.content}>
         <Routes>
-          <Route path="/" element={<Navigate to="/dashboard" replace />} />
+          <Route path="/" element={<Navigate to="/support" replace />} />
           <Route path="/dashboard" element={<Dashboard />} />
+          <Route path="/support" element={<SupportDashboard />} />
+          <Route path="/technicians" element={<TechnicianDashboard />} />
           <Route path="/tasks" element={<TaskList />} />
           <Route path="/about" element={<About />} />
-          <Route path="*" element={<Navigate to="/dashboard" replace />} />
+          <Route path="*" element={<Navigate to="/support" replace />} />
         </Routes>
       </main>
     </div>
