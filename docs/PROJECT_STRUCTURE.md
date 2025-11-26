@@ -22,6 +22,15 @@ python-quart-vite-react/
 │   │   │   ├── dashboard/       # Dashboard feature
 │   │   │   │   └── Dashboard.jsx    # Real-time server info
 │   │   │   │
+│   │   │   ├── support-dashboard/  # IT Support Dashboard feature
+│   │   │   │   ├── SupportDashboard.jsx     # Main dashboard container
+│   │   │   │   ├── MetricCard.jsx           # Reusable metric display card
+│   │   │   │   ├── TicketTrendsChart.jsx    # Line chart for ticket trends
+│   │   │   │   ├── CategoryPieChart.jsx     # Donut chart for categories
+│   │   │   │   ├── SeverityBarChart.jsx     # Bar chart for severity levels
+│   │   │   │   ├── TechnicianTable.jsx      # Performance table
+│   │   │   │   └── SystemHealthMonitor.jsx  # Real-time health indicators
+│   │   │   │
 │   │   │   └── tasks/           # Task management feature
 │   │   │       ├── TaskList.jsx     # Task list with CRUD
 │   │   │       └── TaskDialog.jsx   # Create/edit dialog
@@ -40,7 +49,9 @@ python-quart-vite-react/
 │
 ├── tests/
 │   └── e2e/                     # End-to-end tests
-│       └── app.spec.js          # Playwright test suite
+│       ├── app.spec.js          # Playwright test suite
+│       ├── debug.spec.js        # Debug test helpers
+│       └── support-dashboard.spec.js  # IT Support Dashboard E2E tests
 │
 ├── .vscode/                      # VSCode configuration
 │   ├── launch.json              # Debug configurations
@@ -88,6 +99,13 @@ python-quart-vite-react/
 | `frontend/src/services/api.js` | API client for backend communication |
 | `frontend/src/components/About.jsx` | About page with project info |
 | `frontend/src/features/dashboard/Dashboard.jsx` | Real-time dashboard with SSE |
+| `frontend/src/features/support-dashboard/SupportDashboard.jsx` | IT Support metrics dashboard container |
+| `frontend/src/features/support-dashboard/MetricCard.jsx` | Reusable metric card with gradient backgrounds |
+| `frontend/src/features/support-dashboard/TicketTrendsChart.jsx` | Line chart showing ticket trends over time |
+| `frontend/src/features/support-dashboard/CategoryPieChart.jsx` | Donut chart for ticket category breakdown |
+| `frontend/src/features/support-dashboard/SeverityBarChart.jsx` | Bar chart for severity level distribution |
+| `frontend/src/features/support-dashboard/TechnicianTable.jsx` | Technician performance table with sortable columns |
+| `frontend/src/features/support-dashboard/SystemHealthMonitor.jsx` | Real-time health monitor with SSE updates |
 | `frontend/src/features/tasks/TaskList.jsx` | Task list with filtering and actions |
 | `frontend/src/features/tasks/TaskDialog.jsx` | Task create/edit modal dialog |
 | `frontend/index.html` | HTML template |
@@ -99,6 +117,8 @@ python-quart-vite-react/
 | File | Purpose |
 |------|---------|
 | `tests/e2e/app.spec.js` | End-to-end test suite using Playwright |
+| `tests/e2e/debug.spec.js` | Debug test helpers and utilities |
+| `tests/e2e/support-dashboard.spec.js` | E2E tests for IT Support Dashboard |
 | `playwright.config.js` | Playwright test runner configuration |
 
 ### Configuration Files
@@ -152,6 +172,7 @@ Contains the Python backend with multiple interfaces sharing the same business l
 Feature-based organization. Each feature is self-contained:
 
 - **dashboard/**: Server time and date display
+- **support-dashboard/**: Comprehensive IT support metrics dashboard with real-time updates
 - **tasks/**: Complete task management system
 
 This structure scales well - adding a new feature means adding a new folder.
