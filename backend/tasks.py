@@ -24,6 +24,12 @@ import uuid
 # DATA MODELS - Pydantic for validation and schema generation
 # ============================================================================
 
+class Priority(str, Enum):
+    """Task priority levels."""
+    LOW = "Low"
+    MEDIUM = "Medium"
+    HIGH = "High"
+
 class Task(BaseModel):
     """
     Complete task representation.
@@ -36,7 +42,9 @@ class Task(BaseModel):
     """
     id: str = Field(default_factory=lambda: str(uuid.uuid4()), description="Unique task identifier")
     title: str = Field(..., min_length=1, max_length=200, description="Task title")
+    priority: Priority = Field(default=Priority.MEDIUM, description="Task priority level")
     description: str = Field(default="", max_length=1000, description="Task description")
+    deadline: Optional[datetime] = Field(default=None, description="Task deadline")
     completed: bool = Field(default=False, description="Completion status")
     created_at: datetime = Field(default_factory=datetime.now, description="Creation timestamp")
 
@@ -68,7 +76,9 @@ class TaskCreate(BaseModel):
     Separate from Task to avoid exposing internal fields (id, created_at).
     """
     title: str = Field(..., min_length=1, max_length=200, description="Task title")
+    priority: Priority = Field(default=Priority.MEDIUM, description="Task priority level")
     description: str = Field(default="", max_length=1000, description="Optional task description")
+    deadline: Optional[datetime] = Field(default=None, description="Optional task deadline")
 
     @field_validator('title')
     @classmethod
@@ -90,7 +100,9 @@ class TaskUpdate(BaseModel):
     All fields optional - only provided fields will be updated.
     """
     title: Optional[str] = Field(None, min_length=1, max_length=200, description="New task title")
+    priority: Optional[Priority] = Field(None, description="New task priority level")
     description: Optional[str] = Field(None, max_length=1000, description="New task description")
+    deadline: Optional[datetime] = Field(None, description="New task deadline")
     completed: Optional[bool] = Field(None, description="New completion status")
 
     @field_validator('title')
@@ -118,6 +130,13 @@ class TaskStats(BaseModel):
     total: int = Field(..., description="Total number of tasks")
     completed: int = Field(..., description="Number of completed tasks")
     pending: int = Field(..., description="Number of pending tasks")
+
+
+class PriorityStats(BaseModel):
+    """Priority statistics for open/pending tasks."""
+    low: int = Field(..., description="Number of open tasks with Low priority")
+    medium: int = Field(..., description="Number of open tasks with Medium priority")
+    high: int = Field(..., description="Number of open tasks with High priority")
 
 
 class TaskError(BaseModel):
@@ -163,7 +182,9 @@ class TaskService:
         """
         task = Task(
             title=data.title,
-            description=data.description
+            priority=data.priority,
+            description=data.description,
+            deadline=data.deadline
         )
         _tasks_db[task.id] = task
         return task
@@ -243,6 +264,46 @@ class TaskService:
         )
 
     @staticmethod
+    def get_priority_stats() -> PriorityStats:
+        """
+        Get priority statistics for open/pending tasks only.
+
+        Returns count of open tasks grouped by priority level.
+        """
+        open_tasks = [task for task in _tasks_db.values() if not task.completed]
+        
+        low_count = sum(1 for task in open_tasks if task.priority == Priority.LOW)
+        medium_count = sum(1 for task in open_tasks if task.priority == Priority.MEDIUM)
+        high_count = sum(1 for task in open_tasks if task.priority == Priority.HIGH)
+
+        return PriorityStats(
+            low=low_count,
+            medium=medium_count,
+            high=high_count
+        )
+
+    @staticmethod
+    def get_urgent_tasks() -> list[Task]:
+        """
+        Get urgent tasks: High priority, not completed, deadline within 2 days.
+
+        Returns list of tasks that need immediate attention.
+        """
+        now = datetime.now()
+        two_days_later = now + __import__('datetime').timedelta(days=2)
+        
+        urgent = [
+            task for task in _tasks_db.values()
+            if not task.completed
+            and task.priority == Priority.HIGH
+            and task.deadline is not None
+            and task.deadline <= two_days_later
+        ]
+        
+        # Sort by deadline (earliest first) - we know deadline is not None due to filter above
+        return sorted(urgent, key=lambda t: t.deadline or datetime.max)
+
+    @staticmethod
     def clear_all_tasks() -> int:
         """Clear all tasks. Returns count of tasks cleared."""
         count = len(_tasks_db)
@@ -260,18 +321,38 @@ class TaskService:
         # Clear existing data
         _tasks_db.clear()
 
-        # Create sample tasks
+        # Create sample tasks with deadlines
+        from datetime import timedelta
+        now = datetime.now()
+        
         samples = [
             TaskCreate(
+                title="Dringend: Kritischer Bug beheben",
+                priority=Priority.HIGH,
+                description="Production bug muss sofort gefixt werden",
+                deadline=now + timedelta(days=1)  # Urgent: 1 day
+            ),
+            TaskCreate(
+                title="Wichtiges Meeting vorbereiten",
+                priority=Priority.HIGH,
+                description="Präsentation für Stakeholder-Meeting",
+                deadline=now + timedelta(hours=36)  # Urgent: 1.5 days
+            ),
+            TaskCreate(
                 title="Learn Quart",
-                description="Explore the Quart web framework"
+                priority=Priority.HIGH,
+                description="Explore the Quart web framework",
+                deadline=now + timedelta(days=7)  # Not urgent: 7 days
             ),
             TaskCreate(
                 title="Build React UI",
-                description="Create a modern UI with FluentUI"
+                priority=Priority.MEDIUM,
+                description="Create a modern UI with FluentUI",
+                deadline=now + timedelta(days=5)
             ),
             TaskCreate(
                 title="Write tests",
+                priority=Priority.LOW,
                 description="Add Playwright E2E tests"
             )
         ]
@@ -295,7 +376,9 @@ __all__ = [
     'TaskCreate',
     'TaskUpdate',
     'TaskFilter',
+    'Priority',
     'TaskStats',
+    'PriorityStats',
     'TaskError',
     'TaskService',
     'service'

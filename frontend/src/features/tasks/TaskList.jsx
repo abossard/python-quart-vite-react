@@ -43,7 +43,7 @@ import {
   Checkmark20Regular,
   Dismiss20Regular,
 } from '@fluentui/react-icons'
-import { getTasks, deleteTask, updateTask } from '../../services/api'
+import { getTasks, deleteTask, updateTask, getUrgentTasks } from '../../services/api'
 import TaskDialog from './TaskDialog'
 
 const useStyles = makeStyles({
@@ -81,6 +81,12 @@ function formatDate(isoString) {
   return date.toLocaleDateString() + ' ' + date.toLocaleTimeString()
 }
 
+function formatDeadline(isoString) {
+  if (!isoString) return '—'
+  const date = new Date(isoString)
+  return date.toLocaleDateString()
+}
+
 function getTaskStats(tasks) {
   return {
     total: tasks.length,
@@ -98,6 +104,7 @@ export default function TaskList() {
 
   // State
   const [tasks, setTasks] = useState([])
+  const [urgentTasks, setUrgentTasks] = useState([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
   const [filter, setFilter] = useState('all')
@@ -110,7 +117,21 @@ export default function TaskList() {
     setError(null)
     try {
       const data = await getTasks(filterValue)
-      setTasks(data)
+      
+      // Only show urgent tasks when NOT viewing completed tasks
+      if (filterValue === 'completed') {
+        setUrgentTasks([])
+        setTasks(data)
+      } else {
+        const urgent = await getUrgentTasks()
+        
+        // Filter out urgent tasks from regular list to avoid duplicates
+        const urgentIds = new Set(urgent.map(t => t.id))
+        const regularTasks = data.filter(t => !urgentIds.has(t.id))
+        
+        setUrgentTasks(urgent)
+        setTasks(regularTasks)
+      }
     } catch (err) {
       setError(err.message)
     } finally {
@@ -179,6 +200,24 @@ export default function TaskList() {
       ),
     }),
     createTableColumn({
+      columnId: 'priority',
+      renderHeaderCell: () => 'Priority',
+      renderCell: (task) => (
+        <TableCellLayout>
+          <Badge
+            appearance="tint"
+            color={
+              task.priority === 'High' ? 'danger' :
+              task.priority === 'Medium' ? 'warning' :
+              'informative'
+            }
+          >
+            {task.priority || 'Medium'}
+          </Badge>
+        </TableCellLayout>
+      ),
+    }),
+    createTableColumn({
       columnId: 'title',
       renderHeaderCell: () => 'Title',
       renderCell: (task) => (
@@ -193,6 +232,15 @@ export default function TaskList() {
       renderCell: (task) => (
         <TableCellLayout>
           <Text>{task.description || '—'}</Text>
+        </TableCellLayout>
+      ),
+    }),
+    createTableColumn({
+      columnId: 'deadline',
+      renderHeaderCell: () => 'Deadline',
+      renderCell: (task) => (
+        <TableCellLayout>
+          <Text size={200}>{formatDeadline(task.deadline)}</Text>
         </TableCellLayout>
       ),
     }),
@@ -311,7 +359,7 @@ export default function TaskList() {
           <div className={styles.emptyState}>
             <Text>Error: {error}</Text>
           </div>
-        ) : tasks.length === 0 ? (
+        ) : tasks.length === 0 && urgentTasks.length === 0 ? (
           <div className={styles.emptyState} data-testid="empty-state">
             <Text size={400}>No tasks found</Text>
             <Text size={200} style={{ marginTop: '8px' }}>
@@ -319,27 +367,76 @@ export default function TaskList() {
             </Text>
           </div>
         ) : (
-          <DataGrid
-            items={tasks}
-            columns={columns}
-            sortable
-            getRowId={(item) => item.id}
-          >
-            <DataGridHeader>
-              <DataGridRow>
-                {({ renderHeaderCell }) => (
-                  <DataGridHeaderCell>{renderHeaderCell()}</DataGridHeaderCell>
-                )}
-              </DataGridRow>
-            </DataGridHeader>
-            <DataGridBody>
-              {({ item, rowId }) => (
-                <DataGridRow key={rowId}>
-                  {({ renderCell }) => <DataGridCell>{renderCell(item)}</DataGridCell>}
-                </DataGridRow>
-              )}
-            </DataGridBody>
-          </DataGrid>
+          <>
+            {/* Urgent Tasks Section - Pinned at top */}
+            {urgentTasks.length > 0 && (
+              <>
+                <div style={{ 
+                  padding: '16px', 
+                  backgroundColor: tokens.colorPaletteRedBackground2,
+                  borderBottom: `2px solid ${tokens.colorPaletteRedBorder2}`
+                }}>
+                  <Text weight="semibold" style={{ color: tokens.colorPaletteRedForeground1 }}>
+                    🚨 Dringende Tickets (High Priority, Deadline ≤ 2 Tage)
+                  </Text>
+                </div>
+                <DataGrid
+                  items={urgentTasks}
+                  columns={columns}
+                  sortable
+                  getRowId={(item) => item.id}
+                >
+                  <DataGridHeader>
+                    <DataGridRow>
+                      {({ renderHeaderCell }) => (
+                        <DataGridHeaderCell>{renderHeaderCell()}</DataGridHeaderCell>
+                      )}
+                    </DataGridRow>
+                  </DataGridHeader>
+                  <DataGridBody>
+                    {({ item, rowId }) => (
+                      <DataGridRow key={rowId}>
+                        {({ renderCell }) => <DataGridCell>{renderCell(item)}</DataGridCell>}
+                      </DataGridRow>
+                    )}
+                  </DataGridBody>
+                </DataGrid>
+                
+                {/* Gap separator */}
+                <div style={{ 
+                  height: '24px', 
+                  backgroundColor: tokens.colorNeutralBackground3,
+                  borderTop: `1px solid ${tokens.colorNeutralStroke2}`,
+                  borderBottom: `1px solid ${tokens.colorNeutralStroke2}`
+                }} />
+              </>
+            )}
+
+            {/* Regular Tasks Section */}
+            {tasks.length > 0 && (
+              <DataGrid
+                items={tasks}
+                columns={columns}
+                sortable
+                getRowId={(item) => item.id}
+              >
+                <DataGridHeader>
+                  <DataGridRow>
+                    {({ renderHeaderCell }) => (
+                      <DataGridHeaderCell>{renderHeaderCell()}</DataGridHeaderCell>
+                    )}
+                  </DataGridRow>
+                </DataGridHeader>
+                <DataGridBody>
+                  {({ item, rowId }) => (
+                    <DataGridRow key={rowId}>
+                      {({ renderCell }) => <DataGridCell>{renderCell(item)}</DataGridCell>}
+                    </DataGridRow>
+                  )}
+                </DataGridBody>
+              </DataGrid>
+            )}
+          </>
         )}
       </Card>
 

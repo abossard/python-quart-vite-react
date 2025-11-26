@@ -18,6 +18,8 @@ import {
   Field,
   Input,
   Textarea,
+  Dropdown,
+  Option,
   makeStyles,
   tokens,
 } from '@fluentui/react-components'
@@ -36,7 +38,9 @@ export default function TaskDialog({ open, task, onClose }) {
 
   // Form state
   const [title, setTitle] = useState('')
+  const [priority, setPriority] = useState('Medium')
   const [description, setDescription] = useState('')
+  const [deadline, setDeadline] = useState('')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState(null)
 
@@ -44,10 +48,19 @@ export default function TaskDialog({ open, task, onClose }) {
   useEffect(() => {
     if (task) {
       setTitle(task.title || '')
+      setPriority(task.priority || 'Medium')
       setDescription(task.description || '')
+      // Convert ISO string to YYYY-MM-DD format for input
+      if (task.deadline) {
+        setDeadline(task.deadline.split('T')[0])
+      } else {
+        setDeadline('')
+      }
     } else {
       setTitle('')
+      setPriority('Medium')
       setDescription('')
+      setDeadline('')
     }
     setError(null)
   }, [task, open])
@@ -72,7 +85,9 @@ export default function TaskDialog({ open, task, onClose }) {
     try {
       const taskData = {
         title: title.trim(),
+        priority: priority,
         description: description.trim(),
+        deadline: deadline ? new Date(deadline).toISOString() : null,
       }
 
       if (task) {
@@ -114,6 +129,28 @@ export default function TaskDialog({ open, task, onClose }) {
                   placeholder="Enter task title..."
                   data-testid="task-title-input"
                   autoFocus
+                />
+              </Field>
+
+              <Field label="Priority" required>
+                <Dropdown
+                  value={priority}
+                  selectedOptions={[priority]}
+                  onOptionSelect={(_, data) => setPriority(data.optionValue)}
+                  data-testid="task-priority-dropdown"
+                >
+                  <Option value="Low">Low</Option>
+                  <Option value="Medium">Medium</Option>
+                  <Option value="High">High</Option>
+                </Dropdown>
+              </Field>
+
+              <Field label="Deadline" hint="Optional deadline for this task">
+                <Input
+                  type="date"
+                  value={deadline}
+                  onChange={(e) => setDeadline(e.target.value)}
+                  data-testid="task-deadline-input"
                 />
               </Field>
 

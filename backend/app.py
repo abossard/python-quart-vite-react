@@ -28,7 +28,7 @@ from quart import Quart, jsonify, request, send_from_directory
 from quart_cors import cors
 # Import Pydantic models and service
 from tasks import (Task, TaskCreate, TaskFilter, TaskService, TaskStats,
-                   TaskUpdate)
+                   TaskUpdate, PriorityStats)
 
 # ============================================================================
 # APPLICATION SETUP
@@ -157,6 +157,36 @@ async def op_get_task_stats() -> TaskStats:
     return task_service.get_stats()
 
 
+@operation(
+    name="get_priority_stats",
+    description="Get priority statistics for open tasks",
+    http_method="GET",
+    http_path="/api/tasks/priority-stats"
+)
+async def op_get_priority_stats() -> PriorityStats:
+    """
+    Get priority statistics for open/pending tasks.
+
+    Returns count of open tasks grouped by priority level (Low, Medium, High).
+    """
+    return task_service.get_priority_stats()
+
+
+@operation(
+    name="get_urgent_tasks",
+    description="Get urgent tasks (High priority with deadline within 2 days)",
+    http_method="GET",
+    http_path="/api/tasks/urgent"
+)
+async def op_get_urgent_tasks() -> list[Task]:
+    """
+    Get urgent tasks that need immediate attention.
+
+    Returns High priority tasks that are not completed and have deadline within 2 days.
+    """
+    return task_service.get_urgent_tasks()
+
+
 # ============================================================================
 # REST API WRAPPERS
 # These handle HTTP concerns and call the operations
@@ -227,6 +257,20 @@ async def rest_get_stats():
     """REST wrapper: get task statistics."""
     stats = await op_get_task_stats()
     return jsonify(stats.model_dump())
+
+
+@app.route("/api/tasks/priority-stats", methods=["GET"])
+async def rest_get_priority_stats():
+    """REST wrapper: get priority statistics for open tasks."""
+    stats = await op_get_priority_stats()
+    return jsonify(stats.model_dump())
+
+
+@app.route("/api/tasks/urgent", methods=["GET"])
+async def rest_get_urgent_tasks():
+    """REST wrapper: get urgent tasks."""
+    tasks = await op_get_urgent_tasks()
+    return jsonify([task.model_dump() for task in tasks])
 
 
 # ============================================================================

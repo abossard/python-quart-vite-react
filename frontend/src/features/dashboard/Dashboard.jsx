@@ -13,9 +13,11 @@ import {
   makeStyles,
   tokens,
   Spinner,
+  Badge,
 } from '@fluentui/react-components'
 import { Clock24Regular, CalendarLtr24Regular } from '@fluentui/react-icons'
-import { connectToTimeStream, getCurrentDate } from '../../services/api'
+import { connectToTimeStream, getCurrentDate, getPriorityStats, getUrgentTasks } from '../../services/api'
+import PriorityChart from '../../components/PriorityChart'
 
 const useStyles = makeStyles({
   dashboard: {
@@ -53,14 +55,24 @@ export default function Dashboard() {
   const styles = useStyles()
   const [liveTime, setLiveTime] = useState(null)
   const [serverDate, setServerDate] = useState(null)
+  const [priorityStats, setPriorityStats] = useState(null)
+  const [urgentTasks, setUrgentTasks] = useState(null)
   const [isConnected, setIsConnected] = useState(false)
   const [error, setError] = useState(null)
 
-  // Fetch initial server date
+  // Fetch initial server date, priority stats, and urgent tasks
   useEffect(() => {
     getCurrentDate()
       .then(setServerDate)
       .catch((err) => setError(err.message))
+    
+    getPriorityStats()
+      .then(setPriorityStats)
+      .catch((err) => console.error('Failed to load priority stats:', err.message))
+    
+    getUrgentTasks()
+      .then(setUrgentTasks)
+      .catch((err) => console.error('Failed to load urgent tasks:', err.message))
   }, [])
 
   // Connect to live time stream
@@ -148,6 +160,66 @@ export default function Dashboard() {
             <Text>Error: {error}</Text>
           ) : (
             <Spinner label="Loading..." />
+          )}
+        </div>
+      </Card>
+
+      <Card className={styles.card}>
+        <CardHeader
+          header={
+            <Text weight="semibold">🚨 Dringende Tickets</Text>
+          }
+          description={
+            <Text size={200}>High Priority mit Deadline ≤ 2 Tage</Text>
+          }
+        />
+        <div className={styles.content}>
+          {urgentTasks === null ? (
+            <Spinner label="Lade dringende Tickets..." />
+          ) : urgentTasks.length === 0 ? (
+            <Text size={300} style={{ color: tokens.colorNeutralForeground3 }}>
+              Keine dringenden Tickets 👍
+            </Text>
+          ) : (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: tokens.spacingVerticalS }}>
+              {urgentTasks.map((task) => (
+                <div
+                  key={task.id}
+                  style={{
+                    padding: tokens.spacingVerticalS,
+                    backgroundColor: tokens.colorPaletteRedBackground2,
+                    borderRadius: tokens.borderRadiusMedium,
+                    borderLeft: `4px solid ${tokens.colorPaletteRedBorder2}`,
+                  }}
+                >
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'start' }}>
+                    <div>
+                      <Text weight="semibold" style={{ display: 'block' }}>
+                        {task.title}
+                      </Text>
+                      {task.description && (
+                        <Text size={200} style={{ display: 'block', marginTop: '4px' }}>
+                          {task.description}
+                        </Text>
+                      )}
+                    </div>
+                    <Badge appearance="filled" color="danger">
+                      {new Date(task.deadline).toLocaleDateString()}
+                    </Badge>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      </Card>
+
+      <Card className={styles.card}>
+        <div className={styles.content}>
+          {priorityStats ? (
+            <PriorityChart data={priorityStats} />
+          ) : (
+            <Spinner label="Lade Prioritätsstatistiken..." />
           )}
         </div>
       </Card>
