@@ -24,7 +24,7 @@ from typing import Any, Callable, Optional, Union, get_args, get_origin, get_typ
 
 from pydantic import BaseModel
 
-# Optional LangChain imports for agent tool support
+# Optional LangChain/LangGraph imports for agent tool support
 try:
     from langchain_core.tools import StructuredTool
     LANGCHAIN_AVAILABLE = True
@@ -207,39 +207,58 @@ class Operation:
         """
         Convert operation to LangChain StructuredTool.
 
-        This enables LangGraph agents to automatically use operations as tools.
-        Requires langchain-core to be installed.
+        Creates a tool that wraps the handler and reconstructs Pydantic models
+        from flattened parameters.
 
         Returns:
-            StructuredTool instance that wraps this operation
+            StructuredTool instance
 
         Raises:
             ImportError: If langchain-core is not available
         """
         if not LANGCHAIN_AVAILABLE:
             raise ImportError(
-                "langchain-core is required to convert operations to LangChain tools. "
+                "langchain-core is required to use LangGraph tools. "
                 "Install with: pip install langchain-core"
             )
-
-        # Create async wrapper that calls the operation handler
-        async def tool_func(**kwargs):
-            """Execute the operation with provided arguments."""
-            # Parse arguments using operation's type hints
-            parsed_args = self.parse_arguments(kwargs)
-            # Call the handler
-            result = await self.handler(**parsed_args)
-            # Return result (LangChain will handle serialization)
-            return result
-
-        # Extract input schema from the operation
-        input_schema = self.get_mcp_input_schema()
-
-        # Create StructuredTool
+        
+        # Create a wrapper that reconstructs Pydantic models from flattened params
+        async def tool_wrapper(**kwargs):
+            \"\"\"Wrapper that converts flattened params back to Pydantic models.\"\"\"
+            sig = inspect.signature(self.handler)
+            hints = get_type_hints(self.handler)
+            
+            # Check if handler expects a Pydantic model parameter
+            handler_args = {}
+            for param_name, param in sig.parameters.items():
+                if param_name == 'self':
+                    continue
+                    
+                param_type = hints.get(param_name, Any)
+                
+                # If parameter is a Pydantic model, reconstruct it from kwargs
+                if inspect.isclass(param_type) and issubclass(param_type, BaseModel):
+                    # Collect all fields that belong to this Pydantic model
+                    model_data = {}
+                    for field_name in param_type.model_fields.keys():
+                        if field_name in kwargs:
+                            model_data[field_name] = kwargs[field_name]
+                    
+                    # Instantiate the Pydantic model
+                    handler_args[param_name] = param_type(**model_data)
+                else:
+                    # Simple parameter - pass through
+                    if param_name in kwargs:
+                        handler_args[param_name] = kwargs[param_name]
+            
+            # Call the handler with reconstructed arguments
+            return await self.handler(**handler_args)
+        
+        # Create StructuredTool with the wrapper
         return StructuredTool(
             name=self.name,
             description=self.description,
-            coroutine=tool_func,
+            coroutine=tool_wrapper,
             args_schema=self._create_pydantic_model_for_langchain(),
         )
 
@@ -247,8 +266,9 @@ class Operation:
         """
         Create a Pydantic model from operation parameters for LangChain.
 
-        LangChain StructuredTool requires a Pydantic model for args_schema.
-        This dynamically creates one from the function signature.
+        If the operation takes a Pydantic model parameter, we flatten it
+        so LangGraph tools get individual fields (title, description) instead
+        of a nested object (data: {title, description}).
 
         Returns:
             Pydantic model class representing the operation's parameters
@@ -259,20 +279,36 @@ class Operation:
         hints = get_type_hints(self.handler)
 
         fields = {}
+        
         for param_name, param in sig.parameters.items():
             if param_name == 'self':
                 continue
 
             param_type = hints.get(param_name, Any)
-            default_value = ... if param.default == inspect.Parameter.empty else param.default
-
-            # Add field with proper type and default
-            if default_value is ...:
-                fields[param_name] = (param_type, Field(description=f"{param_name} parameter"))
+            
+            # If parameter is a Pydantic model, flatten its fields
+            if inspect.isclass(param_type) and issubclass(param_type, BaseModel):
+                # Get the Pydantic model's fields and add them directly
+                for field_name, field_info in param_type.model_fields.items():
+                    # Use the field's annotation and default from the Pydantic model
+                    field_type = field_info.annotation
+                    field_default = field_info.default if field_info.default is not None else ...
+                    field_desc = field_info.description or f"{field_name} parameter"
+                    
+                    if field_default is ...:
+                        fields[field_name] = (field_type, Field(description=field_desc))
+                    else:
+                        fields[field_name] = (field_type, Field(default=field_default, description=field_desc))
             else:
-                fields[param_name] = (param_type, Field(default=default_value, description=f"{param_name} parameter"))
+                # Simple parameter - add directly
+                default_value = ... if param.default == inspect.Parameter.empty else param.default
+                
+                if default_value is ...:
+                    fields[param_name] = (param_type, Field(description=f"{param_name} parameter"))
+                else:
+                    fields[param_name] = (param_type, Field(default=default_value, description=f"{param_name} parameter"))
 
-        # Create dynamic Pydantic model
+        # Create dynamic Pydantic model with flattened fields
         model_name = f"{self.name.title().replace('_', '')}Input"
         return create_model(model_name, **fields)
 

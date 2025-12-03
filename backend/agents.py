@@ -29,18 +29,17 @@ Advanced StateGraph example (for learning):
     LangGraph workflow with nodes, edges, and conditional routing.
 """
 
-import json
-
 # Standard library
 import os
 from datetime import datetime
 from typing import Literal, Optional
 
 # Local - Import operations registry for automatic tool discovery
-from api_decorators import get_operations
+from api_decorators import get_langchain_tools
 
-# Third-party - OpenAI SDK
-from openai import OpenAI
+# Third-party - LangChain and LangGraph
+from langchain_openai import ChatOpenAI
+from langgraph.prebuilt import create_react_agent
 
 # Third-party - Pydantic for validation
 from pydantic import BaseModel, Field, field_validator
@@ -173,43 +172,21 @@ class AgentService:
                 "environment variables. See .env.example for template."
             )
         
-        # Initialize OpenAI client with Azure endpoint
-        self.client = OpenAI(
+        # Initialize ChatOpenAI with Azure endpoint using base_url pattern
+        self.llm = ChatOpenAI(
             base_url=AZURE_OPENAI_ENDPOINT,
-            api_key=AZURE_OPENAI_API_KEY,
+            api_key=AZURE_OPENAI_API_KEY,  # type: ignore
+            model=AZURE_OPENAI_DEPLOYMENT,
+            temperature=0.7,
         )
-        self.model = AZURE_OPENAI_DEPLOYMENT
         
-        # Load tools from operation registry
-        # These are automatically generated from @operation decorated functions
-        self.tools = self._get_tools_for_openai()
-    
-    def _get_tools_for_openai(self) -> list[dict]:
-        """Convert operations to OpenAI function calling format."""
-        operations = get_operations()
-        tools = []
-        
-        for op_name, op in operations.items():
-            # Get the input schema from the operation
-            input_schema = op.get_mcp_input_schema()
-            
-            # Convert operation to OpenAI tool schema
-            tool_def = {
-                "type": "function",
-                "function": {
-                    "name": op.name,
-                    "description": op.description or "",
-                    "parameters": input_schema
-                }
-            }
-            
-            tools.append(tool_def)
-        
-        return tools
+        # Load LangGraph tools from operation registry
+        # These are the actual Python functions decorated with @tool
+        self.tools = get_langchain_tools()
     
     async def run_agent(self, request: AgentRequest) -> AgentResponse:
         """
-        Run a ReAct agent with the given request using native OpenAI SDK.
+        Run a ReAct agent with the given request using LangGraph.
         
         The agent uses a ReAct (Reasoning + Acting) loop:
         1. Receive user prompt
@@ -218,7 +195,8 @@ class AgentService:
         4. Observe results
         5. Repeat until task is complete
         
-        All @operation decorated functions are automatically available as tools.
+        All @operation decorated functions are automatically available as LangGraph tools.
+        LangGraph calls the Python functions directly (not via MCP).
         
         Args:
             request: AgentRequest with prompt and agent type
@@ -230,84 +208,57 @@ class AgentService:
             ValueError: If agent execution fails
         """
         try:
+            # Create ReAct agent with LangGraph tools
+            # The tools are the actual Python functions with @tool decorator
+            agent = create_react_agent(self.llm, self.tools)
+            
             # System message to guide the agent's behavior
             system_msg = (
                 "You are a helpful task management assistant. "
-                "You can create, update, delete, and list tasks. "
-                "When asked to create tasks, use descriptive titles. "
-                "Always confirm what you've done and show the results."
+                "You MUST use the available tools to perform all actions. "
+                "NEVER pretend or simulate creating, updating, or listing tasks - you MUST call the actual tools. "
+                "Available tools: create_task, update_task, delete_task, list_tasks, get_task, get_task_stats. "
+                "When asked to create tasks, call create_task for each one. "
+                "When asked to list tasks, call list_tasks. "
+                "Always use tools and confirm what you've done based on the tool results."
             )
             
-            messages: list = [
-                {"role": "system", "content": system_msg},
-                {"role": "user", "content": request.prompt}
-            ]
+            # Execute agent with user prompt
+            print(f"DEBUG: Running agent with {len(self.tools)} tools")
+            print(f"DEBUG: Tools: {[t.name if hasattr(t, 'name') else str(t) for t in self.tools]}")
             
+            result = await agent.ainvoke(
+                {"messages": [("system", system_msg), ("user", request.prompt)]}
+            )
+            
+            print(f"DEBUG: Agent result messages: {len(result['messages'])}")
+            for i, msg in enumerate(result["messages"]):
+                print(f"DEBUG: Message {i}: type={type(msg).__name__}, has_tool_calls={hasattr(msg, 'tool_calls')}")
+                if hasattr(msg, 'tool_calls') and msg.tool_calls:
+                    print(f"DEBUG:   Tool calls: {msg.tool_calls}")
+            
+            # Extract the agent's final response
+            final_message = result["messages"][-1]
+            agent_output = final_message.content if hasattr(final_message, 'content') else str(final_message)
+            
+            # Track which tools were used
             tools_used = []
-            max_iterations = 10
-            
-            # ReAct loop
-            for _ in range(max_iterations):
-                response = self.client.chat.completions.create(
-                    model=self.model,
-                    messages=messages,  # type: ignore
-                    tools=self.tools,  # type: ignore
-                    tool_choice="auto"
-                )
-                
-                message = response.choices[0].message
-                
-                # Convert message to dict for appending
-                message_dict: dict = {"role": "assistant", "content": message.content or ""}
-                if message.tool_calls:
-                    message_dict["tool_calls"] = [
-                        {
-                            "id": tc.id,
-                            "type": tc.type,
-                            "function": {"name": tc.function.name, "arguments": tc.function.arguments}  # type: ignore
-                        } for tc in message.tool_calls
-                    ]
-                messages.append(message_dict)
-                
-                # If no tool calls, we're done
-                if not message.tool_calls:
-                    break
-                
-                # Execute tool calls
-                for tool_call in message.tool_calls:
-                    function_name = tool_call.function.name  # type: ignore
-                    tools_used.append(function_name)
-                    
-                    try:
-                        # Parse arguments
-                        arguments = json.loads(tool_call.function.arguments)  # type: ignore
-                        
-                        # Find and execute the operation
-                        operations = get_operations()
-                        operation = operations.get(function_name)
-                        
-                        if operation:
-                            result = await operation.handler(**arguments)
-                            result_str = json.dumps(result.model_dump() if hasattr(result, 'model_dump') else result)
+            for msg in result["messages"]:
+                # Check for tool_calls attribute
+                if hasattr(msg, 'tool_calls') and msg.tool_calls:
+                    for tc in msg.tool_calls:
+                        # Extract tool name from tool call
+                        if isinstance(tc, dict):
+                            tools_used.append(tc.get('name', ''))
                         else:
-                            result_str = json.dumps({"error": f"Unknown tool: {function_name}"})
-                    
-                    except Exception as e:
-                        result_str = json.dumps({"error": str(e)})
-                    
-                    # Add tool result to messages
-                    messages.append({
-                        "role": "tool",
-                        "tool_call_id": tool_call.id,
-                        "content": result_str
-                    })
-            
-            # Get final response
-            last_msg = messages[-1]
-            final_content = last_msg.get("content", "") if isinstance(last_msg, dict) else str(last_msg)
+                            tools_used.append(tc['name'] if 'name' in tc else str(tc))
+                # Also check for ToolMessage type (tool results)
+                elif hasattr(msg, 'type') and msg.type == 'tool':
+                    if hasattr(msg, 'name'):
+                        tools_used.append(msg.name)
             
             return AgentResponse(
-                result=final_content,
+                result=agent_output,
                 agent_type=request.agent_type,
                 tools_used=list(set(tools_used)),
                 created_at=datetime.now()
