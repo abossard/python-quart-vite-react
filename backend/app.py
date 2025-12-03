@@ -21,16 +21,24 @@ import os
 from datetime import datetime
 from pathlib import Path
 
+# Load environment variables from .env file
+from dotenv import load_dotenv
+
+load_dotenv()
+
+# Import agent service and models
+from agents import AgentRequest, AgentResponse, AgentService
+
 # Import unified operation system
-from api_decorators import get_mcp_tools, get_operation, operation
+from api_decorators import operation
+from mcp import handle_mcp_request
+from ollama_service import ChatRequest, ChatResponse, ModelListResponse, OllamaService
 from pydantic import ValidationError
 from quart import Quart, jsonify, request, send_from_directory
 from quart_cors import cors
+
 # Import Pydantic models and service
-from tasks import (Task, TaskCreate, TaskFilter, TaskService, TaskStats,
-                   TaskUpdate)
-from ollama_service import (ChatRequest, ChatResponse, ModelListResponse,
-                             OllamaService)
+from tasks import Task, TaskCreate, TaskFilter, TaskService, TaskStats, TaskUpdate
 
 # ============================================================================
 # APPLICATION SETUP
@@ -42,6 +50,15 @@ app = cors(app, allow_origin="*")
 # Service instances
 task_service = TaskService()
 ollama_service = OllamaService()
+
+# Initialize agent service (may fail if Azure OpenAI not configured)
+try:
+    agent_service = AgentService()
+    print("✓ Agent service initialized with Azure OpenAI")
+except ValueError as e:
+    agent_service = None
+    print(f"⚠ Agent service disabled: {e}")
+    print("  To enable agents, configure Azure OpenAI in .env file")
 
 
 # ============================================================================
@@ -192,6 +209,37 @@ async def op_list_ollama_models() -> ModelListResponse:
     """
     return await ollama_service.list_models()
 
+@operation(
+    name="run_agent",
+    description="Execute an AI agent with access to task management tools",
+    http_method="POST",
+    http_path="/api/agents/run"
+)
+async def op_run_agent(request: AgentRequest) -> AgentResponse:
+    """
+    Run a LangGraph ReAct agent with task management capabilities.
+    
+    The agent has access to all @operation decorated functions as tools,
+    including create_task, update_task, delete_task, list_tasks, etc.
+    
+    Requires Azure OpenAI to be configured in .env file.
+    
+    Args:
+        request: AgentRequest with prompt and agent_type
+        
+    Returns:
+        AgentResponse with agent output and metadata
+        
+    Raises:
+        ValueError: If agent service is not initialized (missing Azure config)
+    """
+    if agent_service is None:
+        raise ValueError(
+            "Agent service is not available. "
+            "Please configure Azure OpenAI credentials in .env file. "
+            "See .env.example for required variables."
+        )
+    return await agent_service.run_agent(request)
 
 # ============================================================================
 # REST API WRAPPERS
@@ -293,6 +341,22 @@ async def rest_list_ollama_models():
         return jsonify({"error": str(e)}), 500
 
 
+@app.route("/api/agents/run", methods=["POST"])
+async def rest_run_agent():
+    """REST wrapper: run AI agent with task management tools."""
+    try:
+        data = await request.get_json()
+        agent_request = AgentRequest(**data)
+        response = await op_run_agent(agent_request)
+        return jsonify(response.model_dump()), 200
+    except ValidationError as e:
+        return jsonify({"error": str(e)}), 400
+    except ValueError as e:
+        return jsonify({"error": str(e)}), 503
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
 # ============================================================================
 # NON-TASK ENDPOINTS
 # ============================================================================
@@ -372,126 +436,8 @@ if frontend_dist_path.exists() and (frontend_dist_path / "index.html").exists():
 
 @app.route("/mcp", methods=["POST"])
 async def mcp_json_rpc():
-    """
-    MCP JSON-RPC 2.0 over HTTP.
-
-    Uses the SAME operations as REST, with schemas auto-generated from Pydantic!
-
-    Supported methods:
-    - initialize: Initialize MCP session
-    - tools/list: List available tools (generated from @operation decorators + Pydantic)
-    - tools/call: Execute a tool (uses same functions as REST)
-    """
-    try:
-        data = await request.get_json()
-
-        if not data or "jsonrpc" not in data:
-            return jsonify({
-                "jsonrpc": "2.0",
-                "error": {"code": -32600, "message": "Invalid Request"},
-                "id": data.get("id") if data else None
-            }), 400
-
-        method = data.get("method")
-        params = data.get("params", {})
-        request_id = data.get("id")
-
-        # Notifications (no response required but we acknowledge for logs)
-        if method == "notifications/initialized":
-            return jsonify({
-                "jsonrpc": "2.0",
-                "result": None,
-                "id": request_id
-            }), 200
-
-        # Initialize
-        if method == "initialize":
-            return jsonify({
-                "jsonrpc": "2.0",
-                "result": {
-                    "protocolVersion": "2024-11-05",
-                    "capabilities": {"tools": {}},
-                    "serverInfo": {
-                        "name": "quart-pydantic-task-server",
-                        "version": "2.0.0"
-                    }
-                },
-                "id": request_id
-            })
-
-        # List tools (auto-generated from Pydantic models!)
-        elif method == "tools/list":
-            tools = get_mcp_tools()
-            return jsonify({
-                "jsonrpc": "2.0",
-                "result": {"tools": tools},
-                "id": request_id
-            })
-
-        # Call tool with Pydantic validation
-        elif method == "tools/call":
-            tool_name = params.get("name")
-            arguments = params.get("arguments", {})
-
-            op = get_operation(tool_name)
-            if not op:
-                return jsonify({
-                    "jsonrpc": "2.0",
-                    "error": {"code": -32601, "message": f"Tool not found: {tool_name}"},
-                    "id": request_id
-                }), 404
-
-            try:
-                # Call operation with validation
-                result = await op.handler(**arguments)
-
-                # Serialize Pydantic models
-                if isinstance(result, list):
-                    result_text = json.dumps([item.model_dump() if hasattr(item, 'model_dump') else item for item in result], indent=2)
-                elif hasattr(result, 'model_dump'):
-                    result_text = json.dumps(result.model_dump(), indent=2)
-                elif isinstance(result, bool):
-                    result_text = f"Success: {result}"
-                else:
-                    result_text = json.dumps(result, indent=2)
-
-                return jsonify({
-                    "jsonrpc": "2.0",
-                    "result": {
-                        "content": [{
-                            "type": "text",
-                            "text": result_text
-                        }]
-                    },
-                    "id": request_id
-                })
-
-            except ValidationError as e:
-                return jsonify({
-                    "jsonrpc": "2.0",
-                    "error": {"code": -32602, "message": f"Validation error: {str(e)}"},
-                    "id": request_id
-                }), 400
-            except Exception as e:
-                return jsonify({
-                    "jsonrpc": "2.0",
-                    "error": {"code": -32603, "message": f"Internal error: {str(e)}"},
-                    "id": request_id
-                }), 500
-
-        else:
-            return jsonify({
-                "jsonrpc": "2.0",
-                "error": {"code": -32601, "message": f"Method not found: {method}"},
-                "id": request_id
-            }), 404
-
-    except Exception as e:
-        return jsonify({
-            "jsonrpc": "2.0",
-            "error": {"code": -32603, "message": f"Internal error: {str(e)}"},
-            "id": None
-        }), 500
+    """MCP JSON-RPC 2.0 endpoint - delegates to mcp.py handler."""
+    return await handle_mcp_request()
 
 
 # ============================================================================
