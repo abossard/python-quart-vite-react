@@ -15,12 +15,13 @@ Key principles:
 - No duplication between REST and MCP
 """
 
-from functools import wraps
-from typing import Callable, Any, get_type_hints, get_origin, get_args, Union
-from dataclasses import dataclass, field
-from pydantic import BaseModel
-from enum import Enum
 import inspect
+from dataclasses import dataclass, field
+from enum import Enum
+from functools import wraps
+from typing import Any, Callable, Union, get_args, get_origin, get_type_hints
+
+from pydantic import BaseModel
 
 
 @dataclass
@@ -142,6 +143,59 @@ class Operation:
             "description": self.description,
             "inputSchema": self.get_mcp_input_schema()
         }
+
+    def parse_arguments(self, arguments: dict) -> dict:
+        """
+        Parse MCP arguments into proper Python types.
+
+        Automatically converts dict arguments into Pydantic models based on
+        the handler's type annotations.
+
+        Args:
+            arguments: Raw arguments from MCP tool call
+
+        Returns:
+            Dict of parsed arguments ready to pass to the handler
+        """
+        sig = inspect.signature(self.handler)
+        parsed_args = {}
+
+        for param_name, param in sig.parameters.items():
+            if param_name in arguments:
+                param_type = param.annotation
+                # If parameter type is a Pydantic model, instantiate it from the dict
+                if inspect.isclass(param_type) and issubclass(param_type, BaseModel):
+                    parsed_args[param_name] = param_type(**arguments[param_name])
+                else:
+                    parsed_args[param_name] = arguments[param_name]
+
+        return parsed_args
+
+    def serialize_result(self, result: Any) -> str:
+        """
+        Serialize operation result to JSON string for MCP responses.
+
+        Handles Pydantic models with datetime fields by using mode='json'.
+
+        Args:
+            result: The result from the operation handler
+
+        Returns:
+            JSON string representation of the result
+        """
+        import json
+        
+        if isinstance(result, list):
+            return json.dumps(
+                [item.model_dump(mode='json') if hasattr(item, 'model_dump') else item for item in result],
+                indent=2
+            )
+        elif hasattr(result, 'model_dump'):
+            return json.dumps(result.model_dump(mode='json'), indent=2)
+        elif isinstance(result, bool):
+            return f"Success: {result}"
+        else:
+            return json.dumps(result, indent=2)
 
 
 # Registry of all operations
