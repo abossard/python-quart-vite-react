@@ -26,8 +26,6 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
-# Import agent service and models
-from agents import AgentRequest, AgentResponse, AgentService
 
 # Import unified operation system
 from api_decorators import operation
@@ -50,15 +48,6 @@ app = cors(app, allow_origin="*")
 # Service instances
 task_service = TaskService()
 ollama_service = OllamaService()
-
-# Initialize agent service (may fail if Azure OpenAI not configured)
-try:
-    agent_service = AgentService()
-    print("✓ Agent service initialized with Azure OpenAI")
-except ValueError as e:
-    agent_service = None
-    print(f"⚠ Agent service disabled: {e}")
-    print("  To enable agents, configure Azure OpenAI in .env file")
 
 
 # ============================================================================
@@ -209,37 +198,6 @@ async def op_list_ollama_models() -> ModelListResponse:
     """
     return await ollama_service.list_models()
 
-@operation(
-    name="run_agent",
-    description="Execute an AI agent with access to task management tools",
-    http_method="POST",
-    http_path="/api/agents/run"
-)
-async def op_run_agent(request: AgentRequest) -> AgentResponse:
-    """
-    Run a LangGraph ReAct agent with task management capabilities.
-    
-    The agent has access to all @operation decorated functions as tools,
-    including create_task, update_task, delete_task, list_tasks, etc.
-    
-    Requires Azure OpenAI to be configured in .env file.
-    
-    Args:
-        request: AgentRequest with prompt and agent_type
-        
-    Returns:
-        AgentResponse with agent output and metadata
-        
-    Raises:
-        ValueError: If agent service is not initialized (missing Azure config)
-    """
-    if agent_service is None:
-        raise ValueError(
-            "Agent service is not available. "
-            "Please configure Azure OpenAI credentials in .env file. "
-            "See .env.example for required variables."
-        )
-    return await agent_service.run_agent(request)
 
 # ============================================================================
 # REST API WRAPPERS
@@ -341,20 +299,6 @@ async def rest_list_ollama_models():
         return jsonify({"error": str(e)}), 500
 
 
-@app.route("/api/agents/run", methods=["POST"])
-async def rest_run_agent():
-    """REST wrapper: run AI agent with task management tools."""
-    try:
-        data = await request.get_json()
-        agent_request = AgentRequest(**data)
-        response = await op_run_agent(agent_request)
-        return jsonify(response.model_dump()), 200
-    except ValidationError as e:
-        return jsonify({"error": str(e)}), 400
-    except ValueError as e:
-        return jsonify({"error": str(e)}), 503
-    except Exception as e:
-        return jsonify({"error": str(e)}), 500
 
 
 # ============================================================================
