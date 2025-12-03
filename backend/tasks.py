@@ -1,8 +1,9 @@
 """
 Task Management Module
 
-This module demonstrates clean architecture with Pydantic models:
-- Type-safe data models with automatic validation
+This module demonstrates clean architecture with SQLModel:
+- Type-safe data models with automatic validation (Pydantic)
+- ORM with SQLAlchemy for database operations
 - Self-documenting schemas for REST and MCP
 - Consolidated business logic (avoiding overly granular functions)
 - Separation of pure functions (calculations) from I/O (actions)
@@ -13,44 +14,36 @@ Following "Grokking Simplicity" and "A Philosophy of Software Design":
 - Clear separation: Data models, Calculations, Actions, Service layer
 """
 
-from pydantic import BaseModel, Field, field_validator
-from datetime import datetime
-from typing import Optional
-from enum import Enum
 import uuid
+from datetime import datetime
+from enum import Enum
+from pathlib import Path
+from typing import Optional
 
+from pydantic import field_validator
+from sqlmodel import Field, Session, SQLModel, create_engine, select
 
 # ============================================================================
-# DATA MODELS - Pydantic for validation and schema generation
+# DATA MODELS - SQLModel for database tables + Pydantic validation
 # ============================================================================
 
-class Task(BaseModel):
+class Task(SQLModel, table=True):
     """
-    Complete task representation.
+    Complete task representation - both database table and Pydantic model.
 
-    Pydantic automatically:
-    - Validates types
+    SQLModel automatically:
+    - Creates database table
+    - Validates types (Pydantic)
     - Generates JSON schema (for MCP)
     - Handles serialization
     - Provides IDE autocompletion
     """
-    id: str = Field(default_factory=lambda: str(uuid.uuid4()), description="Unique task identifier")
+    
+    id: Optional[str] = Field(default_factory=lambda: str(uuid.uuid4()), primary_key=True, description="Unique task identifier")
     title: str = Field(..., min_length=1, max_length=200, description="Task title")
     description: str = Field(default="", max_length=1000, description="Task description")
     completed: bool = Field(default=False, description="Completion status")
     created_at: datetime = Field(default_factory=datetime.now, description="Creation timestamp")
-
-    model_config = {
-        "json_schema_extra": {
-            "examples": [{
-                "id": "550e8400-e29b-41d4-a716-446655440000",
-                "title": "Learn Pydantic",
-                "description": "Understand Pydantic models and validation",
-                "completed": False,
-                "created_at": "2025-11-18T12:00:00"
-            }]
-        }
-    }
 
     @field_validator('title')
     @classmethod
@@ -61,7 +54,7 @@ class Task(BaseModel):
         return v.strip()
 
 
-class TaskCreate(BaseModel):
+class TaskCreate(SQLModel):
     """
     Data required to create a new task.
 
@@ -83,7 +76,7 @@ class TaskCreate(BaseModel):
         return v.strip()
 
 
-class TaskUpdate(BaseModel):
+class TaskUpdate(SQLModel):
     """
     Data for updating a task.
 
@@ -113,23 +106,43 @@ class TaskFilter(str, Enum):
     PENDING = "pending"
 
 
-class TaskStats(BaseModel):
+class TaskStats(SQLModel):
     """Task statistics."""
     total: int = Field(..., description="Total number of tasks")
     completed: int = Field(..., description="Number of completed tasks")
     pending: int = Field(..., description="Number of pending tasks")
 
 
-class TaskError(BaseModel):
+class TaskError(SQLModel):
     """Error response."""
     error: str = Field(..., description="Error message")
 
 
 # ============================================================================
-# DATA STORAGE - In-memory database
+# DATA STORAGE - SQLModel engine and session
 # ============================================================================
 
-_tasks_db: dict[str, Task] = {}
+# Database path - use environment variable or default to data/tasks.db
+DB_PATH = Path(__file__).parent / "data" / "tasks.db"
+DB_PATH.parent.mkdir(parents=True, exist_ok=True)
+
+# Create SQLAlchemy engine
+DATABASE_URL = f"sqlite:///{DB_PATH}"
+engine = create_engine(DATABASE_URL, echo=False)
+
+
+def init_db():
+    """Initialize database - create all tables."""
+    SQLModel.metadata.create_all(engine)
+
+
+def get_session():
+    """Get database session."""
+    return Session(engine)
+
+
+# Initialize database on module import
+init_db()
 
 
 # ============================================================================
@@ -140,7 +153,7 @@ _tasks_db: dict[str, Task] = {}
 
 class TaskService:
     """
-    Task service handling all business logic.
+    Task service handling all business logic with SQLModel.
 
     This class consolidates all task operations into a cohesive interface.
     We avoid creating many tiny helper functions - each method does substantial work.
@@ -151,103 +164,105 @@ class TaskService:
         """
         Create a new task with validation.
 
-        This consolidated method:
-        - Validates input (via Pydantic)
-        - Creates task with generated ID and timestamp
-        - Stores in database
-        - Returns the created task
-
-        No need for separate tiny functions like create_task_data(),
-        validate_title(), etc. - Pydantic handles validation, and we do
-        the rest here in one clear operation.
+        SQLModel handles:
+        - Pydantic validation
+        - ID generation
+        - Timestamp creation
+        - Database insertion
         """
-        task = Task(
-            title=data.title,
-            description=data.description
-        )
-        _tasks_db[task.id] = task
+        task = Task.model_validate(data)
+        
+        with get_session() as session:
+            session.add(task)
+            session.commit()
+            session.refresh(task)
+        
         return task
 
     @staticmethod
     def get_task(task_id: str) -> Optional[Task]:
         """Get a task by ID. Returns None if not found."""
-        return _tasks_db.get(task_id)
+        with get_session() as session:
+            return session.get(Task, task_id)
 
     @staticmethod
     def list_tasks(filter: TaskFilter = TaskFilter.ALL) -> list[Task]:
         """
         List tasks with optional filtering.
 
-        Consolidated filtering logic - we could split this into
-        filter_completed(), filter_pending(), etc., but that would
-        create unnecessary tiny functions. This is clearer.
+        Uses SQLModel's type-safe query builder.
         """
-        all_tasks = list(_tasks_db.values())
-
-        if filter == TaskFilter.COMPLETED:
-            return [task for task in all_tasks if task.completed]
-        elif filter == TaskFilter.PENDING:
-            return [task for task in all_tasks if not task.completed]
-        else:
-            return all_tasks
+        with get_session() as session:
+            statement = select(Task)
+            
+            if filter == TaskFilter.COMPLETED:
+                statement = statement.where(Task.completed == True)  # noqa: E712
+            elif filter == TaskFilter.PENDING:
+                statement = statement.where(Task.completed == False)  # noqa: E712
+            
+            return list(session.exec(statement).all())
 
     @staticmethod
     def update_task(task_id: str, updates: TaskUpdate) -> Optional[Task]:
         """
         Update a task with validation.
 
-        Consolidated update logic:
-        - Retrieves existing task
-        - Applies only provided fields
-        - Validates via Pydantic
-        - Updates database
-        - Returns updated task
-
+        SQLModel handles validation and database updates.
         Returns None if task not found.
         """
-        task = _tasks_db.get(task_id)
-        if not task:
-            return None
+        with get_session() as session:
+            task = session.get(Task, task_id)
+            if not task:
+                return None
 
-        # Apply updates (only fields that were provided)
-        update_data = updates.model_dump(exclude_unset=True)
-        updated_task = task.model_copy(update=update_data)
-
-        _tasks_db[task_id] = updated_task
-        return updated_task
+            # Apply updates (only fields that were provided)
+            update_data = updates.model_dump(exclude_unset=True)
+            for key, value in update_data.items():
+                setattr(task, key, value)
+            
+            session.add(task)
+            session.commit()
+            session.refresh(task)
+            
+            return task
 
     @staticmethod
     def delete_task(task_id: str) -> bool:
         """Delete a task. Returns True if deleted, False if not found."""
-        if task_id in _tasks_db:
-            del _tasks_db[task_id]
+        with get_session() as session:
+            task = session.get(Task, task_id)
+            if not task:
+                return False
+            
+            session.delete(task)
+            session.commit()
             return True
-        return False
 
     @staticmethod
     def get_stats() -> TaskStats:
         """
-        Get task statistics.
-
-        Consolidated stats calculation - we could split into
-        count_total(), count_completed(), count_pending(), but
-        that's unnecessary fragmentation. This is clearer.
+        Get task statistics using SQLModel queries.
         """
-        all_tasks = list(_tasks_db.values())
-        completed = sum(1 for task in all_tasks if task.completed)
+        with get_session() as session:
+            total = len(session.exec(select(Task)).all())
+            completed = len(session.exec(select(Task).where(Task.completed == True)).all())  # noqa: E712
 
-        return TaskStats(
-            total=len(all_tasks),
-            completed=completed,
-            pending=len(all_tasks) - completed
-        )
+            return TaskStats(
+                total=total,
+                completed=completed,
+                pending=total - completed
+            )
 
     @staticmethod
     def clear_all_tasks() -> int:
         """Clear all tasks. Returns count of tasks cleared."""
-        count = len(_tasks_db)
-        _tasks_db.clear()
-        return count
+        with get_session() as session:
+            tasks = session.exec(select(Task)).all()
+            count = len(tasks)
+            for task in tasks:
+                session.delete(task)
+            session.commit()
+            return count
 
     @staticmethod
     def initialize_sample_data() -> int:
@@ -258,7 +273,7 @@ class TaskService:
         Returns count of tasks created.
         """
         # Clear existing data
-        _tasks_db.clear()
+        TaskService.clear_all_tasks()
 
         # Create sample tasks
         samples = [
