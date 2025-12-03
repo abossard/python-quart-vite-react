@@ -14,8 +14,61 @@ import {
   tokens,
   Spinner,
 } from '@fluentui/react-components'
-import { Clock24Regular, CalendarLtr24Regular } from '@fluentui/react-icons'
-import { connectToTimeStream, getCurrentDate } from '../../services/api'
+import { Clock24Regular, CalendarLtr24Regular, DataBarVertical24Regular } from '@fluentui/react-icons'
+import { connectToTimeStream, getCurrentDate, getTasks } from '../../services/api'
+import {
+  BarChart,
+  Bar,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  Tooltip,
+  Legend,
+  ResponsiveContainer,
+  Cell,
+} from 'recharts'
+
+// ============================================================================
+// CALCULATIONS
+// ============================================================================
+
+/**
+ * Aggregiert Tasks nach Priorität für das Balkendiagramm.
+ * Pure function - keine Side-Effects
+ * Zählt nur nicht-erledigte Tasks (completed: false)
+ * Farben entsprechen den Badge-Hintergrundfarben in der TaskList
+ * @param {Array} tasks - Array of task objects
+ * @returns {Array} Array of {priority, count, color} objects
+ */
+function getTasksByPriority(tasks) {
+  // Hintergrundfarben entsprechend FluentUI Badge colors: danger, warning, important, success
+  const priorityColors = {
+    critical: tokens.colorPaletteRedBackground3,    // danger (rot)
+    high: tokens.colorPaletteDarkOrangeBackground3, // warning (orange)
+    medium: tokens.colorPaletteBlueBackground3,      // important (blau)
+    low: tokens.colorPaletteGreenBackground3,        // success (grün)
+  }
+
+  const counts = { critical: 0, high: 0, medium: 0, low: 0 }
+
+  // Nur nicht-erledigte Tasks zählen
+  tasks.forEach((task) => {
+    if (!task.completed && counts.hasOwnProperty(task.priority)) {
+      counts[task.priority]++
+    }
+  })
+
+  return [
+    { priority: 'Critical', count: counts.critical, color: priorityColors.critical },
+    { priority: 'High', count: counts.high, color: priorityColors.high },
+    { priority: 'Medium', count: counts.medium, color: priorityColors.medium },
+    { priority: 'Low', count: counts.low, color: priorityColors.low },
+  ]
+}
+
+// ============================================================================
+// STYLES
+// ============================================================================
 
 const useStyles = makeStyles({
   dashboard: {
@@ -47,7 +100,21 @@ const useStyles = makeStyles({
     flexDirection: 'column',
     gap: tokens.spacingVerticalM,
   },
+  spinnerContainer: {
+    display: 'flex',
+    justifyContent: 'center',
+    alignItems: 'center',
+    height: '250px',
+  },
+  chartContainer: {
+    marginTop: tokens.spacingVerticalM,
+    height: '250px',
+  },
 })
+
+// ============================================================================
+// COMPONENT
+// ============================================================================
 
 export default function Dashboard() {
   const styles = useStyles()
@@ -55,12 +122,28 @@ export default function Dashboard() {
   const [serverDate, setServerDate] = useState(null)
   const [isConnected, setIsConnected] = useState(false)
   const [error, setError] = useState(null)
+  const [tasks, setTasks] = useState([])
+  const [loadingTasks, setLoadingTasks] = useState(true)
 
   // Fetch initial server date
   useEffect(() => {
     getCurrentDate()
       .then(setServerDate)
       .catch((err) => setError(err.message))
+  }, [])
+
+  // Fetch tasks for priority chart
+  useEffect(() => {
+    setLoadingTasks(true)
+    getTasks()
+      .then((data) => {
+        setTasks(data)
+        setLoadingTasks(false)
+      })
+      .catch((err) => {
+        setError(err.message)
+        setLoadingTasks(false)
+      })
   }, [])
 
   // Connect to live time stream
@@ -79,6 +162,9 @@ export default function Dashboard() {
 
     return cleanup
   }, [])
+
+  // Calculate priority distribution
+  const priorityData = getTasksByPriority(tasks)
 
   return (
     <div className={styles.dashboard}>
@@ -148,6 +234,45 @@ export default function Dashboard() {
             <Text>Error: {error}</Text>
           ) : (
             <Spinner label="Loading..." />
+          )}
+        </div>
+      </Card>
+
+      <Card className={styles.card}>
+        <CardHeader
+          header={
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <DataBarVertical24Regular />
+              <Text weight="semibold">Tasks by Priority</Text>
+            </div>
+          }
+          description={<Text size={200}>Distribution of tasks by priority level</Text>}
+        />
+        <div className={styles.content}>
+          {loadingTasks ? (
+            <div className={styles.spinnerContainer}>
+              <Spinner label="Loading tasks..." />
+            </div>
+          ) : (
+            <div className={styles.chartContainer} data-testid="priority-chart">
+              <ResponsiveContainer width="100%" height="100%">
+                <BarChart
+                  data={priorityData}
+                  margin={{ top: 20, right: 30, left: 20, bottom: 5 }}
+                >
+                  <CartesianGrid strokeDasharray="3 3" />
+                  <XAxis dataKey="priority" />
+                  <YAxis allowDecimals={false} />
+                  <Tooltip />
+                  <Legend />
+                  <Bar dataKey="count" name="Tasks" radius={[8, 8, 0, 0]}>
+                    {priorityData.map((entry, index) => (
+                      <Cell key={`cell-${index}`} fill={entry.color} />
+                    ))}
+                  </Bar>
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
           )}
         </div>
       </Card>

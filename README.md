@@ -52,6 +52,8 @@ npx playwright install chromium
 ```
 > Debian/Ubuntu users may also need `npx playwright install-deps` for browser libs.
 
+
+
 ## Run & verify
 
 ### Option A — Manual terminals

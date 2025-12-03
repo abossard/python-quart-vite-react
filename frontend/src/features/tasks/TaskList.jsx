@@ -42,6 +42,8 @@ import {
   Delete20Regular,
   Checkmark20Regular,
   Dismiss20Regular,
+  ArrowUp20Regular,
+  ChevronDown20Regular,
 } from '@fluentui/react-icons'
 import { getTasks, deleteTask, updateTask } from '../../services/api'
 import TaskDialog from './TaskDialog'
@@ -87,6 +89,16 @@ function getTaskStats(tasks) {
     completed: tasks.filter((t) => t.completed).length,
     pending: tasks.filter((t) => !t.completed).length,
   }
+}
+
+function getPriorityConfig(priority) {
+  const configs = {
+    critical: { label: 'Critical', color: 'danger', icon: '🔴' },
+    high: { label: 'High', color: 'warning', icon: '🟠' },
+    medium: { label: 'Medium', color: 'important', icon: '🟡' },
+    low: { label: 'Low', color: 'success', icon: '🟢' },
+  }
+  return configs[priority] || configs.medium
 }
 
 // ============================================================================
@@ -151,6 +163,15 @@ export default function TaskList() {
     }
   }
 
+  const handlePriorityChange = async (task, newPriority) => {
+    try {
+      await updateTask(task.id, { priority: newPriority })
+      await loadTasks()
+    } catch (err) {
+      setError(err.message)
+    }
+  }
+
   const handleDialogClose = (shouldRefresh) => {
     setDialogOpen(false)
     setEditingTask(null)
@@ -177,6 +198,59 @@ export default function TaskList() {
           </Badge>
         </TableCellLayout>
       ),
+    }),
+    createTableColumn({
+      columnId: 'priority',
+      renderHeaderCell: () => 'Priority',
+      renderCell: (task) => {
+        const config = getPriorityConfig(task.priority)
+        return (
+          <TableCellLayout>
+            <Menu>
+              <MenuTrigger>
+                <Button
+                  size="small"
+                  appearance="subtle"
+                  icon={<ChevronDown20Regular />}
+                  data-testid={`priority-button-${task.id}`}
+                >
+                  <Badge appearance="filled" color={config.color}>
+                    {config.icon} {config.label}
+                  </Badge>
+                </Button>
+              </MenuTrigger>
+              <MenuPopover>
+                <MenuList>
+                  <MenuItem
+                    onClick={() => handlePriorityChange(task, 'critical')}
+                    data-testid={`priority-critical-${task.id}`}
+                  >
+                    🔴 Critical
+                  </MenuItem>
+                  <MenuItem
+                    onClick={() => handlePriorityChange(task, 'high')}
+                    data-testid={`priority-high-${task.id}`}
+                  >
+                    🟠 High
+                  </MenuItem>
+                  <MenuItem
+                    onClick={() => handlePriorityChange(task, 'medium')}
+                    data-testid={`priority-medium-${task.id}`}
+                  >
+                    🟡 Medium
+                  </MenuItem>
+                  <MenuItem
+                    onClick={() => handlePriorityChange(task, 'low')}
+                    data-testid={`priority-low-${task.id}`}
+                  >
+                    🟢 Low
+                  </MenuItem>
+                </MenuList>
+              </MenuPopover>
+            </Menu>
+          </TableCellLayout>
+        )
+      },
     }),
     createTableColumn({
       columnId: 'title',

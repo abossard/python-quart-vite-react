@@ -18,6 +18,8 @@ import {
   Field,
   Input,
   Textarea,
+  Radio,
+  RadioGroup,
   makeStyles,
   tokens,
 } from '@fluentui/react-components'
@@ -37,6 +39,7 @@ export default function TaskDialog({ open, task, onClose }) {
   // Form state
   const [title, setTitle] = useState('')
   const [description, setDescription] = useState('')
+  const [priority, setPriority] = useState('medium')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState(null)
 
@@ -45,9 +48,11 @@ export default function TaskDialog({ open, task, onClose }) {
     if (task) {
       setTitle(task.title || '')
       setDescription(task.description || '')
+      setPriority(task.priority || 'medium')
     } else {
       setTitle('')
       setDescription('')
+      setPriority('medium')
     }
     setError(null)
   }, [task, open])
@@ -73,6 +78,7 @@ export default function TaskDialog({ open, task, onClose }) {
       const taskData = {
         title: title.trim(),
         description: description.trim(),
+        priority: priority,
       }
 
       if (task) {
@@ -125,6 +131,19 @@ export default function TaskDialog({ open, task, onClose }) {
                   rows={4}
                   data-testid="task-description-input"
                 />
+              </Field>
+
+              <Field label="Priority">
+                <RadioGroup
+                  value={priority}
+                  onChange={(_, data) => setPriority(data.value)}
+                  data-testid="task-priority-input"
+                >
+                  <Radio value="critical" label="🔴 Critical" />
+                  <Radio value="high" label="🟠 High" />
+                  <Radio value="medium" label="🟡 Medium" />
+                  <Radio value="low" label="🟢 Low" />
+                </RadioGroup>
               </Field>
             </DialogContent>
             <DialogActions>

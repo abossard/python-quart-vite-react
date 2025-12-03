@@ -24,6 +24,14 @@ import uuid
 # DATA MODELS - Pydantic for validation and schema generation
 # ============================================================================
 
+class TaskPriority(str, Enum):
+    """Task priority levels."""
+    LOW = "low"
+    MEDIUM = "medium"
+    HIGH = "high"
+    CRITICAL = "critical"
+
+
 class Task(BaseModel):
     """
     Complete task representation.
@@ -38,6 +46,7 @@ class Task(BaseModel):
     title: str = Field(..., min_length=1, max_length=200, description="Task title")
     description: str = Field(default="", max_length=1000, description="Task description")
     completed: bool = Field(default=False, description="Completion status")
+    priority: TaskPriority = Field(default=TaskPriority.MEDIUM, description="Task priority level")
     created_at: datetime = Field(default_factory=datetime.now, description="Creation timestamp")
 
     model_config = {
@@ -69,6 +78,7 @@ class TaskCreate(BaseModel):
     """
     title: str = Field(..., min_length=1, max_length=200, description="Task title")
     description: str = Field(default="", max_length=1000, description="Optional task description")
+    priority: TaskPriority = Field(default=TaskPriority.MEDIUM, description="Task priority level")
 
     @field_validator('title')
     @classmethod
@@ -92,6 +102,7 @@ class TaskUpdate(BaseModel):
     title: Optional[str] = Field(None, min_length=1, max_length=200, description="New task title")
     description: Optional[str] = Field(None, max_length=1000, description="New task description")
     completed: Optional[bool] = Field(None, description="New completion status")
+    priority: Optional[TaskPriority] = Field(None, description="New task priority level")
 
     @field_validator('title')
     @classmethod
@@ -163,7 +174,8 @@ class TaskService:
         """
         task = Task(
             title=data.title,
-            description=data.description
+            description=data.description,
+            priority=data.priority
         )
         _tasks_db[task.id] = task
         return task
@@ -264,15 +276,23 @@ class TaskService:
         samples = [
             TaskCreate(
                 title="Learn Quart",
-                description="Explore the Quart web framework"
+                description="Explore the Quart web framework",
+                priority=TaskPriority.HIGH
             ),
             TaskCreate(
                 title="Build React UI",
-                description="Create a modern UI with FluentUI"
+                description="Create a modern UI with FluentUI",
+                priority=TaskPriority.MEDIUM
             ),
             TaskCreate(
                 title="Write tests",
-                description="Add Playwright E2E tests"
+                description="Add Playwright E2E tests",
+                priority=TaskPriority.LOW
+            ),
+            TaskCreate(
+                title="Fix critical bug",
+                description="Production issue needs immediate attention",
+                priority=TaskPriority.CRITICAL
             )
         ]
 
@@ -295,6 +315,7 @@ __all__ = [
     'TaskCreate',
     'TaskUpdate',
     'TaskFilter',
+    'TaskPriority',
     'TaskStats',
     'TaskError',
     'TaskService',
