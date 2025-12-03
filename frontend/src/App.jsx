@@ -17,17 +17,13 @@ import {
 } from '@fluentui/react-components'
 import {
   Home24Regular,
-  Info24Regular,
-  TaskListLtr24Regular,
   Desktop24Regular,
   People24Regular,
   Building24Regular,
   Organization24Regular,
 } from '@fluentui/react-icons'
 import { Navigate, Route, Routes, useLocation, useNavigate } from 'react-router-dom'
-import About from './components/About'
 import Dashboard from './features/dashboard/Dashboard'
-import TaskList from './features/tasks/TaskList'
 import DeviceList from './features/devices/DeviceList'
 import UserList from './features/users/UserList'
 import DepartmentList from './features/departments/DepartmentList'
@@ -68,13 +64,11 @@ export default function App() {
   const location = useLocation()
   const navigate = useNavigate()
   const tabs = [
-    { value: 'dashboard', label: 'Dashboard', icon: <Home24Regular />, path: '/dashboard', testId: 'tab-dashboard' },
-    { value: 'devices', label: 'Devices', icon: <Desktop24Regular />, path: '/devices', testId: 'tab-devices' },
-    { value: 'users', label: 'Users', icon: <People24Regular />, path: '/users', testId: 'tab-users' },
+    { value: 'dashboard', label: 'Übersicht', icon: <Home24Regular />, path: '/dashboard', testId: 'tab-dashboard' },
+    { value: 'devices', label: 'Geräte', icon: <Desktop24Regular />, path: '/devices', testId: 'tab-devices' },
+    { value: 'users', label: 'Benutzer', icon: <People24Regular />, path: '/users', testId: 'tab-users' },
     { value: 'departments', label: 'Departments', icon: <Building24Regular />, path: '/departments', testId: 'tab-departments' },
     { value: 'amts', label: 'Ämter', icon: <Organization24Regular />, path: '/amts', testId: 'tab-amts' },
-    { value: 'tasks', label: 'Tasks', icon: <TaskListLtr24Regular />, path: '/tasks', testId: 'tab-tasks' },
-    { value: 'about', label: 'About', icon: <Info24Regular />, path: '/about', testId: 'tab-about' },
   ]
   const activeTab = tabs.find((tab) => location.pathname.startsWith(tab.path))?.value ?? 'dashboard'
 
@@ -114,8 +108,6 @@ export default function App() {
           <Route path="/users" element={<UserList />} />
           <Route path="/departments" element={<DepartmentList />} />
           <Route path="/amts" element={<AmtList />} />
-          <Route path="/tasks" element={<TaskList />} />
-          <Route path="/about" element={<About />} />
           <Route path="*" element={<Navigate to="/dashboard" replace />} />
         </Routes>
       </main>

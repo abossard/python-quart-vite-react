@@ -46,11 +46,11 @@ class DeviceService:
             d.expected_return_date, d.borrower_name, d.borrower_email,
             d.borrower_phone, d.borrower_user_id, d.borrower_snapshot,
             d.notes, d.created_at, d.updated_at,
-            l.id as loc_id, l.name as loc_name,
-            bl.id as borrower_loc_id, bl.name as borrower_loc_name,
-            bd.id as borrower_dept_id, bd.name as borrower_dept_name,
+            l.id as loc_id, l.name as loc_name, l.address as loc_address,
+            bl.id as borrower_loc_id, bl.name as borrower_loc_name, bl.address as borrower_loc_address,
+            bd.id as borrower_dept_id, bd.name as borrower_dept_name, bd.full_name as borrower_dept_full_name,
             ba.id as borrower_amt_id, ba.name as borrower_amt_name,
-            dd.id as device_dept_id, dd.name as device_dept_name,
+            dd.id as device_dept_id, dd.name as device_dept_name, dd.full_name as device_dept_full_name,
             da.id as device_amt_id, da.name as device_amt_name,
             CASE 
                 WHEN d.status = 'borrowed' AND d.expected_return_date < DATE('now') THEN 1
@@ -112,11 +112,11 @@ class DeviceService:
             d.expected_return_date, d.borrower_name, d.borrower_email,
             d.borrower_phone, d.borrower_user_id, d.borrower_snapshot,
             d.notes, d.created_at, d.updated_at,
-            l.id as loc_id, l.name as loc_name,
-            bl.id as borrower_loc_id, bl.name as borrower_loc_name,
-            bd.id as borrower_dept_id, bd.name as borrower_dept_name,
+            l.id as loc_id, l.name as loc_name, l.address as loc_address,
+            bl.id as borrower_loc_id, bl.name as borrower_loc_name, bl.address as borrower_loc_address,
+            bd.id as borrower_dept_id, bd.name as borrower_dept_name, bd.full_name as borrower_dept_full_name,
             ba.id as borrower_amt_id, ba.name as borrower_amt_name,
-            dd.id as device_dept_id, dd.name as device_dept_name,
+            dd.id as device_dept_id, dd.name as device_dept_name, dd.full_name as device_dept_full_name,
             da.id as device_amt_id, da.name as device_amt_name,
             CASE 
                 WHEN d.status = 'borrowed' AND d.expected_return_date < DATE('now') THEN 1
@@ -593,44 +593,36 @@ class DeviceService:
             'notes': row[15],
             'created_at': datetime.fromisoformat(row[16]),
             'updated_at': datetime.fromisoformat(row[17]),
-            'is_overdue': bool(row[30]),
-            'days_overdue': int(row[31]) if row[31] else None
+            'is_overdue': bool(row[34]),
+            'days_overdue': int(row[35]) if row[35] else None
         }
         
-        # Add location (row[18], row[19])
+        # Updated column mapping with address and full_name:
+        # row[18]=loc_id, row[19]=loc_name, row[20]=loc_address
+        # row[21]=borrower_loc_id, row[22]=borrower_loc_name, row[23]=borrower_loc_address
+        # row[24]=borrower_dept_id, row[25]=borrower_dept_name, row[26]=borrower_dept_full_name
+        # row[27]=borrower_amt_id, row[28]=borrower_amt_name
+        # row[29]=device_dept_id, row[30]=device_dept_name, row[31]=device_dept_full_name
+        # row[32]=device_amt_id, row[33]=device_amt_name
+        # row[34]=is_overdue, row[35]=days_overdue
+        
+        # Add location (row[18-20])
         if row[18]:
-            device_data['location'] = Location(id=row[18], name=row[19])
+            device_data['location'] = Location(id=row[18], name=row[19], address=row[20])
         
-        # Add borrower location/department/amt (row[20-25])
-        if row[20]:
-            device_data['borrower_location'] = Location(id=row[20], name=row[21])
-        if row[22]:
-            device_data['borrower_department'] = Department(id=row[22], name=row[23])
+        # Add borrower location/department/amt
+        if row[21]:
+            device_data['borrower_location'] = Location(id=row[21], name=row[22], address=row[23])
         if row[24]:
-            device_data['borrower_amt'] = Amt(id=row[24], name=row[25], department_id=row[22] or 1)
-        
-        # Add device department/amt (row[26-29] but actually 24-27 due to overlap)
-        # Correct indices: device_dept_id=22, device_dept_name=23, device_amt_id=24, device_amt_name=25
-        # Wait, let me recount: after row[21] (borrower_dept_name), next is row[22] (borrower_amt_id)
-        # Then row[23] (borrower_amt_name), row[24] (device_dept_id), row[25] (device_dept_name)
-        # row[26] (device_amt_id), row[27] (device_amt_name), row[28] (is_overdue), row[29] (days_overdue)
-        # But indices in SQL are: borrower_loc_id, borrower_loc_name, borrower_dept_id, borrower_dept_name, 
-        # borrower_amt_id, borrower_amt_name, device_dept_id, device_dept_name, device_amt_id, device_amt_name...
-        # Let me recount more carefully from the SQL
-        
-        # From SQL: row[18]=loc_id, row[19]=loc_name
-        # row[20]=borrower_loc_id, row[21]=borrower_loc_name
-        # row[22]=borrower_dept_id, row[23]=borrower_dept_name
-        # row[24]=borrower_amt_id, row[25]=borrower_amt_name
-        # row[26]=device_dept_id, row[27]=device_dept_name
-        # row[28]=device_amt_id, row[29]=device_amt_name
-        # row[30]=is_overdue, row[31]=days_overdue
+            device_data['borrower_department'] = Department(id=row[24], name=row[25], full_name=row[26])
+        if row[27]:
+            device_data['borrower_amt'] = Amt(id=row[27], name=row[28], department_id=row[24] or 1)
         
         # Add device department/amt
-        if row[26]:
-            device_data['department'] = Department(id=row[26], name=row[27])
-        if row[28]:
-            device_data['amt'] = Amt(id=row[28], name=row[29], department_id=row[26] or 1)
+        if row[29]:
+            device_data['department'] = Department(id=row[29], name=row[30], full_name=row[31])
+        if row[32]:
+            device_data['amt'] = Amt(id=row[32], name=row[33], department_id=row[29] or 1)
         
         return DeviceFull(**device_data)
     

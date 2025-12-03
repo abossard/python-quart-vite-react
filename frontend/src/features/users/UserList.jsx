@@ -387,8 +387,7 @@ export default function UserList() {
     <div className={styles.container}>
       <div className={styles.header}>
         <div>
-          <Title3>User Management</Title3>
-          <Text>Manage system users and permissions</Text>
+          <Title3>Benutzer verwalten</Title3>
         </div>
         <div className={styles.actions}>
           <Button

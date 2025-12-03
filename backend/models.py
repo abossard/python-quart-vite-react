@@ -36,6 +36,7 @@ class DeviceStatus(str, Enum):
 class LocationBase(BaseModel):
     """Base location model with common fields"""
     name: str = Field(..., max_length=100)
+    address: Optional[str] = Field(None, max_length=200)
 
 
 class LocationCreate(LocationBase):
@@ -57,6 +58,7 @@ class Location(LocationBase):
 class DepartmentBase(BaseModel):
     """Base department model with common fields"""
     name: str = Field(..., max_length=100)
+    full_name: Optional[str] = Field(None, max_length=200)
 
 
 class DepartmentCreate(DepartmentBase):

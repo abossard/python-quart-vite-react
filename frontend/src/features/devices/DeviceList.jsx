@@ -370,8 +370,7 @@ export default function DeviceList() {
     <div className={styles.container}>
       <div className={styles.header}>
         <div>
-          <Title3>Device Management</Title3>
-          <Text>Manage your device inventory</Text>
+          <Title3>Geräte verwalten</Title3>
         </div>
         <div className={styles.actions}>
           <Button
@@ -548,14 +547,9 @@ export default function DeviceList() {
                         </Text>
                       </div>
                       <div style={{ marginTop: tokens.spacingVerticalXXS }}>
-                        {device.department && (
-                          <Text size={200} style={{ marginRight: tokens.spacingHorizontalM }}>
-                            Department: {device.department.name}
-                          </Text>
-                        )}
-                        {device.amt && (
+                        {(device.department || device.amt) && (
                           <Text size={200}>
-                            Amt: {device.amt.name}
+                            Department / Amt: {device.department?.name || '-'} / {device.amt?.name || '-'}
                           </Text>
                         )}
                       </div>

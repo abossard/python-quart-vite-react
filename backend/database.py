@@ -61,12 +61,14 @@ async def _ensure_schema():
     schema = """
     CREATE TABLE IF NOT EXISTS locations (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
-        name TEXT NOT NULL UNIQUE
+        name TEXT NOT NULL UNIQUE,
+        address TEXT
     );
     
     CREATE TABLE IF NOT EXISTS departments (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
-        name TEXT NOT NULL UNIQUE
+        name TEXT NOT NULL UNIQUE,
+        full_name TEXT
     );
     
     CREATE TABLE IF NOT EXISTS amt (
@@ -188,22 +190,61 @@ async def _insert_seed_data():
     
     cursor = await _db_connection.cursor()
     
-    # Locations
-    await cursor.execute("INSERT OR IGNORE INTO locations (name) VALUES ('Bollwerk')")
-    await cursor.execute("INSERT OR IGNORE INTO locations (name) VALUES ('Zollikofen')")
-    await cursor.execute("INSERT OR IGNORE INTO locations (name) VALUES ('Guisanplatz')")
+    # Locations with addresses
+    await cursor.execute("INSERT OR IGNORE INTO locations (name, address) VALUES ('Bollwerk', 'Bollwerk 85, 3013 Bern')")
+    await cursor.execute("INSERT OR IGNORE INTO locations (name, address) VALUES ('Guisanplatz', 'Guisanplatz 1, 3014 Bern')")
+    await cursor.execute("INSERT OR IGNORE INTO locations (name, address) VALUES ('Zollikofen', 'Eichenweg 1, 3052 Zollikofen')")
     
-    # Departments
-    await cursor.execute("INSERT OR IGNORE INTO departments (name) VALUES ('EDI')")
-    await cursor.execute("INSERT OR IGNORE INTO departments (name) VALUES ('EFD')")
-    await cursor.execute("INSERT OR IGNORE INTO departments (name) VALUES ('EJPD')")
+    # Departments with full names
+    await cursor.execute("INSERT OR IGNORE INTO departments (name, full_name) VALUES ('BK', 'Bundeskanzlei')")
+    await cursor.execute("INSERT OR IGNORE INTO departments (name, full_name) VALUES ('EDI', 'Eidgenössisches Departement des Innern')")
+    await cursor.execute("INSERT OR IGNORE INTO departments (name, full_name) VALUES ('EFD', 'Eidgenössisches Finanzdepartement')")
+    await cursor.execute("INSERT OR IGNORE INTO departments (name, full_name) VALUES ('EJPD', 'Eidgenössisches Justiz- und Polizeidepartement')")
+    await cursor.execute("INSERT OR IGNORE INTO departments (name, full_name) VALUES ('UVEK', 'Eidgenössisches Departement für Umwelt, Verkehr, Energie und Kommunikation')")
+    await cursor.execute("INSERT OR IGNORE INTO departments (name, full_name) VALUES ('VBS', 'Eidgenössisches Departement für Verteidigung, Bevölkerungsschutz und Sport')")
+    await cursor.execute("INSERT OR IGNORE INTO departments (name, full_name) VALUES ('WBF', 'Eidgenössisches Departement für Wirtschaft, Bildung und Forschung')")
     
-    # Amt (with department_id)
-    await cursor.execute("INSERT OR IGNORE INTO amt (name, department_id) VALUES ('BIT', 1)")  # BIT -> EDI
-    await cursor.execute("INSERT OR IGNORE INTO amt (name, department_id) VALUES ('BAG', 1)")  # BAG -> EDI
-    await cursor.execute("INSERT OR IGNORE INTO amt (name, department_id) VALUES ('BSV', 1)")  # BSV -> EDI
-    await cursor.execute("INSERT OR IGNORE INTO amt (name, department_id) VALUES ('EFV', 2)")  # EFV -> EFD
-    await cursor.execute("INSERT OR IGNORE INTO amt (name, department_id) VALUES ('BJ', 3)")   # BJ -> EJPD
+    # Ämter (Offices) - grouped by department
+    # BK (id=1)
+    await cursor.execute("INSERT OR IGNORE INTO amt (name, department_id) VALUES ('BK', 1)")
+    
+    # EDI (id=2)  
+    await cursor.execute("INSERT OR IGNORE INTO amt (name, department_id) VALUES ('BAG', 2)")  # Bundesamt für Gesundheit
+    await cursor.execute("INSERT OR IGNORE INTO amt (name, department_id) VALUES ('BAK', 2)")  # Bundesamt für Kultur
+    await cursor.execute("INSERT OR IGNORE INTO amt (name, department_id) VALUES ('BAR', 2)")  # Schweizerisches Bundesarchiv
+    await cursor.execute("INSERT OR IGNORE INTO amt (name, department_id) VALUES ('BFS', 2)")  # Bundesamt für Statistik
+    await cursor.execute("INSERT OR IGNORE INTO amt (name, department_id) VALUES ('BLV', 2)")  # Bundesamt für Meteorologie und Klimatologie MeteoSchweiz
+    await cursor.execute("INSERT OR IGNORE INTO amt (name, department_id) VALUES ('BSV', 2)")  # Bundesamt für Sozialversicherungen
+    await cursor.execute("INSERT OR IGNORE INTO amt (name, department_id) VALUES ('GS-EDI', 2)")  # Generalsekretariat EDI
+    
+    # EFD (id=3)
+    await cursor.execute("INSERT OR IGNORE INTO amt (name, department_id) VALUES ('BIT', 3)")  # Bundesamt für Informatik und Telekommunikation
+    await cursor.execute("INSERT OR IGNORE INTO amt (name, department_id) VALUES ('BAZG', 3)")  # Bundesamt für Zoll und Grenzsicherheit
+    await cursor.execute("INSERT OR IGNORE INTO amt (name, department_id) VALUES ('EFV', 3)")  # Eidgenössische Finanzverwaltung
+    await cursor.execute("INSERT OR IGNORE INTO amt (name, department_id) VALUES ('EPA', 3)")  # Eidgenössische Personalamt
+    
+    # EJPD (id=4)
+    await cursor.execute("INSERT OR IGNORE INTO amt (name, department_id) VALUES ('BJ', 4)")  # Bundesamt für Justiz
+    await cursor.execute("INSERT OR IGNORE INTO amt (name, department_id) VALUES ('fedpol', 4)")  # Bundesamt für Polizei
+    await cursor.execute("INSERT OR IGNORE INTO amt (name, department_id) VALUES ('SEM', 4)")  # Staatssekretariat für Migration
+    
+    # UVEK (id=5)
+    await cursor.execute("INSERT OR IGNORE INTO amt (name, department_id) VALUES ('BAFU', 5)")  # Bundesamt für Umwelt
+    await cursor.execute("INSERT OR IGNORE INTO amt (name, department_id) VALUES ('BAV', 5)")  # Bundesamt für Verkehr
+    await cursor.execute("INSERT OR IGNORE INTO amt (name, department_id) VALUES ('BAKOM', 5)")  # Bundesamt für Kommunikation
+    await cursor.execute("INSERT OR IGNORE INTO amt (name, department_id) VALUES ('BFE', 5)")  # Bundesamt für Energie
+    
+    # VBS (id=6)
+    await cursor.execute("INSERT OR IGNORE INTO amt (name, department_id) VALUES ('armasuisse', 6)")
+    await cursor.execute("INSERT OR IGNORE INTO amt (name, department_id) VALUES ('BABS', 6)")  # Bundesamt für Bevölkerungsschutz
+    await cursor.execute("INSERT OR IGNORE INTO amt (name, department_id) VALUES ('BASPO', 6)")  # Bundesamt für Sport
+    await cursor.execute("INSERT OR IGNORE INTO amt (name, department_id) VALUES ('swisstopo', 6)")  # Bundesamt für Landestopografie
+    
+    # WBF (id=7)
+    await cursor.execute("INSERT OR IGNORE INTO amt (name, department_id) VALUES ('SECO', 7)")  # Staatssekretariat für Wirtschaft
+    await cursor.execute("INSERT OR IGNORE INTO amt (name, department_id) VALUES ('BLW', 7)")  # Bundesamt für Landwirtschaft
+    await cursor.execute("INSERT OR IGNORE INTO amt (name, department_id) VALUES ('BWO', 7)")  # Bundesamt für Wohnungswesen
+    await cursor.execute("INSERT OR IGNORE INTO amt (name, department_id) VALUES ('Agroscope', 7)")
     
     # Default admin user
     admin_hash = hash_password('admin123')

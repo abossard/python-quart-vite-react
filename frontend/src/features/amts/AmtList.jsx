@@ -263,21 +263,19 @@ export default function AmtList() {
     <div className={styles.container}>
       <div className={styles.header}>
         <div>
-          <Title3>Amt Management</Title3>
-          <Text>Manage amts (Ämter)</Text>
+          <Title3>Ämter verwalten</Title3>
         </div>
         <div className={styles.actions}>
           <Button
             appearance="secondary"
-            icon={<ArrowSync24Regular />}
-            onClick={loadAmts}
+            onClick={() => window.location.href = '/#/departments'}
           >
-            Refresh
+            Zu Department
           </Button>
           <Dialog open={createDialogOpen} onOpenChange={(_, data) => setCreateDialogOpen(data.open)}>
             <DialogTrigger disableButtonEnhancement>
               <Button appearance="primary" icon={<Add24Regular />}>
-                Add Amt
+                + Neues Amt
               </Button>
             </DialogTrigger>
             <DialogSurface>
@@ -329,16 +327,12 @@ export default function AmtList() {
             <CardHeader
               header={
                 <div className={styles.cardContent}>
-                  <div className={styles.amtInfo}>
-                    <Organization24Regular />
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: tokens.spacingVerticalXS }}>
-                      <Text weight="semibold" size={400}>{amt.name}</Text>
-                      <div style={{ display: 'flex', gap: tokens.spacingHorizontalM }}>
-                        <Text size={200}>ID: {amt.id}</Text>
-                        {amt.department && (
-                          <Text size={200}>Department: {amt.department.name}</Text>
-                        )}
-                      </div>
+                  <div>
+                    <Text weight="semibold" size={500}>{amt.department?.name || '-'} / {amt.name}</Text>
+                    <div style={{ marginTop: tokens.spacingVerticalXS }}>
+                      <Text size={300}>Department: {amt.department?.full_name || '-'}</Text>
+                      <br />
+                      <Text size={300}>Amt: {amt.name}</Text>
                     </div>
                   </div>
                   <Menu>

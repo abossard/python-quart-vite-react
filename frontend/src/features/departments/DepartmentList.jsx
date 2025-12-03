@@ -91,7 +91,7 @@ export default function DepartmentList() {
   const [createDialogOpen, setCreateDialogOpen] = useState(false)
   const [editDialogOpen, setEditDialogOpen] = useState(false)
   const [selectedDept, setSelectedDept] = useState(null)
-  const [formData, setFormData] = useState({ name: '' })
+  const [formData, setFormData] = useState({ name: '', full_name: '' })
 
   const loadDepartments = async () => {
     try {
@@ -192,7 +192,7 @@ export default function DepartmentList() {
 
   const openEditDialog = (dept) => {
     setSelectedDept(dept)
-    setFormData({ name: dept.name })
+    setFormData({ name: dept.name, full_name: dept.full_name || '' })
     setEditDialogOpen(true)
   }
 
@@ -244,21 +244,19 @@ export default function DepartmentList() {
     <div className={styles.container}>
       <div className={styles.header}>
         <div>
-          <Title3>Department Management</Title3>
-          <Text>Manage departments (Departemente)</Text>
+          <Title3>Departments verwalten</Title3>
         </div>
         <div className={styles.actions}>
           <Button
             appearance="secondary"
-            icon={<ArrowSync24Regular />}
-            onClick={loadDepartments}
+            onClick={() => window.location.href = '/#/amts'}
           >
-            Refresh
+            Zu Amt
           </Button>
           <Dialog open={createDialogOpen} onOpenChange={(_, data) => setCreateDialogOpen(data.open)}>
             <DialogTrigger disableButtonEnhancement>
               <Button appearance="primary" icon={<Add24Regular />}>
-                Add Department
+                + Neues Department
               </Button>
             </DialogTrigger>
             <DialogSurface>
@@ -268,8 +266,15 @@ export default function DepartmentList() {
                   <Field label="Department Name" required>
                     <Input
                       value={formData.name}
-                      onChange={(e) => setFormData({ name: e.target.value })}
-                      placeholder="Enter department name"
+                      onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                      placeholder="Enter department name (e.g., EDI)"
+                    />
+                  </Field>
+                  <Field label="Full Name">
+                    <Input
+                      value={formData.full_name}
+                      onChange={(e) => setFormData({ ...formData, full_name: e.target.value })}
+                      placeholder="Enter full name (e.g., Eidgenössisches Departement des Innern)"
                     />
                   </Field>
                 </DialogContent>
@@ -299,10 +304,12 @@ export default function DepartmentList() {
             <CardHeader
               header={
                 <div className={styles.cardContent}>
-                  <div className={styles.deptInfo}>
-                    <Building24Regular />
-                    <Text weight="semibold" size={400}>{dept.name}</Text>
-                    <Text size={200}>ID: {dept.id}</Text>
+                  <div>
+                    <div className={styles.deptInfo}>
+                      <Text weight="semibold" size={500}>{dept.name}</Text>
+                    </div>
+                    <Text size={300}>Name: {dept.name}</Text>
+                    {dept.full_name && <Text size={300}>Vollständiger Name: {dept.full_name}</Text>}
                   </div>
                   <Menu>
                     <MenuTrigger disableButtonEnhancement>
@@ -335,7 +342,13 @@ export default function DepartmentList() {
               <Field label="Department Name" required>
                 <Input
                   value={formData.name}
-                  onChange={(e) => setFormData({ name: e.target.value })}
+                  onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                />
+              </Field>
+              <Field label="Full Name">
+                <Input
+                  value={formData.full_name}
+                  onChange={(e) => setFormData({ ...formData, full_name: e.target.value })}
                 />
               </Field>
             </DialogContent>
