@@ -42,3 +42,4 @@ backend/tasks.py
       "type": "http"
     }
 - test it with copilot chat: 
+    ask "list all tasks"

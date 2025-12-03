@@ -16,10 +16,12 @@ Key principles:
 """
 
 import inspect
-from dataclasses import dataclass, field
+import json
+from dataclasses import dataclass
 from enum import Enum
 from functools import wraps
-from typing import Any, Callable, Union, get_args, get_origin, get_type_hints
+from typing import (Any, Callable, Optional, Union, get_args, get_origin,
+                    get_type_hints)
 
 from pydantic import BaseModel
 
@@ -41,7 +43,7 @@ class Operation:
 
     # REST-specific
     http_method: str = "GET"
-    http_path: str = None
+    http_path: Optional[str] = None
 
     # MCP-specific
     mcp_enabled: bool = True
@@ -183,8 +185,6 @@ class Operation:
         Returns:
             JSON string representation of the result
         """
-        import json
-        
         if isinstance(result, list):
             return json.dumps(
                 [item.model_dump(mode='json') if hasattr(item, 'model_dump') else item for item in result],
@@ -206,7 +206,7 @@ def operation(
     name: str,
     description: str,
     http_method: str = "GET",
-    http_path: str = None,
+    http_path: Optional[str] = None,
     mcp_enabled: bool = True
 ) -> Callable:
     """
