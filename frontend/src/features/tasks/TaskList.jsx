@@ -290,6 +290,19 @@ export default function TaskList() {
       ),
     }),
     createTableColumn({
+      columnId: 'closed',
+      renderHeaderCell: () => 'Abschlussdatum',
+      renderCell: (task) => (
+        <TableCellLayout>
+          {task.closed_at ? (
+            <Text size={200}>{formatDate(task.closed_at)}</Text>
+          ) : (
+            <Text size={200}>—</Text>
+          )}
+        </TableCellLayout>
+      ),
+    }),
+    createTableColumn({
       columnId: 'actions',
       renderHeaderCell: () => 'Actions',
       renderCell: (task) => (
