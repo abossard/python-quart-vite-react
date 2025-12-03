@@ -224,7 +224,7 @@ class Operation:
         
         # Create a wrapper that reconstructs Pydantic models from flattened params
         async def tool_wrapper(**kwargs):
-            \"\"\"Wrapper that converts flattened params back to Pydantic models.\"\"\"
+            """Wrapper that converts flattened params back to Pydantic models."""
             sig = inspect.signature(self.handler)
             hints = get_type_hints(self.handler)
             
