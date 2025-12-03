@@ -1,6 +1,5 @@
 # Copilot Instructions
 
-##Test
 
 ## Architecture 
 
