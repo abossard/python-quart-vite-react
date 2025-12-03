@@ -27,10 +27,6 @@ All deep-dive guides now live under `docs/` for easier discovery:
 - [Troubleshooting](docs/TROUBLESHOOTING.md) – common issues and fixes for setup, dev, and tests
 
 
-
-
-
-
 ## 5-minute quick start (TL;DR)
 1. Clone the repo: `git clone <your-fork-url> && cd python-quart-vite-react`
 2. Run the automated bootstrap: `./setup.sh` (creates the repo-level `.venv`, installs frontend deps, installs Playwright, checks for Ollama)
