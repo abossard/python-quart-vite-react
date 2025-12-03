@@ -141,6 +141,11 @@ export default function TaskList() {
 
   useEffect(() => {
     loadTasks()
+    
+    // Poll every 5 seconds for live updates
+    const interval = setInterval(() => loadTasks(), 5000)
+    
+    return () => clearInterval(interval)
   }, [filter])
 
   // Event handlers (ACTIONS)

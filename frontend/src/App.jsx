@@ -19,11 +19,19 @@ import {
   Home24Regular,
   Info24Regular,
   TaskListLtr24Regular,
+  Desktop24Regular,
+  People24Regular,
+  Building24Regular,
+  Organization24Regular,
 } from '@fluentui/react-icons'
 import { Navigate, Route, Routes, useLocation, useNavigate } from 'react-router-dom'
 import About from './components/About'
 import Dashboard from './features/dashboard/Dashboard'
 import TaskList from './features/tasks/TaskList'
+import DeviceList from './features/devices/DeviceList'
+import UserList from './features/users/UserList'
+import DepartmentList from './features/departments/DepartmentList'
+import AmtList from './features/amts/AmtList'
 
 const useStyles = makeStyles({
   app: {
@@ -61,6 +69,10 @@ export default function App() {
   const navigate = useNavigate()
   const tabs = [
     { value: 'dashboard', label: 'Dashboard', icon: <Home24Regular />, path: '/dashboard', testId: 'tab-dashboard' },
+    { value: 'devices', label: 'Devices', icon: <Desktop24Regular />, path: '/devices', testId: 'tab-devices' },
+    { value: 'users', label: 'Users', icon: <People24Regular />, path: '/users', testId: 'tab-users' },
+    { value: 'departments', label: 'Departments', icon: <Building24Regular />, path: '/departments', testId: 'tab-departments' },
+    { value: 'amts', label: 'Ämter', icon: <Organization24Regular />, path: '/amts', testId: 'tab-amts' },
     { value: 'tasks', label: 'Tasks', icon: <TaskListLtr24Regular />, path: '/tasks', testId: 'tab-tasks' },
     { value: 'about', label: 'About', icon: <Info24Regular />, path: '/about', testId: 'tab-about' },
   ]
@@ -98,6 +110,10 @@ export default function App() {
         <Routes>
           <Route path="/" element={<Navigate to="/dashboard" replace />} />
           <Route path="/dashboard" element={<Dashboard />} />
+          <Route path="/devices" element={<DeviceList />} />
+          <Route path="/users" element={<UserList />} />
+          <Route path="/departments" element={<DepartmentList />} />
+          <Route path="/amts" element={<AmtList />} />
           <Route path="/tasks" element={<TaskList />} />
           <Route path="/about" element={<About />} />
           <Route path="*" element={<Navigate to="/dashboard" replace />} />

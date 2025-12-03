@@ -115,3 +115,50 @@ export async function getPriorityStats() {
 export async function getUrgentTasks() {
   return fetchJSON(`${API_BASE_URL}/tasks/urgent`)
 }
+
+// ============================================================================
+// User Management APIs
+// ============================================================================
+
+export async function getUsers() {
+  return fetchJSON('http://localhost:5001/api/users', {
+    credentials: 'include',
+  })
+}
+
+export async function getUser(userId) {
+  return fetchJSON(`http://localhost:5001/api/users/${userId}`, {
+    credentials: 'include',
+  })
+}
+
+export async function createUser(userData) {
+  return fetchJSON('http://localhost:5001/api/users', {
+    method: 'POST',
+    credentials: 'include',
+    body: JSON.stringify(userData),
+  })
+}
+
+export async function updateUser(userId, updates) {
+  return fetchJSON(`http://localhost:5001/api/users/${userId}`, {
+    method: 'PUT',
+    credentials: 'include',
+    body: JSON.stringify(updates),
+  })
+}
+
+export async function deleteUser(userId) {
+  return fetchJSON(`http://localhost:5001/api/users/${userId}`, {
+    method: 'DELETE',
+    credentials: 'include',
+  })
+}
+
+export async function changeUserLocation(userId, locationId) {
+  return fetchJSON(`http://localhost:5001/api/users/${userId}/change-location`, {
+    method: 'POST',
+    credentials: 'include',
+    body: JSON.stringify({ location_id: locationId }),
+  })
+}

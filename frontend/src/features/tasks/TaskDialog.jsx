@@ -50,9 +50,14 @@ export default function TaskDialog({ open, task, onClose }) {
       setTitle(task.title || '')
       setPriority(task.priority || 'Medium')
       setDescription(task.description || '')
-      // Convert ISO string to YYYY-MM-DD format for input
+      // Convert deadline to YYYY-MM-DD format for input
       if (task.deadline) {
-        setDeadline(task.deadline.split('T')[0])
+        try {
+          const date = new Date(task.deadline)
+          setDeadline(date.toISOString().split('T')[0])
+        } catch {
+          setDeadline('')
+        }
       } else {
         setDeadline('')
       }

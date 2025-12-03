@@ -49,6 +49,9 @@ class Task(BaseModel):
     created_at: datetime = Field(default_factory=datetime.now, description="Creation timestamp")
 
     model_config = {
+        "json_encoders": {
+            datetime: lambda v: v.isoformat() if v else None
+        },
         "json_schema_extra": {
             "examples": [{
                 "id": "550e8400-e29b-41d4-a716-446655440000",
@@ -292,16 +295,18 @@ class TaskService:
         now = datetime.now()
         two_days_later = now + __import__('datetime').timedelta(days=2)
         
-        urgent = [
-            task for task in _tasks_db.values()
-            if not task.completed
-            and task.priority == Priority.HIGH
-            and task.deadline is not None
-            and task.deadline <= two_days_later
-        ]
+        urgent = []
+        for task in _tasks_db.values():
+            if (not task.completed 
+                and task.priority == Priority.HIGH 
+                and task.deadline is not None):
+                # Make both datetimes timezone-naive for comparison
+                task_deadline = task.deadline.replace(tzinfo=None) if task.deadline.tzinfo else task.deadline
+                if task_deadline <= two_days_later:
+                    urgent.append(task)
         
-        # Sort by deadline (earliest first) - we know deadline is not None due to filter above
-        return sorted(urgent, key=lambda t: t.deadline or datetime.max)
+        # Sort by deadline (earliest first)
+        return sorted(urgent, key=lambda t: t.deadline.replace(tzinfo=None) if t.deadline and t.deadline.tzinfo else t.deadline)
 
     @staticmethod
     def clear_all_tasks() -> int:

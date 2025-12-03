@@ -3,3 +3,4 @@ quart-cors>=0.7.0
 hypercorn>=0.17.0
 mcp>=1.0.0
 pydantic>=2.0.0
+aiosqlite>=0.19.0

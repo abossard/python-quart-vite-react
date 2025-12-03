@@ -24,18 +24,40 @@ from pathlib import Path
 # Import unified operation system
 from api_decorators import get_mcp_tools, get_operation, operation
 from pydantic import ValidationError
-from quart import Quart, jsonify, request, send_from_directory
+from quart import Quart, jsonify, request, send_from_directory, make_response
 from quart_cors import cors
 # Import Pydantic models and service
 from tasks import (Task, TaskCreate, TaskFilter, TaskService, TaskStats,
                    TaskUpdate, PriorityStats)
+# Import Grabit models and services
+from models import (
+    User, UserCreate, UserUpdate, LoginRequest, LoginResponse, SessionInfo,
+    Location, Department, Amt,
+    Device, DeviceCreate, DeviceUpdate, DeviceBorrow, DeviceStatus, DeviceFull,
+    MissingDevice, MissingDeviceCreate,
+    DeviceStats, LocationStats, PasswordResetConfirm, UserRole
+)
+from auth import (
+    authenticate_user, create_session, get_session, destroy_session,
+    get_current_user, require_auth, require_role,
+    get_session_info, require_user, require_editor, require_admin
+)
+from typing import Optional
+from database import init_db, close_db, get_db
+from devices import DeviceService
 
 # ============================================================================
 # APPLICATION SETUP
 # ============================================================================
 
 app = Quart(__name__)
-app = cors(app, allow_origin="*")
+app = cors(
+    app, 
+    allow_origin=["http://localhost:3001", "http://localhost:3002", "http://localhost:3000"],
+    allow_credentials=True,
+    allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+    allow_headers=["Content-Type", "Authorization"]
+)
 
 # Service instance
 task_service = TaskService()
@@ -199,7 +221,7 @@ async def rest_list_tasks():
     try:
         filter_enum = TaskFilter(filter_param)
         tasks = await op_list_tasks(filter_enum)
-        return jsonify([task.model_dump() for task in tasks])
+        return jsonify([task.model_dump(mode='json') for task in tasks])
     except ValueError:
         return jsonify({"error": f"Invalid filter: {filter_param}"}), 400
 
@@ -211,7 +233,7 @@ async def rest_create_task():
         data = await request.get_json()
         task_data = TaskCreate(**data)
         task = await op_create_task(task_data)
-        return jsonify(task.model_dump()), 201
+        return jsonify(task.model_dump(mode='json')), 201
     except ValidationError as e:
         return jsonify({"error": str(e)}), 400
     except Exception as e:
@@ -224,7 +246,7 @@ async def rest_get_task(task_id: str):
     task = await op_get_task(task_id)
     if not task:
         return jsonify({"error": "Task not found"}), 404
-    return jsonify(task.model_dump())
+    return jsonify(task.model_dump(mode='json'))
 
 
 @app.route("/api/tasks/<task_id>", methods=["PUT"])
@@ -236,7 +258,7 @@ async def rest_update_task(task_id: str):
         task = await op_update_task(task_id, update_data)
         if not task:
             return jsonify({"error": "Task not found"}), 404
-        return jsonify(task.model_dump())
+        return jsonify(task.model_dump(mode='json'))
     except ValidationError as e:
         return jsonify({"error": str(e)}), 400
     except Exception as e:
@@ -256,21 +278,21 @@ async def rest_delete_task(task_id: str):
 async def rest_get_stats():
     """REST wrapper: get task statistics."""
     stats = await op_get_task_stats()
-    return jsonify(stats.model_dump())
+    return jsonify(stats.model_dump(mode='json'))
 
 
 @app.route("/api/tasks/priority-stats", methods=["GET"])
 async def rest_get_priority_stats():
     """REST wrapper: get priority statistics for open tasks."""
     stats = await op_get_priority_stats()
-    return jsonify(stats.model_dump())
+    return jsonify(stats.model_dump(mode='json'))
 
 
 @app.route("/api/tasks/urgent", methods=["GET"])
 async def rest_get_urgent_tasks():
     """REST wrapper: get urgent tasks."""
     tasks = await op_get_urgent_tasks()
-    return jsonify([task.model_dump() for task in tasks])
+    return jsonify([task.model_dump(mode='json') for task in tasks])
 
 
 # ============================================================================
@@ -475,6 +497,963 @@ async def mcp_json_rpc():
 
 
 # ============================================================================
+# GRABIT DEVICE MANAGEMENT ENDPOINTS
+# ============================================================================
+
+# Device service instance (initialized after DB connection)
+device_service = None
+
+
+@app.route('/api/devices', methods=['GET'])
+@require_auth
+async def list_devices():
+    """List all devices with optional filtering"""
+    try:
+        status_param = request.args.get('status')
+        location_id_param = request.args.get('location_id')
+        
+        status = DeviceStatus(status_param) if status_param else None
+        location_id = int(location_id_param) if location_id_param else None
+        
+        devices = await device_service.list_devices(status=status, location_id=location_id)
+        return jsonify([d.model_dump(mode='json') for d in devices]), 200
+        
+    except ValueError as e:
+        return jsonify({'error': f'Invalid parameter: {str(e)}'}), 400
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
+@app.route('/api/devices/<int:device_id>', methods=['GET'])
+@require_auth
+async def get_device(device_id: int):
+    """Get a single device by ID"""
+    try:
+        device = await device_service.get_device(device_id)
+        if not device:
+            return jsonify({'error': 'Device not found'}), 404
+        
+        return jsonify(device.model_dump(mode='json')), 200
+        
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
+@app.route('/api/devices', methods=['POST'])
+@require_editor
+async def create_device():
+    """Create a new device (requires editor role)"""
+    try:
+        data = await request.get_json()
+        device_data = DeviceCreate(**data)
+        
+        user = get_current_user()
+        device = await device_service.create_device(device_data, user.id)
+        
+        return jsonify(device.model_dump(mode='json')), 201
+        
+    except ValidationError as e:
+        return jsonify({'error': 'Validation error', 'details': e.errors()}), 400
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
+@app.route('/api/devices/<int:device_id>', methods=['PUT'])
+@require_editor
+async def update_device(device_id: int):
+    """Update a device (requires editor role)"""
+    try:
+        data = await request.get_json()
+        update_data = DeviceUpdate(**data)
+        
+        user = get_current_user()
+        device = await device_service.update_device(device_id, update_data, user.id)
+        
+        if not device:
+            return jsonify({'error': 'Device not found'}), 404
+        
+        return jsonify(device.model_dump(mode='json')), 200
+        
+    except ValidationError as e:
+        return jsonify({'error': 'Validation error', 'details': e.errors()}), 400
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
+@app.route('/api/devices/<int:device_id>', methods=['DELETE'])
+@require_editor
+async def delete_device(device_id: int):
+    """Delete a device (requires editor role)"""
+    try:
+        user = get_current_user()
+        success = await device_service.delete_device(device_id, user.id)
+        
+        if not success:
+            return jsonify({'error': 'Device not found'}), 404
+        
+        return jsonify({'message': 'Device deleted successfully'}), 200
+        
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
+@app.route('/api/devices/<int:device_id>/borrow', methods=['POST'])
+@require_user
+async def borrow_device(device_id: int):
+    """Borrow a device (requires user role)"""
+    try:
+        data = await request.get_json()
+        borrow_data = DeviceBorrow(**data)
+        
+        user = get_current_user()
+        device = await device_service.borrow_device(device_id, borrow_data, user.id)
+        
+        if not device:
+            return jsonify({'error': 'Device not found'}), 404
+        
+        return jsonify(device.model_dump(mode='json')), 200
+        
+    except ValidationError as e:
+        return jsonify({'error': 'Validation error', 'details': e.errors()}), 400
+    except ValueError as e:
+        return jsonify({'error': str(e)}), 400
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
+@app.route('/api/devices/<int:device_id>/return', methods=['POST'])
+@require_user
+async def return_device(device_id: int):
+    """Return a borrowed device (requires user role)"""
+    try:
+        data = await request.get_json()
+        notes = data.get('notes') if data else None
+        
+        user = get_current_user()
+        device = await device_service.return_device(device_id, user.id, notes)
+        
+        if not device:
+            return jsonify({'error': 'Device not found'}), 404
+        
+        return jsonify(device.model_dump(mode='json')), 200
+        
+    except ValueError as e:
+        return jsonify({'error': str(e)}), 400
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
+@app.route('/api/devices/<int:device_id>/missing', methods=['POST'])
+@require_editor
+async def report_device_missing(device_id: int):
+    """Report a device as missing (requires editor role)"""
+    try:
+        data = await request.get_json()
+        missing_data = MissingDeviceCreate(device_id=device_id, **data)
+        
+        user = get_current_user()
+        missing_device = await device_service.report_missing(missing_data, user.id)
+        
+        return jsonify(missing_device.model_dump(mode='json')), 200
+        
+    except ValidationError as e:
+        return jsonify({'error': 'Validation error', 'details': e.errors()}), 400
+    except ValueError as e:
+        return jsonify({'error': str(e)}), 404
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
+@app.route('/api/devices/stats', methods=['GET'])
+@require_auth
+async def get_device_stats():
+    """Get device statistics"""
+    try:
+        stats = await device_service.get_device_stats()
+        return jsonify(stats.model_dump(mode='json')), 200
+        
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
+@app.route('/api/devices/stats/locations', methods=['GET'])
+@require_auth
+async def get_location_stats():
+    """Get device statistics by location"""
+    try:
+        stats = await device_service.get_location_stats()
+        return jsonify([s.model_dump(mode='json') for s in stats]), 200
+        
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
+# ============================================================================
+# GRABIT USER MANAGEMENT ENDPOINTS
+# ============================================================================
+
+@app.route('/api/users', methods=['GET'])
+@require_auth
+async def list_users():
+    """List all users (requires authentication)"""
+    try:
+        db = get_db()
+        cursor = await db.cursor()
+        
+        await cursor.execute("""
+            SELECT u.id, u.username, u.role, u.location_id, u.department_id, u.amt_id, u.created_at,
+                   l.id as loc_id, l.name as loc_name,
+                   d.id as dept_id, d.name as dept_name,
+                   a.id as amt_id_join, a.name as amt_name
+            FROM users u
+            LEFT JOIN locations l ON u.location_id = l.id
+            LEFT JOIN departments d ON u.department_id = d.id
+            LEFT JOIN amt a ON u.amt_id = a.id
+            ORDER BY u.created_at DESC
+        """)
+        
+        rows = await cursor.fetchall()
+        await cursor.close()
+        
+        users = []
+        for row in rows:
+            user_data = {
+                'id': row[0],
+                'username': row[1],
+                'role': UserRole(row[2]),
+                'location_id': row[3],
+                'department_id': row[4],
+                'amt_id': row[5],
+                'created_at': datetime.fromisoformat(row[6]) if row[6] else datetime.now(),
+            }
+            
+            if row[7]:
+                user_data['location'] = Location(id=row[7], name=row[8])
+            if row[9]:
+                user_data['department'] = Department(id=row[9], name=row[10])
+            if row[11]:
+                user_data['amt'] = Amt(id=row[11], name=row[12])
+            
+            users.append(User(**user_data))
+        
+        return jsonify([u.model_dump(mode='json') for u in users]), 200
+        
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
+@app.route('/api/users/<int:user_id>', methods=['GET'])
+@require_auth
+async def get_user(user_id: int):
+    """Get a single user by ID"""
+    try:
+        db = get_db()
+        user = await authenticate_user_by_id(user_id, db)
+        
+        if not user:
+            return jsonify({'error': 'User not found'}), 404
+        
+        return jsonify(user.model_dump(mode='json')), 200
+        
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
+@app.route('/api/users', methods=['POST'])
+@require_admin
+async def create_user():
+    """Create a new user (requires admin role)"""
+    try:
+        data = await request.get_json()
+        user_data = UserCreate(**data)
+        
+        from auth import hash_password
+        db = get_db()
+        cursor = await db.cursor()
+        
+        # Check if username already exists
+        await cursor.execute("SELECT id FROM users WHERE username = ?", (user_data.username,))
+        if await cursor.fetchone():
+            await cursor.close()
+            return jsonify({'error': 'Username already exists'}), 400
+        
+        # Create user
+        password_hash = hash_password(user_data.password)
+        now = datetime.now().isoformat()
+        
+        await cursor.execute("""
+            INSERT INTO users (username, password_hash, role, location_id, department_id, amt_id, created_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?)
+        """, (
+            user_data.username, password_hash, user_data.role.value,
+            user_data.location_id, user_data.department_id, user_data.amt_id, now
+        ))
+        
+        user_id = cursor.lastrowid
+        await db.commit()
+        await cursor.close()
+        
+        # Return created user
+        user = await authenticate_user_by_id(user_id, db)
+        return jsonify(user.model_dump(mode='json')), 201
+        
+    except ValidationError as e:
+        return jsonify({'error': 'Validation error', 'details': e.errors()}), 400
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
+@app.route('/api/users/<int:user_id>', methods=['PUT'])
+@require_admin
+async def update_user(user_id: int):
+    """Update a user (requires admin role)"""
+    try:
+        data = await request.get_json()
+        update_data = UserUpdate(**data)
+        
+        from auth import hash_password
+        db = get_db()
+        cursor = await db.cursor()
+        
+        # Check if user exists
+        await cursor.execute("SELECT id FROM users WHERE id = ?", (user_id,))
+        if not await cursor.fetchone():
+            await cursor.close()
+            return jsonify({'error': 'User not found'}), 404
+        
+        # Build update query
+        updates = []
+        params = []
+        
+        if update_data.username is not None:
+            updates.append("username = ?")
+            params.append(update_data.username)
+        if update_data.password is not None:
+            updates.append("password_hash = ?")
+            params.append(hash_password(update_data.password))
+        if update_data.role is not None:
+            updates.append("role = ?")
+            params.append(update_data.role.value)
+        if update_data.location_id is not None:
+            updates.append("location_id = ?")
+            params.append(update_data.location_id)
+        if update_data.department_id is not None:
+            updates.append("department_id = ?")
+            params.append(update_data.department_id)
+        if update_data.amt_id is not None:
+            updates.append("amt_id = ?")
+            params.append(update_data.amt_id)
+        
+        if not updates:
+            await cursor.close()
+            user = await authenticate_user_by_id(user_id, db)
+            return jsonify(user.model_dump(mode='json')), 200
+        
+        params.append(user_id)
+        query = f"UPDATE users SET {', '.join(updates)} WHERE id = ?"
+        await cursor.execute(query, params)
+        await db.commit()
+        await cursor.close()
+        
+        # Return updated user
+        user = await authenticate_user_by_id(user_id, db)
+        return jsonify(user.model_dump(mode='json')), 200
+        
+    except ValidationError as e:
+        return jsonify({'error': 'Validation error', 'details': e.errors()}), 400
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
+@app.route('/api/users/<int:user_id>', methods=['DELETE'])
+@require_admin
+async def delete_user(user_id: int):
+    """Delete a user (requires admin role)"""
+    try:
+        current_user = get_current_user()
+        if current_user and current_user.id == user_id:
+            return jsonify({'error': 'Cannot delete your own account'}), 400
+        
+        db = get_db()
+        cursor = await db.cursor()
+        
+        await cursor.execute("SELECT id FROM users WHERE id = ?", (user_id,))
+        if not await cursor.fetchone():
+            await cursor.close()
+            return jsonify({'error': 'User not found'}), 404
+        
+        await cursor.execute("DELETE FROM users WHERE id = ?", (user_id,))
+        await db.commit()
+        await cursor.close()
+        
+        return jsonify({'message': 'User deleted successfully'}), 200
+        
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
+@app.route('/api/users/<int:user_id>/change-location', methods=['POST'])
+@require_admin
+async def change_user_location(user_id: int):
+    """Change user's location (requires admin role)"""
+    try:
+        data = await request.get_json()
+        location_id = data.get('location_id')
+        
+        if not location_id:
+            return jsonify({'error': 'location_id is required'}), 400
+        
+        db = get_db()
+        cursor = await db.cursor()
+        
+        await cursor.execute("SELECT id FROM users WHERE id = ?", (user_id,))
+        if not await cursor.fetchone():
+            await cursor.close()
+            return jsonify({'error': 'User not found'}), 404
+        
+        await cursor.execute("UPDATE users SET location_id = ? WHERE id = ?", (location_id, user_id))
+        await db.commit()
+        await cursor.close()
+        
+        user = await authenticate_user_by_id(user_id, db)
+        return jsonify(user.model_dump(mode='json')), 200
+        
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
+@app.route('/api/password-reset/request', methods=['POST'])
+async def request_password_reset():
+    """Request a password reset token"""
+    try:
+        data = await request.get_json()
+        email = data.get('email')
+        
+        if not email:
+            return jsonify({'error': 'email is required'}), 400
+        
+        # In a real application, this would:
+        # 1. Find user by email
+        # 2. Generate secure token
+        # 3. Store token in password_resets table
+        # 4. Send email with reset link
+        
+        # For demo purposes, just return success
+        return jsonify({'message': 'Password reset instructions sent to email'}), 200
+        
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
+@app.route('/api/password-reset/confirm', methods=['POST'])
+async def confirm_password_reset():
+    """Confirm password reset with token"""
+    try:
+        data = await request.get_json()
+        reset_data = PasswordResetConfirm(**data)
+        
+        from auth import hash_password
+        db = get_db()
+        cursor = await db.cursor()
+        
+        # Find valid token
+        await cursor.execute("""
+            SELECT user_id FROM password_resets
+            WHERE token = ? AND used = 0 AND expires_at > datetime('now')
+        """, (reset_data.token,))
+        
+        row = await cursor.fetchone()
+        if not row:
+            await cursor.close()
+            return jsonify({'error': 'Invalid or expired token'}), 400
+        
+        user_id = row[0]
+        
+        # Update password
+        password_hash = hash_password(reset_data.new_password)
+        await cursor.execute("UPDATE users SET password_hash = ? WHERE id = ?", (password_hash, user_id))
+        
+        # Mark token as used
+        await cursor.execute("UPDATE password_resets SET used = 1 WHERE token = ?", (reset_data.token,))
+        
+        await db.commit()
+        await cursor.close()
+        
+        return jsonify({'message': 'Password reset successfully'}), 200
+        
+    except ValidationError as e:
+        return jsonify({'error': 'Validation error', 'details': e.errors()}), 400
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
+# Helper function for user lookup
+async def authenticate_user_by_id(user_id: int, db_conn) -> Optional[User]:
+    """Get user by ID with related entities"""
+    cursor = await db_conn.cursor()
+    await cursor.execute("""
+        SELECT u.id, u.username, u.role, u.location_id, u.department_id, u.amt_id, u.created_at,
+               l.id as loc_id, l.name as loc_name,
+               d.id as dept_id, d.name as dept_name,
+               a.id as amt_id_join, a.name as amt_name, a.department_id as amt_dept_id
+        FROM users u
+        LEFT JOIN locations l ON u.location_id = l.id
+        LEFT JOIN departments d ON u.department_id = d.id
+        LEFT JOIN amt a ON u.amt_id = a.id
+        WHERE u.id = ?
+    """, (user_id,))
+    
+    row = await cursor.fetchone()
+    await cursor.close()
+    
+    if not row:
+        return None
+    
+    user_data = {
+        'id': row[0],
+        'username': row[1],
+        'role': UserRole(row[2]),
+        'location_id': row[3],
+        'department_id': row[4],
+        'amt_id': row[5],
+        'created_at': datetime.fromisoformat(row[6]) if row[6] else datetime.now(),
+    }
+    
+    if row[7]:
+        user_data['location'] = Location(id=row[7], name=row[8])
+    if row[9]:
+        user_data['department'] = Department(id=row[9], name=row[10])
+    if row[11]:
+        user_data['amt'] = Amt(id=row[11], name=row[12], department_id=row[13])
+    
+    return User(**user_data)
+
+
+# ============================================================================
+# DEPARTMENTS ENDPOINTS
+# ============================================================================
+
+@app.route('/api/departments', methods=['GET'])
+@require_auth
+async def list_departments():
+    """List all departments"""
+    try:
+        db = get_db()
+        cursor = await db.cursor()
+        await cursor.execute("SELECT id, name FROM departments ORDER BY name")
+        
+        rows = await cursor.fetchall()
+        await cursor.close()
+        
+        departments = [{'id': row[0], 'name': row[1]} for row in rows]
+        return jsonify(departments), 200
+        
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
+@app.route('/api/departments/<int:dept_id>', methods=['GET'])
+@require_auth
+async def get_department(dept_id):
+    """Get a specific department"""
+    try:
+        db = get_db()
+        cursor = await db.cursor()
+        await cursor.execute("SELECT id, name FROM departments WHERE id = ?", (dept_id,))
+        
+        row = await cursor.fetchone()
+        await cursor.close()
+        
+        if not row:
+            return jsonify({'error': 'Department not found'}), 404
+        
+        return jsonify({'id': row[0], 'name': row[1]}), 200
+        
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
+@app.route('/api/departments', methods=['POST'])
+@require_admin
+async def create_department():
+    """Create a new department (admin only)"""
+    try:
+        data = await request.get_json()
+        name = data.get('name')
+        
+        if not name:
+            return jsonify({'error': 'name is required'}), 400
+        
+        db = get_db()
+        cursor = await db.cursor()
+        
+        # Check if department already exists
+        await cursor.execute("SELECT id FROM departments WHERE name = ?", (name,))
+        if await cursor.fetchone():
+            await cursor.close()
+            return jsonify({'error': 'Department already exists'}), 400
+        
+        await cursor.execute("INSERT INTO departments (name) VALUES (?)", (name,))
+        dept_id = cursor.lastrowid
+        await db.commit()
+        await cursor.close()
+        
+        return jsonify({'id': dept_id, 'name': name}), 201
+        
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
+@app.route('/api/departments/<int:dept_id>', methods=['PUT'])
+@require_admin
+async def update_department(dept_id):
+    """Update a department (admin only)"""
+    try:
+        data = await request.get_json()
+        name = data.get('name')
+        
+        if not name:
+            return jsonify({'error': 'name is required'}), 400
+        
+        db = get_db()
+        cursor = await db.cursor()
+        
+        # Check if department exists
+        await cursor.execute("SELECT id FROM departments WHERE id = ?", (dept_id,))
+        if not await cursor.fetchone():
+            await cursor.close()
+            return jsonify({'error': 'Department not found'}), 404
+        
+        await cursor.execute("UPDATE departments SET name = ? WHERE id = ?", (name, dept_id))
+        await db.commit()
+        await cursor.close()
+        
+        return jsonify({'id': dept_id, 'name': name}), 200
+        
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
+@app.route('/api/departments/<int:dept_id>', methods=['DELETE'])
+@require_admin
+async def delete_department(dept_id):
+    """Delete a department (admin only)"""
+    try:
+        db = get_db()
+        cursor = await db.cursor()
+        
+        # Check if department is in use
+        await cursor.execute("SELECT COUNT(*) FROM users WHERE department_id = ?", (dept_id,))
+        count = (await cursor.fetchone())[0]
+        
+        if count > 0:
+            await cursor.close()
+            return jsonify({'error': f'Cannot delete department: {count} users are assigned to it'}), 400
+        
+        await cursor.execute("DELETE FROM departments WHERE id = ?", (dept_id,))
+        await db.commit()
+        await cursor.close()
+        
+        return jsonify({'message': 'Department deleted successfully'}), 200
+        
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
+# ============================================================================
+# AMTS ENDPOINTS
+# ============================================================================
+
+@app.route('/api/amts', methods=['GET'])
+@require_auth
+async def list_amts():
+    """List all amts with department info"""
+    try:
+        db = get_db()
+        cursor = await db.cursor()
+        await cursor.execute("""
+            SELECT a.id, a.name, a.department_id, d.name as dept_name
+            FROM amt a
+            LEFT JOIN departments d ON a.department_id = d.id
+            ORDER BY a.name
+        """)
+        
+        rows = await cursor.fetchall()
+        await cursor.close()
+        
+        amts = [
+            {
+                'id': row[0],
+                'name': row[1],
+                'department_id': row[2],
+                'department': {'id': row[2], 'name': row[3]} if row[2] else None
+            }
+            for row in rows
+        ]
+        return jsonify(amts), 200
+        
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
+@app.route('/api/amts/<int:amt_id>', methods=['GET'])
+@require_auth
+async def get_amt(amt_id):
+    """Get a specific amt with department info"""
+    try:
+        db = get_db()
+        cursor = await db.cursor()
+        await cursor.execute("""
+            SELECT a.id, a.name, a.department_id, d.name as dept_name
+            FROM amt a
+            LEFT JOIN departments d ON a.department_id = d.id
+            WHERE a.id = ?
+        """, (amt_id,))
+        
+        row = await cursor.fetchone()
+        await cursor.close()
+        
+        if not row:
+            return jsonify({'error': 'Amt not found'}), 404
+        
+        return jsonify({
+            'id': row[0],
+            'name': row[1],
+            'department_id': row[2],
+            'department': {'id': row[2], 'name': row[3]} if row[2] else None
+        }), 200
+        
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
+@app.route('/api/amts', methods=['POST'])
+@require_admin
+async def create_amt():
+    """Create a new amt (admin only)"""
+    try:
+        data = await request.get_json()
+        name = data.get('name')
+        department_id = data.get('department_id')
+        
+        if not name:
+            return jsonify({'error': 'name is required'}), 400
+        if not department_id:
+            return jsonify({'error': 'department_id is required'}), 400
+        
+        db = get_db()
+        cursor = await db.cursor()
+        
+        # Check if department exists
+        await cursor.execute("SELECT id FROM departments WHERE id = ?", (department_id,))
+        if not await cursor.fetchone():
+            await cursor.close()
+            return jsonify({'error': 'Department not found'}), 404
+        
+        # Check if amt already exists
+        await cursor.execute("SELECT id FROM amt WHERE name = ?", (name,))
+        if await cursor.fetchone():
+            await cursor.close()
+            return jsonify({'error': 'Amt already exists'}), 400
+        
+        await cursor.execute("INSERT INTO amt (name, department_id) VALUES (?, ?)", (name, department_id))
+        amt_id = cursor.lastrowid
+        await db.commit()
+        await cursor.close()
+        
+        return jsonify({'id': amt_id, 'name': name, 'department_id': department_id}), 201
+        
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
+@app.route('/api/amts/<int:amt_id>', methods=['PUT'])
+@require_admin
+async def update_amt(amt_id):
+    """Update an amt (admin only)"""
+    try:
+        data = await request.get_json()
+        name = data.get('name')
+        department_id = data.get('department_id')
+        
+        if not name:
+            return jsonify({'error': 'name is required'}), 400
+        if not department_id:
+            return jsonify({'error': 'department_id is required'}), 400
+        
+        db = get_db()
+        cursor = await db.cursor()
+        
+        # Check if amt exists
+        await cursor.execute("SELECT id FROM amt WHERE id = ?", (amt_id,))
+        if not await cursor.fetchone():
+            await cursor.close()
+            return jsonify({'error': 'Amt not found'}), 404
+        
+        # Check if department exists
+        await cursor.execute("SELECT id FROM departments WHERE id = ?", (department_id,))
+        if not await cursor.fetchone():
+            await cursor.close()
+            return jsonify({'error': 'Department not found'}), 404
+        
+        await cursor.execute("UPDATE amt SET name = ?, department_id = ? WHERE id = ?", (name, department_id, amt_id))
+        await db.commit()
+        await cursor.close()
+        
+        return jsonify({'id': amt_id, 'name': name, 'department_id': department_id}), 200
+        
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
+@app.route('/api/amts/<int:amt_id>', methods=['DELETE'])
+@require_admin
+async def delete_amt(amt_id):
+    """Delete an amt (admin only)"""
+    try:
+        db = get_db()
+        cursor = await db.cursor()
+        
+        # Check if amt is in use
+        await cursor.execute("SELECT COUNT(*) FROM users WHERE amt_id = ?", (amt_id,))
+        count = (await cursor.fetchone())[0]
+        
+        if count > 0:
+            await cursor.close()
+            return jsonify({'error': f'Cannot delete amt: {count} users are assigned to it'}), 400
+        
+        await cursor.execute("DELETE FROM amt WHERE id = ?", (amt_id,))
+        await db.commit()
+        await cursor.close()
+        
+        return jsonify({'message': 'Amt deleted successfully'}), 200
+        
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
+# ============================================================================
+# GRABIT AUTHENTICATION ENDPOINTS
+# ============================================================================
+
+@app.route('/api/auth/login', methods=['POST'])
+async def login():
+    """Login endpoint - creates session and sets cookie"""
+    try:
+        data = await request.get_json()
+        login_req = LoginRequest(**data)
+        
+        # Authenticate user
+        db = get_db()
+        user = await authenticate_user(login_req.username, login_req.password, db)
+        
+        if not user:
+            return jsonify({'error': 'Invalid username or password'}), 401
+        
+        # Create session
+        session_id = create_session(user)
+        
+        # Create response with session cookie
+        response = jsonify({
+            'user': user.model_dump(mode='json'),
+            'session_id': session_id
+        })
+        
+        # Set HTTP-only cookie
+        response.set_cookie(
+            'session_id',
+            session_id,
+            httponly=True,
+            secure=False,  # Set to True in production with HTTPS
+            samesite='Lax',
+            max_age=86400  # 24 hours
+        )
+        
+        return response, 200
+        
+    except ValidationError as e:
+        return jsonify({'error': 'Validation error', 'details': e.errors()}), 400
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
+@app.route('/api/auth/logout', methods=['POST'])
+@require_auth
+async def logout():
+    """Logout endpoint - destroys session"""
+    try:
+        session_id = request.cookies.get('session_id')
+        if session_id:
+            destroy_session(session_id)
+        
+        response = jsonify({'message': 'Logged out successfully'})
+        response.set_cookie('session_id', '', expires=0)
+        return response, 200
+        
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
+@app.route('/api/auth/me', methods=['GET'])
+@require_auth
+async def get_current_user_info():
+    """Get current user info from session"""
+    try:
+        user = get_current_user()
+        session_id = request.cookies.get('session_id')
+        session_info = get_session_info(session_id)
+        
+        return jsonify({
+            'user': user.model_dump(mode='json'),
+            'session': {
+                'session_id': session_info.session_id,
+                'expires_at': session_info.expires_at.isoformat()
+            } if session_info else None
+        }), 200
+        
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
+@app.route('/api/auth/check', methods=['GET'])
+async def check_auth():
+    """Check if user is authenticated (no @require_auth to avoid 401)"""
+    try:
+        user = get_current_user()
+        if user:
+            return jsonify({
+                'authenticated': True,
+                'user': user.model_dump(mode='json')
+            }), 200
+        else:
+            return jsonify({'authenticated': False}), 200
+            
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
+# ============================================================================
+# APPLICATION LIFECYCLE
+# ============================================================================
+
+@app.before_serving
+async def startup():
+    """Initialize database and services before serving requests"""
+    global device_service
+    await init_db()
+    device_service = DeviceService(get_db())
+    print("✅ Database initialized")
+    print("✅ Device service initialized")
+
+
+@app.after_serving
+async def shutdown():
+    """Clean up resources after serving"""
+    await close_db()
+    print("✅ Database closed")
+
+
+# ============================================================================
 # APPLICATION ENTRY POINT
 # ============================================================================
 
@@ -483,19 +1462,24 @@ if __name__ == "__main__":
     num_tasks = task_service.initialize_sample_data()
 
     print("=" * 70)
-    print("🚀 Unified Quart Server with Pydantic")
+    print("🚀 Grabit Device Management System")
     print("=" * 70)
     print(f"📝 {num_tasks} sample tasks loaded")
     print()
     print("✨ Key Features:")
-    print("   • Single process serving REST API + MCP JSON-RPC")
+    print("   • Authentication & Role-Based Access Control")
+    print("   • Device lending and tracking")
     print("   • Pydantic models for type safety and validation")
-    print("   • Automatic schema generation from type hints")
-    print("   • Zero duplication between interfaces")
+    print("   • Single process serving REST API + MCP JSON-RPC")
     print()
     print("🌐 Available Interfaces:")
     print("   REST API:     http://localhost:5001/api/*")
+    print("   Auth:         http://localhost:5001/api/auth/*")
     print("   MCP JSON-RPC: http://localhost:5001/mcp")
+    print()
+    print("🔐 Default Credentials:")
+    print("   Username: admin / Password: admin123")
+    print("   Username: testuser / Password: test123")
     print()
     print("💡 Port 5001 (macOS AirPlay uses 5000)")
     print("=" * 70)

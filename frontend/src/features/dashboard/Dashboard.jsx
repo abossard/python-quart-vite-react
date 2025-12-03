@@ -60,8 +60,8 @@ export default function Dashboard() {
   const [isConnected, setIsConnected] = useState(false)
   const [error, setError] = useState(null)
 
-  // Fetch initial server date, priority stats, and urgent tasks
-  useEffect(() => {
+  // Load dashboard data
+  const loadDashboardData = () => {
     getCurrentDate()
       .then(setServerDate)
       .catch((err) => setError(err.message))
@@ -73,6 +73,16 @@ export default function Dashboard() {
     getUrgentTasks()
       .then(setUrgentTasks)
       .catch((err) => console.error('Failed to load urgent tasks:', err.message))
+  }
+
+  // Fetch initial data and setup polling for live updates
+  useEffect(() => {
+    loadDashboardData()
+    
+    // Poll every 5 seconds for updates
+    const interval = setInterval(loadDashboardData, 5000)
+    
+    return () => clearInterval(interval)
   }, [])
 
   // Connect to live time stream
