@@ -1,6 +1,19 @@
-# Lesson 1: Modern Application Architecture
+# Day 4
 
-## Frontend
+## Announcements
+
+## Voice Demo
+
+## Lesson 0: Git
+
+- Create a Branch
+- Make changes
+- Push a branch
+- Pull Request
+
+## Lesson 1: Modern Application Architecture
+
+### Frontend
 
 - has the UI components
 - handles user interactions
@@ -9,7 +22,7 @@
 See also:
 frontend folder
 
-## Backend
+### Backend
 
 - has the business logic and data models
 - exposed via APIs (Application Programming Interfaces)
@@ -17,7 +30,7 @@ frontend folder
 See also:
 backend folder
 
-## Data Models
+### Data Models
 
 - part of the backend
 - represent the structure of data in the application
@@ -26,13 +39,14 @@ backend folder
 See also:
 backend/tasks.py
 
-## Starting the whole application
+### Starting the whole application
 
 - with ./start-dev.sh
 - starts the backend on port 5001, also http://localhost:5001
 - starts the frontend on port 3001, also http://localhost:3001
 
-## MCP
+### MCP
+
 - special API that is optimized for AI's to use
 - when the backend is running, it can be accessed at http://localhost:5001/mcp
 - a browser can't use it, but.... Github Copilot can!
@@ -43,3 +57,7 @@ backend/tasks.py
     }
 - test it with copilot chat: 
     ask "list all tasks"
+
+## Lesson 2: Github Copilot
+
+- Make plan, adapt, implement
