@@ -272,8 +272,11 @@ class TaskService:
         Consolidated initialization - creates multiple tasks in one operation.
         Returns count of tasks created.
         """
-        # Clear existing data
-        TaskService.clear_all_tasks()
+        # Only initialize samples if the database is empty.
+        # Avoid clobbering existing user data.
+        stats = TaskService.get_stats()
+        if stats.total > 0:
+            return 0
 
         # Create sample tasks
         samples = [

@@ -20,10 +20,16 @@ import json
 from dataclasses import dataclass
 from enum import Enum
 from functools import wraps
-from typing import (Any, Callable, Optional, Union, get_args, get_origin,
-                    get_type_hints)
+from typing import Any, Callable, Optional, Union, get_args, get_origin, get_type_hints
 
 from pydantic import BaseModel
+
+# Optional LangChain imports for agent tool support
+try:
+    from langchain_core.tools import StructuredTool
+    LANGCHAIN_AVAILABLE = True
+except ImportError:
+    LANGCHAIN_AVAILABLE = False
 
 
 @dataclass
@@ -197,6 +203,79 @@ class Operation:
         else:
             return json.dumps(result, indent=2)
 
+    def to_langchain_tool(self) -> Any:
+        """
+        Convert operation to LangChain StructuredTool.
+
+        This enables LangGraph agents to automatically use operations as tools.
+        Requires langchain-core to be installed.
+
+        Returns:
+            StructuredTool instance that wraps this operation
+
+        Raises:
+            ImportError: If langchain-core is not available
+        """
+        if not LANGCHAIN_AVAILABLE:
+            raise ImportError(
+                "langchain-core is required to convert operations to LangChain tools. "
+                "Install with: pip install langchain-core"
+            )
+
+        # Create async wrapper that calls the operation handler
+        async def tool_func(**kwargs):
+            """Execute the operation with provided arguments."""
+            # Parse arguments using operation's type hints
+            parsed_args = self.parse_arguments(kwargs)
+            # Call the handler
+            result = await self.handler(**parsed_args)
+            # Return result (LangChain will handle serialization)
+            return result
+
+        # Extract input schema from the operation
+        input_schema = self.get_mcp_input_schema()
+
+        # Create StructuredTool
+        return StructuredTool(
+            name=self.name,
+            description=self.description,
+            coroutine=tool_func,
+            args_schema=self._create_pydantic_model_for_langchain(),
+        )
+
+    def _create_pydantic_model_for_langchain(self) -> type[BaseModel]:
+        """
+        Create a Pydantic model from operation parameters for LangChain.
+
+        LangChain StructuredTool requires a Pydantic model for args_schema.
+        This dynamically creates one from the function signature.
+
+        Returns:
+            Pydantic model class representing the operation's parameters
+        """
+        from pydantic import Field, create_model
+
+        sig = inspect.signature(self.handler)
+        hints = get_type_hints(self.handler)
+
+        fields = {}
+        for param_name, param in sig.parameters.items():
+            if param_name == 'self':
+                continue
+
+            param_type = hints.get(param_name, Any)
+            default_value = ... if param.default == inspect.Parameter.empty else param.default
+
+            # Add field with proper type and default
+            if default_value is ...:
+                fields[param_name] = (param_type, Field(description=f"{param_name} parameter"))
+            else:
+                fields[param_name] = (param_type, Field(default=default_value, description=f"{param_name} parameter"))
+
+        # Create dynamic Pydantic model
+        model_name = f"{self.name.title().replace('_', '')}Input"
+        return create_model(model_name, **fields)
+
 
 # Registry of all operations
 _operations: dict[str, Operation] = {}
@@ -277,3 +356,25 @@ def get_mcp_tools() -> list[dict]:
 def get_operation(name: str) -> Operation | None:
     """Get a specific operation by name."""
     return _operations.get(name)
+
+
+def get_langchain_tools() -> list[Any]:
+    """
+    Get all operations as LangChain StructuredTool instances.
+
+    This enables LangGraph agents to automatically discover and use
+    all registered operations as tools.
+
+    Returns:
+        List of StructuredTool instances for all registered operations
+
+    Raises:
+        ImportError: If langchain-core is not available
+    """
+    if not LANGCHAIN_AVAILABLE:
+        raise ImportError(
+            "langchain-core is required to get LangChain tools. "
+            "Install with: pip install langchain-core"
+        )
+
+    return [op.to_langchain_tool() for op in _operations.values()]
