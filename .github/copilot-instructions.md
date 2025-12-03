@@ -1,6 +1,8 @@
 # Copilot Instructions
 
-## Architecture
+##Test
+
+## Architecture 
 
 - `backend/app.py` hosts both REST (`/api/*`) and MCP JSON-RPC (`/mcp`) on port 5001; every new capability should be exposed via the shared `@operation` decorator so both interfaces stay in sync.
 - Business logic lives in `backend/tasks.py` (`TaskService` plus Pydantic models) backed by an in-memory `_tasks_db`; keep it the single source of truth and seed demo data via `TaskService.initialize_sample_data()`.
