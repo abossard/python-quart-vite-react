@@ -41,6 +41,7 @@ import {
   Delete24Regular,
   Organization24Regular,
 } from '@fluentui/react-icons'
+import { connectToEventsStream } from '../../services/api'
 
 const useStyles = makeStyles({
   container: {
@@ -141,6 +142,26 @@ export default function AmtList() {
   useEffect(() => {
     loadAmts()
     loadDepartments()
+    
+    // Connect to real-time events
+    const cleanup = connectToEventsStream(
+      (event) => {
+        // Reload data when amt or department events occur
+        if (event.type && (event.type.startsWith('amt:') || event.type.startsWith('department:'))) {
+          console.log('Amt/Department event received:', event.type)
+          loadAmts()
+          if (event.type.startsWith('department:')) {
+            loadDepartments()
+          }
+        }
+      },
+      (error) => {
+        console.error('Events stream error:', error)
+      }
+    )
+    
+    // Cleanup on unmount
+    return cleanup
   }, [])
 
   const handleCreate = async () => {

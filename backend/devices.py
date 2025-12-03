@@ -11,6 +11,7 @@ from models import (
     MissingDevice, MissingDeviceCreate, Transaction, TransactionCreate, TransactionType,
     DeviceStats, LocationStats
 )
+from events import broadcast_event, EventType
 
 
 class DeviceService:
@@ -186,7 +187,12 @@ class DeviceService:
         )
         
         # Return full device
-        return await self.get_device(device_id)
+        device = await self.get_device(device_id)
+        
+        # Broadcast event to all clients
+        await broadcast_event(EventType.DEVICE_CREATED, device.model_dump(mode='json'))
+        
+        return device
     
     async def update_device(self, device_id: int, data: DeviceUpdate, user_id: int) -> Optional[Device]:
         """
@@ -254,7 +260,13 @@ class DeviceService:
             notes="Device updated"
         )
         
-        return await self.get_device(device_id)
+        device = await self.get_device(device_id)
+        
+        # Broadcast event to all clients
+        if device:
+            await broadcast_event(EventType.DEVICE_UPDATED, device.model_dump(mode='json'))
+        
+        return device
     
     async def delete_device(self, device_id: int, user_id: int) -> bool:
         """
@@ -280,6 +292,9 @@ class DeviceService:
             snapshot_after=None,
             notes="Device deleted"
         )
+        
+        # Broadcast event to all clients
+        await broadcast_event(EventType.DEVICE_DELETED, {'id': device_id})
         
         await cursor.execute("DELETE FROM devices WHERE id = ?", (device_id,))
         await self.db.commit()
@@ -365,7 +380,13 @@ class DeviceService:
             notes=f"Device borrowed by {data.borrower_name}"
         )
         
-        return await self.get_device(device_id)
+        device_updated = await self.get_device(device_id)
+        
+        # Broadcast event to all clients
+        if device_updated:
+            await broadcast_event(EventType.DEVICE_BORROWED, device_updated.model_dump(mode='json'))
+        
+        return device_updated
     
     async def return_device(self, device_id: int, user_id: int, notes: Optional[str] = None) -> Optional[Device]:
         """
@@ -414,7 +435,13 @@ class DeviceService:
             notes=notes or "Device returned"
         )
         
-        return await self.get_device(device_id)
+        device_updated = await self.get_device(device_id)
+        
+        # Broadcast event to all clients
+        if device_updated:
+            await broadcast_event(EventType.DEVICE_RETURNED, device_updated.model_dump(mode='json'))
+        
+        return device_updated
     
     async def report_missing(self, data: MissingDeviceCreate, user_id: int) -> MissingDevice:
         """
@@ -476,7 +503,12 @@ class DeviceService:
         row = await cursor.fetchone()
         await cursor.close()
         
-        return self._row_to_missing_device(row)
+        missing_device = self._row_to_missing_device(row)
+        
+        # Broadcast event to all clients
+        await broadcast_event(EventType.DEVICE_MISSING, missing_device.model_dump(mode='json'))
+        
+        return missing_device
     
     async def get_device_stats(self) -> DeviceStats:
         """

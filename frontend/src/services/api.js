@@ -71,6 +71,47 @@ export function connectToTimeStream(onMessage, onError) {
   }
 }
 
+/**
+ * Connect to real-time data events stream
+ * Receives updates when any data changes (devices, users, etc.)
+ * 
+ * @param {Function} onEvent - Callback for data change events
+ * @param {Function} onError - Callback for errors
+ * @returns {Function} Cleanup function to close the connection
+ * 
+ * Event types:
+ * - device:created, device:updated, device:deleted
+ * - device:borrowed, device:returned, device:missing
+ * - user:created, user:updated, user:deleted
+ * - department:created, department:updated, department:deleted
+ * - amt:created, amt:updated, amt:deleted
+ */
+export function connectToEventsStream(onEvent, onError) {
+  const eventSource = new EventSource(`${API_BASE_URL}/events-stream`)
+
+  eventSource.onmessage = (event) => {
+    try {
+      const data = JSON.parse(event.data)
+      // Ignore connection confirmation
+      if (data.type !== 'connected') {
+        onEvent(data)
+      }
+    } catch (error) {
+      onError(error)
+    }
+  }
+
+  eventSource.onerror = (error) => {
+    onError(error)
+    eventSource.close()
+  }
+
+  // Return cleanup function
+  return () => {
+    eventSource.close()
+  }
+}
+
 // ============================================================================
 // Task CRUD APIs
 // ============================================================================

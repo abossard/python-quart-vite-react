@@ -253,8 +253,8 @@ async def authenticate_user(username: str, password: str, db_conn) -> Optional[U
         """
         SELECT u.id, u.username, u.password_hash, u.role, u.location_id, 
                u.department_id, u.amt_id, u.created_at,
-               l.id as loc_id, l.name as loc_name,
-               d.id as dept_id, d.name as dept_name,
+               l.id as loc_id, l.name as loc_name, l.address as loc_address,
+               d.id as dept_id, d.name as dept_name, d.full_name as dept_full_name,
                a.id as amt_id_join, a.name as amt_name
         FROM users u
         LEFT JOIN locations l ON u.location_id = l.id
@@ -290,12 +290,13 @@ async def authenticate_user(username: str, password: str, db_conn) -> Optional[U
     }
     
     # Add related entities if available
+    # Updated indices: loc (8,9,10), dept (11,12,13), amt (14,15)
     if row[8]:  # location
-        user_data['location'] = Location(id=row[8], name=row[9])
-    if row[10]:  # department
-        user_data['department'] = Department(id=row[10], name=row[11])
-    if row[12]:  # amt
-        user_data['amt'] = Amt(id=row[12], name=row[13])
+        user_data['location'] = Location(id=row[8], name=row[9], address=row[10])
+    if row[11]:  # department
+        user_data['department'] = Department(id=row[11], name=row[12], full_name=row[13])
+    if row[14]:  # amt
+        user_data['amt'] = Amt(id=row[14], name=row[15], department_id=row[5] or 1)
     
     return User(**user_data)
 

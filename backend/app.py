@@ -45,6 +45,7 @@ from auth import (
 from typing import Optional
 from database import init_db, close_db, get_db
 from devices import DeviceService
+from events import get_event_manager, broadcast_event, EventType
 
 # ============================================================================
 # APPLICATION SETUP
@@ -340,6 +341,43 @@ async def time_stream():
             pass
 
     return generate_time_events(), {
+        "Content-Type": "text/event-stream",
+        "Cache-Control": "no-cache",
+        "X-Accel-Buffering": "no"
+    }
+
+
+@app.route("/api/events-stream", methods=["GET"])
+async def events_stream():
+    """
+    Server-Sent Events endpoint for real-time data updates.
+    
+    Broadcasts events when any data changes:
+    - device:borrowed, device:returned, device:created, etc.
+    - user:created, user:updated, etc.
+    - department:created, amt:updated, etc.
+    
+    All connected clients receive immediate updates.
+    """
+    event_manager = get_event_manager()
+    queue = await event_manager.subscribe()
+    
+    async def generate_events():
+        try:
+            # Send connection confirmation
+            yield f"data: {json.dumps({'type': 'connected', 'timestamp': datetime.now().isoformat()})}\n\n"
+            
+            while True:
+                # Wait for events from the queue
+                event = await queue.get()
+                yield f"data: {json.dumps(event)}\n\n"
+        except asyncio.CancelledError:
+            pass
+        finally:
+            # Unsubscribe when client disconnects
+            await event_manager.unsubscribe(queue)
+    
+    return generate_events(), {
         "Content-Type": "text/event-stream",
         "Cache-Control": "no-cache",
         "X-Accel-Buffering": "no"
@@ -702,8 +740,8 @@ async def list_users():
         
         await cursor.execute("""
             SELECT u.id, u.username, u.role, u.location_id, u.department_id, u.amt_id, u.created_at,
-                   l.id as loc_id, l.name as loc_name,
-                   d.id as dept_id, d.name as dept_name,
+                   l.id as loc_id, l.name as loc_name, l.address as loc_address,
+                   d.id as dept_id, d.name as dept_name, d.full_name as dept_full_name,
                    a.id as amt_id_join, a.name as amt_name
             FROM users u
             LEFT JOIN locations l ON u.location_id = l.id
@@ -727,12 +765,13 @@ async def list_users():
                 'created_at': datetime.fromisoformat(row[6]) if row[6] else datetime.now(),
             }
             
+            # Updated indices: loc (7,8,9), dept (10,11,12), amt (13,14)
             if row[7]:
-                user_data['location'] = Location(id=row[7], name=row[8])
-            if row[9]:
-                user_data['department'] = Department(id=row[9], name=row[10])
-            if row[11]:
-                user_data['amt'] = Amt(id=row[11], name=row[12])
+                user_data['location'] = Location(id=row[7], name=row[8], address=row[9])
+            if row[10]:
+                user_data['department'] = Department(id=row[10], name=row[11], full_name=row[12])
+            if row[13]:
+                user_data['amt'] = Amt(id=row[13], name=row[14], department_id=row[4] or 1)
             
             users.append(User(**user_data))
         
@@ -795,6 +834,10 @@ async def create_user():
         
         # Return created user
         user = await authenticate_user_by_id(user_id, db)
+        
+        # Broadcast event to all clients
+        await broadcast_event(EventType.USER_CREATED, user.model_dump(mode='json'))
+        
         return jsonify(user.model_dump(mode='json')), 201
         
     except ValidationError as e:
@@ -857,6 +900,10 @@ async def update_user(user_id: int):
         
         # Return updated user
         user = await authenticate_user_by_id(user_id, db)
+        
+        # Broadcast event to all clients
+        await broadcast_event(EventType.USER_UPDATED, user.model_dump(mode='json'))
+        
         return jsonify(user.model_dump(mode='json')), 200
         
     except ValidationError as e:
@@ -885,6 +932,9 @@ async def delete_user(user_id: int):
         await cursor.execute("DELETE FROM users WHERE id = ?", (user_id,))
         await db.commit()
         await cursor.close()
+        
+        # Broadcast event to all clients
+        await broadcast_event(EventType.USER_DELETED, {'id': user_id})
         
         return jsonify({'message': 'User deleted successfully'}), 200
         
@@ -1099,7 +1149,12 @@ async def create_department():
         await db.commit()
         await cursor.close()
         
-        return jsonify({'id': dept_id, 'name': name, 'full_name': full_name}), 201
+        dept_data = {'id': dept_id, 'name': name, 'full_name': full_name}
+        
+        # Broadcast event to all clients
+        await broadcast_event(EventType.DEPARTMENT_CREATED, dept_data)
+        
+        return jsonify(dept_data), 201
         
     except Exception as e:
         return jsonify({'error': str(e)}), 500
@@ -1130,7 +1185,12 @@ async def update_department(dept_id):
         await db.commit()
         await cursor.close()
         
-        return jsonify({'id': dept_id, 'name': name}), 200
+        dept_data = {'id': dept_id, 'name': name, 'full_name': full_name}
+        
+        # Broadcast event to all clients
+        await broadcast_event(EventType.DEPARTMENT_UPDATED, dept_data)
+        
+        return jsonify(dept_data), 200
         
     except Exception as e:
         return jsonify({'error': str(e)}), 500
@@ -1155,6 +1215,9 @@ async def delete_department(dept_id):
         await cursor.execute("DELETE FROM departments WHERE id = ?", (dept_id,))
         await db.commit()
         await cursor.close()
+        
+        # Broadcast event to all clients
+        await broadcast_event(EventType.DEPARTMENT_DELETED, {'id': dept_id})
         
         return jsonify({'message': 'Department deleted successfully'}), 200
         
@@ -1263,7 +1326,12 @@ async def create_amt():
         await db.commit()
         await cursor.close()
         
-        return jsonify({'id': amt_id, 'name': name, 'department_id': department_id}), 201
+        amt_data = {'id': amt_id, 'name': name, 'department_id': department_id}
+        
+        # Broadcast event to all clients
+        await broadcast_event(EventType.AMT_CREATED, amt_data)
+        
+        return jsonify(amt_data), 201
         
     except Exception as e:
         return jsonify({'error': str(e)}), 500
@@ -1302,7 +1370,12 @@ async def update_amt(amt_id):
         await db.commit()
         await cursor.close()
         
-        return jsonify({'id': amt_id, 'name': name, 'department_id': department_id}), 200
+        amt_data = {'id': amt_id, 'name': name, 'department_id': department_id}
+        
+        # Broadcast event to all clients
+        await broadcast_event(EventType.AMT_UPDATED, amt_data)
+        
+        return jsonify(amt_data), 200
         
     except Exception as e:
         return jsonify({'error': str(e)}), 500
@@ -1327,6 +1400,9 @@ async def delete_amt(amt_id):
         await cursor.execute("DELETE FROM amt WHERE id = ?", (amt_id,))
         await db.commit()
         await cursor.close()
+        
+        # Broadcast event to all clients
+        await broadcast_event(EventType.AMT_DELETED, {'id': amt_id})
         
         return jsonify({'message': 'Amt deleted successfully'}), 200
         

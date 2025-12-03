@@ -36,6 +36,7 @@ import {
   CheckmarkCircle24Regular,
   DismissCircle24Regular,
 } from '@fluentui/react-icons'
+import { connectToEventsStream } from '../../services/api'
 
 const useStyles = makeStyles({
   container: {
@@ -194,6 +195,25 @@ export default function DeviceList() {
 
   useEffect(() => {
     loadData()
+    
+    // Connect to real-time events
+    const cleanup = connectToEventsStream(
+      (event) => {
+        // Reload data when device events occur
+        if (event.type && event.type.startsWith('device:')) {
+          console.log('Device event received:', event.type)
+          // Reload devices and stats
+          loadDevices()
+          loadStats()
+        }
+      },
+      (error) => {
+        console.error('Events stream error:', error)
+      }
+    )
+    
+    // Cleanup on unmount
+    return cleanup
   }, [])
 
   // Filter amts based on selected department

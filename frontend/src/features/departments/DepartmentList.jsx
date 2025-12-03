@@ -39,6 +39,7 @@ import {
   Delete24Regular,
   Building24Regular,
 } from '@fluentui/react-icons'
+import { connectToEventsStream } from '../../services/api'
 
 const useStyles = makeStyles({
   container: {
@@ -122,6 +123,23 @@ export default function DepartmentList() {
 
   useEffect(() => {
     loadDepartments()
+    
+    // Connect to real-time events
+    const cleanup = connectToEventsStream(
+      (event) => {
+        // Reload data when department events occur
+        if (event.type && event.type.startsWith('department:')) {
+          console.log('Department event received:', event.type)
+          loadDepartments()
+        }
+      },
+      (error) => {
+        console.error('Events stream error:', error)
+      }
+    )
+    
+    // Cleanup on unmount
+    return cleanup
   }, [])
 
   const handleCreate = async () => {

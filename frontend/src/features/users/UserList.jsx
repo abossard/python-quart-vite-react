@@ -43,6 +43,7 @@ import {
   Delete24Regular,
   Location24Regular,
 } from '@fluentui/react-icons'
+import { connectToEventsStream } from '../../services/api'
 
 const useStyles = makeStyles({
   container: {
@@ -205,6 +206,23 @@ export default function UserList() {
 
   useEffect(() => {
     loadData()
+    
+    // Connect to real-time events
+    const cleanup = connectToEventsStream(
+      (event) => {
+        // Reload data when user events occur
+        if (event.type && event.type.startsWith('user:')) {
+          console.log('User event received:', event.type)
+          loadUsers()
+        }
+      },
+      (error) => {
+        console.error('Events stream error:', error)
+      }
+    )
+    
+    // Cleanup on unmount
+    return cleanup
   }, [])
 
   const handleCreateUser = async () => {
