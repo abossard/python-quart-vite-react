@@ -220,6 +220,12 @@ export default function DetailDialog({ open, onOpenChange, data }) {
                 <span className={styles.label}>Status: </span>
                 <span className={styles.value}>{data.status || '-'}</span>
               </div>
+              {data.borrower_name && (
+                <div className={styles.infoLine}>
+                  <span className={styles.label}>Ausgeliehen an: </span>
+                  <span className={styles.value}>{data.borrower_name}</span>
+                </div>
+              )}
             </div>
             
             <div className={styles.extraInfoLabel}>Extra Info:</div>

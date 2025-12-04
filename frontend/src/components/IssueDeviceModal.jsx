@@ -176,8 +176,9 @@ export default function IssueDeviceModal({
   }
   
   const handleSubmit = async () => {
-    // Validation
-    if (!personName.trim()) {
+    // Validation: Name darf nicht leer sein
+    const trimmedName = personName.trim()
+    if (!trimmedName) {
       setError('Bitte Name eingeben')
       return
     }
@@ -186,7 +187,14 @@ export default function IssueDeviceModal({
     setIsSubmitting(true)
     
     try {
-      await onSubmit(personName.trim())
+      // Prepare data with all required fields
+      const borrowData = {
+        borrower_name: trimmedName,
+        borrower_email: `${trimmedName.toLowerCase().replace(/\s+/g, '.')}@temp.local`,
+        expected_return_date: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0], // 30 days from now
+      }
+      
+      await onSubmit(borrowData)
       handleClose()
     } catch (err) {
       setError(err.message || 'Fehler beim Herausgeben')

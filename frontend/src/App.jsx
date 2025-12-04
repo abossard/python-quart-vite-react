@@ -15,10 +15,14 @@ import DeviceList from './features/devices/DeviceList'
 import UserList from './features/users/UserList'
 import DepartmentList from './features/departments/DepartmentList'
 import AmtList from './features/amts/AmtList'
+import History from './features/history/History'
+import MissingDevices from './features/missing/MissingDevices'
 
 // Map routes to page keys for AppShell
 const routeToPageMap = {
   '/dashboard': 'overview',
+  '/history': 'history',
+  '/missing': 'missing',
   '/devices': 'devices',
   '/users': 'users',
   '/departments': 'departments',
@@ -54,6 +58,8 @@ export default function App() {
       <Routes>
         <Route path="/" element={<Navigate to="/dashboard" replace />} />
         <Route path="/dashboard" element={<Dashboard />} />
+        <Route path="/history" element={<History />} />
+        <Route path="/missing" element={<MissingDevices />} />
         <Route path="/devices" element={<DeviceList />} />
         <Route path="/users" element={<UserList />} />
         <Route path="/departments" element={<DepartmentList />} />

@@ -160,6 +160,7 @@ export default function DeviceLoanCard({
   fields = [],
   orgText,
   status = 'available',
+  borrowerName = null,
   onIssueClick,
   onReturnClick,
   onInfoClick,
@@ -168,6 +169,12 @@ export default function DeviceLoanCard({
   
   const isAvailable = status === 'available'
   const colorPanelClass = isAvailable ? styles.colorPanelAvailable : styles.colorPanelIssued
+  
+  // Add borrower info to fields if device is issued
+  const displayFields = [...fields]
+  if (!isAvailable && borrowerName) {
+    displayFields.push({ label: 'Ausgeliehen an', value: borrowerName })
+  }
   
   return (
     <div className={styles.card}>
@@ -192,7 +199,7 @@ export default function DeviceLoanCard({
         
         {/* Felderliste */}
         <div className={styles.fieldsList}>
-          {fields.map((field, index) => (
+          {displayFields.map((field, index) => (
             <div key={index} className={styles.field}>
               <span className={styles.fieldLabel}>{field.label}: </span>
               <span className={styles.fieldValue}>{field.value}</span>

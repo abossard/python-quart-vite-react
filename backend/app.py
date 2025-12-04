@@ -726,6 +726,73 @@ async def get_location_stats():
         return jsonify({'error': str(e)}), 500
 
 
+@app.route('/api/devices/missing', methods=['GET'])
+@require_auth
+async def get_missing_devices():
+    """Get all devices reported as missing"""
+    try:
+        db_conn = get_db()
+        cursor = await db_conn.cursor()
+        
+        await cursor.execute("""
+            SELECT 
+                dm.id, dm.original_device_id, dm.device_type, dm.manufacturer, 
+                dm.model, dm.serial_number, dm.inventory_number, dm.status,
+                dm.location_id, dm.borrowed_at, dm.expected_return_date,
+                dm.borrower_name, dm.borrower_email, dm.borrower_phone,
+                dm.borrower_user_id, dm.borrower_snapshot, dm.notes,
+                dm.reported_at, dm.reported_by_user_id,
+                l.id as loc_id, l.name as loc_name, l.address as loc_address,
+                u.id as reporter_id, u.username as reporter_name
+            FROM devices_missing dm
+            LEFT JOIN locations l ON dm.location_id = l.id
+            LEFT JOIN users u ON dm.reported_by_user_id = u.id
+            ORDER BY dm.reported_at DESC
+        """)
+        
+        rows = await cursor.fetchall()
+        await cursor.close()
+        
+        missing_devices = []
+        for row in rows:
+            device = {
+                'id': row[0],
+                'original_device_id': row[1],
+                'device_type': row[2],
+                'manufacturer': row[3],
+                'model': row[4],
+                'serial_number': row[5],
+                'inventory_number': row[6],
+                'status': row[7],
+                'location_id': row[8],
+                'borrowed_at': row[9],
+                'expected_return_date': row[10],
+                'borrower_name': row[11],
+                'borrower_email': row[12],
+                'borrower_phone': row[13],
+                'borrower_user_id': row[14],
+                'borrower_snapshot': row[15],
+                'notes': row[16],
+                'reported_at': row[17],
+                'reported_by_user_id': row[18],
+                'location': {
+                    'id': row[19],
+                    'name': row[20],
+                    'address': row[21],
+                } if row[19] else None,
+                'reported_by': {
+                    'id': row[22],
+                    'username': row[23],
+                } if row[22] else None,
+            }
+            missing_devices.append(device)
+        
+        return jsonify(missing_devices), 200
+        
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
 # ============================================================================
 # GRABIT USER MANAGEMENT ENDPOINTS
 # ============================================================================

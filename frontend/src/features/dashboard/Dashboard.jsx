@@ -15,6 +15,7 @@ import {
 } from '@fluentui/react-components'
 import DeviceLoanCard from '../../components/DeviceLoanCard'
 import IssueDeviceModal from '../../components/IssueDeviceModal'
+import ReturnDeviceModal from '../../components/ReturnDeviceModal'
 import PageHeader from '../../components/PageHeader'
 import DetailDialog from '../../components/DetailDialog'
 
@@ -52,6 +53,7 @@ export default function Dashboard() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
   const [issueModalOpen, setIssueModalOpen] = useState(false)
+  const [returnModalOpen, setReturnModalOpen] = useState(false)
   const [selectedDevice, setSelectedDevice] = useState(null)
   const [detailDialogOpen, setDetailDialogOpen] = useState(false)
   const [detailDevice, setDetailDevice] = useState(null)
@@ -88,23 +90,92 @@ export default function Dashboard() {
     setIssueModalOpen(true)
   }
   
-  // Handler für "Zurücknehmen" Button
-  const handleReturnClick = async (device) => {
+  // Handler für "Zurücknehmen" Button - öffnet Modal
+  const handleReturnClick = (device) => {
+    setSelectedDevice(device)
+    setReturnModalOpen(true)
+  }
+  
+  // Handler für Return Modal "Zurücknehmen" Aktion
+  const handleReturnConfirm = async () => {
+    if (!selectedDevice) return
+    
     try {
-      const response = await fetch(`http://localhost:5001/api/devices/${device.id}/return`, {
+      const response = await fetch(`http://localhost:5001/api/devices/${selectedDevice.id}/return`, {
         method: 'POST',
         credentials: 'include',
         headers: {
           'Content-Type': 'application/json',
         },
+        body: JSON.stringify({
+          notes: `Gerät zurückgenommen von ${selectedDevice.borrower_name || 'Unbekannt'}`,
+        }),
       })
       
       if (!response.ok) {
-        throw new Error('Fehler beim Zurücknehmen')
+        const errorData = await response.json().catch(() => ({}))
+        throw new Error(errorData.error || 'Fehler beim Zurücknehmen')
       }
       
-      // Reload devices
-      await loadDevices()
+      // Get updated device from response
+      const updatedDevice = await response.json()
+      
+      // Update only the affected device in state (optimistic UI update)
+      // Status wechselt von "borrowed" zu "available"
+      // borrower_name wird auf null gesetzt
+      setDevices(prevDevices => 
+        prevDevices.map(device => 
+          device.id === selectedDevice.id ? updatedDevice : device
+        )
+      )
+    } catch (err) {
+      setError(err.message)
+    }
+  }
+  
+  // Handler für Return Modal "Vermisst" Aktion
+  const handleMarkMissing = async () => {
+    if (!selectedDevice) return
+    
+    try {
+      // First get current user info
+      const userResponse = await fetch('http://localhost:5001/api/auth/me', {
+        credentials: 'include',
+      })
+      
+      if (!userResponse.ok) {
+        throw new Error('Nicht authentifiziert')
+      }
+      
+      const currentUser = await userResponse.json()
+      
+      // Use the dedicated missing endpoint
+      const response = await fetch(`http://localhost:5001/api/devices/${selectedDevice.id}/missing`, {
+        method: 'POST',
+        credentials: 'include',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          reported_by_user_id: currentUser.user.id,
+          last_known_location_id: selectedDevice.location?.id || selectedDevice.location_id || null,
+          notes: `Gerät als vermisst markiert. Zuletzt bei: ${selectedDevice.borrower_name || 'Unbekannt'}`,
+        }),
+      })
+      
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}))
+        console.error('Missing device error:', errorData)
+        const errorMsg = errorData.details 
+          ? `Validation error: ${JSON.stringify(errorData.details)}` 
+          : errorData.error || 'Fehler beim Markieren als Vermisst'
+        throw new Error(errorMsg)
+      }
+      
+      // Remove device from list (vermisste Geräte werden in separater Ansicht angezeigt)
+      setDevices(prevDevices => 
+        prevDevices.filter(device => device.id !== selectedDevice.id)
+      )
     } catch (err) {
       setError(err.message)
     }
@@ -117,7 +188,7 @@ export default function Dashboard() {
   }
   
   // Handler für Modal Submit
-  const handleIssueSubmit = async (personName) => {
+  const handleIssueSubmit = async (borrowData) => {
     if (!selectedDevice) return
     
     try {
@@ -127,17 +198,23 @@ export default function Dashboard() {
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({
-          borrower_name: personName,
-        }),
+        body: JSON.stringify(borrowData),
       })
       
       if (!response.ok) {
-        throw new Error('Fehler beim Herausgeben')
+        const errorData = await response.json().catch(() => ({}))
+        throw new Error(errorData.error || 'Fehler beim Herausgeben')
       }
       
-      // Reload devices
-      await loadDevices()
+      // Get updated device from response
+      const updatedDevice = await response.json()
+      
+      // Update only the affected device in state (optimistic UI update)
+      setDevices(prevDevices => 
+        prevDevices.map(device => 
+          device.id === selectedDevice.id ? updatedDevice : device
+        )
+      )
     } catch (err) {
       throw err
     }
@@ -197,6 +274,7 @@ export default function Dashboard() {
                 fields={fields}
                 orgText={orgText}
                 status={device.status === 'available' ? 'available' : 'issued'}
+                borrowerName={device.borrower_name || null}
                 onIssueClick={() => handleIssueClick(device)}
                 onReturnClick={() => handleReturnClick(device)}
                 onInfoClick={() => handleInfoClick(device)}
@@ -212,6 +290,15 @@ export default function Dashboard() {
         onOpenChange={(_, data) => setIssueModalOpen(data.open)}
         onSubmit={handleIssueSubmit}
         deviceInfo={selectedDevice}
+      />
+      
+      {/* Return Device Modal */}
+      <ReturnDeviceModal
+        open={returnModalOpen}
+        onOpenChange={(_, data) => setReturnModalOpen(data.open)}
+        deviceName={selectedDevice ? `${selectedDevice.device_type || 'Gerät'}` : 'Gerät'}
+        onReturn={handleReturnConfirm}
+        onMarkMissing={handleMarkMissing}
       />
       
       {/* Detail Dialog */}
