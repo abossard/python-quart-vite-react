@@ -262,6 +262,7 @@ class TransactionType(str, Enum):
     RETURN = "return"
     REPORT_MISSING = "report_missing"
     FOUND = "found"
+    DELETE = "delete"
     LOCATION_CHANGE = "location_change"
     UPDATE = "update"
 

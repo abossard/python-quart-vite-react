@@ -563,6 +563,39 @@ export default function UserList() {
                     <Option value="admin">Admin</Option>
                   </Dropdown>
                 </Field>
+                <Field label="Location">
+                  <Dropdown
+                    placeholder="Select location"
+                    value={locations.find(l => l.id === formData.location_id)?.name || ''}
+                    onOptionSelect={(_, data) => setFormData({ ...formData, location_id: parseInt(data.optionValue) })}
+                  >
+                    {locations.map(loc => (
+                      <Option key={loc.id} value={loc.id.toString()}>{loc.name}</Option>
+                    ))}
+                  </Dropdown>
+                </Field>
+                <Field label="Department">
+                  <Dropdown
+                    placeholder="Select department"
+                    value={departments.find(d => d.id === formData.department_id)?.name || ''}
+                    onOptionSelect={(_, data) => setFormData({ ...formData, department_id: parseInt(data.optionValue) })}
+                  >
+                    {departments.map(dept => (
+                      <Option key={dept.id} value={dept.id.toString()}>{dept.name}</Option>
+                    ))}
+                  </Dropdown>
+                </Field>
+                <Field label="Amt">
+                  <Dropdown
+                    placeholder="Select amt"
+                    value={amts.find(a => a.id === formData.amt_id)?.name || ''}
+                    onOptionSelect={(_, data) => setFormData({ ...formData, amt_id: parseInt(data.optionValue) })}
+                  >
+                    {amts.map(amt => (
+                      <Option key={amt.id} value={amt.id.toString()}>{amt.name}</Option>
+                    ))}
+                  </Dropdown>
+                </Field>
               </div>
             </DialogContent>
             <DialogActions>

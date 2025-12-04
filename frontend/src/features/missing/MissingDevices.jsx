@@ -12,14 +12,30 @@ import {
   MessageBar,
   MessageBarBody,
   Button,
+  Dialog,
+  DialogTrigger,
+  DialogSurface,
+  DialogTitle,
+  DialogBody,
+  DialogActions,
+  DialogContent,
+  Field,
+  Input,
+  Dropdown,
+  Option,
 } from '@fluentui/react-components'
 import {
   Warning24Regular,
   Checkmark24Regular,
+  Info24Regular,
+  Edit24Regular,
+  ArrowUndo24Regular,
+  Delete24Regular,
 } from '@fluentui/react-icons'
 import PageHeader from '../../components/PageHeader'
 import AdminCard from '../../components/AdminCard'
 import ResponsiveGrid from '../../components/ResponsiveGrid'
+import DetailDialog from '../../components/DetailDialog'
 
 const useStyles = makeStyles({
   container: {
@@ -46,6 +62,16 @@ const useStyles = makeStyles({
   emptyIcon: {
     fontSize: '64px',
   },
+  
+  formGrid: {
+    display: 'grid',
+    gridTemplateColumns: '1fr 1fr',
+    gap: tokens.spacingHorizontalM,
+  },
+  
+  fullWidth: {
+    gridColumn: '1 / -1',
+  },
 })
 
 export default function MissingDevices() {
@@ -53,11 +79,37 @@ export default function MissingDevices() {
   const [devices, setDevices] = useState([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
+  const [detailDialogOpen, setDetailDialogOpen] = useState(false)
+  const [selectedDevice, setSelectedDevice] = useState(null)
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
+  const [deviceToDelete, setDeviceToDelete] = useState(null)
+  const [editDialogOpen, setEditDialogOpen] = useState(false)
+  const [deviceToEdit, setDeviceToEdit] = useState(null)
+  
+  // Reference data
+  const [departments, setDepartments] = useState([])
+  const [amts, setAmts] = useState([])
+  const [filteredAmts, setFilteredAmts] = useState([])
+  
+  // Form data for editing
+  const [formData, setFormData] = useState({
+    device_type: '',
+    manufacturer: '',
+    model: '',
+    serial_number: '',
+    inventory_number: '',
+    location_id: '1',
+    department_id: null,
+    amt_id: null,
+    notes: '',
+  })
 
   // Load missing devices
-  const loadMissingDevices = async () => {
+  const loadMissingDevices = async (showLoadingIndicator = true) => {
     try {
-      setLoading(true)
+      if (showLoadingIndicator) {
+        setLoading(true)
+      }
       
       // Lade vermisste Geräte aus devices_missing Tabelle
       const response = await fetch('http://localhost:5001/api/devices/missing', {
@@ -66,7 +118,9 @@ export default function MissingDevices() {
       
       if (response.status === 401) {
         setError('Nicht authentifiziert. Bitte melden Sie sich an.')
-        setLoading(false)
+        if (showLoadingIndicator) {
+          setLoading(false)
+        }
         return
       }
       
@@ -82,31 +136,201 @@ export default function MissingDevices() {
     } catch (err) {
       setError(err.message)
     } finally {
-      setLoading(false)
+      if (showLoadingIndicator) {
+        setLoading(false)
+      }
     }
   }
 
+  // Load departments
+  const loadDepartments = async () => {
+    try {
+      const response = await fetch('http://localhost:5001/api/departments', {
+        credentials: 'include',
+      })
+      if (response.ok) {
+        const data = await response.json()
+        setDepartments(data)
+      }
+    } catch (err) {
+      console.error('Failed to load departments:', err)
+    }
+  }
+
+  // Load amts
+  const loadAmts = async () => {
+    try {
+      const response = await fetch('http://localhost:5001/api/amts', {
+        credentials: 'include',
+      })
+      if (response.ok) {
+        const data = await response.json()
+        setAmts(data)
+      }
+    } catch (err) {
+      console.error('Failed to load amts:', err)
+    }
+  }
+
+  // Filter amts by department
   useEffect(() => {
-    loadMissingDevices()
+    if (formData.department_id) {
+      setFilteredAmts(amts.filter(a => a.department_id === formData.department_id))
+    } else {
+      setFilteredAmts([])
+    }
+  }, [formData.department_id, amts])
+
+  useEffect(() => {
+    // Initial load with loading indicator
+    loadMissingDevices(true)
+    loadDepartments()
+    loadAmts()
     
-    // Reload every 10 seconds to check for new missing devices
-    const interval = setInterval(loadMissingDevices, 10000)
+    // Reload every 10 seconds in background without loading indicator (smoother)
+    const interval = setInterval(() => loadMissingDevices(false), 10000)
     
     return () => clearInterval(interval)
   }, [])
   
-  // Handler für "Gefunden" Button
-  const handleFoundDevice = async (device) => {
+  // Handler für Info-Button (1)
+  const handleInfo = (device) => {
+    setSelectedDevice(device)
+    setDetailDialogOpen(true)
+  }
+
+  // Handler für Edit-Button (2)
+  const handleEdit = (device) => {
+    setDeviceToEdit(device)
+    // Populate form with all device fields
+    setFormData({
+      device_type: device.device_type || '',
+      manufacturer: device.manufacturer || '',
+      model: device.model || '',
+      serial_number: device.serial_number || '',
+      inventory_number: device.inventory_number || '',
+      location_id: device.location_id?.toString() || '1',
+      department_id: device.department_id || null,
+      amt_id: device.amt_id || null,
+      notes: device.notes || '',
+    })
+    setEditDialogOpen(true)
+  }
+
+  const handleEditConfirm = async () => {
+    if (!deviceToEdit) return
+    
     try {
-      // TODO: Implement API call to mark device as found
-      // For now, just remove from list
-      setDevices(prevDevices => prevDevices.filter(d => d.id !== device.id))
+      const response = await fetch(`http://localhost:5001/api/devices/missing/${deviceToEdit.id}`, {
+        method: 'PUT',
+        credentials: 'include',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          device_type: formData.device_type,
+          manufacturer: formData.manufacturer,
+          model: formData.model,
+          serial_number: formData.serial_number,
+          inventory_number: formData.inventory_number,
+          location_id: parseInt(formData.location_id),
+          department_id: formData.department_id,
+          amt_id: formData.amt_id,
+          notes: formData.notes,
+        }),
+      })
       
-      // In real implementation, would call:
-      // POST /api/devices/missing/{id}/found
-      // Then update state
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}))
+        throw new Error(errorData.error || 'Fehler beim Aktualisieren')
+      }
+      
+      // Update in list - merge formData into the device
+      setDevices(prevDevices => 
+        prevDevices.map(d => 
+          d.id === deviceToEdit.id 
+            ? { 
+                ...d, 
+                device_type: formData.device_type,
+                manufacturer: formData.manufacturer,
+                model: formData.model,
+                serial_number: formData.serial_number,
+                inventory_number: formData.inventory_number,
+                location_id: parseInt(formData.location_id),
+                department_id: formData.department_id,
+                amt_id: formData.amt_id,
+                notes: formData.notes,
+              }
+            : d
+        )
+      )
+      
+      setEditDialogOpen(false)
+      setDeviceToEdit(null)
+      // Reset formData to initial state
+      setFormData({
+        device_type: '',
+        manufacturer: '',
+        model: '',
+        serial_number: '',
+        inventory_number: '',
+        location_id: '1',
+        department_id: null,
+        amt_id: null,
+        notes: '',
+      })
     } catch (err) {
       setError(err.message)
+    }
+  }
+
+  // Handler für Restore-Button (3) - Gerät als "gefunden" markieren
+  const handleRestore = async (device) => {
+    try {
+      const response = await fetch(`http://localhost:5001/api/devices/missing/${device.id}/restore`, {
+        method: 'POST',
+        credentials: 'include',
+      })
+      
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}))
+        throw new Error(errorData.error || 'Fehler beim Wiederherstellen')
+      }
+      
+      // Remove from missing devices list
+      setDevices(prevDevices => prevDevices.filter(d => d.id !== device.id))
+    } catch (err) {
+      setError(err.message)
+    }
+  }
+
+  // Handler für Delete-Button (4)
+  const handleDeleteClick = (device) => {
+    setDeviceToDelete(device)
+    setDeleteDialogOpen(true)
+  }
+
+  const handleDeleteConfirm = async () => {
+    if (!deviceToDelete) return
+    
+    try {
+      const response = await fetch(`http://localhost:5001/api/devices/missing/${deviceToDelete.id}`, {
+        method: 'DELETE',
+        credentials: 'include',
+      })
+      
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}))
+        throw new Error(errorData.error || 'Fehler beim Löschen')
+      }
+      
+      // Remove from list
+      setDevices(prevDevices => prevDevices.filter(d => d.id !== deviceToDelete.id))
+      setDeleteDialogOpen(false)
+      setDeviceToDelete(null)
+    } catch (err) {
+      setError(err.message)
+      setDeleteDialogOpen(false)
     }
   }
 
@@ -174,14 +398,166 @@ export default function MissingDevices() {
                 title={`${device.device_type || 'Gerät'} - ${device.manufacturer || ''}`}
                 fields={fields}
                 statusBackground="danger"
-                onEdit={() => handleFoundDevice(device)}
-                onDelete={null}
-                showInfo={false}
+                // Custom action buttons für vermisste Geräte
+                actionButtons={[
+                  {
+                    icon: <Info24Regular />,
+                    onClick: () => handleInfo(device),
+                    title: 'Info',
+                    colorClass: 'infoButton', // grau
+                  },
+                  {
+                    icon: <Edit24Regular />,
+                    onClick: () => handleEdit(device),
+                    title: 'Bearbeiten',
+                    colorClass: 'editButton', // blau
+                  },
+                  {
+                    icon: <ArrowUndo24Regular />,
+                    onClick: () => handleRestore(device),
+                    title: 'Wiederherstellen (Gefunden)',
+                    colorClass: 'restoreButton', // grün
+                  },
+                  {
+                    icon: <Delete24Regular />,
+                    onClick: () => handleDeleteClick(device),
+                    title: 'Löschen',
+                    colorClass: 'deleteButton', // rot
+                  },
+                ]}
               />
             )
           })}
         </ResponsiveGrid>
       )}
+
+      {/* Detail Dialog */}
+      <DetailDialog
+        open={detailDialogOpen}
+        onOpenChange={(_, data) => setDetailDialogOpen(data.open)}
+        data={selectedDevice}
+      />
+
+      {/* Edit Dialog */}
+      <Dialog open={editDialogOpen} onOpenChange={(e, data) => setEditDialogOpen(data.open)}>
+        <DialogSurface>
+          <DialogBody>
+            <DialogTitle>Gerät bearbeiten</DialogTitle>
+            <DialogContent>
+              <div className={styles.formGrid}>
+                <Field label="Device Type" required>
+                  <Input
+                    value={formData.device_type}
+                    onChange={(e) => setFormData({ ...formData, device_type: e.target.value })}
+                    placeholder="e.g., Laptop, Beamer"
+                  />
+                </Field>
+                <Field label="Manufacturer" required>
+                  <Input
+                    value={formData.manufacturer}
+                    onChange={(e) => setFormData({ ...formData, manufacturer: e.target.value })}
+                    placeholder="e.g., Dell, HP"
+                  />
+                </Field>
+                <Field label="Model" required>
+                  <Input
+                    value={formData.model}
+                    onChange={(e) => setFormData({ ...formData, model: e.target.value })}
+                    placeholder="e.g., Latitude 7490"
+                  />
+                </Field>
+                <Field label="Serial Number">
+                  <Input
+                    value={formData.serial_number}
+                    onChange={(e) => setFormData({ ...formData, serial_number: e.target.value })}
+                    placeholder="Optional"
+                  />
+                </Field>
+                <Field label="Inventory Number">
+                  <Input
+                    value={formData.inventory_number}
+                    onChange={(e) => setFormData({ ...formData, inventory_number: e.target.value })}
+                    placeholder="Optional"
+                  />
+                </Field>
+                <Field label="Location" required>
+                  <Dropdown
+                    value={formData.location_id === '1' ? 'Bollwerk' : formData.location_id === '2' ? 'Zollikofen' : 'Guisanplatz'}
+                    onOptionSelect={(_, data) => setFormData({ ...formData, location_id: data.optionValue })}
+                  >
+                    <Option value="1">Bollwerk</Option>
+                    <Option value="2">Zollikofen</Option>
+                    <Option value="3">Guisanplatz</Option>
+                  </Dropdown>
+                </Field>
+                <Field label="Department">
+                  <Dropdown
+                    placeholder="Select department"
+                    value={departments.find(d => d.id === formData.department_id)?.name || ''}
+                    onOptionSelect={(_, data) => {
+                      const deptId = parseInt(data.optionValue)
+                      setFormData({ ...formData, department_id: deptId, amt_id: null })
+                    }}
+                  >
+                    {departments.map(dept => (
+                      <Option key={dept.id} value={dept.id.toString()}>{dept.name}</Option>
+                    ))}
+                  </Dropdown>
+                </Field>
+                <Field label="Amt" disabled={!formData.department_id}>
+                  <Dropdown
+                    placeholder={formData.department_id ? "Select amt" : "Select department first"}
+                    value={filteredAmts.find(a => a.id === formData.amt_id)?.name || ''}
+                    onOptionSelect={(_, data) => setFormData({ ...formData, amt_id: parseInt(data.optionValue) })}
+                    disabled={!formData.department_id}
+                  >
+                    {filteredAmts.map(amt => (
+                      <Option key={amt.id} value={amt.id.toString()}>{amt.name}</Option>
+                    ))}
+                  </Dropdown>
+                </Field>
+                <Field label="Notes" className={styles.fullWidth}>
+                  <Input
+                    value={formData.notes}
+                    onChange={(e) => setFormData({ ...formData, notes: e.target.value })}
+                    placeholder="Optional notes"
+                  />
+                </Field>
+              </div>
+            </DialogContent>
+            <DialogActions>
+              <Button appearance="secondary" onClick={() => setEditDialogOpen(false)}>
+                Abbrechen
+              </Button>
+              <Button appearance="primary" onClick={handleEditConfirm}>
+                Speichern
+              </Button>
+            </DialogActions>
+          </DialogBody>
+        </DialogSurface>
+      </Dialog>
+
+      {/* Delete Confirmation Dialog */}
+      <Dialog open={deleteDialogOpen} onOpenChange={(e, data) => setDeleteDialogOpen(data.open)}>
+        <DialogSurface>
+          <DialogBody>
+            <DialogTitle>Gerät löschen</DialogTitle>
+            <DialogContent>
+              Möchten Sie das Gerät "{deviceToDelete?.device_type} - {deviceToDelete?.manufacturer}" wirklich permanent löschen?
+              <br /><br />
+              <strong>Diese Aktion kann nicht rückgängig gemacht werden.</strong>
+            </DialogContent>
+            <DialogActions>
+              <Button appearance="secondary" onClick={() => setDeleteDialogOpen(false)}>
+                Abbrechen
+              </Button>
+              <Button appearance="primary" onClick={handleDeleteConfirm}>
+                Löschen
+              </Button>
+            </DialogActions>
+          </DialogBody>
+        </DialogSurface>
+      </Dialog>
     </div>
   )
 }

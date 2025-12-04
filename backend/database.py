@@ -129,6 +129,8 @@ async def _ensure_schema():
         inventory_number TEXT,
         status TEXT NOT NULL,
         location_id INTEGER NOT NULL,
+        department_id INTEGER,
+        amt_id INTEGER,
         borrowed_at TEXT,
         expected_return_date TEXT,
         borrower_name TEXT,
@@ -140,6 +142,8 @@ async def _ensure_schema():
         reported_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
         reported_by_user_id INTEGER NOT NULL,
         FOREIGN KEY (location_id) REFERENCES locations(id),
+        FOREIGN KEY (department_id) REFERENCES departments(id),
+        FOREIGN KEY (amt_id) REFERENCES amt(id),
         FOREIGN KEY (reported_by_user_id) REFERENCES users(id)
     );
     

@@ -26,6 +26,7 @@ class EventType(str, Enum):
     DEVICE_BORROWED = "device:borrowed"
     DEVICE_RETURNED = "device:returned"
     DEVICE_MISSING = "device:missing"
+    DEVICE_FOUND = "device:found"
     
     # User events
     USER_CREATED = "user:created"

@@ -80,14 +80,16 @@ const useStyles = makeStyles({
     borderRadius: '4px',
     border: 'none',
     backgroundColor: '#6C757D',
-    color: '#FFFFFF',
+    color: '#FFFFFF !important',
     cursor: 'pointer',
     transition: 'background-color 0.2s ease',
     ':hover': {
       backgroundColor: '#5C636A',
+      color: '#FFFFFF !important',
     },
     ':active': {
       backgroundColor: '#4E555B',
+      color: '#FFFFFF !important',
     },
   },
   
@@ -100,14 +102,16 @@ const useStyles = makeStyles({
     borderRadius: '4px',
     border: 'none',
     backgroundColor: '#0D6EFD',
-    color: '#FFFFFF',
+    color: '#FFFFFF !important',
     cursor: 'pointer',
     transition: 'background-color 0.2s ease',
     ':hover': {
       backgroundColor: '#0B5ED7',
+      color: '#FFFFFF !important',
     },
     ':active': {
       backgroundColor: '#0A58CA',
+      color: '#FFFFFF !important',
     },
   },
   
@@ -120,14 +124,38 @@ const useStyles = makeStyles({
     borderRadius: '4px',
     border: 'none',
     backgroundColor: '#DC3545',
-    color: '#FFFFFF',
+    color: '#FFFFFF !important',
     cursor: 'pointer',
     transition: 'background-color 0.2s ease',
     ':hover': {
       backgroundColor: '#BB2D3B',
+      color: '#FFFFFF !important',
     },
     ':active': {
       backgroundColor: '#A02A37',
+      color: '#FFFFFF !important',
+    },
+  },
+  
+  restoreButton: {
+    minWidth: '32px',
+    minHeight: '32px',
+    width: '32px',
+    height: '32px',
+    padding: '0',
+    borderRadius: '4px',
+    border: 'none',
+    backgroundColor: '#198754',
+    color: '#FFFFFF !important',
+    cursor: 'pointer',
+    transition: 'background-color 0.2s ease',
+    ':hover': {
+      backgroundColor: '#157347',
+      color: '#FFFFFF !important',
+    },
+    ':active': {
+      backgroundColor: '#146C43',
+      color: '#FFFFFF !important',
     },
   },
   
@@ -178,6 +206,7 @@ export default function AdminCard({
   statusBackground = null, // 'danger' | 'success' | 'warning' | null
   children,
   detailData = null, // Data to show in detail dialog
+  actionButtons = null, // Custom action buttons array [{icon, onClick, appearance, title}]
 }) {
   const styles = useStyles()
   const [dialogOpen, setDialogOpen] = useState(false)
@@ -203,34 +232,52 @@ export default function AdminCard({
         <div className={styles.headerTitle}>{title}</div>
         
         <div className={styles.actions}>
-          {showInfo && (
-            <Button
-              appearance="primary"
-              icon={<Info24Regular />}
-              onClick={() => setDialogOpen(true)}
-              aria-label="Info"
-              className={styles.infoButton}
-            />
-          )}
-          {onEdit && (
-            <Button
-              appearance="primary"
-              icon={<Edit24Regular />}
-              onClick={onEdit}
-              aria-label="Bearbeiten"
-              title="Bearbeiten"
-              className={styles.editButton}
-            />
-          )}
-          {onDelete && (
-            <Button
-              appearance="primary"
-              icon={<Delete24Regular />}
-              onClick={onDelete}
-              aria-label="Löschen"
-              title="Löschen"
-              className={styles.deleteButton}
-            />
+          {actionButtons ? (
+            // Custom action buttons for special cases (e.g., Missing Devices)
+            actionButtons.map((button, index) => (
+              <Button
+                key={index}
+                appearance="primary"
+                icon={button.icon}
+                onClick={button.onClick}
+                aria-label={button.title}
+                title={button.title}
+                className={styles[button.colorClass] || styles.infoButton}
+              />
+            ))
+          ) : (
+            // Default action buttons
+            <>
+              {showInfo && (
+                <Button
+                  appearance="primary"
+                  icon={<Info24Regular />}
+                  onClick={() => setDialogOpen(true)}
+                  aria-label="Info"
+                  className={styles.infoButton}
+                />
+              )}
+              {onEdit && (
+                <Button
+                  appearance="primary"
+                  icon={<Edit24Regular />}
+                  onClick={onEdit}
+                  aria-label="Bearbeiten"
+                  title="Bearbeiten"
+                  className={styles.editButton}
+                />
+              )}
+              {onDelete && (
+                <Button
+                  appearance="primary"
+                  icon={<Delete24Regular />}
+                  onClick={onDelete}
+                  aria-label="Löschen"
+                  title="Löschen"
+                  className={styles.deleteButton}
+                />
+              )}
+            </>
           )}
         </div>
       </div>

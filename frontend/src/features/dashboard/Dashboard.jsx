@@ -59,9 +59,11 @@ export default function Dashboard() {
   const [detailDevice, setDetailDevice] = useState(null)
 
   // Load devices
-  const loadDevices = async () => {
+  const loadDevices = async (showLoadingIndicator = true) => {
     try {
-      setLoading(true)
+      if (showLoadingIndicator) {
+        setLoading(true)
+      }
       const response = await fetch('http://localhost:5001/api/devices', {
         credentials: 'include',
       })
@@ -76,12 +78,20 @@ export default function Dashboard() {
     } catch (err) {
       setError(err.message)
     } finally {
-      setLoading(false)
+      if (showLoadingIndicator) {
+        setLoading(false)
+      }
     }
   }
 
   useEffect(() => {
-    loadDevices()
+    // Initial load with loading indicator
+    loadDevices(true)
+    
+    // Auto-refresh every 10 seconds in background (smooth)
+    const interval = setInterval(() => loadDevices(false), 10000)
+    
+    return () => clearInterval(interval)
   }, [])
 
   // Handler für "Herausgeben" Button

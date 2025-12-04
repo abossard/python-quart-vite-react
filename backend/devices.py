@@ -475,10 +475,11 @@ class DeviceService:
             await cursor.execute("""
                 INSERT INTO devices_missing (
                     original_device_id, device_type, manufacturer, model, serial_number,
-                    inventory_number, status, location_id, borrowed_at, expected_return_date,
+                    inventory_number, status, location_id, department_id, amt_id,
+                    borrowed_at, expected_return_date,
                     borrower_name, borrower_email, borrower_phone, borrower_user_id,
                     borrower_snapshot, notes, reported_by_user_id
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """, (
                 device_row[0],  # id -> original_device_id
                 device_row[1],  # device_type
@@ -488,6 +489,8 @@ class DeviceService:
                 device_row[5],  # inventory_number
                 device_row[6],  # status
                 data.last_known_location_id or device_row[7],  # location_id
+                device_row[8],  # department_id
+                device_row[9],  # amt_id
                 device_row[10],  # borrowed_at
                 device_row[11],  # expected_return_date
                 device_row[12],  # borrower_name
@@ -705,3 +708,176 @@ class DeviceService:
             reported_at=datetime.fromisoformat(row[17]),
             reported_by_user_id=row[18]
         )
+    
+    async def restore_missing_device(self, missing_device_id: int, user_id: int) -> DeviceFull:
+        """
+        Restore a missing device back to the devices table.
+        
+        Args:
+            missing_device_id: ID of the missing device record
+            user_id: ID of the user performing the restore
+            
+        Returns:
+            Restored DeviceFull object
+            
+        Raises:
+            ValueError: If missing device not found
+        """
+        cursor = await self.db.cursor()
+        
+        try:
+            # Get missing device data
+            await cursor.execute("""
+                SELECT * FROM devices_missing WHERE id = ?
+            """, (missing_device_id,))
+            missing_row = await cursor.fetchone()
+            
+            if not missing_row:
+                raise ValueError(f"Missing device with id {missing_device_id} not found")
+            
+            # Extract data from missing device (row indices match devices_missing schema)
+            # Schema: id, original_device_id, device_type, manufacturer, model, serial_number,
+            #         inventory_number, status, location_id, department_id, amt_id,
+            #         borrowed_at, expected_return_date, borrower_name, borrower_email,
+            #         borrower_phone, borrower_user_id, borrower_snapshot, notes,
+            #         created_at, updated_at, reported_at, reported_by_user_id
+            
+            # Insert back into devices (status set to 'available')
+            await cursor.execute("""
+                INSERT INTO devices (
+                    device_type, manufacturer, model, serial_number, inventory_number,
+                    status, location_id, department_id, amt_id,
+                    borrowed_at, expected_return_date, borrower_name, borrower_email,
+                    borrower_phone, borrower_user_id, borrower_snapshot, notes,
+                    created_at, updated_at
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """, (
+                missing_row[2],  # device_type
+                missing_row[3],  # manufacturer
+                missing_row[4],  # model
+                missing_row[5],  # serial_number
+                missing_row[6],  # inventory_number
+                'available',     # status (reset to available)
+                missing_row[8],  # location_id
+                missing_row[9],  # department_id
+                missing_row[10], # amt_id
+                None,            # borrowed_at (clear borrowing info)
+                None,            # expected_return_date
+                None,            # borrower_name
+                None,            # borrower_email
+                None,            # borrower_phone
+                None,            # borrower_user_id
+                None,            # borrower_snapshot
+                missing_row[18], # notes
+                missing_row[19], # created_at (preserve original)
+                datetime.now().isoformat()  # updated_at
+            ))
+            
+            new_device_id = cursor.lastrowid
+            
+            # Log transaction BEFORE deleting from devices_missing
+            await self._log_transaction(
+                device_id=new_device_id,
+                user_id=user_id,
+                transaction_type=TransactionType.FOUND,
+                snapshot_before={'missing_device_id': missing_device_id},
+                snapshot_after={'status': 'available'},
+                notes=f"Device restored from missing devices (original ID: {missing_row[1]})"
+            )
+            
+            # Delete from devices_missing
+            await cursor.execute("""
+                DELETE FROM devices_missing WHERE id = ?
+            """, (missing_device_id,))
+            
+            await self.db.commit()
+            
+            # Fetch the restored device with full details
+            restored_device = await self.get_device(new_device_id)
+            
+            if not restored_device:
+                raise ValueError(f"Failed to retrieve restored device with id {new_device_id}")
+            
+            # Broadcast event
+            await broadcast_event(EventType.DEVICE_FOUND, {
+                'device_id': new_device_id,
+                'missing_device_id': missing_device_id,
+                'user_id': user_id
+            })
+            
+            return restored_device
+            
+        except Exception:
+            await self.db.rollback()
+            raise
+        finally:
+            await cursor.close()
+    
+    async def delete_missing_device(self, missing_device_id: int, user_id: int) -> bool:
+        """
+        Permanently delete a missing device record.
+        
+        Args:
+            missing_device_id: ID of the missing device record
+            user_id: ID of the user performing the deletion
+            
+        Returns:
+            True if deleted successfully
+            
+        Raises:
+            ValueError: If missing device not found
+        """
+        cursor = await self.db.cursor()
+        
+        try:
+            # Check if device exists
+            await cursor.execute("""
+                SELECT * FROM devices_missing WHERE id = ?
+            """, (missing_device_id,))
+            missing_row = await cursor.fetchone()
+            
+            if not missing_row:
+                raise ValueError(f"Missing device with id {missing_device_id} not found")
+            
+            # Log the deletion (use device_id=NULL since device doesn't exist in devices table)
+            await cursor.execute("""
+                INSERT INTO device_transactions (
+                    device_id, user_id, transaction_type, snapshot_before,
+                    snapshot_after, notes, created_at
+                ) VALUES (?, ?, ?, ?, ?, ?, ?)
+            """, (
+                None,  # device_id is NULL
+                user_id,
+                TransactionType.DELETE.value,
+                json.dumps({
+                    'missing_device_id': missing_device_id,
+                    'device_type': missing_row[2],
+                    'manufacturer': missing_row[3],
+                    'model': missing_row[4],
+                    'serial_number': missing_row[5]
+                }),
+                None,
+                f"Permanently deleted missing device (ID: {missing_device_id})",
+                datetime.now().isoformat()
+            ))
+            
+            # Delete from devices_missing
+            await cursor.execute("""
+                DELETE FROM devices_missing WHERE id = ?
+            """, (missing_device_id,))
+            
+            await self.db.commit()
+            
+            # Broadcast event
+            await broadcast_event(EventType.DEVICE_DELETED, {
+                'missing_device_id': missing_device_id,
+                'user_id': user_id
+            })
+            
+            return True
+            
+        except Exception:
+            await self.db.rollback()
+            raise
+        finally:
+            await cursor.close()

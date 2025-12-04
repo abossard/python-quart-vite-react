@@ -793,6 +793,164 @@ async def get_missing_devices():
         return jsonify({'error': str(e)}), 500
 
 
+@app.route('/api/devices/missing/<int:device_id>/restore', methods=['POST'])
+@require_auth
+async def restore_missing_device(device_id: int):
+    """Restore a missing device back to the devices table"""
+    try:
+        user = get_current_user()
+        
+        db_conn = get_db()
+        device_service = DeviceService(db_conn)
+        
+        restored_device = await device_service.restore_missing_device(device_id, user.id)
+        
+        return jsonify(restored_device.model_dump(mode='json')), 200
+        
+    except ValueError as e:
+        return jsonify({'error': str(e)}), 404
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
+@app.route('/api/devices/missing/<int:device_id>', methods=['PUT'])
+@require_auth
+async def update_missing_device(device_id: int):
+    """Update all fields of a missing device"""
+    try:
+        data = await request.get_json()
+        
+        db_conn = get_db()
+        cursor = await db_conn.cursor()
+        
+        # Check if device exists
+        await cursor.execute("SELECT id FROM devices_missing WHERE id = ?", (device_id,))
+        if not await cursor.fetchone():
+            await cursor.close()
+            return jsonify({'error': 'Missing device not found'}), 404
+        
+        # Update all device fields
+        await cursor.execute("""
+            UPDATE devices_missing 
+            SET device_type = ?,
+                manufacturer = ?,
+                model = ?,
+                serial_number = ?,
+                inventory_number = ?,
+                location_id = ?,
+                department_id = ?,
+                amt_id = ?,
+                notes = ?
+            WHERE id = ?
+        """, (
+            data.get('device_type'),
+            data.get('manufacturer'),
+            data.get('model'),
+            data.get('serial_number'),
+            data.get('inventory_number'),
+            data.get('location_id'),
+            data.get('department_id'),
+            data.get('amt_id'),
+            data.get('notes', ''),
+            device_id
+        ))
+        
+        await db_conn.commit()
+        await cursor.close()
+        
+        return jsonify({'message': 'Missing device updated successfully'}), 200
+        
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
+@app.route('/api/devices/missing/<int:device_id>', methods=['DELETE'])
+@require_auth
+async def delete_missing_device(device_id: int):
+    """Permanently delete a missing device record"""
+    try:
+        user = get_current_user()
+        
+        db_conn = get_db()
+        device_service = DeviceService(db_conn)
+        
+        await device_service.delete_missing_device(device_id, user.id)
+        
+        return jsonify({'message': 'Missing device deleted successfully'}), 200
+        
+    except ValueError as e:
+        return jsonify({'error': str(e)}), 404
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
+# ============================================================================
+# TRANSACTION HISTORY ENDPOINTS
+# ============================================================================
+
+@app.route('/api/transactions/history', methods=['GET'])
+@require_auth
+async def get_transaction_history():
+    """Get transaction history for all devices"""
+    try:
+        db = get_db()
+        cursor = await db.cursor()
+        
+        await cursor.execute("""
+            SELECT 
+                dt.id,
+                dt.device_id,
+                dt.user_id,
+                dt.transaction_type,
+                dt.snapshot_before,
+                dt.snapshot_after,
+                dt.notes,
+                dt.created_at,
+                u.username,
+                u.role
+            FROM device_transactions dt
+            LEFT JOIN users u ON dt.user_id = u.id
+            ORDER BY dt.created_at DESC
+            LIMIT 100
+        """)
+        
+        rows = await cursor.fetchall()
+        await cursor.close()
+        
+        transactions = []
+        for row in rows:
+            transaction = {
+                'id': row[0],
+                'device_id': row[1],
+                'user_id': row[2],
+                'transaction_type': row[3],
+                'snapshot_before': json.loads(row[4]) if row[4] else None,
+                'snapshot_after': json.loads(row[5]) if row[5] else None,
+                'notes': row[6],
+                'created_at': row[7],
+                'user': {
+                    'username': row[8],
+                    'role': row[9],
+                } if row[8] else None,
+            }
+            
+            # Extract device info from snapshots
+            snapshot = transaction['snapshot_after'] or transaction['snapshot_before']
+            if snapshot:
+                transaction['device_type'] = snapshot.get('device_type', 'Unknown')
+                transaction['manufacturer'] = snapshot.get('manufacturer', 'Unknown')
+                transaction['model'] = snapshot.get('model', 'Unknown')
+                transaction['inventory_number'] = snapshot.get('inventory_number', '-')
+                transaction['borrower_name'] = snapshot.get('borrower_name')
+            
+            transactions.append(transaction)
+        
+        return jsonify(transactions), 200
+        
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
 # ============================================================================
 # GRABIT USER MANAGEMENT ENDPOINTS
 # ============================================================================

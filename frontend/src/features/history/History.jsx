@@ -18,6 +18,8 @@ import {
   ArrowEnterLeft24Regular,
   Warning24Regular,
   Clock24Regular,
+  Checkmark24Regular,
+  Delete24Regular,
 } from '@fluentui/react-icons'
 import PageHeader from '../../components/PageHeader'
 
@@ -223,8 +225,44 @@ export default function History() {
     }
   }
 
+  const loadHistorySmooth = async (showLoadingIndicator = true) => {
+    try {
+      if (showLoadingIndicator) {
+        setLoading(true)
+      }
+      const response = await fetch('http://localhost:5001/api/transactions/history', {
+        credentials: 'include',
+      })
+      
+      if (response.status === 401) {
+        setError('Nicht authentifiziert. Bitte melden Sie sich an.')
+        return
+      }
+      
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`)
+      }
+      
+      const data = await response.json()
+      setTransactions(data)
+      setError(null)
+    } catch (err) {
+      setError(err.message)
+    } finally {
+      if (showLoadingIndicator) {
+        setLoading(false)
+      }
+    }
+  }
+
   useEffect(() => {
-    loadHistory()
+    // Initial load with loading indicator
+    loadHistorySmooth(true)
+    
+    // Auto-refresh every 10 seconds in background (smooth)
+    const interval = setInterval(() => loadHistorySmooth(false), 10000)
+    
+    return () => clearInterval(interval)
   }, [])
   
   const getIcon = (type) => {
@@ -233,8 +271,13 @@ export default function History() {
         return <ArrowExportLtr24Regular />
       case 'return':
         return <ArrowEnterLeft24Regular />
+      case 'report_missing':
       case 'missing':
         return <Warning24Regular />
+      case 'found':
+        return <Checkmark24Regular />
+      case 'delete':
+        return <Delete24Regular />
       default:
         return <Clock24Regular />
     }
@@ -246,8 +289,13 @@ export default function History() {
         return styles.timelineIconBorrow
       case 'return':
         return styles.timelineIconReturn
+      case 'report_missing':
       case 'missing':
         return styles.timelineIconMissing
+      case 'found':
+        return styles.timelineIconBorrow // Grün wie borrow
+      case 'delete':
+        return styles.timelineIconReturn // Rot wie return
       default:
         return ''
     }
@@ -259,8 +307,17 @@ export default function History() {
         return 'Herausgegeben'
       case 'return':
         return 'Zurückgenommen'
+      case 'report_missing':
       case 'missing':
         return 'Als vermisst gemeldet'
+      case 'found':
+        return 'Wiedergefunden'
+      case 'delete':
+        return 'Gelöscht'
+      case 'location_change':
+        return 'Standort geändert'
+      case 'update':
+        return 'Aktualisiert'
       default:
         return type
     }
@@ -304,8 +361,8 @@ export default function History() {
         <div className={styles.timeline}>
           {transactions.map((transaction) => (
             <div key={transaction.id} className={styles.timelineItem}>
-              <div className={`${styles.timelineIcon} ${getIconClass(transaction.type)}`}>
-                {getIcon(transaction.type)}
+              <div className={`${styles.timelineIcon} ${getIconClass(transaction.transaction_type)}`}>
+                {getIcon(transaction.transaction_type)}
               </div>
               
               <div className={styles.timelineContent}>
@@ -315,19 +372,19 @@ export default function History() {
                       {transaction.device_type} - {transaction.manufacturer} {transaction.model}
                     </div>
                     <div className={styles.timelineSubtitle}>
-                      {getTypeText(transaction.type)}
+                      {getTypeText(transaction.transaction_type)}
                     </div>
                   </div>
                   <div className={styles.timelineTime}>
                     <Clock24Regular style={{ fontSize: '16px' }} />
-                    {formatDate(transaction.timestamp)}
+                    {formatDate(transaction.created_at)}
                   </div>
                 </div>
                 
                 <div className={styles.timelineDetails}>
                   <div className={styles.timelineDetail}>
-                    <span className={styles.timelineDetailLabel}>CM-Nummer: </span>
-                    <span className={styles.timelineDetailValue}>{transaction.inventory_number}</span>
+                    <span className={styles.timelineDetailLabel}>Inventarnummer: </span>
+                    <span className={styles.timelineDetailValue}>{transaction.inventory_number || '-'}</span>
                   </div>
                   {transaction.borrower_name && (
                     <div className={styles.timelineDetail}>
@@ -335,14 +392,18 @@ export default function History() {
                       <span className={styles.timelineDetailValue}>{transaction.borrower_name}</span>
                     </div>
                   )}
-                  <div className={styles.timelineDetail}>
-                    <span className={styles.timelineDetailLabel}>Standort: </span>
-                    <span className={styles.timelineDetailValue}>{transaction.location}</span>
-                  </div>
-                  <div className={styles.timelineDetail}>
-                    <span className={styles.timelineDetailLabel}>Organisation: </span>
-                    <span className={styles.timelineDetailValue}>{transaction.department} / {transaction.amt}</span>
-                  </div>
+                  {transaction.user && (
+                    <div className={styles.timelineDetail}>
+                      <span className={styles.timelineDetailLabel}>Durchgeführt von: </span>
+                      <span className={styles.timelineDetailValue}>{transaction.user.username}</span>
+                    </div>
+                  )}
+                  {transaction.notes && (
+                    <div className={styles.timelineDetail}>
+                      <span className={styles.timelineDetailLabel}>Notiz: </span>
+                      <span className={styles.timelineDetailValue}>{transaction.notes}</span>
+                    </div>
+                  )}
                 </div>
               </div>
             </div>
