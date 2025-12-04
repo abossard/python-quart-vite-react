@@ -8,8 +8,6 @@ import { useEffect, useState } from 'react'
 import {
   makeStyles,
   tokens,
-  Title3,
-  Text,
   Button,
   Spinner,
   MessageBar,
@@ -23,63 +21,29 @@ import {
   DialogContent,
   Field,
   Input,
-  Card,
-  CardHeader,
-  Menu,
-  MenuItem,
-  MenuList,
-  MenuPopover,
-  MenuTrigger,
 } from '@fluentui/react-components'
 import {
   Add24Regular,
-  ArrowSync24Regular,
-  MoreVertical24Regular,
-  Edit24Regular,
-  Delete24Regular,
   Building24Regular,
 } from '@fluentui/react-icons'
 import { connectToEventsStream } from '../../services/api'
+import AdminCard from '../../components/AdminCard'
+import ResponsiveGrid from '../../components/ResponsiveGrid'
+import PageHeader from '../../components/PageHeader'
 
 const useStyles = makeStyles({
-  container: {
-    padding: tokens.spacingVerticalXXL,
-  },
-  header: {
-    display: 'flex',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: tokens.spacingVerticalXL,
-  },
-  actions: {
-    display: 'flex',
-    gap: tokens.spacingHorizontalM,
-  },
-  gridContainer: {
-    backgroundColor: tokens.colorNeutralBackground1,
-    borderRadius: tokens.borderRadiusMedium,
-    boxShadow: tokens.shadow4,
-    padding: tokens.spacingVerticalL,
-  },
-  card: {
-    marginBottom: tokens.spacingVerticalM,
-  },
   loading: {
     display: 'flex',
     justifyContent: 'center',
     alignItems: 'center',
     minHeight: '200px',
   },
-  cardContent: {
-    display: 'flex',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    width: '100%',
-  },
-  deptInfo: {
-    display: 'flex',
-    gap: tokens.spacingHorizontalM,
-    alignItems: 'center',
+  successButton: {
+    backgroundColor: tokens.colorPaletteGreenBackground3,
+    color: '#FFFFFF',
+    ':hover': {
+      backgroundColor: tokens.colorPaletteGreenBackground2,
+    },
   },
 })
 
@@ -259,21 +223,20 @@ export default function DepartmentList() {
   }
 
   return (
-    <div className={styles.container}>
-      <div className={styles.header}>
-        <div>
-          <Title3>Departments verwalten</Title3>
-        </div>
-        <div className={styles.actions}>
+    <>
+      <PageHeader
+        title="Departments verwalten"
+        actions={[
           <Button
+            key="to-amt"
             appearance="secondary"
             onClick={() => window.location.href = '/#/amts'}
           >
             Zu Amt
-          </Button>
-          <Dialog open={createDialogOpen} onOpenChange={(_, data) => setCreateDialogOpen(data.open)}>
+          </Button>,
+          <Dialog key="create-dialog" open={createDialogOpen} onOpenChange={(_, data) => setCreateDialogOpen(data.open)}>
             <DialogTrigger disableButtonEnhancement>
-              <Button appearance="primary" icon={<Add24Regular />}>
+              <Button appearance="primary" icon={<Add24Regular />} className={styles.successButton}>
                 + Neues Department
               </Button>
             </DialogTrigger>
@@ -306,9 +269,9 @@ export default function DepartmentList() {
                 </DialogActions>
               </DialogBody>
             </DialogSurface>
-          </Dialog>
-        </div>
-      </div>
+          </Dialog>,
+        ]}
+      />
 
       {error && (
         <MessageBar intent="error" style={{ marginBottom: tokens.spacingVerticalL }}>
@@ -316,40 +279,21 @@ export default function DepartmentList() {
         </MessageBar>
       )}
 
-      <div className={styles.gridContainer}>
+      <ResponsiveGrid>
         {departments.map((dept) => (
-          <Card key={dept.id} className={styles.card}>
-            <CardHeader
-              header={
-                <div className={styles.cardContent}>
-                  <div>
-                    <div className={styles.deptInfo}>
-                      <Text weight="semibold" size={500}>{dept.name}</Text>
-                    </div>
-                    <Text size={300}>Name: {dept.name}</Text>
-                    {dept.full_name && <Text size={300}>Vollständiger Name: {dept.full_name}</Text>}
-                  </div>
-                  <Menu>
-                    <MenuTrigger disableButtonEnhancement>
-                      <Button appearance="subtle" icon={<MoreVertical24Regular />} />
-                    </MenuTrigger>
-                    <MenuPopover>
-                      <MenuList>
-                        <MenuItem icon={<Edit24Regular />} onClick={() => openEditDialog(dept)}>
-                          Edit
-                        </MenuItem>
-                        <MenuItem icon={<Delete24Regular />} onClick={() => handleDelete(dept.id)}>
-                          Delete
-                        </MenuItem>
-                      </MenuList>
-                    </MenuPopover>
-                  </Menu>
-                </div>
-              }
-            />
-          </Card>
+          <AdminCard
+            key={dept.id}
+            title={dept.name}
+            fields={[
+              { label: 'Name', value: dept.name },
+              { label: 'Vollständiger Name', value: dept.full_name || '-' },
+            ]}
+            onInfo={() => console.log('Info', dept)}
+            onEdit={() => openEditDialog(dept)}
+            onDelete={() => handleDelete(dept.id)}
+          />
         ))}
-      </div>
+      </ResponsiveGrid>
 
       {/* Edit Dialog */}
       <Dialog open={editDialogOpen} onOpenChange={(_, data) => setEditDialogOpen(data.open)}>
@@ -381,6 +325,6 @@ export default function DepartmentList() {
           </DialogBody>
         </DialogSurface>
       </Dialog>
-    </div>
+    </>
   )
 }

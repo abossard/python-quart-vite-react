@@ -1,116 +1,65 @@
 /**
- * Main Application Component
+ * Main Application Component - Grabit Design
  *
- * Demonstrates FluentUI Tab navigation and component composition
- * Following A Philosophy of Software Design:
- * - Deep modules: Each feature is self-contained
- * - Clear interfaces: Props and state flow is explicit
+ * Uses new AppShell with:
+ * - Sticky Header (Desktop/Tablet)
+ * - Pill Navigation
+ * - Hamburger Menu
+ * - Custom Theme
  */
 
-import {
-  makeStyles,
-  Subtitle1,
-  Tab,
-  TabList,
-  Text,
-  tokens,
-} from '@fluentui/react-components'
-import {
-  Home24Regular,
-  Desktop24Regular,
-  People24Regular,
-  Building24Regular,
-  Organization24Regular,
-} from '@fluentui/react-icons'
 import { Navigate, Route, Routes, useLocation, useNavigate } from 'react-router-dom'
+import AppShell from './components/AppShell'
 import Dashboard from './features/dashboard/Dashboard'
 import DeviceList from './features/devices/DeviceList'
 import UserList from './features/users/UserList'
 import DepartmentList from './features/departments/DepartmentList'
 import AmtList from './features/amts/AmtList'
 
-const useStyles = makeStyles({
-  app: {
-    minHeight: '100vh',
-    backgroundColor: tokens.colorNeutralBackground3,
-  },
-  header: {
-    backgroundColor: tokens.colorBrandBackground,
-    color: tokens.colorNeutralForegroundOnBrand,
-    padding: `${tokens.spacingVerticalL} ${tokens.spacingHorizontalXL}`,
-    boxShadow: tokens.shadow4,
-  },
-  title: {
-    color: tokens.colorNeutralForegroundOnBrand,
-  },
-  subtitle: {
-    color: tokens.colorNeutralForegroundOnBrand,
-    opacity: 0.9,
-    marginTop: tokens.spacingVerticalXS,
-  },
-  nav: {
-    backgroundColor: tokens.colorNeutralBackground1,
-    borderBottom: `1px solid ${tokens.colorNeutralStroke1}`,
-    padding: `0 ${tokens.spacingHorizontalXL}`,
-  },
-  content: {
-    maxWidth: '1400px',
-    margin: '0 auto',
-  },
-})
+// Map routes to page keys for AppShell
+const routeToPageMap = {
+  '/dashboard': 'overview',
+  '/devices': 'devices',
+  '/users': 'users',
+  '/departments': 'departments',
+  '/amts': 'amts',
+}
+
+const pageToRouteMap = {
+  'overview': '/dashboard',
+  'devices': '/devices',
+  'users': '/users',
+  'departments': '/departments',
+  'amts': '/amts',
+  'history': '/history',
+  'missing': '/missing',
+  'locations': '/locations',
+}
 
 export default function App() {
-  const styles = useStyles()
   const location = useLocation()
   const navigate = useNavigate()
-  const tabs = [
-    { value: 'dashboard', label: 'Übersicht', icon: <Home24Regular />, path: '/dashboard', testId: 'tab-dashboard' },
-    { value: 'devices', label: 'Geräte', icon: <Desktop24Regular />, path: '/devices', testId: 'tab-devices' },
-    { value: 'users', label: 'Benutzer', icon: <People24Regular />, path: '/users', testId: 'tab-users' },
-    { value: 'departments', label: 'Departments', icon: <Building24Regular />, path: '/departments', testId: 'tab-departments' },
-    { value: 'amts', label: 'Ämter', icon: <Organization24Regular />, path: '/amts', testId: 'tab-amts' },
-  ]
-  const activeTab = tabs.find((tab) => location.pathname.startsWith(tab.path))?.value ?? 'dashboard'
+  
+  const currentPage = routeToPageMap[location.pathname] || 'overview'
+  
+  const handleNavigate = (pageKey) => {
+    const route = pageToRouteMap[pageKey]
+    if (route) {
+      navigate(route)
+    }
+  }
 
   return (
-    <div className={styles.app}>
-      <header className={styles.header}>
-        <Subtitle1 className={styles.title}>Quart + React Demo Application</Subtitle1>
-        <Text className={styles.subtitle} size={300}>
-          A modern full-stack example with Python Quart backend and React + FluentUI frontend
-        </Text>
-      </header>
-
-      <nav className={styles.nav}>
-        <TabList
-          selectedValue={activeTab}
-          onTabSelect={(_, data) => {
-            const selected = tabs.find((tab) => tab.value === data.value)
-            if (selected) {
-              navigate(selected.path)
-            }
-          }}
-          size="large"
-        >
-          {tabs.map((tab) => (
-            <Tab key={tab.value} value={tab.value} icon={tab.icon} data-testid={tab.testId}>
-              {tab.label}
-            </Tab>
-          ))}
-        </TabList>
-      </nav>
-
-      <main className={styles.content}>
-        <Routes>
-          <Route path="/" element={<Navigate to="/dashboard" replace />} />
-          <Route path="/dashboard" element={<Dashboard />} />
-          <Route path="/devices" element={<DeviceList />} />
-          <Route path="/users" element={<UserList />} />
-          <Route path="/departments" element={<DepartmentList />} />
-          <Route path="/amts" element={<AmtList />} />
-          <Route path="*" element={<Navigate to="/dashboard" replace />} />
-        </Routes>
-      </main>
-    </div>
+    <AppShell currentPage={currentPage} onNavigate={handleNavigate}>
+      <Routes>
+        <Route path="/" element={<Navigate to="/dashboard" replace />} />
+        <Route path="/dashboard" element={<Dashboard />} />
+        <Route path="/devices" element={<DeviceList />} />
+        <Route path="/users" element={<UserList />} />
+        <Route path="/departments" element={<DepartmentList />} />
+        <Route path="/amts" element={<AmtList />} />
+        <Route path="*" element={<Navigate to="/dashboard" replace />} />
+      </Routes>
+    </AppShell>
   )
 }

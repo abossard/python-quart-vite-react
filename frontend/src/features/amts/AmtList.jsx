@@ -8,8 +8,6 @@ import { useEffect, useState } from 'react'
 import {
   makeStyles,
   tokens,
-  Title3,
-  Text,
   Button,
   Spinner,
   MessageBar,
@@ -25,23 +23,14 @@ import {
   Input,
   Dropdown,
   Option,
-  Card,
-  CardHeader,
-  Menu,
-  MenuItem,
-  MenuList,
-  MenuPopover,
-  MenuTrigger,
 } from '@fluentui/react-components'
 import {
   Add24Regular,
-  ArrowSync24Regular,
-  MoreVertical24Regular,
-  Edit24Regular,
-  Delete24Regular,
-  Organization24Regular,
 } from '@fluentui/react-icons'
 import { connectToEventsStream } from '../../services/api'
+import AdminCard from '../../components/AdminCard'
+import ResponsiveGrid from '../../components/ResponsiveGrid'
+import PageHeader from '../../components/PageHeader'
 
 const useStyles = makeStyles({
   container: {
@@ -282,23 +271,26 @@ export default function AmtList() {
 
   return (
     <div className={styles.container}>
-      <div className={styles.header}>
-        <div>
-          <Title3>Ämter verwalten</Title3>
-        </div>
-        <div className={styles.actions}>
-          <Button
-            appearance="secondary"
-            onClick={() => window.location.href = '/#/departments'}
-          >
-            Zu Department
-          </Button>
-          <Dialog open={createDialogOpen} onOpenChange={(_, data) => setCreateDialogOpen(data.open)}>
-            <DialogTrigger disableButtonEnhancement>
-              <Button appearance="primary" icon={<Add24Regular />}>
-                + Neues Amt
-              </Button>
-            </DialogTrigger>
+      <PageHeader
+        title="Ämter verwalten"
+        actions={
+          <>
+            <Button
+              appearance="secondary"
+              onClick={() => window.location.href = '/#/departments'}
+            >
+              Zu Department
+            </Button>
+            <Dialog open={createDialogOpen} onOpenChange={(_, data) => setCreateDialogOpen(data.open)}>
+              <DialogTrigger disableButtonEnhancement>
+                <Button 
+                  appearance="primary" 
+                  icon={<Add24Regular />}
+                  style={{ backgroundColor: '#28A745', color: '#FFFFFF' }}
+                >
+                  + Neues Amt
+                </Button>
+              </DialogTrigger>
             <DialogSurface>
               <DialogBody>
                 <DialogTitle>Create New Amt</DialogTitle>
@@ -333,8 +325,9 @@ export default function AmtList() {
               </DialogBody>
             </DialogSurface>
           </Dialog>
-        </div>
-      </div>
+          </>
+        }
+      />
 
       {error && (
         <MessageBar intent="error" style={{ marginBottom: tokens.spacingVerticalL }}>
@@ -342,41 +335,20 @@ export default function AmtList() {
         </MessageBar>
       )}
 
-      <div className={styles.gridContainer}>
+      <ResponsiveGrid>
         {amts.map((amt) => (
-          <Card key={amt.id} className={styles.card}>
-            <CardHeader
-              header={
-                <div className={styles.cardContent}>
-                  <div>
-                    <Text weight="semibold" size={500}>{amt.department?.name || '-'} / {amt.name}</Text>
-                    <div style={{ marginTop: tokens.spacingVerticalXS }}>
-                      <Text size={300}>Department: {amt.department?.full_name || '-'}</Text>
-                      <br />
-                      <Text size={300}>Amt: {amt.name}</Text>
-                    </div>
-                  </div>
-                  <Menu>
-                    <MenuTrigger disableButtonEnhancement>
-                      <Button appearance="subtle" icon={<MoreVertical24Regular />} />
-                    </MenuTrigger>
-                    <MenuPopover>
-                      <MenuList>
-                        <MenuItem icon={<Edit24Regular />} onClick={() => openEditDialog(amt)}>
-                          Edit
-                        </MenuItem>
-                        <MenuItem icon={<Delete24Regular />} onClick={() => handleDelete(amt.id)}>
-                          Delete
-                        </MenuItem>
-                      </MenuList>
-                    </MenuPopover>
-                  </Menu>
-                </div>
-              }
-            />
-          </Card>
+          <AdminCard
+            key={amt.id}
+            title={`${amt.department?.name || '-'} / ${amt.name}`}
+            fields={[
+              { label: 'Department', value: amt.department?.full_name || '-' },
+              { label: 'Amt', value: amt.name },
+            ]}
+            onEdit={() => openEditDialog(amt)}
+            onDelete={() => handleDelete(amt.id)}
+          />
         ))}
-      </div>
+      </ResponsiveGrid>
 
       {/* Edit Dialog */}
       <Dialog open={editDialogOpen} onOpenChange={(_, data) => setEditDialogOpen(data.open)}>

@@ -37,6 +37,9 @@ import {
   DismissCircle24Regular,
 } from '@fluentui/react-icons'
 import { connectToEventsStream } from '../../services/api'
+import AdminCard from '../../components/AdminCard'
+import ResponsiveGrid from '../../components/ResponsiveGrid'
+import PageHeader from '../../components/PageHeader'
 
 const useStyles = makeStyles({
   container: {
@@ -544,66 +547,31 @@ export default function DeviceList() {
         </div>
       )}
 
-      <div className={styles.gridContainer}>
-        <div style={{ display: 'grid', gap: tokens.spacingVerticalM }}>
-          {devices.map((device) => (
-            <Card key={device.id}>
-              <CardHeader
-                header={
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', width: '100%' }}>
-                    <div>
-                      <Text weight="semibold" size={400}>
-                        {device.device_type} - {device.manufacturer} {device.model}
-                      </Text>
-                      <div style={{ marginTop: tokens.spacingVerticalXS }}>
-                        <Text size={200} style={{ marginRight: tokens.spacingHorizontalM }}>
-                          Serial: {device.serial_number || '-'}
-                        </Text>
-                        <Text size={200} style={{ marginRight: tokens.spacingHorizontalM }}>
-                          Inventory: {device.inventory_number || '-'}
-                        </Text>
-                        <Text size={200} style={{ marginRight: tokens.spacingHorizontalM }}>
-                          Location: {device.location?.name || '-'}
-                        </Text>
-                      </div>
-                      <div style={{ marginTop: tokens.spacingVerticalXXS }}>
-                        {(device.department || device.amt) && (
-                          <Text size={200}>
-                            Department / Amt: {device.department?.name || '-'} / {device.amt?.name || '-'}
-                          </Text>
-                        )}
-                      </div>
-                    </div>
-                    <div style={{ display: 'flex', gap: tokens.spacingHorizontalM, alignItems: 'center' }}>
-                      {getStatusBadge(device.status)}
-                      {device.status === 'available' && (
-                        <Button
-                          size="small"
-                          appearance="primary"
-                          icon={<CheckmarkCircle24Regular />}
-                          onClick={() => handleBorrowDevice(device.id)}
-                        >
-                          Borrow
-                        </Button>
-                      )}
-                      {device.status === 'borrowed' && (
-                        <Button
-                          size="small"
-                          appearance="secondary"
-                          icon={<DismissCircle24Regular />}
-                          onClick={() => handleReturnDevice(device.id)}
-                        >
-                          Return
-                        </Button>
-                      )}
-                    </div>
-                  </div>
-                }
-              />
-            </Card>
-          ))}
-        </div>
-      </div>
+      <ResponsiveGrid>
+        {devices.map((device) => (
+          <AdminCard
+            key={device.id}
+            title={`${device.device_type} - ${device.manufacturer}`}
+            fields={[
+              { label: 'Modell', value: device.model },
+              { label: 'Seriennummer', value: device.serial_number || '-' },
+              { label: 'Inventarnummer', value: device.inventory_number || '-' },
+              { label: 'Standort', value: device.location?.name || '-' },
+              { label: 'Status', value: device.status },
+            ]}
+            statusBackground={
+              device.status === 'available' ? 'success' :
+              device.status === 'borrowed' ? 'warning' :
+              device.status === 'missing' ? 'danger' : null
+            }
+            showInfo={true}
+            detailData={device}
+            onInfo={() => console.log('Device info:', device)}
+            onEdit={() => handleBorrowDevice(device.id)}
+            onDelete={() => handleReturnDevice(device.id)}
+          />
+        ))}
+      </ResponsiveGrid>
     </div>
   )
 }

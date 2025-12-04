@@ -1,238 +1,225 @@
 /**
- * Dashboard Component
+ * Dashboard Component - Ausleihgeräte Übersicht
  *
- * Displays real-time server information using Server-Sent Events
- * Demonstrates FluentUI Card and Text components
+ * Zeigt Ausleihgeräte in einem 4-Spalten Grid
+ * mit DeviceLoanCard und IssueDeviceModal
  */
 
 import { useEffect, useState } from 'react'
 import {
-  Card,
-  CardHeader,
-  Text,
   makeStyles,
   tokens,
   Spinner,
-  Badge,
+  MessageBar,
+  MessageBarBody,
 } from '@fluentui/react-components'
-import { Clock24Regular, CalendarLtr24Regular } from '@fluentui/react-icons'
-import { connectToTimeStream, getCurrentDate, getPriorityStats, getUrgentTasks } from '../../services/api'
-import PriorityChart from '../../components/PriorityChart'
+import DeviceLoanCard from '../../components/DeviceLoanCard'
+import IssueDeviceModal from '../../components/IssueDeviceModal'
+import PageHeader from '../../components/PageHeader'
+import DetailDialog from '../../components/DetailDialog'
 
 const useStyles = makeStyles({
-  dashboard: {
+  container: {
+    padding: tokens.spacingVerticalXXL,
+  },
+  
+  grid: {
     display: 'grid',
-    gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))',
-    gap: tokens.spacingVerticalL,
-    padding: tokens.spacingVerticalL,
+    gridTemplateColumns: 'repeat(4, 1fr)',
+    gap: '24px',
+    '@media (max-width: 1400px)': {
+      gridTemplateColumns: 'repeat(3, 1fr)',
+    },
+    '@media (max-width: 1024px)': {
+      gridTemplateColumns: 'repeat(2, 1fr)',
+    },
+    '@media (max-width: 768px)': {
+      gridTemplateColumns: '1fr',
+    },
   },
-  card: {
-    padding: tokens.spacingVerticalL,
-  },
-  timeDisplay: {
-    fontSize: '48px',
-    fontWeight: 'bold',
-    color: tokens.colorBrandForeground1,
-    fontVariantNumeric: 'tabular-nums',
-  },
-  dateDisplay: {
-    fontSize: '24px',
-    color: tokens.colorNeutralForeground2,
-  },
-  label: {
-    fontSize: '14px',
-    color: tokens.colorNeutralForeground3,
-    marginBottom: tokens.spacingVerticalS,
-  },
-  content: {
+  
+  loading: {
     display: 'flex',
-    flexDirection: 'column',
-    gap: tokens.spacingVerticalM,
+    justifyContent: 'center',
+    alignItems: 'center',
+    minHeight: '400px',
   },
 })
 
 export default function Dashboard() {
   const styles = useStyles()
-  const [liveTime, setLiveTime] = useState(null)
-  const [serverDate, setServerDate] = useState(null)
-  const [priorityStats, setPriorityStats] = useState(null)
-  const [urgentTasks, setUrgentTasks] = useState(null)
-  const [isConnected, setIsConnected] = useState(false)
+  const [devices, setDevices] = useState([])
+  const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
+  const [issueModalOpen, setIssueModalOpen] = useState(false)
+  const [selectedDevice, setSelectedDevice] = useState(null)
+  const [detailDialogOpen, setDetailDialogOpen] = useState(false)
+  const [detailDevice, setDetailDevice] = useState(null)
 
-  // Load dashboard data
-  const loadDashboardData = () => {
-    getCurrentDate()
-      .then(setServerDate)
-      .catch((err) => setError(err.message))
-    
-    getPriorityStats()
-      .then(setPriorityStats)
-      .catch((err) => console.error('Failed to load priority stats:', err.message))
-    
-    getUrgentTasks()
-      .then(setUrgentTasks)
-      .catch((err) => console.error('Failed to load urgent tasks:', err.message))
+  // Load devices
+  const loadDevices = async () => {
+    try {
+      setLoading(true)
+      const response = await fetch('http://localhost:5001/api/devices', {
+        credentials: 'include',
+      })
+      
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`)
+      }
+      
+      const data = await response.json()
+      setDevices(data)
+      setError(null)
+    } catch (err) {
+      setError(err.message)
+    } finally {
+      setLoading(false)
+    }
   }
 
-  // Fetch initial data and setup polling for live updates
   useEffect(() => {
-    loadDashboardData()
-    
-    // Poll every 5 seconds for updates
-    const interval = setInterval(loadDashboardData, 5000)
-    
-    return () => clearInterval(interval)
+    loadDevices()
   }, [])
 
-  // Connect to live time stream
-  useEffect(() => {
-    const cleanup = connectToTimeStream(
-      (data) => {
-        setLiveTime(data)
-        setIsConnected(true)
-        setError(null)
-      },
-      (err) => {
-        setError('Connection lost')
-        setIsConnected(false)
+  // Handler für "Herausgeben" Button
+  const handleIssueClick = (device) => {
+    setSelectedDevice(device)
+    setIssueModalOpen(true)
+  }
+  
+  // Handler für "Zurücknehmen" Button
+  const handleReturnClick = async (device) => {
+    try {
+      const response = await fetch(`http://localhost:5001/api/devices/${device.id}/return`, {
+        method: 'POST',
+        credentials: 'include',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+      })
+      
+      if (!response.ok) {
+        throw new Error('Fehler beim Zurücknehmen')
       }
-    )
-
-    return cleanup
-  }, [])
+      
+      // Reload devices
+      await loadDevices()
+    } catch (err) {
+      setError(err.message)
+    }
+  }
+  
+  // Handler für Info-Icon
+  const handleInfoClick = (device) => {
+    setDetailDevice(device)
+    setDetailDialogOpen(true)
+  }
+  
+  // Handler für Modal Submit
+  const handleIssueSubmit = async (personName) => {
+    if (!selectedDevice) return
+    
+    try {
+      const response = await fetch(`http://localhost:5001/api/devices/${selectedDevice.id}/borrow`, {
+        method: 'POST',
+        credentials: 'include',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          borrower_name: personName,
+        }),
+      })
+      
+      if (!response.ok) {
+        throw new Error('Fehler beim Herausgeben')
+      }
+      
+      // Reload devices
+      await loadDevices()
+    } catch (err) {
+      throw err
+    }
+  }
 
   return (
-    <div className={styles.dashboard}>
-      <Card className={styles.card}>
-        <CardHeader
-          header={
-            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-              <Clock24Regular />
-              <Text weight="semibold">Live Server Time</Text>
-            </div>
-          }
-          description={
-            isConnected ? (
-              <Text size={200}>Connected via Server-Sent Events</Text>
-            ) : (
-              <Text size={200}>Connecting...</Text>
+    <div className={styles.container}>
+      <PageHeader 
+        title="Ausleihgeräte" 
+        subtitle="Übersicht aller verfügbaren Geräte"
+      />
+      
+      {error && (
+        <MessageBar intent="error" style={{ marginBottom: tokens.spacingVerticalL }}>
+          <MessageBarBody>{error}</MessageBarBody>
+        </MessageBar>
+      )}
+      
+      {loading ? (
+        <div className={styles.loading}>
+          <Spinner label="Geräte werden geladen..." />
+        </div>
+      ) : (
+        <div className={styles.grid}>
+          {devices.map((device) => {
+            // Build fields array
+            const fields = []
+            
+            // Office Version (optional)
+            if (device.office_version) {
+              fields.push({ label: 'Office Version', value: device.office_version })
+            }
+            
+            // CM-Nummer
+            if (device.inventory_number) {
+              fields.push({ label: 'CM-Nummer', value: device.inventory_number })
+            }
+            
+            // Standort
+            if (device.location?.name) {
+              fields.push({ label: 'Standort', value: device.location.name })
+            }
+            
+            // Organisation text (Department / Amt)
+            let orgText = '-'
+            if (device.department?.name && device.amt?.name) {
+              orgText = `${device.department.name} / ${device.amt.name}`
+            } else if (device.department?.name) {
+              orgText = device.department.name
+            }
+            
+            return (
+              <DeviceLoanCard
+                key={device.id}
+                category={device.device_type || 'Gerät'}
+                subtitle={device.model ? `${device.manufacturer || ''} ${device.model}`.trim() : device.manufacturer || '-'}
+                fields={fields}
+                orgText={orgText}
+                status={device.status === 'available' ? 'available' : 'issued'}
+                onIssueClick={() => handleIssueClick(device)}
+                onReturnClick={() => handleReturnClick(device)}
+                onInfoClick={() => handleInfoClick(device)}
+              />
             )
-          }
-        />
-        <div className={styles.content}>
-          {liveTime ? (
-            <>
-              <div className={styles.timeDisplay} data-testid="live-time">
-                {liveTime.time}
-              </div>
-              <div className={styles.dateDisplay}>{liveTime.date}</div>
-            </>
-          ) : (
-            <Spinner label="Connecting to server..." />
-          )}
+          })}
         </div>
-      </Card>
-
-      <Card className={styles.card}>
-        <CardHeader
-          header={
-            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-              <CalendarLtr24Regular />
-              <Text weight="semibold">Server Date</Text>
-            </div>
-          }
-          description={<Text size={200}>Current date from API</Text>}
-        />
-        <div className={styles.content}>
-          {serverDate ? (
-            <>
-              <div>
-                <div className={styles.label}>Date</div>
-                <div className={styles.dateDisplay} data-testid="server-date">
-                  {serverDate.date}
-                </div>
-              </div>
-              <div>
-                <div className={styles.label}>Time</div>
-                <div className={styles.dateDisplay} data-testid="server-time">
-                  {serverDate.time}
-                </div>
-              </div>
-              <div>
-                <div className={styles.label}>ISO 8601</div>
-                <Text size={200} font="monospace">
-                  {serverDate.datetime}
-                </Text>
-              </div>
-            </>
-          ) : error ? (
-            <Text>Error: {error}</Text>
-          ) : (
-            <Spinner label="Loading..." />
-          )}
-        </div>
-      </Card>
-
-      <Card className={styles.card}>
-        <CardHeader
-          header={
-            <Text weight="semibold">🚨 Dringende Tickets</Text>
-          }
-          description={
-            <Text size={200}>High Priority mit Deadline ≤ 2 Tage</Text>
-          }
-        />
-        <div className={styles.content}>
-          {urgentTasks === null ? (
-            <Spinner label="Lade dringende Tickets..." />
-          ) : urgentTasks.length === 0 ? (
-            <Text size={300} style={{ color: tokens.colorNeutralForeground3 }}>
-              Keine dringenden Tickets 👍
-            </Text>
-          ) : (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: tokens.spacingVerticalS }}>
-              {urgentTasks.map((task) => (
-                <div
-                  key={task.id}
-                  style={{
-                    padding: tokens.spacingVerticalS,
-                    backgroundColor: tokens.colorPaletteRedBackground2,
-                    borderRadius: tokens.borderRadiusMedium,
-                    borderLeft: `4px solid ${tokens.colorPaletteRedBorder2}`,
-                  }}
-                >
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'start' }}>
-                    <div>
-                      <Text weight="semibold" style={{ display: 'block' }}>
-                        {task.title}
-                      </Text>
-                      {task.description && (
-                        <Text size={200} style={{ display: 'block', marginTop: '4px' }}>
-                          {task.description}
-                        </Text>
-                      )}
-                    </div>
-                    <Badge appearance="filled" color="danger">
-                      {new Date(task.deadline).toLocaleDateString()}
-                    </Badge>
-                  </div>
-                </div>
-              ))}
-            </div>
-          )}
-        </div>
-      </Card>
-
-      <Card className={styles.card}>
-        <div className={styles.content}>
-          {priorityStats ? (
-            <PriorityChart data={priorityStats} />
-          ) : (
-            <Spinner label="Lade Prioritätsstatistiken..." />
-          )}
-        </div>
-      </Card>
+      )}
+      
+      {/* Issue Device Modal */}
+      <IssueDeviceModal
+        open={issueModalOpen}
+        onOpenChange={(_, data) => setIssueModalOpen(data.open)}
+        onSubmit={handleIssueSubmit}
+        deviceInfo={selectedDevice}
+      />
+      
+      {/* Detail Dialog */}
+      <DetailDialog
+        open={detailDialogOpen}
+        onOpenChange={(_, data) => setDetailDialogOpen(data.open)}
+        data={detailDevice}
+      />
     </div>
   )
 }

@@ -44,6 +44,9 @@ import {
   Location24Regular,
 } from '@fluentui/react-icons'
 import { connectToEventsStream } from '../../services/api'
+import AdminCard from '../../components/AdminCard'
+import ResponsiveGrid from '../../components/ResponsiveGrid'
+import PageHeader from '../../components/PageHeader'
 
 const useStyles = makeStyles({
   container: {
@@ -510,63 +513,22 @@ export default function UserList() {
         </MessageBar>
       )}
 
-      <div className={styles.gridContainer}>
+      <ResponsiveGrid>
         {users.map((user) => (
-          <Card key={user.id} className={styles.userCard}>
-            <CardHeader
-              header={
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', width: '100%' }}>
-                  <div className={styles.userInfo}>
-                    <div className={styles.userDetails}>
-                      <Text weight="semibold" size={400}>{user.username}</Text>
-                      <div style={{ display: 'flex', gap: tokens.spacingHorizontalS, alignItems: 'center' }}>
-                        {getRoleBadge(user.role)}
-                        {user.location && (
-                          <Text size={200}>
-                            <Location24Regular style={{ verticalAlign: 'middle', marginRight: '4px' }} />
-                            {user.location.name}
-                          </Text>
-                        )}
-                        {user.department && (
-                          <Text size={200}>Dept: {user.department.name}</Text>
-                        )}
-                        {user.amt && (
-                          <Text size={200}>Amt: {user.amt.name}</Text>
-                        )}
-                      </div>
-                      <Text size={200}>Created: {new Date(user.created_at).toLocaleDateString()}</Text>
-                    </div>
-                  </div>
-                  {isAdmin && (
-                    <Menu>
-                      <MenuTrigger disableButtonEnhancement>
-                        <Button appearance="subtle" icon={<MoreVertical24Regular />} />
-                      </MenuTrigger>
-                      <MenuPopover>
-                        <MenuList>
-                          <MenuItem icon={<Edit24Regular />} onClick={() => openEditDialog(user)}>
-                            Edit User
-                          </MenuItem>
-                          <MenuItem icon={<Location24Regular />} onClick={() => openLocationDialog(user)}>
-                            Change Location
-                          </MenuItem>
-                          <MenuItem
-                            icon={<Delete24Regular />}
-                            onClick={() => handleDeleteUser(user.id)}
-                            disabled={user.id === currentUser?.id}
-                          >
-                            Delete User
-                          </MenuItem>
-                        </MenuList>
-                      </MenuPopover>
-                    </Menu>
-                  )}
-                </div>
-              }
-            />
-          </Card>
+          <AdminCard
+            key={user.id}
+            title={user.username}
+            fields={[
+              { label: 'Rolle', value: user.role },
+              { label: 'Standort', value: user.location?.name || '-' },
+              { label: 'Department', value: user.department?.name || '-' },
+              { label: 'Amt', value: user.amt?.name || '-' },
+            ]}
+            onEdit={isAdmin ? () => openEditDialog(user) : null}
+            onDelete={isAdmin && user.id !== currentUser?.id ? () => handleDeleteUser(user.id) : null}
+          />
         ))}
-      </div>
+      </ResponsiveGrid>
 
       {/* Edit User Dialog */}
       <Dialog open={editDialogOpen} onOpenChange={(_, data) => setEditDialogOpen(data.open)}>
