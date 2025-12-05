@@ -1171,6 +1171,46 @@ async def update_user(user_id: int):
         return jsonify({'error': str(e)}), 500
 
 
+@app.route('/api/auth/update-location', methods=['PUT'])
+@require_auth
+async def update_own_location():
+    """Update current user's location (any authenticated user can do this)"""
+    try:
+        current_user = get_current_user()
+        if not current_user:
+            return jsonify({'error': 'Not authenticated'}), 401
+        
+        data = await request.get_json()
+        location_id = data.get('location_id')
+        
+        if location_id is None:
+            return jsonify({'error': 'location_id is required'}), 400
+        
+        db = get_db()
+        cursor = await db.cursor()
+        
+        # Check if location exists
+        await cursor.execute("SELECT id FROM locations WHERE id = ?", (location_id,))
+        if not await cursor.fetchone():
+            await cursor.close()
+            return jsonify({'error': 'Location not found'}), 404
+        
+        # Update user's location
+        await cursor.execute(
+            "UPDATE users SET location_id = ? WHERE id = ?",
+            (location_id, current_user.id)
+        )
+        await db.commit()
+        await cursor.close()
+        
+        # Return updated user
+        user = await authenticate_user_by_id(current_user.id, db)
+        return jsonify(user.model_dump(mode='json')), 200
+        
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
 @app.route('/api/users/<int:user_id>', methods=['DELETE'])
 @require_admin
 async def delete_user(user_id: int):
@@ -1892,8 +1932,12 @@ async def get_current_user_info():
         session_id = request.cookies.get('session_id')
         session_info = get_session_info(session_id)
         
+        # Load full user data with related entities (location, department, amt)
+        db = get_db()
+        full_user = await authenticate_user_by_id(user.id, db)
+        
         return jsonify({
-            'user': user.model_dump(mode='json'),
+            'user': full_user.model_dump(mode='json') if full_user else user.model_dump(mode='json'),
             'session': {
                 'session_id': session_info.session_id,
                 'expires_at': session_info.expires_at.isoformat()

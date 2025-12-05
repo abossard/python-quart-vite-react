@@ -8,7 +8,7 @@
  * - Footer mit Copyright
  */
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import {
   makeStyles,
   tokens,
@@ -21,6 +21,17 @@ import {
   MenuItem,
   MenuDivider,
   Text,
+  Dialog,
+  DialogTrigger,
+  DialogSurface,
+  DialogTitle,
+  DialogBody,
+  DialogActions,
+  DialogContent,
+  Field,
+  Dropdown,
+  Option,
+  Spinner,
 } from '@fluentui/react-components'
 import {
   Navigation24Regular,
@@ -211,6 +222,11 @@ export default function AppShell({ children, currentPage, onNavigate }) {
   const styles = useStyles()
   const [searchValue, setSearchValue] = useState('')
   const [menuOpen, setMenuOpen] = useState(false)
+  const [locationDialogOpen, setLocationDialogOpen] = useState(false)
+  const [locations, setLocations] = useState([])
+  const [selectedLocation, setSelectedLocation] = useState('')
+  const [loading, setLoading] = useState(false)
+  const [currentUser, setCurrentUser] = useState(null)
   
   const navItems = [
     { key: 'overview', label: 'Übersicht' },
@@ -225,6 +241,66 @@ export default function AppShell({ children, currentPage, onNavigate }) {
     { key: 'amts', label: 'Ämter' },
     { key: 'locations', label: 'Standorte' },
   ]
+
+  // Load user info and locations
+  useEffect(() => {
+    loadUserInfo()
+    loadLocations()
+  }, [])
+
+  const loadUserInfo = async () => {
+    try {
+      const response = await fetch('/api/auth/me')
+      if (response.ok) {
+        const data = await response.json()
+        // Backend returns {user: {...}, session: {...}}
+        const user = data.user || data
+        setCurrentUser(user)
+        setSelectedLocation(user.location_id?.toString() || '')
+      }
+    } catch (error) {
+      console.error('Failed to load user info:', error)
+    }
+  }
+
+  const loadLocations = async () => {
+    try {
+      const response = await fetch('/api/locations')
+      if (response.ok) {
+        const data = await response.json()
+        setLocations(data)
+      }
+    } catch (error) {
+      console.error('Failed to load locations:', error)
+    }
+  }
+
+  const handleLocationChange = async () => {
+    if (!selectedLocation || !currentUser) return
+    
+    setLoading(true)
+    try {
+      const response = await fetch('/api/auth/update-location', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          location_id: parseInt(selectedLocation)
+        })
+      })
+      
+      if (response.ok) {
+        await loadUserInfo()
+        setLocationDialogOpen(false)
+      } else {
+        const error = await response.json()
+        alert('Fehler: ' + (error.error || 'Standort konnte nicht geändert werden'))
+      }
+    } catch (error) {
+      alert('Fehler: ' + error.message)
+    } finally {
+      setLoading(false)
+    }
+  }
   
   return (
     <div className={styles.appContainer}>
@@ -305,7 +381,13 @@ export default function AppShell({ children, currentPage, onNavigate }) {
                   
                   <MenuDivider />
                   
-                  <MenuItem icon={<Location24Regular />}>
+                  <MenuItem 
+                    icon={<Location24Regular />}
+                    onClick={() => {
+                      setSelectedLocation(currentUser?.location_id?.toString() || '')
+                      setLocationDialogOpen(true)
+                    }}
+                  >
                     Standort ändern
                   </MenuItem>
                   <MenuItem
@@ -330,6 +412,54 @@ export default function AppShell({ children, currentPage, onNavigate }) {
       <footer className={styles.footer}>
         © 2025 BIT-Store
       </footer>
+
+      {/* Location Change Dialog */}
+      <Dialog
+        open={locationDialogOpen}
+        onOpenChange={(event, data) => setLocationDialogOpen(data.open)}
+      >
+        <DialogSurface>
+          <DialogBody>
+            <DialogTitle>Standort ändern</DialogTitle>
+            <DialogContent>
+              <Field label="Aktueller Benutzer" disabled>
+                <Input value={currentUser?.username || ''} disabled />
+              </Field>
+              
+              <Field label="Standort wechseln" required>
+                <Dropdown
+                  placeholder={currentUser?.location?.name || 'Standort auswählen'}
+                  value={locations.find(loc => loc.id.toString() === selectedLocation)?.name || ''}
+                  selectedOptions={[selectedLocation]}
+                  onOptionSelect={(e, data) => setSelectedLocation(data.optionValue)}
+                >
+                  {locations.map((location) => (
+                    <Option key={location.id} value={location.id.toString()}>
+                      {location.name}
+                    </Option>
+                  ))}
+                </Dropdown>
+              </Field>
+            </DialogContent>
+            <DialogActions>
+              <Button 
+                appearance="secondary" 
+                onClick={() => setLocationDialogOpen(false)}
+                disabled={loading}
+              >
+                Abbrechen
+              </Button>
+              <Button 
+                appearance="primary" 
+                onClick={handleLocationChange}
+                disabled={loading || !selectedLocation}
+              >
+                {loading ? <Spinner size="tiny" /> : 'Speichern'}
+              </Button>
+            </DialogActions>
+          </DialogBody>
+        </DialogSurface>
+      </Dialog>
     </div>
   )
 }
