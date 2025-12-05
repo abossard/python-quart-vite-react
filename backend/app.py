@@ -935,18 +935,14 @@ async def get_transaction_history():
             }
             
             # Extract device info from snapshots
-            snapshot = transaction['snapshot_after'] or transaction['snapshot_before']
-            print(f"Transaction {transaction['id']}: device_id={transaction['device_id']}, type={transaction['transaction_type']}")
-            print(f"  snapshot_after keys: {list(transaction['snapshot_after'].keys()) if transaction['snapshot_after'] else 'None'}")
-            print(f"  snapshot_before keys: {list(transaction['snapshot_before'].keys()) if transaction['snapshot_before'] else 'None'}")
+            # Prefer snapshot_before as it contains full device info, snapshot_after often only has changed fields
+            snapshot = transaction['snapshot_before'] or transaction['snapshot_after']
             if snapshot:
-                print(f"  Using snapshot with keys: {list(snapshot.keys())}")
                 transaction['device_type'] = snapshot.get('device_type', 'Unknown')
                 transaction['manufacturer'] = snapshot.get('manufacturer', 'Unknown')
                 transaction['model'] = snapshot.get('model', 'Unknown')
                 transaction['inventory_number'] = snapshot.get('inventory_number', '-')
                 transaction['borrower_name'] = snapshot.get('borrower_name')
-                print(f"  Extracted: {transaction['device_type']} - {transaction['manufacturer']} {transaction['model']}")
             else:
                 # If no snapshot, try to fetch current device info
                 if transaction['device_id']:
