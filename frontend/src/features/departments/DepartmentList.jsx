@@ -5,6 +5,7 @@
  */
 
 import { useEffect, useState } from 'react'
+import { useNavigate } from 'react-router-dom'
 import {
   makeStyles,
   tokens,
@@ -50,6 +51,7 @@ const useStyles = makeStyles({
 
 export default function DepartmentList() {
   const styles = useStyles()
+  const navigate = useNavigate()
   const [departments, setDepartments] = useState([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
@@ -240,14 +242,14 @@ export default function DepartmentList() {
           <Button
             key="to-amt"
             appearance="secondary"
-            onClick={() => window.location.href = '/#/amts'}
+            onClick={() => navigate('/amts')}
           >
             Zu Amt
           </Button>,
           <Dialog key="create-dialog" open={createDialogOpen} onOpenChange={(_, data) => setCreateDialogOpen(data.open)}>
             <DialogTrigger disableButtonEnhancement>
               <Button appearance="primary" icon={<Add24Regular />} className={styles.successButton}>
-                + Neues Department
+                Neues Department
               </Button>
             </DialogTrigger>
             <DialogSurface>

@@ -283,24 +283,17 @@ export default function AmtList() {
     <div className={styles.container}>
       <PageHeader
         title="Ämter verwalten"
-        actions={
-          <>
-            <Button
-              appearance="secondary"
-              onClick={() => window.location.href = '/#/departments'}
-            >
-              Zu Department
-            </Button>
-            <Dialog open={createDialogOpen} onOpenChange={(_, data) => setCreateDialogOpen(data.open)}>
-              <DialogTrigger disableButtonEnhancement>
-                <Button 
-                  appearance="primary" 
-                  icon={<Add24Regular />}
-                  style={{ backgroundColor: '#28A745', color: '#FFFFFF' }}
-                >
-                  + Neues Amt
-                </Button>
-              </DialogTrigger>
+        actions={[
+          <Dialog key="create-dialog" open={createDialogOpen} onOpenChange={(_, data) => setCreateDialogOpen(data.open)}>
+            <DialogTrigger disableButtonEnhancement>
+              <Button 
+                appearance="primary" 
+                icon={<Add24Regular />}
+                style={{ backgroundColor: tokens.colorPaletteGreenBackground3, color: '#FFFFFF' }}
+              >
+                Neues Amt
+              </Button>
+            </DialogTrigger>
             <DialogSurface>
               <DialogBody>
                 <DialogTitle>Create New Amt</DialogTitle>
@@ -334,9 +327,8 @@ export default function AmtList() {
                 </DialogActions>
               </DialogBody>
             </DialogSurface>
-          </Dialog>
-          </>
-        }
+          </Dialog>,
+        ]}
       />
 
       {error && (
