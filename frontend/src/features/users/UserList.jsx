@@ -113,7 +113,9 @@ export default function UserList() {
   const [createDialogOpen, setCreateDialogOpen] = useState(false)
   const [editDialogOpen, setEditDialogOpen] = useState(false)
   const [locationDialogOpen, setLocationDialogOpen] = useState(false)
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
   const [selectedUser, setSelectedUser] = useState(null)
+  const [userToDelete, setUserToDelete] = useState(null)
   const [formData, setFormData] = useState({
     username: '',
     password: '',
@@ -287,11 +289,16 @@ export default function UserList() {
     }
   }
 
-  const handleDeleteUser = async (userId) => {
-    if (!confirm('Are you sure you want to delete this user?')) return
+  const handleDeleteUser = (user) => {
+    setUserToDelete(user)
+    setDeleteDialogOpen(true)
+  }
+
+  const handleDeleteConfirm = async () => {
+    if (!userToDelete) return
     
     try {
-      const response = await fetch(`http://localhost:5001/api/users/${userId}`, {
+      const response = await fetch(`http://localhost:5001/api/users/${userToDelete.id}`, {
         method: 'DELETE',
         credentials: 'include',
       })
@@ -301,6 +308,8 @@ export default function UserList() {
         throw new Error(errorData.error || 'Failed to delete user')
       }
       
+      setDeleteDialogOpen(false)
+      setUserToDelete(null)
       await loadData()
     } catch (err) {
       setError(err.message)
@@ -525,7 +534,7 @@ export default function UserList() {
               { label: 'Amt', value: user.amt?.name || '-' },
             ]}
             onEdit={isAdmin ? () => openEditDialog(user) : null}
-            onDelete={isAdmin && user.id !== currentUser?.id ? () => handleDeleteUser(user.id) : null}
+            onDelete={isAdmin && user.id !== currentUser?.id ? () => handleDeleteUser(user) : null}
           />
         ))}
       </ResponsiveGrid>
@@ -633,6 +642,35 @@ export default function UserList() {
               </Button>
               <Button appearance="primary" onClick={handleChangeLocation}>
                 Change Location
+              </Button>
+            </DialogActions>
+          </DialogBody>
+        </DialogSurface>
+      </Dialog>
+
+      {/* Delete Confirmation Dialog */}
+      <Dialog open={deleteDialogOpen} onOpenChange={(e, data) => setDeleteDialogOpen(data.open)}>
+        <DialogSurface>
+          <DialogBody>
+            <DialogTitle>Benutzer löschen</DialogTitle>
+            <DialogContent>
+              <Text>
+                Möchten Sie den Benutzer <strong>{userToDelete?.username}</strong> wirklich löschen?
+              </Text>
+            </DialogContent>
+            <DialogActions>
+              <Button
+                appearance="secondary"
+                onClick={() => setDeleteDialogOpen(false)}
+              >
+                Abbrechen
+              </Button>
+              <Button 
+                appearance="primary" 
+                onClick={handleDeleteConfirm}
+                style={{ backgroundColor: tokens.colorPaletteRedBackground3 }}
+              >
+                Löschen
               </Button>
             </DialogActions>
           </DialogBody>

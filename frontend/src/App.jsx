@@ -15,6 +15,7 @@ import DeviceList from './features/devices/DeviceList'
 import UserList from './features/users/UserList'
 import DepartmentList from './features/departments/DepartmentList'
 import AmtList from './features/amts/AmtList'
+import LocationList from './features/locations/LocationList'
 import History from './features/history/History'
 import MissingDevices from './features/missing/MissingDevices'
 
@@ -27,6 +28,7 @@ const routeToPageMap = {
   '/users': 'users',
   '/departments': 'departments',
   '/amts': 'amts',
+  '/locations': 'locations',
 }
 
 const pageToRouteMap = {
@@ -64,6 +66,7 @@ export default function App() {
         <Route path="/users" element={<UserList />} />
         <Route path="/departments" element={<DepartmentList />} />
         <Route path="/amts" element={<AmtList />} />
+        <Route path="/locations" element={<LocationList />} />
         <Route path="*" element={<Navigate to="/dashboard" replace />} />
       </Routes>
     </AppShell>

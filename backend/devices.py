@@ -43,8 +43,8 @@ class DeviceService:
         query = """
         SELECT 
             d.id, d.device_type, d.manufacturer, d.model, d.serial_number,
-            d.inventory_number, d.status, d.location_id, d.borrowed_at,
-            d.expected_return_date, d.borrower_name, d.borrower_email,
+            d.inventory_number, d.status, d.location_id, d.department_id, d.amt_id,
+            d.borrowed_at, d.expected_return_date, d.borrower_name, d.borrower_email,
             d.borrower_phone, d.borrower_user_id, d.borrower_snapshot,
             d.notes, d.created_at, d.updated_at,
             l.id as loc_id, l.name as loc_name, l.address as loc_address,
@@ -109,8 +109,8 @@ class DeviceService:
         query = """
         SELECT 
             d.id, d.device_type, d.manufacturer, d.model, d.serial_number,
-            d.inventory_number, d.status, d.location_id, d.borrowed_at,
-            d.expected_return_date, d.borrower_name, d.borrower_email,
+            d.inventory_number, d.status, d.location_id, d.department_id, d.amt_id,
+            d.borrowed_at, d.expected_return_date, d.borrower_name, d.borrower_email,
             d.borrower_phone, d.borrower_user_id, d.borrower_snapshot,
             d.notes, d.created_at, d.updated_at,
             l.id as loc_id, l.name as loc_name, l.address as loc_address,
@@ -180,7 +180,7 @@ class DeviceService:
         
         # Log transaction
         await self._log_transaction(
-            device_id, user_id, TransactionType.UPDATE,
+            device_id, user_id, TransactionType.CREATE,
             snapshot_before=None,
             snapshot_after=data.model_dump(mode='json'),
             notes="Device created"
@@ -206,6 +206,9 @@ class DeviceService:
         Returns:
             Updated Device object or None
         """
+        # Debug logging
+        print(f"UPDATE DEVICE: device_id={device_id}, data={data.model_dump()}")
+        
         # Get current state for transaction log
         current = await self.get_device(device_id)
         if not current:
@@ -235,6 +238,13 @@ class DeviceService:
         if data.location_id is not None:
             updates.append("location_id = ?")
             params.append(data.location_id)
+        # Always update department_id and amt_id even if None (to allow clearing)
+        if 'department_id' in data.model_dump(exclude_unset=True):
+            updates.append("department_id = ?")
+            params.append(data.department_id)
+        if 'amt_id' in data.model_dump(exclude_unset=True):
+            updates.append("amt_id = ?")
+            params.append(data.amt_id)
         if data.notes is not None:
             updates.append("notes = ?")
             params.append(data.notes)
@@ -248,19 +258,22 @@ class DeviceService:
         params.append(device_id)
         
         query = f"UPDATE devices SET {', '.join(updates)} WHERE id = ?"
+        print(f"SQL QUERY: {query}")
+        print(f"SQL PARAMS: {params}")
         await cursor.execute(query, params)
         await self.db.commit()
         await cursor.close()
+        
+        # Get updated device for snapshot
+        device = await self.get_device(device_id)
         
         # Log transaction
         await self._log_transaction(
             device_id, user_id, TransactionType.UPDATE,
             snapshot_before=current.model_dump(mode='json'),
-            snapshot_after=data.model_dump(mode='json', exclude_none=True),
+            snapshot_after=device.model_dump(mode='json') if device else None,
             notes="Device updated"
         )
-        
-        device = await self.get_device(device_id)
         
         # Broadcast event to all clients
         if device:
@@ -287,7 +300,7 @@ class DeviceService:
         
         # Log transaction before deletion
         await self._log_transaction(
-            device_id, user_id, TransactionType.UPDATE,
+            device_id, user_id, TransactionType.DELETE,
             snapshot_before=device.model_dump(mode='json'),
             snapshot_after=None,
             notes="Device deleted"
@@ -372,15 +385,16 @@ class DeviceService:
         await self.db.commit()
         await cursor.close()
         
+        # Get updated device for snapshot
+        device_updated = await self.get_device(device_id)
+        
         # Log transaction
         await self._log_transaction(
             device_id, user_id, TransactionType.BORROW,
             snapshot_before=device.model_dump(mode='json'),
-            snapshot_after=data.model_dump(mode='json'),
+            snapshot_after=device_updated.model_dump(mode='json') if device_updated else None,
             notes=f"Device borrowed by {data.borrower_name}"
         )
-        
-        device_updated = await self.get_device(device_id)
         
         # Broadcast event to all clients
         if device_updated:
@@ -427,15 +441,16 @@ class DeviceService:
         await self.db.commit()
         await cursor.close()
         
+        # Get updated device for snapshot
+        device_updated = await self.get_device(device_id)
+        
         # Log transaction
         await self._log_transaction(
             device_id, user_id, TransactionType.RETURN,
             snapshot_before=device.model_dump(mode='json'),
-            snapshot_after={'status': 'available'},
+            snapshot_after=device_updated.model_dump(mode='json') if device_updated else None,
             notes=notes or "Device returned"
         )
-        
-        device_updated = await self.get_device(device_id)
         
         # Broadcast event to all clients
         if device_updated:
@@ -457,12 +472,15 @@ class DeviceService:
         cursor = await self.db.cursor()
         
         try:
-            # Get device data directly from database
-            await cursor.execute("SELECT * FROM devices WHERE id = ?", (data.device_id,))
-            device_row = await cursor.fetchone()
-            if not device_row:
+            # Get device object for snapshot
+            device = await self.get_device(data.device_id)
+            if not device:
                 await cursor.close()
                 raise ValueError(f"Device {data.device_id} not found")
+            
+            # Get device data directly from database for copying to missing table
+            await cursor.execute("SELECT * FROM devices WHERE id = ?", (data.device_id,))
+            device_row = await cursor.fetchone()
             
             # Use the provided reported_by_user_id or fall back to user_id
             reporter_id = data.reported_by_user_id if data.reported_by_user_id else user_id
@@ -504,11 +522,16 @@ class DeviceService:
             
             missing_id = cursor.lastrowid
             
+            # Create snapshot_after with device info and missing status
+            snapshot_after = device.model_dump(mode='json')
+            snapshot_after['status'] = 'missing'
+            snapshot_after['missing_id'] = missing_id
+            
             # Log transaction before deleting
             await self._log_transaction(
                 data.device_id, user_id, TransactionType.REPORT_MISSING,
-                snapshot_before={'device_row': list(device_row)},
-                snapshot_after={'missing_id': missing_id},
+                snapshot_before=device.model_dump(mode='json'),
+                snapshot_after=snapshot_after,
                 notes=data.notes or "Device reported missing"
             )
             
@@ -642,46 +665,48 @@ class DeviceService:
             'inventory_number': row[5],
             'status': DeviceStatus(row[6]),
             'location_id': row[7],
-            'borrowed_at': datetime.fromisoformat(row[8]) if row[8] else None,
-            'expected_return_date': date.fromisoformat(row[9]) if row[9] else None,
-            'borrower_name': row[10],
-            'borrower_email': row[11],
-            'borrower_phone': row[12],
-            'borrower_user_id': row[13],
-            'borrower_snapshot': json.loads(row[14]) if row[14] else None,
-            'notes': row[15],
-            'created_at': datetime.fromisoformat(row[16]),
-            'updated_at': datetime.fromisoformat(row[17]),
-            'is_overdue': bool(row[34]),
-            'days_overdue': int(row[35]) if row[35] else None
+            'department_id': row[8],
+            'amt_id': row[9],
+            'borrowed_at': datetime.fromisoformat(row[10]) if row[10] else None,
+            'expected_return_date': date.fromisoformat(row[11]) if row[11] else None,
+            'borrower_name': row[12],
+            'borrower_email': row[13],
+            'borrower_phone': row[14],
+            'borrower_user_id': row[15],
+            'borrower_snapshot': json.loads(row[16]) if row[16] else None,
+            'notes': row[17],
+            'created_at': datetime.fromisoformat(row[18]),
+            'updated_at': datetime.fromisoformat(row[19]),
+            'is_overdue': bool(row[36]),
+            'days_overdue': int(row[37]) if row[37] else None
         }
         
-        # Updated column mapping with address and full_name:
-        # row[18]=loc_id, row[19]=loc_name, row[20]=loc_address
-        # row[21]=borrower_loc_id, row[22]=borrower_loc_name, row[23]=borrower_loc_address
-        # row[24]=borrower_dept_id, row[25]=borrower_dept_name, row[26]=borrower_dept_full_name
-        # row[27]=borrower_amt_id, row[28]=borrower_amt_name
-        # row[29]=device_dept_id, row[30]=device_dept_name, row[31]=device_dept_full_name
-        # row[32]=device_amt_id, row[33]=device_amt_name
-        # row[34]=is_overdue, row[35]=days_overdue
+        # Updated column mapping with address and full_name (shifted by +2 because of department_id and amt_id):
+        # row[20]=loc_id, row[21]=loc_name, row[22]=loc_address
+        # row[23]=borrower_loc_id, row[24]=borrower_loc_name, row[25]=borrower_loc_address
+        # row[26]=borrower_dept_id, row[27]=borrower_dept_name, row[28]=borrower_dept_full_name
+        # row[29]=borrower_amt_id, row[30]=borrower_amt_name
+        # row[31]=device_dept_id, row[32]=device_dept_name, row[33]=device_dept_full_name
+        # row[34]=device_amt_id, row[35]=device_amt_name
+        # row[36]=is_overdue, row[37]=days_overdue
         
-        # Add location (row[18-20])
-        if row[18]:
-            device_data['location'] = Location(id=row[18], name=row[19], address=row[20])
+        # Add location (row[20-22])
+        if row[20]:
+            device_data['location'] = Location(id=row[20], name=row[21], address=row[22])
         
         # Add borrower location/department/amt
-        if row[21]:
-            device_data['borrower_location'] = Location(id=row[21], name=row[22], address=row[23])
-        if row[24]:
-            device_data['borrower_department'] = Department(id=row[24], name=row[25], full_name=row[26])
-        if row[27]:
-            device_data['borrower_amt'] = Amt(id=row[27], name=row[28], department_id=row[24] or 1)
+        if row[23]:
+            device_data['borrower_location'] = Location(id=row[23], name=row[24], address=row[25])
+        if row[26]:
+            device_data['borrower_department'] = Department(id=row[26], name=row[27], full_name=row[28])
+        if row[29]:
+            device_data['borrower_amt'] = Amt(id=row[29], name=row[30], department_id=row[26] or 1)
         
         # Add device department/amt
-        if row[29]:
-            device_data['department'] = Department(id=row[29], name=row[30], full_name=row[31])
-        if row[32]:
-            device_data['amt'] = Amt(id=row[32], name=row[33], department_id=row[29] or 1)
+        if row[31]:
+            device_data['department'] = Department(id=row[31], name=row[32], full_name=row[33])
+        if row[34]:
+            device_data['amt'] = Amt(id=row[34], name=row[35], department_id=row[31] or 1)
         
         return DeviceFull(**device_data)
     
@@ -736,21 +761,23 @@ class DeviceService:
                 raise ValueError(f"Missing device with id {missing_device_id} not found")
             
             # Extract data from missing device (row indices match devices_missing schema)
-            # Schema: id, original_device_id, device_type, manufacturer, model, serial_number,
-            #         inventory_number, status, location_id, department_id, amt_id,
-            #         borrowed_at, expected_return_date, borrower_name, borrower_email,
-            #         borrower_phone, borrower_user_id, borrower_snapshot, notes,
-            #         created_at, updated_at, reported_at, reported_by_user_id
+            # Current schema: id(0), original_device_id(1), device_type(2), manufacturer(3), 
+            #                 model(4), serial_number(5), inventory_number(6), status(7), 
+            #                 location_id(8), borrowed_at(9), expected_return_date(10),
+            #                 borrower_name(11), borrower_email(12), borrower_phone(13),
+            #                 borrower_user_id(14), borrower_snapshot(15), notes(16),
+            #                 reported_at(17), reported_by_user_id(18), 
+            #                 department_id(19), amt_id(20)
             
             # Insert back into devices (status set to 'available')
+            # Note: created_at and updated_at have DEFAULT values, so we don't set them
             await cursor.execute("""
                 INSERT INTO devices (
                     device_type, manufacturer, model, serial_number, inventory_number,
                     status, location_id, department_id, amt_id,
                     borrowed_at, expected_return_date, borrower_name, borrower_email,
-                    borrower_phone, borrower_user_id, borrower_snapshot, notes,
-                    created_at, updated_at
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    borrower_phone, borrower_user_id, borrower_snapshot, notes
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """, (
                 missing_row[2],  # device_type
                 missing_row[3],  # manufacturer
@@ -759,8 +786,8 @@ class DeviceService:
                 missing_row[6],  # inventory_number
                 'available',     # status (reset to available)
                 missing_row[8],  # location_id
-                missing_row[9],  # department_id
-                missing_row[10], # amt_id
+                missing_row[19], # department_id
+                missing_row[20], # amt_id
                 None,            # borrowed_at (clear borrowing info)
                 None,            # expected_return_date
                 None,            # borrower_name
@@ -768,22 +795,10 @@ class DeviceService:
                 None,            # borrower_phone
                 None,            # borrower_user_id
                 None,            # borrower_snapshot
-                missing_row[18], # notes
-                missing_row[19], # created_at (preserve original)
-                datetime.now().isoformat()  # updated_at
+                missing_row[16]  # notes
             ))
             
             new_device_id = cursor.lastrowid
-            
-            # Log transaction BEFORE deleting from devices_missing
-            await self._log_transaction(
-                device_id=new_device_id,
-                user_id=user_id,
-                transaction_type=TransactionType.FOUND,
-                snapshot_before={'missing_device_id': missing_device_id},
-                snapshot_after={'status': 'available'},
-                notes=f"Device restored from missing devices (original ID: {missing_row[1]})"
-            )
             
             # Delete from devices_missing
             await cursor.execute("""
@@ -794,6 +809,27 @@ class DeviceService:
             
             # Fetch the restored device with full details
             restored_device = await self.get_device(new_device_id)
+            
+            # Create snapshot_before with device info from missing_row
+            snapshot_before = {
+                'missing_device_id': missing_device_id,
+                'status': 'missing',
+                'device_type': missing_row[2],
+                'manufacturer': missing_row[3],
+                'model': missing_row[4],
+                'serial_number': missing_row[5],
+                'inventory_number': missing_row[6]
+            }
+            
+            # Log transaction AFTER getting full device data
+            await self._log_transaction(
+                device_id=new_device_id,
+                user_id=user_id,
+                transaction_type=TransactionType.FOUND,
+                snapshot_before=snapshot_before,
+                snapshot_after=restored_device.model_dump(mode='json') if restored_device else None,
+                notes=f"Device restored from missing devices (original ID: {missing_row[1]})"
+            )
             
             if not restored_device:
                 raise ValueError(f"Failed to retrieve restored device with id {new_device_id}")
@@ -807,8 +843,11 @@ class DeviceService:
             
             return restored_device
             
-        except Exception:
+        except Exception as e:
             await self.db.rollback()
+            import traceback
+            traceback.print_exc()
+            print(f"ERROR restoring device: {e}")
             raise
         finally:
             await cursor.close()

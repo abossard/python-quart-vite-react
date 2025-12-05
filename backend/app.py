@@ -936,12 +936,50 @@ async def get_transaction_history():
             
             # Extract device info from snapshots
             snapshot = transaction['snapshot_after'] or transaction['snapshot_before']
+            print(f"Transaction {transaction['id']}: device_id={transaction['device_id']}, type={transaction['transaction_type']}")
+            print(f"  snapshot_after keys: {list(transaction['snapshot_after'].keys()) if transaction['snapshot_after'] else 'None'}")
+            print(f"  snapshot_before keys: {list(transaction['snapshot_before'].keys()) if transaction['snapshot_before'] else 'None'}")
             if snapshot:
+                print(f"  Using snapshot with keys: {list(snapshot.keys())}")
                 transaction['device_type'] = snapshot.get('device_type', 'Unknown')
                 transaction['manufacturer'] = snapshot.get('manufacturer', 'Unknown')
                 transaction['model'] = snapshot.get('model', 'Unknown')
                 transaction['inventory_number'] = snapshot.get('inventory_number', '-')
                 transaction['borrower_name'] = snapshot.get('borrower_name')
+                print(f"  Extracted: {transaction['device_type']} - {transaction['manufacturer']} {transaction['model']}")
+            else:
+                # If no snapshot, try to fetch current device info
+                if transaction['device_id']:
+                    try:
+                        device_cursor = await db.cursor()
+                        await device_cursor.execute("""
+                            SELECT device_type, manufacturer, model, inventory_number
+                            FROM devices WHERE id = ?
+                        """, (transaction['device_id'],))
+                        device_row = await device_cursor.fetchone()
+                        await device_cursor.close()
+                        
+                        if device_row:
+                            transaction['device_type'] = device_row[0]
+                            transaction['manufacturer'] = device_row[1]
+                            transaction['model'] = device_row[2]
+                            transaction['inventory_number'] = device_row[3]
+                        else:
+                            # Device might be deleted, set defaults
+                            transaction['device_type'] = 'Unknown'
+                            transaction['manufacturer'] = 'Unknown'
+                            transaction['model'] = 'Unknown'
+                            transaction['inventory_number'] = '-'
+                    except Exception:
+                        transaction['device_type'] = 'Unknown'
+                        transaction['manufacturer'] = 'Unknown'
+                        transaction['model'] = 'Unknown'
+                        transaction['inventory_number'] = '-'
+                else:
+                    transaction['device_type'] = 'Unknown'
+                    transaction['manufacturer'] = 'Unknown'
+                    transaction['model'] = 'Unknown'
+                    transaction['inventory_number'] = '-'
             
             transactions.append(transaction)
         
@@ -1630,6 +1668,158 @@ async def delete_amt(amt_id):
         await broadcast_event(EventType.AMT_DELETED, {'id': amt_id})
         
         return jsonify({'message': 'Amt deleted successfully'}), 200
+        
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
+# ============================================================================
+# LOCATIONS ENDPOINTS
+# ============================================================================
+
+@app.route('/api/locations', methods=['GET'])
+@require_auth
+async def list_locations():
+    """List all locations"""
+    try:
+        db = get_db()
+        cursor = await db.cursor()
+        await cursor.execute("SELECT id, name, address FROM locations ORDER BY name")
+        
+        rows = await cursor.fetchall()
+        await cursor.close()
+        
+        locations = [{'id': row[0], 'name': row[1], 'address': row[2]} for row in rows]
+        return jsonify(locations), 200
+        
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
+@app.route('/api/locations/<int:location_id>', methods=['GET'])
+@require_auth
+async def get_location(location_id):
+    """Get a specific location"""
+    try:
+        db = get_db()
+        cursor = await db.cursor()
+        await cursor.execute("SELECT id, name, address FROM locations WHERE id = ?", (location_id,))
+        
+        row = await cursor.fetchone()
+        await cursor.close()
+        
+        if not row:
+            return jsonify({'error': 'Location not found'}), 404
+        
+        return jsonify({'id': row[0], 'name': row[1], 'address': row[2]}), 200
+        
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
+@app.route('/api/locations', methods=['POST'])
+@require_admin
+async def create_location():
+    """Create a new location (admin only)"""
+    try:
+        data = await request.get_json()
+        name = data.get('name')
+        address = data.get('address')
+        
+        if not name:
+            return jsonify({'error': 'name is required'}), 400
+        
+        db = get_db()
+        cursor = await db.cursor()
+        
+        # Check if location already exists
+        await cursor.execute("SELECT id FROM locations WHERE name = ?", (name,))
+        if await cursor.fetchone():
+            await cursor.close()
+            return jsonify({'error': 'Location already exists'}), 400
+        
+        await cursor.execute("INSERT INTO locations (name, address) VALUES (?, ?)", (name, address))
+        location_id = cursor.lastrowid
+        await db.commit()
+        await cursor.close()
+        
+        location_data = {'id': location_id, 'name': name, 'address': address}
+        
+        # Broadcast event to all clients
+        await broadcast_event(EventType.LOCATION_CREATED, location_data)
+        
+        return jsonify(location_data), 201
+        
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
+@app.route('/api/locations/<int:location_id>', methods=['PUT'])
+@require_admin
+async def update_location(location_id):
+    """Update a location (admin only)"""
+    try:
+        data = await request.get_json()
+        name = data.get('name')
+        address = data.get('address')
+        
+        if not name:
+            return jsonify({'error': 'name is required'}), 400
+        
+        db = get_db()
+        cursor = await db.cursor()
+        
+        # Check if location exists
+        await cursor.execute("SELECT id FROM locations WHERE id = ?", (location_id,))
+        if not await cursor.fetchone():
+            await cursor.close()
+            return jsonify({'error': 'Location not found'}), 404
+        
+        await cursor.execute("UPDATE locations SET name = ?, address = ? WHERE id = ?", (name, address, location_id))
+        await db.commit()
+        await cursor.close()
+        
+        location_data = {'id': location_id, 'name': name, 'address': address}
+        
+        # Broadcast event to all clients
+        await broadcast_event(EventType.LOCATION_UPDATED, location_data)
+        
+        return jsonify(location_data), 200
+        
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
+@app.route('/api/locations/<int:location_id>', methods=['DELETE'])
+@require_admin
+async def delete_location(location_id):
+    """Delete a location (admin only)"""
+    try:
+        db = get_db()
+        cursor = await db.cursor()
+        
+        # Check if location is in use by users
+        await cursor.execute("SELECT COUNT(*) FROM users WHERE location_id = ?", (location_id,))
+        user_count = (await cursor.fetchone())[0]
+        
+        # Check if location is in use by devices
+        await cursor.execute("SELECT COUNT(*) FROM devices WHERE location_id = ?", (location_id,))
+        device_count = (await cursor.fetchone())[0]
+        
+        total_count = user_count + device_count
+        
+        if total_count > 0:
+            await cursor.close()
+            return jsonify({'error': f'Cannot delete location: {user_count} users and {device_count} devices are assigned to it'}), 400
+        
+        await cursor.execute("DELETE FROM locations WHERE id = ?", (location_id,))
+        await db.commit()
+        await cursor.close()
+        
+        # Broadcast event to all clients
+        await broadcast_event(EventType.LOCATION_DELETED, {'id': location_id})
+        
+        return jsonify({'message': 'Location deleted successfully'}), 200
         
     except Exception as e:
         return jsonify({'error': str(e)}), 500

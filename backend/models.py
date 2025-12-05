@@ -258,6 +258,7 @@ class MissingDevice(DeviceBase):
 
 class TransactionType(str, Enum):
     """Device transaction types"""
+    CREATE = "create"
     BORROW = "borrow"
     RETURN = "return"
     REPORT_MISSING = "report_missing"

@@ -1,7 +1,7 @@
 /**
- * DepartmentList Component
+ * LocationList Component
  * 
- * Department management interface with CRUD operations
+ * Location management interface with CRUD operations
  */
 
 import { useEffect, useState } from 'react'
@@ -21,11 +21,12 @@ import {
   DialogContent,
   Field,
   Input,
+  Textarea,
   Text,
 } from '@fluentui/react-components'
 import {
   Add24Regular,
-  Building24Regular,
+  Location24Regular,
 } from '@fluentui/react-icons'
 import { connectToEventsStream } from '../../services/api'
 import AdminCard from '../../components/AdminCard'
@@ -48,22 +49,22 @@ const useStyles = makeStyles({
   },
 })
 
-export default function DepartmentList() {
+export default function LocationList() {
   const styles = useStyles()
-  const [departments, setDepartments] = useState([])
+  const [locations, setLocations] = useState([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
   const [authenticated, setAuthenticated] = useState(false)
   const [createDialogOpen, setCreateDialogOpen] = useState(false)
   const [editDialogOpen, setEditDialogOpen] = useState(false)
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
-  const [selectedDept, setSelectedDept] = useState(null)
-  const [deptToDelete, setDeptToDelete] = useState(null)
-  const [formData, setFormData] = useState({ name: '', full_name: '' })
+  const [selectedLocation, setSelectedLocation] = useState(null)
+  const [locationToDelete, setLocationToDelete] = useState(null)
+  const [formData, setFormData] = useState({ name: '', address: '' })
 
-  const loadDepartments = async () => {
+  const loadLocations = async () => {
     try {
-      const response = await fetch('http://localhost:5001/api/departments', {
+      const response = await fetch('http://localhost:5001/api/locations', {
         credentials: 'include',
       })
       
@@ -78,7 +79,7 @@ export default function DepartmentList() {
       }
       
       const data = await response.json()
-      setDepartments(data)
+      setLocations(data)
       setAuthenticated(true)
       setError(null)
     } catch (err) {
@@ -89,15 +90,15 @@ export default function DepartmentList() {
   }
 
   useEffect(() => {
-    loadDepartments()
+    loadLocations()
     
     // Connect to real-time events
     const cleanup = connectToEventsStream(
       (event) => {
-        // Reload data when department events occur
-        if (event.type && event.type.startsWith('department:')) {
-          console.log('Department event received:', event.type)
-          loadDepartments()
+        // Reload data when location events occur
+        if (event.type && event.type.startsWith('location:')) {
+          console.log('Location event received:', event.type)
+          loadLocations()
         }
       },
       (error) => {
@@ -111,7 +112,7 @@ export default function DepartmentList() {
 
   const handleCreate = async () => {
     try {
-      const response = await fetch('http://localhost:5001/api/departments', {
+      const response = await fetch('http://localhost:5001/api/locations', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         credentials: 'include',
@@ -120,22 +121,22 @@ export default function DepartmentList() {
       
       if (!response.ok) {
         const errorData = await response.json()
-        throw new Error(errorData.error || 'Failed to create department')
+        throw new Error(errorData.error || 'Failed to create location')
       }
       
       setCreateDialogOpen(false)
-      setFormData({ name: '' })
-      await loadDepartments()
+      setFormData({ name: '', address: '' })
+      await loadLocations()
     } catch (err) {
       setError(err.message)
     }
   }
 
   const handleUpdate = async () => {
-    if (!selectedDept) return
+    if (!selectedLocation) return
     
     try {
-      const response = await fetch(`http://localhost:5001/api/departments/${selectedDept.id}`, {
+      const response = await fetch(`http://localhost:5001/api/locations/${selectedLocation.id}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         credentials: 'include',
@@ -144,47 +145,47 @@ export default function DepartmentList() {
       
       if (!response.ok) {
         const errorData = await response.json()
-        throw new Error(errorData.error || 'Failed to update department')
+        throw new Error(errorData.error || 'Failed to update location')
       }
       
       setEditDialogOpen(false)
-      setSelectedDept(null)
-      await loadDepartments()
+      setSelectedLocation(null)
+      await loadLocations()
     } catch (err) {
       setError(err.message)
     }
   }
 
-  const handleDeleteDepartment = (dept) => {
-    setDeptToDelete(dept)
+  const handleDeleteLocation = (location) => {
+    setLocationToDelete(location)
     setDeleteDialogOpen(true)
   }
 
   const handleDeleteConfirm = async () => {
-    if (!deptToDelete) return
+    if (!locationToDelete) return
     
     try {
-      const response = await fetch(`http://localhost:5001/api/departments/${deptToDelete.id}`, {
+      const response = await fetch(`http://localhost:5001/api/locations/${locationToDelete.id}`, {
         method: 'DELETE',
         credentials: 'include',
       })
       
       if (!response.ok) {
         const errorData = await response.json()
-        throw new Error(errorData.error || 'Failed to delete department')
+        throw new Error(errorData.error || 'Failed to delete location')
       }
       
       setDeleteDialogOpen(false)
-      setDeptToDelete(null)
-      await loadDepartments()
+      setLocationToDelete(null)
+      await loadLocations()
     } catch (err) {
       setError(err.message)
     }
   }
 
-  const openEditDialog = (dept) => {
-    setSelectedDept(dept)
-    setFormData({ name: dept.name, full_name: dept.full_name || '' })
+  const openEditDialog = (location) => {
+    setSelectedLocation(location)
+    setFormData({ name: location.name, address: location.address || '' })
     setEditDialogOpen(true)
   }
 
@@ -192,7 +193,7 @@ export default function DepartmentList() {
     return (
       <div className={styles.container}>
         <div className={styles.loading}>
-          <Spinner size="large" label="Loading departments..." />
+          <Spinner size="large" label="Loading locations..." />
         </div>
       </div>
     )
@@ -217,7 +218,7 @@ export default function DepartmentList() {
                     body: JSON.stringify({ username: 'admin', password: 'admin123' }),
                   })
                   if (response.ok) {
-                    await loadDepartments()
+                    await loadLocations()
                   }
                 } catch (err) {
                   setError(err.message)
@@ -235,37 +236,35 @@ export default function DepartmentList() {
   return (
     <>
       <PageHeader
-        title="Departments verwalten"
+        title="Standorte verwalten"
         actions={[
-          <Button
-            key="to-amt"
-            appearance="secondary"
-            onClick={() => window.location.href = '/#/amts'}
-          >
-            Zu Amt
-          </Button>,
-          <Dialog key="create-dialog" open={createDialogOpen} onOpenChange={(_, data) => setCreateDialogOpen(data.open)}>
+          <Dialog key="create-dialog" open={createDialogOpen} onOpenChange={(_, data) => {
+            setCreateDialogOpen(data.open)
+            if (data.open) {
+              setFormData({ name: '', address: '' })
+            }
+          }}>
             <DialogTrigger disableButtonEnhancement>
               <Button appearance="primary" icon={<Add24Regular />} className={styles.successButton}>
-                + Neues Department
+                + Neuer Standort
               </Button>
             </DialogTrigger>
             <DialogSurface>
               <DialogBody>
-                <DialogTitle>Create New Department</DialogTitle>
+                <DialogTitle>Create New Location</DialogTitle>
                 <DialogContent>
-                  <Field label="Department Name" required>
+                  <Field label="Location Name" required>
                     <Input
                       value={formData.name}
                       onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                      placeholder="Enter department name (e.g., EDI)"
+                      placeholder="Enter location name (e.g., Bollwerk)"
                     />
                   </Field>
-                  <Field label="Full Name">
-                    <Input
-                      value={formData.full_name}
-                      onChange={(e) => setFormData({ ...formData, full_name: e.target.value })}
-                      placeholder="Enter full name (e.g., Eidgenössisches Departement des Innern)"
+                  <Field label="Address">
+                    <Textarea
+                      value={formData.address}
+                      onChange={(e) => setFormData({ ...formData, address: e.target.value })}
+                      placeholder="Enter address"
                     />
                   </Field>
                 </DialogContent>
@@ -290,17 +289,17 @@ export default function DepartmentList() {
       )}
 
       <ResponsiveGrid>
-        {departments.map((dept) => (
+        {locations.map((location) => (
           <AdminCard
-            key={dept.id}
-            title={dept.name}
+            key={location.id}
+            title={location.name}
             fields={[
-              { label: 'Name', value: dept.name },
-              { label: 'Vollständiger Name', value: dept.full_name || '-' },
+              { label: 'Name', value: location.name },
+              { label: 'Adresse', value: location.address || '-' },
             ]}
-            onInfo={() => console.log('Info', dept)}
-            onEdit={() => openEditDialog(dept)}
-            onDelete={() => handleDeleteDepartment(dept)}
+            onInfo={() => console.log('Info', location)}
+            onEdit={() => openEditDialog(location)}
+            onDelete={() => handleDeleteLocation(location)}
           />
         ))}
       </ResponsiveGrid>
@@ -309,18 +308,18 @@ export default function DepartmentList() {
       <Dialog open={editDialogOpen} onOpenChange={(_, data) => setEditDialogOpen(data.open)}>
         <DialogSurface>
           <DialogBody>
-            <DialogTitle>Edit Department</DialogTitle>
+            <DialogTitle>Edit Location</DialogTitle>
             <DialogContent>
-              <Field label="Department Name" required>
+              <Field label="Location Name" required>
                 <Input
                   value={formData.name}
                   onChange={(e) => setFormData({ ...formData, name: e.target.value })}
                 />
               </Field>
-              <Field label="Full Name">
-                <Input
-                  value={formData.full_name}
-                  onChange={(e) => setFormData({ ...formData, full_name: e.target.value })}
+              <Field label="Address">
+                <Textarea
+                  value={formData.address}
+                  onChange={(e) => setFormData({ ...formData, address: e.target.value })}
                 />
               </Field>
             </DialogContent>
@@ -340,10 +339,10 @@ export default function DepartmentList() {
       <Dialog open={deleteDialogOpen} onOpenChange={(e, data) => setDeleteDialogOpen(data.open)}>
         <DialogSurface>
           <DialogBody>
-            <DialogTitle>Department löschen</DialogTitle>
+            <DialogTitle>Standort löschen</DialogTitle>
             <DialogContent>
               <Text>
-                Möchten Sie das Department <strong>{deptToDelete?.name}</strong> wirklich löschen?
+                Möchten Sie den Standort <strong>{locationToDelete?.name}</strong> wirklich löschen?
               </Text>
             </DialogContent>
             <DialogActions>

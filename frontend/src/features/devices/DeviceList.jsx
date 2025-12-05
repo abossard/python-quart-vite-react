@@ -17,7 +17,6 @@ import {
   MessageBar,
   MessageBarBody,
   Dialog,
-  DialogTrigger,
   DialogSurface,
   DialogTitle,
   DialogBody,
@@ -27,6 +26,7 @@ import {
   Input,
   Dropdown,
   Option,
+  Textarea,
   Card,
   CardHeader,
 } from '@fluentui/react-components'
@@ -101,6 +101,7 @@ export default function DeviceList() {
   const styles = useStyles()
   const [devices, setDevices] = useState([])
   const [stats, setStats] = useState(null)
+  const [locations, setLocations] = useState([])
   const [departments, setDepartments] = useState([])
   const [amts, setAmts] = useState([])
   const [filteredAmts, setFilteredAmts] = useState([])
@@ -108,6 +109,10 @@ export default function DeviceList() {
   const [error, setError] = useState(null)
   const [authenticated, setAuthenticated] = useState(false)
   const [createDialogOpen, setCreateDialogOpen] = useState(false)
+  const [editDialogOpen, setEditDialogOpen] = useState(false)
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
+  const [deviceToEdit, setDeviceToEdit] = useState(null)
+  const [deviceToDelete, setDeviceToDelete] = useState(null)
   const [formData, setFormData] = useState({
     device_type: '',
     manufacturer: '',
@@ -175,6 +180,21 @@ export default function DeviceList() {
     }
   }
 
+  const loadLocations = async () => {
+    try {
+      const response = await fetch('http://localhost:5001/api/locations', {
+        credentials: 'include',
+      })
+      
+      if (response.ok) {
+        const data = await response.json()
+        setLocations(data)
+      }
+    } catch (err) {
+      console.error('Failed to load locations:', err)
+    }
+  }
+
   const loadAmts = async () => {
     try {
       const response = await fetch('http://localhost:5001/api/amts', {
@@ -192,7 +212,7 @@ export default function DeviceList() {
 
   const loadData = async () => {
     setLoading(true)
-    await Promise.all([loadDevices(), loadStats(), loadDepartments(), loadAmts()])
+    await Promise.all([loadDevices(), loadStats(), loadLocations(), loadDepartments(), loadAmts()])
     setLoading(false)
   }
 
@@ -229,6 +249,21 @@ export default function DeviceList() {
     }
   }, [formData.department_id, amts])
 
+  const handleOpenCreateDialog = () => {
+    setFormData({
+      device_type: '',
+      manufacturer: '',
+      model: '',
+      serial_number: '',
+      inventory_number: '',
+      location_id: '1',
+      department_id: null,
+      amt_id: null,
+      notes: '',
+    })
+    setCreateDialogOpen(true)
+  }
+
   const handleCreateDevice = async () => {
     try {
       const response = await fetch('http://localhost:5001/api/devices', {
@@ -263,6 +298,75 @@ export default function DeviceList() {
         notes: '',
       })
       await loadData()
+    } catch (err) {
+      setError(err.message)
+    }
+  }
+
+  const handleEditDevice = (device) => {
+    setDeviceToEdit(device)
+    setFormData({
+      device_type: device.device_type || '',
+      manufacturer: device.manufacturer || '',
+      model: device.model || '',
+      serial_number: device.serial_number || '',
+      inventory_number: device.inventory_number || '',
+      location_id: String(device.location_id || 1),
+      department_id: device.department_id || null,
+      amt_id: device.amt_id || null,
+      notes: device.notes || '',
+    })
+    setEditDialogOpen(true)
+  }
+
+  const handleEditConfirm = async () => {
+    if (!deviceToEdit) return
+    
+    try {
+      const updateData = {
+        device_type: formData.device_type,
+        manufacturer: formData.manufacturer,
+        model: formData.model,
+        serial_number: formData.serial_number,
+        inventory_number: formData.inventory_number,
+        location_id: parseInt(formData.location_id),
+        department_id: formData.department_id ? parseInt(formData.department_id) : null,
+        amt_id: formData.amt_id ? parseInt(formData.amt_id) : null,
+        notes: formData.notes,
+      }
+      console.log('Updating device with data:', updateData)
+      
+      const response = await fetch(`http://localhost:5001/api/devices/${deviceToEdit.id}`, {
+        method: 'PUT',
+        credentials: 'include',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(updateData),
+      })
+      
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}))
+        throw new Error(errorData.error || 'Fehler beim Aktualisieren')
+      }
+      
+      // Reload devices to get updated data
+      await loadDevices()
+      
+      setEditDialogOpen(false)
+      setDeviceToEdit(null)
+      // Reset formData
+      setFormData({
+        device_type: '',
+        manufacturer: '',
+        model: '',
+        serial_number: '',
+        inventory_number: '',
+        location_id: '1',
+        department_id: null,
+        amt_id: null,
+        notes: '',
+      })
     } catch (err) {
       setError(err.message)
     }
@@ -316,6 +420,34 @@ export default function DeviceList() {
       await loadData()
     } catch (err) {
       setError(err.message)
+    }
+  }
+
+  const handleDeleteDevice = (device) => {
+    setDeviceToDelete(device)
+    setDeleteDialogOpen(true)
+  }
+
+  const handleDeleteConfirm = async () => {
+    if (!deviceToDelete) return
+    
+    try {
+      const response = await fetch(`http://localhost:5001/api/devices/${deviceToDelete.id}`, {
+        method: 'DELETE',
+        credentials: 'include',
+      })
+      
+      if (!response.ok) {
+        const errorData = await response.json()
+        throw new Error(errorData.error || 'Fehler beim Löschen des Geräts')
+      }
+      
+      setDeleteDialogOpen(false)
+      setDeviceToDelete(null)
+      await loadData()
+    } catch (err) {
+      setError(err.message)
+      setDeleteDialogOpen(false)
     }
   }
 
@@ -403,12 +535,14 @@ export default function DeviceList() {
           >
             Refresh
           </Button>
+          <Button 
+            appearance="primary" 
+            icon={<Add24Regular />}
+            onClick={handleOpenCreateDialog}
+          >
+            Add Device
+          </Button>
           <Dialog open={createDialogOpen} onOpenChange={(_, data) => setCreateDialogOpen(data.open)}>
-            <DialogTrigger disableButtonEnhancement>
-              <Button appearance="primary" icon={<Add24Regular />}>
-                Add Device
-              </Button>
-            </DialogTrigger>
             <DialogSurface>
               <DialogBody>
                 <DialogTitle>Add New Device</DialogTitle>
@@ -451,12 +585,13 @@ export default function DeviceList() {
                     </Field>
                     <Field label="Location" required>
                       <Dropdown
-                        value={formData.location_id === '1' ? 'Bollwerk' : formData.location_id === '2' ? 'Zollikofen' : 'Guisanplatz'}
+                        placeholder="Select location"
+                        value={locations.find(l => l.id === parseInt(formData.location_id))?.name || ''}
                         onOptionSelect={(_, data) => setFormData({ ...formData, location_id: data.optionValue })}
                       >
-                        <Option value="1">Bollwerk</Option>
-                        <Option value="2">Zollikofen</Option>
-                        <Option value="3">Guisanplatz</Option>
+                        {locations.map(loc => (
+                          <Option key={loc.id} value={loc.id.toString()}>{loc.name}</Option>
+                        ))}
                       </Dropdown>
                     </Field>
                     <Field label="Department">
@@ -495,11 +630,156 @@ export default function DeviceList() {
                   </div>
                 </DialogContent>
                 <DialogActions>
-                  <DialogTrigger disableButtonEnhancement>
-                    <Button appearance="secondary">Cancel</Button>
-                  </DialogTrigger>
+                  <Button 
+                    appearance="secondary"
+                    onClick={() => setCreateDialogOpen(false)}
+                  >
+                    Cancel
+                  </Button>
                   <Button appearance="primary" onClick={handleCreateDevice}>
                     Create Device
+                  </Button>
+                </DialogActions>
+              </DialogBody>
+            </DialogSurface>
+          </Dialog>
+
+          {/* Edit Device Dialog */}
+          <Dialog open={editDialogOpen} onOpenChange={(e, data) => setEditDialogOpen(data.open)}>
+            <DialogSurface>
+              <DialogBody>
+                <DialogTitle>Gerät bearbeiten</DialogTitle>
+                <DialogContent>
+                  <div className={styles.formGrid}>
+                    <Field label="Device Type" required>
+                      <Input
+                        value={formData.device_type}
+                        onChange={(e, data) =>
+                          setFormData({ ...formData, device_type: data.value })
+                        }
+                      />
+                    </Field>
+                    <Field label="Manufacturer" required>
+                      <Input
+                        value={formData.manufacturer}
+                        onChange={(e, data) =>
+                          setFormData({ ...formData, manufacturer: data.value })
+                        }
+                      />
+                    </Field>
+                    <Field label="Model" required>
+                      <Input
+                        value={formData.model}
+                        onChange={(e, data) =>
+                          setFormData({ ...formData, model: data.value })
+                        }
+                      />
+                    </Field>
+                    <Field label="Serial Number" required>
+                      <Input
+                        value={formData.serial_number}
+                        onChange={(e, data) =>
+                          setFormData({ ...formData, serial_number: data.value })
+                        }
+                      />
+                    </Field>
+                    <Field label="Inventory Number" required>
+                      <Input
+                        value={formData.inventory_number}
+                        onChange={(e, data) =>
+                          setFormData({ ...formData, inventory_number: data.value })
+                        }
+                      />
+                    </Field>
+                    <Field label="Location" required>
+                      <Dropdown
+                        placeholder="Select location"
+                        value={locations.find(l => l.id === parseInt(formData.location_id))?.name || ''}
+                        selectedOptions={[formData.location_id?.toString()]}
+                        onOptionSelect={(_, data) => setFormData({ ...formData, location_id: data.optionValue })}
+                      >
+                        {locations.map(loc => (
+                          <Option key={loc.id} value={loc.id.toString()}>{loc.name}</Option>
+                        ))}
+                      </Dropdown>
+                    </Field>
+                    <Field label="Department">
+                      <Dropdown
+                        placeholder="Select department"
+                        value={departments.find(d => d.id === formData.department_id)?.name || ''}
+                        selectedOptions={formData.department_id ? [formData.department_id.toString()] : []}
+                        onOptionSelect={(_, data) => {
+                          const deptId = parseInt(data.optionValue)
+                          setFormData({ ...formData, department_id: deptId, amt_id: null })
+                        }}
+                      >
+                        {departments.map(dept => (
+                          <Option key={dept.id} value={dept.id.toString()}>{dept.name}</Option>
+                        ))}
+                      </Dropdown>
+                    </Field>
+                    <Field label="Amt" disabled={!formData.department_id}>
+                      <Dropdown
+                        placeholder={formData.department_id ? "Select amt" : "Select department first"}
+                        value={filteredAmts.find(a => a.id === formData.amt_id)?.name || ''}
+                        selectedOptions={formData.amt_id ? [formData.amt_id.toString()] : []}
+                        onOptionSelect={(_, data) => setFormData({ ...formData, amt_id: parseInt(data.optionValue) })}
+                        disabled={!formData.department_id}
+                      >
+                        {filteredAmts.map(amt => (
+                          <Option key={amt.id} value={amt.id.toString()}>{amt.name}</Option>
+                        ))}
+                      </Dropdown>
+                    </Field>
+                    <Field label="Notes" style={{ gridColumn: "1 / -1" }}>
+                      <Textarea
+                        value={formData.notes}
+                        onChange={(e, data) =>
+                          setFormData({ ...formData, notes: data.value })
+                        }
+                        rows={3}
+                      />
+                    </Field>
+                  </div>
+                </DialogContent>
+                <DialogActions>
+                  <Button
+                    appearance="secondary"
+                    onClick={() => setEditDialogOpen(false)}
+                  >
+                    Cancel
+                  </Button>
+                  <Button appearance="primary" onClick={handleEditConfirm}>
+                    Save Changes
+                  </Button>
+                </DialogActions>
+              </DialogBody>
+            </DialogSurface>
+          </Dialog>
+
+          {/* Delete Confirmation Dialog */}
+          <Dialog open={deleteDialogOpen} onOpenChange={(e, data) => setDeleteDialogOpen(data.open)}>
+            <DialogSurface>
+              <DialogBody>
+                <DialogTitle>Gerät löschen</DialogTitle>
+                <DialogContent>
+                  <Text>
+                    Möchten Sie das Gerät <strong>{deviceToDelete?.device_type} - {deviceToDelete?.manufacturer} {deviceToDelete?.model}</strong> wirklich löschen?
+                  </Text>
+                </DialogContent>
+                <DialogActions>
+                  <Button
+                    appearance="secondary"
+                    onClick={() => setDeleteDialogOpen(false)}
+                  >
+                    Abbrechen
+                  </Button>
+                  <Button 
+                    appearance="primary" 
+                    onClick={handleDeleteConfirm}
+                    style={{ backgroundColor: tokens.colorPaletteRedBackground3 }}
+                  >
+                    Löschen
                   </Button>
                 </DialogActions>
               </DialogBody>
@@ -567,8 +847,8 @@ export default function DeviceList() {
             showInfo={true}
             detailData={device}
             onInfo={() => console.log('Device info:', device)}
-            onEdit={() => handleBorrowDevice(device.id)}
-            onDelete={() => handleReturnDevice(device.id)}
+            onEdit={() => handleEditDevice(device)}
+            onDelete={() => handleDeleteDevice(device)}
           />
         ))}
       </ResponsiveGrid>

@@ -18,8 +18,11 @@ import {
   ArrowEnterLeft24Regular,
   Warning24Regular,
   Clock24Regular,
-  Checkmark24Regular,
+  ArrowUndo24Regular,
   Delete24Regular,
+  Dismiss24Regular,
+  Add24Regular,
+  ArrowSync24Regular,
 } from '@fluentui/react-icons'
 import PageHeader from '../../components/PageHeader'
 
@@ -83,6 +86,24 @@ const useStyles = makeStyles({
   },
   
   timelineIconMissing: {
+    backgroundColor: '#FFF3CD',
+    borderColor: '#FFC107',
+    color: '#856404',
+  },
+  
+  timelineIconCreate: {
+    backgroundColor: '#D1E7DD',
+    borderColor: '#198754',
+    color: '#198754',
+  },
+  
+  timelineIconDelete: {
+    backgroundColor: '#F8D7DA',
+    borderColor: '#DC3545',
+    color: '#DC3545',
+  },
+  
+  timelineIconUpdate: {
     backgroundColor: '#FFF3CD',
     borderColor: '#FFC107',
     color: '#856404',
@@ -266,7 +287,8 @@ export default function History() {
   }, [])
   
   const getIcon = (type) => {
-    switch (type) {
+    const lowerType = type?.toLowerCase()
+    switch (lowerType) {
       case 'borrow':
         return <ArrowExportLtr24Regular />
       case 'return':
@@ -275,34 +297,49 @@ export default function History() {
       case 'missing':
         return <Warning24Regular />
       case 'found':
-        return <Checkmark24Regular />
+        return <ArrowUndo24Regular />
       case 'delete':
-        return <Delete24Regular />
+        return <Dismiss24Regular />
+      case 'location_change':
+        return <ArrowSync24Regular />
+      case 'update':
+        return <ArrowSync24Regular />
+      case 'create':
+        return <Add24Regular />
       default:
+        console.log('Unknown transaction type:', type)
         return <Clock24Regular />
     }
   }
   
   const getIconClass = (type) => {
-    switch (type) {
+    const lowerType = type?.toLowerCase()
+    switch (lowerType) {
       case 'borrow':
-        return styles.timelineIconBorrow
-      case 'return':
         return styles.timelineIconReturn
+      case 'return':
+        return styles.timelineIconBorrow
       case 'report_missing':
       case 'missing':
         return styles.timelineIconMissing
       case 'found':
-        return styles.timelineIconBorrow // Grün wie borrow
+        return styles.timelineIconBorrow // Grün
       case 'delete':
-        return styles.timelineIconReturn // Rot wie return
+        return styles.timelineIconDelete // Rot
+      case 'location_change':
+        return styles.timelineIconUpdate // Gelb
+      case 'update':
+        return styles.timelineIconUpdate // Gelb
+      case 'create':
+        return styles.timelineIconCreate // Grün
       default:
         return ''
     }
   }
   
   const getTypeText = (type) => {
-    switch (type) {
+    const lowerType = type?.toLowerCase()
+    switch (lowerType) {
       case 'borrow':
         return 'Herausgegeben'
       case 'return':
@@ -318,6 +355,8 @@ export default function History() {
         return 'Standort geändert'
       case 'update':
         return 'Aktualisiert'
+      case 'create':
+        return 'Erstellt'
       default:
         return type
     }

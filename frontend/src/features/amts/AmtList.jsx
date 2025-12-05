@@ -23,6 +23,7 @@ import {
   Input,
   Dropdown,
   Option,
+  Text,
 } from '@fluentui/react-components'
 import {
   Add24Regular,
@@ -83,7 +84,9 @@ export default function AmtList() {
   const [authenticated, setAuthenticated] = useState(false)
   const [createDialogOpen, setCreateDialogOpen] = useState(false)
   const [editDialogOpen, setEditDialogOpen] = useState(false)
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
   const [selectedAmt, setSelectedAmt] = useState(null)
+  const [amtToDelete, setAmtToDelete] = useState(null)
   const [formData, setFormData] = useState({ name: '', department_id: null })
 
   const loadAmts = async () => {
@@ -199,11 +202,16 @@ export default function AmtList() {
     }
   }
 
-  const handleDelete = async (amtId) => {
-    if (!confirm('Are you sure you want to delete this amt?')) return
+  const handleDeleteAmt = (amt) => {
+    setAmtToDelete(amt)
+    setDeleteDialogOpen(true)
+  }
+
+  const handleDeleteConfirm = async () => {
+    if (!amtToDelete) return
     
     try {
-      const response = await fetch(`http://localhost:5001/api/amts/${amtId}`, {
+      const response = await fetch(`http://localhost:5001/api/amts/${amtToDelete.id}`, {
         method: 'DELETE',
         credentials: 'include',
       })
@@ -213,6 +221,8 @@ export default function AmtList() {
         throw new Error(errorData.error || 'Failed to delete amt')
       }
       
+      setDeleteDialogOpen(false)
+      setAmtToDelete(null)
       await loadAmts()
     } catch (err) {
       setError(err.message)
@@ -345,7 +355,7 @@ export default function AmtList() {
               { label: 'Amt', value: amt.name },
             ]}
             onEdit={() => openEditDialog(amt)}
-            onDelete={() => handleDelete(amt.id)}
+            onDelete={() => handleDeleteAmt(amt)}
           />
         ))}
       </ResponsiveGrid>
@@ -380,6 +390,35 @@ export default function AmtList() {
               </Button>
               <Button appearance="primary" onClick={handleUpdate}>
                 Save Changes
+              </Button>
+            </DialogActions>
+          </DialogBody>
+        </DialogSurface>
+      </Dialog>
+
+      {/* Delete Confirmation Dialog */}
+      <Dialog open={deleteDialogOpen} onOpenChange={(e, data) => setDeleteDialogOpen(data.open)}>
+        <DialogSurface>
+          <DialogBody>
+            <DialogTitle>Amt löschen</DialogTitle>
+            <DialogContent>
+              <Text>
+                Möchten Sie das Amt <strong>{amtToDelete?.name}</strong> wirklich löschen?
+              </Text>
+            </DialogContent>
+            <DialogActions>
+              <Button
+                appearance="secondary"
+                onClick={() => setDeleteDialogOpen(false)}
+              >
+                Abbrechen
+              </Button>
+              <Button 
+                appearance="primary" 
+                onClick={handleDeleteConfirm}
+                style={{ backgroundColor: tokens.colorPaletteRedBackground3 }}
+              >
+                Löschen
               </Button>
             </DialogActions>
           </DialogBody>
