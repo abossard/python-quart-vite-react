@@ -88,17 +88,27 @@ const useStyles = makeStyles({
     },
   },
   
-  logoPlaceholder: {
-    width: '40px',
-    height: '40px',
-    backgroundColor: tokens.colorBrandBackground,
-    borderRadius: tokens.borderRadiusMedium,
+  logoContainer: {
     display: 'flex',
     alignItems: 'center',
-    justifyContent: 'center',
-    color: tokens.colorNeutralForegroundOnBrand,
-    fontWeight: tokens.fontWeightBold,
-    fontSize: '18px',
+  },
+  
+  logoDesktop: {
+    height: '40px',
+    width: 'auto',
+    display: 'block',
+    [mediaQueries.mobile]: {
+      display: 'none',
+    },
+  },
+  
+  logoMobile: {
+    height: '40px',
+    width: 'auto',
+    display: 'none',
+    [mediaQueries.mobile]: {
+      display: 'block',
+    },
   },
   
   amtsbezeichnung: {
@@ -113,11 +123,11 @@ const useStyles = makeStyles({
   },
   
   brandText: {
-    fontSize: '24px',
-    fontWeight: tokens.fontWeightSemibold,
+    fontSize: '18px',
+    fontWeight: '700',
     color: tokens.colorNeutralForeground1,
     [mediaQueries.mobile]: {
-      fontSize: '20px',
+      fontSize: '18px',
     },
   },
   
@@ -125,28 +135,45 @@ const useStyles = makeStyles({
     display: 'flex',
     gap: tokens.spacingHorizontalS,
     flex: 1,
+    justifyContent: 'flex-end',
     [mediaQueries.mobile]: {
       display: 'none', // Verstecke auf Mobile (nur Hamburger)
     },
   },
   
   navButton: {
-    borderRadius: tokens.borderRadiusMedium,
+    padding: '10px 16px',
+    fontSize: '18px',
+    fontWeight: '400',
+    borderRadius: '6px',
     border: `1px solid ${tokens.colorNeutralStroke1}`,
     backgroundColor: tokens.colorNeutralBackground1,
     boxShadow: tokens.shadow4,
+    transition: 'all 0.15s ease',
+    cursor: 'pointer',
+    color: tokens.colorNeutralForeground1,
     ':hover': {
+      backgroundColor: '#0d6efd',
+      color: '#ffffff',
       boxShadow: tokens.shadow8,
-      borderColor: tokens.colorNeutralStroke2,
+      borderColor: '#0d6efd',
     },
   },
   
   navButtonActive: {
-    backgroundColor: tokens.colorBrandBackground,
-    color: tokens.colorNeutralForegroundOnBrand,
-    borderColor: tokens.colorBrandBackground,
+    padding: '10px 16px',
+    fontSize: '18px',
+    fontWeight: '400',
+    borderRadius: '6px',
+    border: '1px solid #0d6efd',
+    backgroundColor: '#0d6efd',
+    color: '#ffffff',
+    boxShadow: tokens.shadow4,
+    cursor: 'pointer',
     ':hover': {
-      backgroundColor: tokens.colorBrandBackgroundHover,
+      backgroundColor: '#0d6efd',
+      color: '#ffffff',
+      borderColor: '#0d6efd',
     },
   },
   
@@ -163,6 +190,11 @@ const useStyles = makeStyles({
   
   searchInput: {
     minWidth: '250px',
+    height: '38px',
+    fontSize: '14px',
+    fontWeight: '400',
+    padding: '10px 16px',
+    borderRadius: '6px',
     [mediaQueries.mobile]: {
       minWidth: 'auto',
       flex: 1,
@@ -171,6 +203,10 @@ const useStyles = makeStyles({
   
   hamburgerButton: {
     boxShadow: tokens.shadow8,
+    height: '38px',
+    width: '38px',
+    minHeight: '38px',
+    minWidth: '38px',
   },
   
   mainContent: {
@@ -193,28 +229,106 @@ const useStyles = makeStyles({
   },
   
   menuGreeting: {
-    padding: `${tokens.spacingVerticalS} ${tokens.spacingHorizontalM}`,
-    color: tokens.colorNeutralForeground3,
-    fontSize: '12px',
+    padding: '8px 16px',
+    color: '#6c757d',
+    fontSize: '11px',
+    fontWeight: '600',
+    textTransform: 'uppercase',
+    letterSpacing: '0.5px',
+    cursor: 'default',
+    pointerEvents: 'none',
   },
   
   menuLabel: {
-    padding: `${tokens.spacingVerticalS} ${tokens.spacingHorizontalM}`,
-    color: tokens.colorNeutralForeground3,
+    padding: '8px 16px',
+    color: '#6c757d',
     fontSize: '11px',
-    fontWeight: tokens.fontWeightSemibold,
+    fontWeight: '600',
+    textTransform: 'uppercase',
+    letterSpacing: '0.5px',
+    cursor: 'default',
+    pointerEvents: 'none',
+  },
+  
+  menuItemBase: {
+    padding: '10px 16px',
+    cursor: 'pointer',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    fontSize: '18px',
+    border: 'none',
+    backgroundColor: 'transparent',
+    transition: 'all 0.15s ease',
+    ':hover': {
+      backgroundColor: '#0d6efd',
+      color: '#ffffff',
+    },
   },
   
   menuItemActive: {
-    backgroundColor: tokens.colorBrandBackground,
-    color: tokens.colorNeutralForegroundOnBrand,
+    backgroundColor: '#0d6efd',
+    color: '#ffffff',
+    padding: '10px 16px',
+    ':hover': {
+      backgroundColor: '#0d6efd',
+      color: '#ffffff',
+    },
+  },
+  
+  menuItemMuted: {
+    color: '#6c757d',
+    padding: '10px 16px',
+    display: 'flex !important',
+    flexDirection: 'row !important',
+    alignItems: 'center !important',
+    justifyContent: 'space-between !important',
+    flexWrap: 'nowrap !important',
+    whiteSpace: 'nowrap',
+    width: '100%',
+    ':hover': {
+      backgroundColor: '#0d6efd',
+      color: '#ffffff',
+    },
   },
   
   menuItemDanger: {
-    color: tokens.colorPaletteRedForeground1,
+    color: '#dc3545',
+    padding: '10px 16px',
+    display: 'flex !important',
+    flexDirection: 'row !important',
+    alignItems: 'center !important',
+    justifyContent: 'space-between !important',
+    flexWrap: 'nowrap !important',
+    whiteSpace: 'nowrap',
+    width: '100%',
     ':hover': {
-      backgroundColor: statusBackgrounds.dangerSubtle,
+      backgroundColor: '#dc3545',
+      color: '#ffffff',
     },
+  },
+  
+  menuItemContent: {
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    width: '100%',
+    flexWrap: 'nowrap',
+  },
+  
+  menuDivider: {
+    height: '1px',
+    backgroundColor: '#d2d2d2',
+    margin: '8px 0',
+    border: 'none',
+  },
+  
+  menuIcon: {
+    width: '18px',
+    height: '18px',
+    flexShrink: 0,
+    display: 'flex',
+    alignItems: 'center',
   },
 })
 
@@ -309,25 +423,32 @@ export default function AppShell({ children, currentPage, onNavigate }) {
         <div className={styles.headerContent}>
           {/* Brand Block */}
           <div className={styles.brandBlock}>
-            <div className={styles.logoPlaceholder}>CH</div>
-            <div className={styles.amtsbezeichnung}>
-              <span>Eidgenössisches</span>
-              <span>Departement für XYZ</span>
+            <div className={styles.logoContainer}>
+              <img 
+                src="/images/logo-desktop.png" 
+                alt="Logo" 
+                className={styles.logoDesktop}
+              />
+              <img 
+                src="/images/logo-mobile.svg" 
+                alt="Logo" 
+                className={styles.logoMobile}
+              />
             </div>
-            <div className={styles.brandText}>Grabit</div>
           </div>
+          
+          <div className={styles.brandText}>Grabit</div>
           
           {/* Navigation Pills (nur Desktop/Tablet) */}
           <nav className={styles.navigation}>
             {navItems.map((item) => (
-              <Button
+              <button
                 key={item.key}
-                appearance="subtle"
-                className={`${styles.navButton} ${currentPage === item.key ? styles.navButtonActive : ''}`}
+                className={currentPage === item.key ? styles.navButtonActive : styles.navButton}
                 onClick={() => onNavigate(item.key)}
               >
                 {item.label}
-              </Button>
+              </button>
             ))}
           </nav>
           
@@ -364,12 +485,17 @@ export default function AppShell({ children, currentPage, onNavigate }) {
               </MenuTrigger>
               
               <MenuPopover>
-                <div className={styles.menuLabel}>Verwaltung</div>
-                <MenuList>
-                  {adminItems.map((item) => (
+                <MenuList style={{ padding: '8px 0', minWidth: '220px' }}>
+                  {/* Greeting Header */}
+                  <div className={styles.menuGreeting}>
+                    Hallo {currentUser?.username || 'User'}
+                  </div>
+                  
+                  {/* Navigation Items */}
+                  {navItems.map((item) => (
                     <MenuItem
                       key={item.key}
-                      className={currentPage === item.key ? styles.menuItemActive : ''}
+                      className={currentPage === item.key ? styles.menuItemActive : styles.menuItemBase}
                       onClick={() => {
                         onNavigate(item.key)
                         setMenuOpen(false)
@@ -379,22 +505,56 @@ export default function AppShell({ children, currentPage, onNavigate }) {
                     </MenuItem>
                   ))}
                   
-                  <MenuDivider />
+                  <div className={styles.menuDivider}></div>
                   
+                  {/* Section Label */}
+                  <div className={styles.menuLabel}>Verwaltung</div>
+                  
+                  {/* Admin Items */}
+                  {adminItems.map((item) => (
+                    <MenuItem
+                      key={item.key}
+                      className={currentPage === item.key ? styles.menuItemActive : styles.menuItemBase}
+                      onClick={() => {
+                        onNavigate(item.key)
+                        setMenuOpen(false)
+                      }}
+                    >
+                      {item.label}
+                    </MenuItem>
+                  ))}
+                  
+                  <div className={styles.menuDivider}></div>
+                  
+                  {/* Standort ändern */}
                   <MenuItem 
-                    icon={<Location24Regular />}
+                    className={styles.menuItemMuted}
                     onClick={() => {
                       setSelectedLocation(currentUser?.location_id?.toString() || '')
                       setLocationDialogOpen(true)
+                      setMenuOpen(false)
                     }}
                   >
-                    Standort ändern
+                    <div className={styles.menuItemContent}>
+                      <span>Standort ändern</span>
+                      <ArrowSwap24Regular className={styles.menuIcon} />
+                    </div>
                   </MenuItem>
+                  
+                  <div className={styles.menuDivider}></div>
+                  
+                  {/* Abmelden */}
                   <MenuItem
-                    icon={<SignOut24Regular />}
                     className={styles.menuItemDanger}
+                    onClick={() => {
+                      // TODO: Implement logout
+                      setMenuOpen(false)
+                    }}
                   >
-                    Abmelden
+                    <div className={styles.menuItemContent}>
+                      <span>Abmelden</span>
+                      <SignOut24Regular className={styles.menuIcon} />
+                    </div>
                   </MenuItem>
                 </MenuList>
               </MenuPopover>
