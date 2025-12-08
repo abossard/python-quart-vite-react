@@ -285,21 +285,14 @@ export default function Dashboard({ searchValue = '' }) {
               fields.push({ label: 'Standort', value: device.location.name })
             }
             
-            // Organisation text (Department / Amt)
-            let orgText = '-'
-            if (device.department?.name && device.amt?.name) {
-              orgText = `${device.department.name} / ${device.amt.name}`
-            } else if (device.department?.name) {
-              orgText = device.department.name
-            }
-            
             return (
               <DeviceLoanCard
                 key={device.id}
                 category={device.device_type || 'Gerät'}
                 subtitle={device.model ? `${device.manufacturer || ''} ${device.model}`.trim() : device.manufacturer || '-'}
                 fields={fields}
-                orgText={orgText}
+                department={device.department?.name}
+                amt={device.amt?.name}
                 status={device.status === 'available' ? 'available' : 'issued'}
                 borrowerName={device.borrower_name || null}
                 onIssueClick={() => handleIssueClick(device)}

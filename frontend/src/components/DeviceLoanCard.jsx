@@ -120,7 +120,14 @@ const useStyles = makeStyles({
   orgText: {
     fontSize: '13px',
     color: '#495057',
+  },
+  
+  orgDepartment: {
     fontWeight: '700',
+  },
+  
+  orgAmt: {
+    fontWeight: '400',
   },
   
   actionButton: {
@@ -158,7 +165,8 @@ export default function DeviceLoanCard({
   category,
   subtitle,
   fields = [],
-  orgText,
+  department,
+  amt,
   status = 'available',
   borrowerName = null,
   onIssueClick,
@@ -210,7 +218,21 @@ export default function DeviceLoanCard({
       
       {/* Footer mit Organisation und Action-Button */}
       <div className={styles.footer}>
-        <div className={styles.orgText}>{orgText}</div>
+        <div className={styles.orgText}>
+          {department && amt ? (
+            <>
+              <span className={styles.orgDepartment}>{department}</span>
+              {' / '}
+              <span className={styles.orgAmt}>{amt}</span>
+            </>
+          ) : department ? (
+            <span className={styles.orgDepartment}>{department}</span>
+          ) : amt ? (
+            <span className={styles.orgAmt}>{amt}</span>
+          ) : (
+            '-'
+          )}
+        </div>
         
         {isAvailable ? (
           <button 
