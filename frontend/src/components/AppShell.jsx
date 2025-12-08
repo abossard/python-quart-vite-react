@@ -83,8 +83,7 @@ const useStyles = makeStyles({
     paddingRight: tokens.spacingHorizontalL,
     borderRight: `1px solid ${tokens.colorNeutralStroke2}`,
     [mediaQueries.mobile]: {
-      borderRight: 'none',
-      paddingRight: 0,
+      paddingRight: tokens.spacingHorizontalM,
     },
   },
   
@@ -188,17 +187,58 @@ const useStyles = makeStyles({
     },
   },
   
-  searchInput: {
+  searchWrapper: {
     minWidth: '250px',
-    height: '38px',
-    fontSize: '14px',
-    fontWeight: '400',
-    padding: '10px 16px',
+    height: '42px',
+    display: 'flex',
+    alignItems: 'stretch',
+    backgroundColor: '#ffffff',
+    border: `1px solid ${tokens.colorNeutralStroke1}`,
     borderRadius: '6px',
+    boxShadow: tokens.shadow4,
+    overflow: 'hidden',
     [mediaQueries.mobile]: {
       minWidth: 'auto',
       flex: 1,
     },
+  },
+  
+  searchInput: {
+    flex: 1,
+    height: '100%',
+    fontSize: '18px',
+    fontWeight: '400',
+    padding: '0 14px',
+    border: 'none',
+    outline: 'none',
+    backgroundColor: 'transparent',
+    color: tokens.colorNeutralForeground1,
+    '::placeholder': {
+      color: '#6c757d',
+    },
+  },
+  
+  searchClearButton: {
+    width: '48px',
+    height: '100%',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#0d6efd',
+    border: 'none',
+    borderLeft: '1px solid #dee2e6',
+    cursor: 'pointer',
+    padding: 0,
+    transition: 'background-color 0.15s ease',
+    ':hover': {
+      backgroundColor: '#0b5ed7',
+    },
+  },
+  
+  searchIcon: {
+    color: '#ffffff',
+    width: '20px',
+    height: '20px',
   },
   
   hamburgerButton: {
@@ -454,23 +494,22 @@ export default function AppShell({ children, currentPage, onNavigate }) {
           
           {/* Search */}
           <div className={styles.searchContainer}>
-            <Input
-              className={styles.searchInput}
-              placeholder="Suche..."
-              value={searchValue}
-              onChange={(e) => setSearchValue(e.target.value)}
-              contentBefore={<Search24Regular />}
-              contentAfter={
-                searchValue && (
-                  <Button
-                    appearance="primary"
-                    size="small"
-                    icon={<Dismiss24Regular />}
-                    onClick={() => setSearchValue('')}
-                  />
-                )
-              }
-            />
+            <div className={styles.searchWrapper}>
+              <input
+                type="text"
+                className={styles.searchInput}
+                placeholder="Suche…"
+                value={searchValue}
+                onChange={(e) => setSearchValue(e.target.value)}
+              />
+              <button
+                className={styles.searchClearButton}
+                onClick={() => setSearchValue('')}
+                aria-label="Suche löschen"
+              >
+                <Dismiss24Regular className={styles.searchIcon} />
+              </button>
+            </div>
             
             {/* Admin Menu (Verwaltung) - visible on all screen sizes */}
             <Menu open={menuOpen} onOpenChange={(e, data) => setMenuOpen(data.open)}>
