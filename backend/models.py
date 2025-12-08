@@ -80,6 +80,7 @@ class Department(DepartmentBase):
 class AmtBase(BaseModel):
     """Base amt (office) model with common fields"""
     name: str = Field(..., max_length=100)
+    full_name: Optional[str] = Field(None, max_length=255)
     department_id: int = Field(..., gt=0)
 
 

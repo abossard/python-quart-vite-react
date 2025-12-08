@@ -1536,7 +1536,7 @@ async def list_amts():
         db = get_db()
         cursor = await db.cursor()
         await cursor.execute("""
-            SELECT a.id, a.name, a.department_id, d.name as dept_name, d.full_name as dept_full_name
+            SELECT a.id, a.name, a.full_name, a.department_id, d.name as dept_name, d.full_name as dept_full_name
             FROM amt a
             LEFT JOIN departments d ON a.department_id = d.id
             ORDER BY a.name
@@ -1549,8 +1549,9 @@ async def list_amts():
             {
                 'id': row[0],
                 'name': row[1],
-                'department_id': row[2],
-                'department': {'id': row[2], 'name': row[3], 'full_name': row[4]} if row[2] else None
+                'full_name': row[2],
+                'department_id': row[3],
+                'department': {'id': row[3], 'name': row[4], 'full_name': row[5]} if row[3] else None
             }
             for row in rows
         ]
@@ -1568,7 +1569,7 @@ async def get_amt(amt_id):
         db = get_db()
         cursor = await db.cursor()
         await cursor.execute("""
-            SELECT a.id, a.name, a.department_id, d.name as dept_name, d.full_name as dept_full_name
+            SELECT a.id, a.name, a.full_name, a.department_id, d.name as dept_name, d.full_name as dept_full_name
             FROM amt a
             LEFT JOIN departments d ON a.department_id = d.id
             WHERE a.id = ?
@@ -1583,8 +1584,9 @@ async def get_amt(amt_id):
         return jsonify({
             'id': row[0],
             'name': row[1],
-            'department_id': row[2],
-            'department': {'id': row[2], 'name': row[3], 'full_name': row[4]} if row[2] else None
+            'full_name': row[2],
+            'department_id': row[3],
+            'department': {'id': row[3], 'name': row[4], 'full_name': row[5]} if row[3] else None
         }), 200
         
     except Exception as e:
@@ -1598,6 +1600,7 @@ async def create_amt():
     try:
         data = await request.get_json()
         name = data.get('name')
+        full_name = data.get('full_name')
         department_id = data.get('department_id')
         
         if not name:
@@ -1620,12 +1623,12 @@ async def create_amt():
             await cursor.close()
             return jsonify({'error': 'Amt already exists'}), 400
         
-        await cursor.execute("INSERT INTO amt (name, department_id) VALUES (?, ?)", (name, department_id))
+        await cursor.execute("INSERT INTO amt (name, full_name, department_id) VALUES (?, ?, ?)", (name, full_name, department_id))
         amt_id = cursor.lastrowid
         await db.commit()
         await cursor.close()
         
-        amt_data = {'id': amt_id, 'name': name, 'department_id': department_id}
+        amt_data = {'id': amt_id, 'name': name, 'full_name': full_name, 'department_id': department_id}
         
         # Broadcast event to all clients
         await broadcast_event(EventType.AMT_CREATED, amt_data)
@@ -1643,6 +1646,7 @@ async def update_amt(amt_id):
     try:
         data = await request.get_json()
         name = data.get('name')
+        full_name = data.get('full_name')
         department_id = data.get('department_id')
         
         if not name:
@@ -1665,11 +1669,11 @@ async def update_amt(amt_id):
             await cursor.close()
             return jsonify({'error': 'Department not found'}), 404
         
-        await cursor.execute("UPDATE amt SET name = ?, department_id = ? WHERE id = ?", (name, department_id, amt_id))
+        await cursor.execute("UPDATE amt SET name = ?, full_name = ?, department_id = ? WHERE id = ?", (name, full_name, department_id, amt_id))
         await db.commit()
         await cursor.close()
         
-        amt_data = {'id': amt_id, 'name': name, 'department_id': department_id}
+        amt_data = {'id': amt_id, 'name': name, 'full_name': full_name, 'department_id': department_id}
         
         # Broadcast event to all clients
         await broadcast_event(EventType.AMT_UPDATED, amt_data)

@@ -87,7 +87,7 @@ export default function AmtList() {
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
   const [selectedAmt, setSelectedAmt] = useState(null)
   const [amtToDelete, setAmtToDelete] = useState(null)
-  const [formData, setFormData] = useState({ name: '', department_id: null })
+  const [formData, setFormData] = useState({ name: '', full_name: '', department_id: null })
 
   const loadAmts = async () => {
     try {
@@ -171,7 +171,7 @@ export default function AmtList() {
       }
       
       setCreateDialogOpen(false)
-      setFormData({ name: '', department_id: null })
+      setFormData({ name: '', full_name: '', department_id: null })
       await loadAmts()
     } catch (err) {
       setError(err.message)
@@ -231,7 +231,7 @@ export default function AmtList() {
 
   const openEditDialog = (amt) => {
     setSelectedAmt(amt)
-    setFormData({ name: amt.name, department_id: amt.department_id })
+    setFormData({ name: amt.name, full_name: amt.full_name || '', department_id: amt.department_id })
     setEditDialogOpen(true)
   }
 
@@ -296,13 +296,20 @@ export default function AmtList() {
             </DialogTrigger>
             <DialogSurface>
               <DialogBody>
-                <DialogTitle>Create New Amt</DialogTitle>
+                <DialogTitle>Neues Amt erstellen</DialogTitle>
                 <DialogContent>
-                  <Field label="Amt Name" required>
+                  <Field label="Kürzel" required>
                     <Input
                       value={formData.name}
                       onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                      placeholder="Enter amt name"
+                      placeholder="z.B. BIT"
+                    />
+                  </Field>
+                  <Field label="Ausgeschriebener Name" style={{ marginTop: tokens.spacingVerticalM }}>
+                    <Input
+                      value={formData.full_name}
+                      onChange={(e) => setFormData({ ...formData, full_name: e.target.value })}
+                      placeholder="z.B. Bundesamt für Informatik und Telekommunikation"
                     />
                   </Field>
                   <Field label="Department" required style={{ marginTop: tokens.spacingVerticalM }}>
@@ -358,10 +365,17 @@ export default function AmtList() {
           <DialogBody>
             <DialogTitle>Edit Amt</DialogTitle>
             <DialogContent>
-              <Field label="Amt Name" required>
+              <Field label="Kürzel" required>
                 <Input
                   value={formData.name}
                   onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                />
+              </Field>
+              <Field label="Ausgeschriebener Name" style={{ marginTop: tokens.spacingVerticalM }}>
+                <Input
+                  value={formData.full_name}
+                  onChange={(e) => setFormData({ ...formData, full_name: e.target.value })}
+                  placeholder="z.B. Bundesamt für Informatik und Telekommunikation"
                 />
               </Field>
               <Field label="Department" required style={{ marginTop: tokens.spacingVerticalM }}>
