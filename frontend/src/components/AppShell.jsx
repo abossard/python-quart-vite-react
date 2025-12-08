@@ -604,7 +604,7 @@ export default function AppShell({ children, currentPage, onNavigate }) {
       
       {/* Main Content */}
       <main className={styles.mainContent}>
-        {children}
+        {typeof children === 'function' ? children({ searchValue }) : children}
       </main>
       
       {/* Footer */}

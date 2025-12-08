@@ -49,9 +49,19 @@ const useStyles = makeStyles({
   },
 })
 
-export default function LocationList() {
+export default function LocationList({ searchValue = '' }) {
   const styles = useStyles()
   const [locations, setLocations] = useState([])
+  
+  // Filter locations based on search
+  const filteredLocations = locations.filter(location => {
+    if (!searchValue) return true
+    const search = searchValue.toLowerCase()
+    return (
+      location.name?.toLowerCase().includes(search) ||
+      location.address?.toLowerCase().includes(search)
+    )
+  })
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
   const [authenticated, setAuthenticated] = useState(false)
@@ -289,7 +299,7 @@ export default function LocationList() {
       )}
 
       <ResponsiveGrid>
-        {locations.map((location) => (
+        {filteredLocations.map((location) => (
           <AdminCard
             key={location.id}
             title={location.name}

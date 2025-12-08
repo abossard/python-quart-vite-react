@@ -100,12 +100,28 @@ const useStyles = makeStyles({
   },
 })
 
-export default function UserList() {
+export default function UserList({ searchValue = '' }) {
   const styles = useStyles()
   const [users, setUsers] = useState([])
   const [locations, setLocations] = useState([])
   const [departments, setDepartments] = useState([])
   const [amts, setAmts] = useState([])
+  
+  // Filter users based on search
+  const filteredUsers = users.filter(user => {
+    if (!searchValue) return true
+    const search = searchValue.toLowerCase()
+    return (
+      user.username?.toLowerCase().includes(search) ||
+      user.first_name?.toLowerCase().includes(search) ||
+      user.last_name?.toLowerCase().includes(search) ||
+      user.email?.toLowerCase().includes(search) ||
+      user.role?.toLowerCase().includes(search) ||
+      user.location?.name?.toLowerCase().includes(search) ||
+      user.department?.name?.toLowerCase().includes(search) ||
+      user.amt?.name?.toLowerCase().includes(search)
+    )
+  })
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
   const [authenticated, setAuthenticated] = useState(false)
@@ -523,7 +539,7 @@ export default function UserList() {
       )}
 
       <ResponsiveGrid>
-        {users.map((user) => (
+        {filteredUsers.map((user) => (
           <AdminCard
             key={user.id}
             title={user.username}

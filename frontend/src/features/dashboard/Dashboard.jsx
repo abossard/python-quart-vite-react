@@ -47,7 +47,7 @@ const useStyles = makeStyles({
   },
 })
 
-export default function Dashboard() {
+export default function Dashboard({ searchValue = '' }) {
   const styles = useStyles()
   const [devices, setDevices] = useState([])
   const [loading, setLoading] = useState(true)
@@ -57,6 +57,23 @@ export default function Dashboard() {
   const [selectedDevice, setSelectedDevice] = useState(null)
   const [detailDialogOpen, setDetailDialogOpen] = useState(false)
   const [detailDevice, setDetailDevice] = useState(null)
+  
+  // Filter devices based on search value
+  const filteredDevices = devices.filter(device => {
+    if (!searchValue) return true
+    const search = searchValue.toLowerCase()
+    return (
+      device.device_type?.toLowerCase().includes(search) ||
+      device.manufacturer?.toLowerCase().includes(search) ||
+      device.model?.toLowerCase().includes(search) ||
+      device.serial_number?.toLowerCase().includes(search) ||
+      device.inventory_number?.toLowerCase().includes(search) ||
+      device.borrower_name?.toLowerCase().includes(search) ||
+      device.amt?.name?.toLowerCase().includes(search) ||
+      device.department?.name?.toLowerCase().includes(search) ||
+      device.location?.name?.toLowerCase().includes(search)
+    )
+  })
 
   // Load devices
   const loadDevices = async (showLoadingIndicator = true) => {
@@ -249,7 +266,7 @@ export default function Dashboard() {
         </div>
       ) : (
         <div className={styles.grid}>
-          {devices.map((device) => {
+          {filteredDevices.map((device) => {
             // Build fields array
             const fields = []
             

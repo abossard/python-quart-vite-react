@@ -178,11 +178,31 @@ const useStyles = makeStyles({
   },
 })
 
-export default function History() {
+export default function History({ searchValue = '' }) {
   const styles = useStyles()
   const [transactions, setTransactions] = useState([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
+  
+  // Filter transactions based on search
+  const filteredTransactions = transactions.filter(transaction => {
+    if (!searchValue) return true
+    const search = searchValue.toLowerCase()
+    return (
+      transaction.action?.toLowerCase().includes(search) ||
+      transaction.transaction_type?.toLowerCase().includes(search) ||
+      transaction.device_type?.toLowerCase().includes(search) ||
+      transaction.manufacturer?.toLowerCase().includes(search) ||
+      transaction.model?.toLowerCase().includes(search) ||
+      transaction.serial_number?.toLowerCase().includes(search) ||
+      transaction.inventory_number?.toLowerCase().includes(search) ||
+      transaction.user_name?.toLowerCase().includes(search) ||
+      transaction.borrower_name?.toLowerCase().includes(search) ||
+      transaction.location?.toLowerCase().includes(search) ||
+      transaction.department?.toLowerCase().includes(search) ||
+      transaction.amt?.toLowerCase().includes(search)
+    )
+  })
 
   // Mock data for demonstration
   const loadHistory = async () => {
@@ -398,7 +418,7 @@ export default function History() {
         </div>
       ) : (
         <div className={styles.timeline}>
-          {transactions.map((transaction) => (
+          {filteredTransactions.map((transaction) => (
             <div key={transaction.id} className={styles.timelineItem}>
               <div className={`${styles.timelineIcon} ${getIconClass(transaction.transaction_type)}`}>
                 {getIcon(transaction.transaction_type)}

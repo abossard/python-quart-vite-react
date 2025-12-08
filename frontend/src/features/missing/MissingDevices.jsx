@@ -74,11 +74,29 @@ const useStyles = makeStyles({
   },
 })
 
-export default function MissingDevices() {
+export default function MissingDevices({ searchValue = '' }) {
   const styles = useStyles()
   const [devices, setDevices] = useState([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
+  
+  // Filter devices based on search
+  const filteredDevices = devices.filter(device => {
+    if (!searchValue) return true
+    const search = searchValue.toLowerCase()
+    return (
+      device.device_type?.toLowerCase().includes(search) ||
+      device.manufacturer?.toLowerCase().includes(search) ||
+      device.model?.toLowerCase().includes(search) ||
+      device.serial_number?.toLowerCase().includes(search) ||
+      device.inventory_number?.toLowerCase().includes(search) ||
+      device.reported_by?.toLowerCase().includes(search) ||
+      device.resolved_by?.toLowerCase().includes(search) ||
+      device.department?.name?.toLowerCase().includes(search) ||
+      device.amt?.name?.toLowerCase().includes(search) ||
+      device.notes?.toLowerCase().includes(search)
+    )
+  })
   const [detailDialogOpen, setDetailDialogOpen] = useState(false)
   const [selectedDevice, setSelectedDevice] = useState(null)
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
@@ -361,7 +379,7 @@ export default function MissingDevices() {
         </div>
       ) : (
         <ResponsiveGrid>
-          {devices.map((device) => {
+          {filteredDevices.map((device) => {
             const fields = []
             
             // Seriennummer

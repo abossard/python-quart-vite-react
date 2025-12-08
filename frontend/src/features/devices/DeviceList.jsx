@@ -97,10 +97,28 @@ const useStyles = makeStyles({
   },
 })
 
-export default function DeviceList() {
+export default function DeviceList({ searchValue = '' }) {
   const styles = useStyles()
   const [devices, setDevices] = useState([])
   const [stats, setStats] = useState(null)
+  
+  // Filter devices based on search
+  const filteredDevices = devices.filter(device => {
+    if (!searchValue) return true
+    const search = searchValue.toLowerCase()
+    return (
+      device.device_type?.toLowerCase().includes(search) ||
+      device.manufacturer?.toLowerCase().includes(search) ||
+      device.model?.toLowerCase().includes(search) ||
+      device.serial_number?.toLowerCase().includes(search) ||
+      device.inventory_number?.toLowerCase().includes(search) ||
+      device.location?.name?.toLowerCase().includes(search) ||
+      device.department?.name?.toLowerCase().includes(search) ||
+      device.amt?.name?.toLowerCase().includes(search) ||
+      device.borrower_name?.toLowerCase().includes(search) ||
+      device.notes?.toLowerCase().includes(search)
+    )
+  })
   const [locations, setLocations] = useState([])
   const [departments, setDepartments] = useState([])
   const [amts, setAmts] = useState([])
@@ -828,7 +846,7 @@ export default function DeviceList() {
       )}
 
       <ResponsiveGrid>
-        {devices.map((device) => (
+        {filteredDevices.map((device) => (
           <AdminCard
             key={device.id}
             title={`${device.device_type} - ${device.manufacturer}`}

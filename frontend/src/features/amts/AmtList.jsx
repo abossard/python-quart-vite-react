@@ -75,10 +75,21 @@ const useStyles = makeStyles({
   },
 })
 
-export default function AmtList() {
+export default function AmtList({ searchValue = '' }) {
   const styles = useStyles()
   const [amts, setAmts] = useState([])
   const [departments, setDepartments] = useState([])
+  
+  // Filter amts based on search
+  const filteredAmts = amts.filter(amt => {
+    if (!searchValue) return true
+    const search = searchValue.toLowerCase()
+    return (
+      amt.name?.toLowerCase().includes(search) ||
+      amt.full_name?.toLowerCase().includes(search) ||
+      amt.department?.name?.toLowerCase().includes(search)
+    )
+  })
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
   const [authenticated, setAuthenticated] = useState(false)
@@ -345,7 +356,7 @@ export default function AmtList() {
       )}
 
       <ResponsiveGrid>
-        {amts.map((amt) => (
+        {filteredAmts.map((amt) => (
           <AdminCard
             key={amt.id}
             title={`${amt.department?.name || '-'} / ${amt.name}`}

@@ -49,10 +49,20 @@ const useStyles = makeStyles({
   },
 })
 
-export default function DepartmentList() {
+export default function DepartmentList({ searchValue = '' }) {
   const styles = useStyles()
   const navigate = useNavigate()
   const [departments, setDepartments] = useState([])
+  
+  // Filter departments based on search
+  const filteredDepartments = departments.filter(dept => {
+    if (!searchValue) return true
+    const search = searchValue.toLowerCase()
+    return (
+      dept.name?.toLowerCase().includes(search) ||
+      dept.full_name?.toLowerCase().includes(search)
+    )
+  })
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
   const [authenticated, setAuthenticated] = useState(false)
@@ -292,7 +302,7 @@ export default function DepartmentList() {
       )}
 
       <ResponsiveGrid>
-        {departments.map((dept) => (
+        {filteredDepartments.map((dept) => (
           <AdminCard
             key={dept.id}
             title={dept.name}

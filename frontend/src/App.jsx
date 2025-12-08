@@ -57,18 +57,20 @@ export default function App() {
 
   return (
     <AppShell currentPage={currentPage} onNavigate={handleNavigate}>
-      <Routes>
-        <Route path="/" element={<Navigate to="/dashboard" replace />} />
-        <Route path="/dashboard" element={<Dashboard />} />
-        <Route path="/history" element={<History />} />
-        <Route path="/missing" element={<MissingDevices />} />
-        <Route path="/devices" element={<DeviceList />} />
-        <Route path="/users" element={<UserList />} />
-        <Route path="/departments" element={<DepartmentList />} />
-        <Route path="/amts" element={<AmtList />} />
-        <Route path="/locations" element={<LocationList />} />
-        <Route path="*" element={<Navigate to="/dashboard" replace />} />
-      </Routes>
+      {({ searchValue }) => (
+        <Routes>
+          <Route path="/" element={<Navigate to="/dashboard" replace />} />
+          <Route path="/dashboard" element={<Dashboard searchValue={searchValue} />} />
+          <Route path="/history" element={<History searchValue={searchValue} />} />
+          <Route path="/missing" element={<MissingDevices searchValue={searchValue} />} />
+          <Route path="/devices" element={<DeviceList searchValue={searchValue} />} />
+          <Route path="/users" element={<UserList searchValue={searchValue} />} />
+          <Route path="/departments" element={<DepartmentList searchValue={searchValue} />} />
+          <Route path="/amts" element={<AmtList searchValue={searchValue} />} />
+          <Route path="/locations" element={<LocationList searchValue={searchValue} />} />
+          <Route path="*" element={<Navigate to="/dashboard" replace />} />
+        </Routes>
+      )}
     </AppShell>
   )
 }
