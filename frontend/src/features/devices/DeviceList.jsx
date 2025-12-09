@@ -101,6 +101,10 @@ export default function DeviceList({ searchValue = '' }) {
   const styles = useStyles()
   const [devices, setDevices] = useState([])
   const [stats, setStats] = useState(null)
+  const [currentUser, setCurrentUser] = useState(null)
+  
+  // Check if user has editor role or higher (editor, redakteur, admin)
+  const canEditDevices = currentUser && ['editor', 'redakteur', 'admin'].includes(currentUser.role)
   
   // Filter devices based on search
   const filteredDevices = devices.filter(device => {
@@ -228,9 +232,26 @@ export default function DeviceList({ searchValue = '' }) {
     }
   }
 
+  const loadCurrentUser = async () => {
+    try {
+      const response = await fetch('http://localhost:5001/api/auth/session', {
+        credentials: 'include',
+      })
+      
+      if (response.ok) {
+        const data = await response.json()
+        if (data.authenticated) {
+          setCurrentUser(data.user)
+        }
+      }
+    } catch (err) {
+      console.error('Failed to load current user:', err)
+    }
+  }
+
   const loadData = async () => {
     setLoading(true)
-    await Promise.all([loadDevices(), loadStats(), loadLocations(), loadDepartments(), loadAmts()])
+    await Promise.all([loadDevices(), loadStats(), loadLocations(), loadDepartments(), loadAmts(), loadCurrentUser()])
     setLoading(false)
   }
 
@@ -557,6 +578,8 @@ export default function DeviceList({ searchValue = '' }) {
             appearance="primary" 
             icon={<Add24Regular />}
             onClick={handleOpenCreateDialog}
+            disabled={!canEditDevices}
+            title={!canEditDevices ? "Nur Editor, Redakteur oder Admin können Geräte erstellen" : ""}
           >
             Add Device
           </Button>
@@ -867,6 +890,8 @@ export default function DeviceList({ searchValue = '' }) {
             onInfo={() => console.log('Device info:', device)}
             onEdit={() => handleEditDevice(device)}
             onDelete={() => handleDeleteDevice(device)}
+            disableEdit={!canEditDevices}
+            disableDelete={!canEditDevices}
           />
         ))}
       </ResponsiveGrid>

@@ -203,6 +203,8 @@ export default function AdminCard({
   onInfo,
   onEdit,
   onDelete,
+  disableEdit = false,
+  disableDelete = false,
   statusBackground = null, // 'danger' | 'success' | 'warning' | null
   children,
   detailData = null, // Data to show in detail dialog
@@ -240,9 +242,11 @@ export default function AdminCard({
                 appearance="primary"
                 icon={button.icon}
                 onClick={button.onClick}
+                disabled={button.disabled || false}
                 aria-label={button.title}
-                title={button.title}
+                title={button.disabled ? (button.disabledTitle || "Keine Berechtigung") : button.title}
                 className={styles[button.colorClass] || styles.infoButton}
+                style={{ opacity: button.disabled ? 0.5 : 1, cursor: button.disabled ? 'not-allowed' : 'pointer' }}
               />
             ))
           ) : (
@@ -262,9 +266,11 @@ export default function AdminCard({
                   appearance="primary"
                   icon={<Edit24Regular />}
                   onClick={onEdit}
+                  disabled={disableEdit}
                   aria-label="Bearbeiten"
-                  title="Bearbeiten"
+                  title={disableEdit ? "Keine Berechtigung zum Bearbeiten" : "Bearbeiten"}
                   className={styles.editButton}
+                  style={{ opacity: disableEdit ? 0.5 : 1, cursor: disableEdit ? 'not-allowed' : 'pointer' }}
                 />
               )}
               {onDelete && (
@@ -272,9 +278,11 @@ export default function AdminCard({
                   appearance="primary"
                   icon={<Delete24Regular />}
                   onClick={onDelete}
+                  disabled={disableDelete}
                   aria-label="Löschen"
-                  title="Löschen"
+                  title={disableDelete ? "Keine Berechtigung zum Löschen" : "Löschen"}
                   className={styles.deleteButton}
+                  style={{ opacity: disableDelete ? 0.5 : 1, cursor: disableDelete ? 'not-allowed' : 'pointer' }}
                 />
               )}
             </>

@@ -79,6 +79,10 @@ export default function MissingDevices({ searchValue = '' }) {
   const [devices, setDevices] = useState([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
+  const [currentUser, setCurrentUser] = useState(null)
+  
+  // Check if user has editor role or higher (editor, redakteur, admin)
+  const canEditDevices = currentUser && ['editor', 'redakteur', 'admin'].includes(currentUser.role)
   
   // Filter devices based on search
   const filteredDevices = devices.filter(device => {
@@ -199,11 +203,29 @@ export default function MissingDevices({ searchValue = '' }) {
     }
   }, [formData.department_id, amts])
 
+  const loadCurrentUser = async () => {
+    try {
+      const response = await fetch('http://localhost:5001/api/auth/session', {
+        credentials: 'include',
+      })
+      
+      if (response.ok) {
+        const data = await response.json()
+        if (data.authenticated) {
+          setCurrentUser(data.user)
+        }
+      }
+    } catch (err) {
+      console.error('Failed to load current user:', err)
+    }
+  }
+
   useEffect(() => {
     // Initial load with loading indicator
     loadMissingDevices(true)
     loadDepartments()
     loadAmts()
+    loadCurrentUser()
     
     // Reload every 10 seconds in background without loading indicator (smoother)
     const interval = setInterval(() => loadMissingDevices(false), 10000)
@@ -422,24 +444,31 @@ export default function MissingDevices({ searchValue = '' }) {
                     onClick: () => handleInfo(device),
                     title: 'Info',
                     colorClass: 'infoButton', // grau
+                    disabled: false, // Info immer erlaubt
                   },
                   {
                     icon: <Edit24Regular />,
                     onClick: () => handleEdit(device),
                     title: 'Bearbeiten',
                     colorClass: 'editButton', // blau
+                    disabled: !canEditDevices,
+                    disabledTitle: 'Nur Editor, Redakteur oder Admin können bearbeiten',
                   },
                   {
                     icon: <ArrowUndo24Regular />,
                     onClick: () => handleRestore(device),
                     title: 'Wiederherstellen (Gefunden)',
                     colorClass: 'restoreButton', // grün
+                    disabled: !canEditDevices,
+                    disabledTitle: 'Nur Editor, Redakteur oder Admin können wiederherstellen',
                   },
                   {
                     icon: <Delete24Regular />,
                     onClick: () => handleDeleteClick(device),
                     title: 'Löschen',
                     colorClass: 'deleteButton', // rot
+                    disabled: !canEditDevices,
+                    disabledTitle: 'Nur Editor, Redakteur oder Admin können löschen',
                   },
                 ]}
               />

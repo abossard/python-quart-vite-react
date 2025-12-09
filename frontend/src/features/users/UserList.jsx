@@ -134,6 +134,9 @@ export default function UserList({ searchValue = '' }) {
   const [userToDelete, setUserToDelete] = useState(null)
   const [formData, setFormData] = useState({
     username: '',
+    first_name: '',
+    last_name: '',
+    email: '',
     password: '',
     role: 'user',
     location_id: null,
@@ -263,6 +266,9 @@ export default function UserList({ searchValue = '' }) {
       setCreateDialogOpen(false)
       setFormData({
         username: '',
+        first_name: '',
+        last_name: '',
+        email: '',
         password: '',
         role: 'user',
         location_id: null,
@@ -460,6 +466,28 @@ export default function UserList({ searchValue = '' }) {
                           value={formData.username}
                           onChange={(e) => setFormData({ ...formData, username: e.target.value })}
                           placeholder="Enter username"
+                        />
+                      </Field>
+                      <Field label="First Name" required>
+                        <Input
+                          value={formData.first_name}
+                          onChange={(e) => setFormData({ ...formData, first_name: e.target.value })}
+                          placeholder="Enter first name"
+                        />
+                      </Field>
+                      <Field label="Last Name" required>
+                        <Input
+                          value={formData.last_name}
+                          onChange={(e) => setFormData({ ...formData, last_name: e.target.value })}
+                          placeholder="Enter last name"
+                        />
+                      </Field>
+                      <Field label="Email" required className={styles.fullWidth}>
+                        <Input
+                          type="email"
+                          value={formData.email}
+                          onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+                          placeholder="Enter email"
                         />
                       </Field>
                       <Field label="Password" required className={styles.fullWidth}>

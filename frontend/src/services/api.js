@@ -203,3 +203,20 @@ export async function changeUserLocation(userId, locationId) {
     body: JSON.stringify({ location_id: locationId }),
   })
 }
+
+// ============================================================================
+// Auth APIs
+// ============================================================================
+
+export async function getCurrentUser() {
+  const response = await fetch('http://localhost:5001/api/auth/session', {
+    credentials: 'include',
+  })
+  
+  if (!response.ok) {
+    return null
+  }
+  
+  const data = await response.json()
+  return data.authenticated ? data.user : null
+}
