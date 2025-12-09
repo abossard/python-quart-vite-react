@@ -19,8 +19,8 @@ import {
   MenuItem,
 } from '@fluentui/react-components'
 import {
-  Location24Regular,
-  Dismiss24Regular,
+  FilterDismissRegular,
+  HomeCheckmarkRegular,
 } from '@fluentui/react-icons'
 import DeviceLoanCard from '../../components/DeviceLoanCard'
 import IssueDeviceModal from '../../components/IssueDeviceModal'
@@ -36,7 +36,7 @@ const useStyles = makeStyles({
     fontSize: '28px',
     fontWeight: '700',
     color: tokens.colorNeutralForeground1,
-    marginBottom: '16px',
+    marginBottom: '52px',
   },
   
   filterBar: {
@@ -48,22 +48,26 @@ const useStyles = makeStyles({
   },
   
   locationButton: {
-    width: '40px',
-    height: '40px',
-    minWidth: '40px',
-    minHeight: '40px',
     padding: '0',
-    backgroundColor: '#0d6efd',
-    color: '#FFFFFF',
-    border: 'none',
+    fontSize: '18px',
+    fontWeight: '400',
     borderRadius: '6px',
+    border: '1px solid #0d6efd',
+    backgroundColor: '#0d6efd',
+    color: '#ffffff',
+    boxShadow: tokens.shadow4,
+    transition: 'all 0.15s ease',
     cursor: 'pointer',
     display: 'flex',
     alignItems: 'center',
     justifyContent: 'center',
-    transition: 'background-color 0.2s ease',
+    width: '42px',
+    height: '42px',
+    minWidth: '42px',
+    minHeight: '42px',
     ':hover': {
-      backgroundColor: '#0b5ed7',
+      backgroundColor: '#3d8bfd',
+      borderColor: '#3d8bfd',
     },
   },
   
@@ -75,41 +79,53 @@ const useStyles = makeStyles({
   },
   
   resetButton: {
-    width: '40px',
-    height: '40px',
-    minWidth: '40px',
-    minHeight: '40px',
     padding: '0',
-    backgroundColor: '#0d6efd',
-    color: '#FFFFFF',
-    border: 'none',
+    fontSize: '18px',
+    fontWeight: '400',
     borderRadius: '6px',
+    border: '1px solid #0d6efd',
+    backgroundColor: '#0d6efd',
+    color: '#ffffff',
+    boxShadow: tokens.shadow4,
+    transition: 'all 0.15s ease',
     cursor: 'pointer',
     display: 'flex',
     alignItems: 'center',
     justifyContent: 'center',
-    transition: 'background-color 0.2s ease',
+    width: '42px',
+    height: '42px',
+    minWidth: '42px',
+    minHeight: '42px',
     ':hover': {
-      backgroundColor: '#0b5ed7',
+      backgroundColor: '#3d8bfd',
+      borderColor: '#3d8bfd',
+    },
+  },
+  
+  activeMenuItem: {
+    backgroundColor: '#0d6efd',
+    color: '#ffffff',
+    ':hover': {
+      backgroundColor: '#3d8bfd',
     },
   },
   
   categoryButton: {
-    height: '38px',
-    padding: '0 14px',
-    backgroundColor: '#FFFFFF',
-    color: '#212529',
-    border: '1px solid #dee2e6',
-    borderRadius: '6px',
-    fontSize: '14px',
+    padding: '10px 16px',
+    fontSize: '18px',
     fontWeight: '400',
-    cursor: 'pointer',
-    transition: 'all 0.15s ease',
-    whiteSpace: 'nowrap',
+    borderRadius: '6px',
+    border: `1px solid ${tokens.colorNeutralStroke1}`,
+    backgroundColor: tokens.colorNeutralBackground1,
     boxShadow: tokens.shadow4,
+    transition: 'all 0.15s ease',
+    cursor: 'pointer',
+    color: tokens.colorNeutralForeground1,
+    whiteSpace: 'nowrap',
     ':hover': {
       backgroundColor: '#0d6efd',
       color: '#ffffff',
+      boxShadow: tokens.shadow8,
       borderColor: '#0d6efd',
     },
   },
@@ -434,18 +450,22 @@ export default function Dashboard({ searchValue = '' }) {
         <Menu>
           <MenuTrigger disableButtonEnhancement>
             <button className={styles.locationButton} aria-label="Standort wählen">
-              <Location24Regular style={{ width: '20px', height: '20px' }} />
+              <HomeCheckmarkRegular style={{ width: '20px', height: '20px' }} />
             </button>
           </MenuTrigger>
           <MenuPopover>
             <MenuList>
-              <MenuItem onClick={() => setSelectedLocationId(null)}>
+              <MenuItem 
+                onClick={() => setSelectedLocationId(null)}
+                className={selectedLocationId === null ? styles.activeMenuItem : ''}
+              >
                 Alle Standorte
               </MenuItem>
               {locations.map(location => (
                 <MenuItem 
                   key={location.id}
                   onClick={() => setSelectedLocationId(location.id)}
+                  className={selectedLocationId === location.id ? styles.activeMenuItem : ''}
                 >
                   {location.name}
                 </MenuItem>
@@ -463,7 +483,7 @@ export default function Dashboard({ searchValue = '' }) {
           onClick={() => setActiveCategory(null)}
           aria-label="Filter zurücksetzen"
         >
-          <Dismiss24Regular style={{ width: '20px', height: '20px' }} />
+          <FilterDismissRegular style={{ width: '20px', height: '20px' }} />
         </button>
         
         {/* Category filter buttons */}
