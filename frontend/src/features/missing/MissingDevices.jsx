@@ -415,7 +415,6 @@ export default function MissingDevices({ searchValue = '' }) {
                 key={device.id}
                 title={`${device.device_type || 'Gerät'} - ${device.manufacturer || ''}`}
                 fields={fields}
-                statusBackground="danger"
                 // Custom action buttons für vermisste Geräte
                 actionButtons={[
                   {
