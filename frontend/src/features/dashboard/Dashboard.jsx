@@ -19,8 +19,10 @@ import {
   MenuItem,
 } from '@fluentui/react-components'
 import {
+  FilterRegular,
   FilterDismissRegular,
   HomeCheckmarkRegular,
+  Dismiss20Regular,
 } from '@fluentui/react-icons'
 import DeviceLoanCard from '../../components/DeviceLoanCard'
 import IssueDeviceModal from '../../components/IssueDeviceModal'
@@ -66,8 +68,8 @@ const useStyles = makeStyles({
     minWidth: '42px',
     minHeight: '42px',
     ':hover': {
-      backgroundColor: '#3d8bfd',
-      borderColor: '#3d8bfd',
+      backgroundColor: '#0b5ed7',
+      borderColor: '#0b5ed7',
     },
   },
   
@@ -83,7 +85,7 @@ const useStyles = makeStyles({
     fontSize: '18px',
     fontWeight: '400',
     borderRadius: '6px',
-    border: '1px solid #0d6efd',
+    border: `1px solid ${tokens.colorNeutralStroke1}`,
     backgroundColor: '#0d6efd',
     color: '#ffffff',
     boxShadow: tokens.shadow4,
@@ -97,8 +99,18 @@ const useStyles = makeStyles({
     minWidth: '42px',
     minHeight: '42px',
     ':hover': {
-      backgroundColor: '#3d8bfd',
-      borderColor: '#3d8bfd',
+      backgroundColor: '#0b5ed7',
+      borderColor: '#0b5ed7',
+    },
+  },
+  
+  resetButtonActive: {
+    backgroundColor: '#dc3545',
+    borderColor: '#dc3545',
+    color: '#ffffff',
+    ':hover': {
+      backgroundColor: '#bb2d3b',
+      borderColor: '#bb2d3b',
     },
   },
   
@@ -134,9 +146,41 @@ const useStyles = makeStyles({
     backgroundColor: '#0d6efd',
     color: '#FFFFFF',
     borderColor: '#0d6efd',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: '0',
+    padding: '10px 0 10px 16px',
+    overflow: 'hidden',
+  },
+  
+  removeIconContainer: {
+    backgroundColor: '#ffffff',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    alignSelf: 'stretch',
+    padding: '0 12px',
+    marginLeft: '12px',
+    marginTop: '-10px',
+    marginBottom: '-10px',
+    marginRight: '-1px',
+    borderLeft: '1px solid rgba(255, 255, 255, 0.3)',
+    borderTopRightRadius: '6px',
+    borderBottomRightRadius: '6px',
+    transition: 'all 0.15s ease',
+    cursor: 'pointer',
     ':hover': {
-      backgroundColor: '#3d8bfd',
+      backgroundColor: '#f44336',
+      '& svg': {
+        color: '#ffffff',
+      },
     },
+  },
+  
+  removeIcon: {
+    color: '#dc3545',
+    fontSize: '16px',
   },
   
   grid: {
@@ -179,7 +223,7 @@ export default function Dashboard({ searchValue = '' }) {
   
   // Filter state
   const [selectedLocationId, setSelectedLocationId] = useState(null)
-  const [activeCategory, setActiveCategory] = useState(null)
+  const [activeCategories, setActiveCategories] = useState([])
   
   // Extract unique categories from devices
   const categories = [...new Set(devices.map(d => d.device_type).filter(Boolean))].sort()
@@ -195,8 +239,8 @@ export default function Dashboard({ searchValue = '' }) {
       return false
     }
     
-    // Category filter
-    if (activeCategory && device.device_type !== activeCategory) {
+    // Category filter - allow multiple selections
+    if (activeCategories.length > 0 && !activeCategories.includes(device.device_type)) {
       return false
     }
     
@@ -479,21 +523,40 @@ export default function Dashboard({ searchValue = '' }) {
         
         {/* Reset filter button */}
         <button 
-          className={styles.resetButton}
-          onClick={() => setActiveCategory(null)}
+          className={`${styles.resetButton} ${activeCategories.length > 0 ? styles.resetButtonActive : ''}`}
+          onClick={() => setActiveCategories([])}
           aria-label="Filter zurücksetzen"
         >
-          <FilterDismissRegular style={{ width: '20px', height: '20px' }} />
+          {activeCategories.length > 0 ? (
+            <FilterDismissRegular style={{ width: '20px', height: '20px' }} />
+          ) : (
+            <FilterRegular style={{ width: '20px', height: '20px' }} />
+          )}
         </button>
         
         {/* Category filter buttons */}
         {categories.map(category => (
           <button
             key={category}
-            className={`${styles.categoryButton} ${activeCategory === category ? styles.categoryButtonActive : ''}`}
-            onClick={() => setActiveCategory(activeCategory === category ? null : category)}
+            className={`${styles.categoryButton} ${activeCategories.includes(category) ? styles.categoryButtonActive : ''}`}
+            onClick={() => {
+              if (!activeCategories.includes(category)) {
+                setActiveCategories([...activeCategories, category])
+              }
+            }}
           >
-            {category}
+            <span>{category}</span>
+            {activeCategories.includes(category) && (
+              <div 
+                className={styles.removeIconContainer}
+                onClick={(e) => {
+                  e.stopPropagation()
+                  setActiveCategories(activeCategories.filter(c => c !== category))
+                }}
+              >
+                <Dismiss20Regular className={styles.removeIcon} />
+              </div>
+            )}
           </button>
         ))}
       </div>
