@@ -998,10 +998,11 @@ async def list_users():
         cursor = await db.cursor()
         
         await cursor.execute("""
-            SELECT u.id, u.username, u.role, u.location_id, u.department_id, u.amt_id, u.created_at,
+            SELECT u.id, u.username, u.first_name, u.last_name, u.email,
+                   u.role, u.location_id, u.department_id, u.amt_id, u.created_at,
                    l.id as loc_id, l.name as loc_name, l.address as loc_address,
                    d.id as dept_id, d.name as dept_name, d.full_name as dept_full_name,
-                   a.id as amt_id_join, a.name as amt_name
+                   a.id as amt_id_join, a.name as amt_name, a.full_name as amt_full_name
             FROM users u
             LEFT JOIN locations l ON u.location_id = l.id
             LEFT JOIN departments d ON u.department_id = d.id
@@ -1017,20 +1018,23 @@ async def list_users():
             user_data = {
                 'id': row[0],
                 'username': row[1],
-                'role': UserRole(row[2]),
-                'location_id': row[3],
-                'department_id': row[4],
-                'amt_id': row[5],
-                'created_at': datetime.fromisoformat(row[6]) if row[6] else datetime.now(),
+                'first_name': row[2],
+                'last_name': row[3],
+                'email': row[4],
+                'role': UserRole(row[5]),
+                'location_id': row[6],
+                'department_id': row[7],
+                'amt_id': row[8],
+                'created_at': datetime.fromisoformat(row[9]) if row[9] else datetime.now(),
             }
             
-            # Updated indices: loc (7,8,9), dept (10,11,12), amt (13,14)
-            if row[7]:
-                user_data['location'] = Location(id=row[7], name=row[8], address=row[9])
+            # Updated indices: loc (10,11,12), dept (13,14,15), amt (16,17,18)
             if row[10]:
-                user_data['department'] = Department(id=row[10], name=row[11], full_name=row[12])
+                user_data['location'] = Location(id=row[10], name=row[11], address=row[12])
             if row[13]:
-                user_data['amt'] = Amt(id=row[13], name=row[14], department_id=row[4] or 1)
+                user_data['department'] = Department(id=row[13], name=row[14], full_name=row[15])
+            if row[16]:
+                user_data['amt'] = Amt(id=row[16], name=row[17], full_name=row[18], department_id=row[7] or 1)
             
             users.append(User(**user_data))
         
@@ -1080,11 +1084,14 @@ async def create_user():
         now = datetime.now().isoformat()
         
         await cursor.execute("""
-            INSERT INTO users (username, password_hash, role, location_id, department_id, amt_id, created_at)
-            VALUES (?, ?, ?, ?, ?, ?, ?)
+            INSERT INTO users (username, first_name, last_name, email, password_hash, role, 
+                             location_id, department_id, amt_id, is_active, created_at, updated_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         """, (
-            user_data.username, password_hash, user_data.role.value,
-            user_data.location_id, user_data.department_id, user_data.amt_id, now
+            user_data.username, user_data.first_name, user_data.last_name, user_data.email,
+            password_hash, user_data.role.value,
+            user_data.location_id, user_data.department_id, user_data.amt_id,
+            True, now, now
         ))
         
         user_id = cursor.lastrowid
@@ -1130,6 +1137,15 @@ async def update_user(user_id: int):
         if update_data.username is not None:
             updates.append("username = ?")
             params.append(update_data.username)
+        if update_data.first_name is not None:
+            updates.append("first_name = ?")
+            params.append(update_data.first_name)
+        if update_data.last_name is not None:
+            updates.append("last_name = ?")
+            params.append(update_data.last_name)
+        if update_data.email is not None:
+            updates.append("email = ?")
+            params.append(update_data.email)
         if update_data.password is not None:
             updates.append("password_hash = ?")
             params.append(hash_password(update_data.password))
@@ -1145,6 +1161,10 @@ async def update_user(user_id: int):
         if update_data.amt_id is not None:
             updates.append("amt_id = ?")
             params.append(update_data.amt_id)
+        
+        # Always update updated_at timestamp
+        updates.append("updated_at = ?")
+        params.append(datetime.now().isoformat())
         
         if not updates:
             await cursor.close()
@@ -1341,10 +1361,11 @@ async def authenticate_user_by_id(user_id: int, db_conn) -> Optional[User]:
     """Get user by ID with related entities"""
     cursor = await db_conn.cursor()
     await cursor.execute("""
-        SELECT u.id, u.username, u.role, u.location_id, u.department_id, u.amt_id, u.created_at,
-               l.id as loc_id, l.name as loc_name,
-               d.id as dept_id, d.name as dept_name,
-               a.id as amt_id_join, a.name as amt_name, a.department_id as amt_dept_id
+        SELECT u.id, u.username, u.first_name, u.last_name, u.email, 
+               u.role, u.location_id, u.department_id, u.amt_id, u.created_at,
+               l.id as loc_id, l.name as loc_name, l.address as loc_address,
+               d.id as dept_id, d.name as dept_name, d.full_name as dept_full_name,
+               a.id as amt_id_join, a.name as amt_name, a.full_name as amt_full_name, a.department_id as amt_dept_id
         FROM users u
         LEFT JOIN locations l ON u.location_id = l.id
         LEFT JOIN departments d ON u.department_id = d.id
@@ -1361,19 +1382,22 @@ async def authenticate_user_by_id(user_id: int, db_conn) -> Optional[User]:
     user_data = {
         'id': row[0],
         'username': row[1],
-        'role': UserRole(row[2]),
-        'location_id': row[3],
-        'department_id': row[4],
-        'amt_id': row[5],
-        'created_at': datetime.fromisoformat(row[6]) if row[6] else datetime.now(),
+        'first_name': row[2],
+        'last_name': row[3],
+        'email': row[4],
+        'role': UserRole(row[5]),
+        'location_id': row[6],
+        'department_id': row[7],
+        'amt_id': row[8],
+        'created_at': datetime.fromisoformat(row[9]) if row[9] else datetime.now(),
     }
     
-    if row[7]:
-        user_data['location'] = Location(id=row[7], name=row[8])
-    if row[9]:
-        user_data['department'] = Department(id=row[9], name=row[10])
-    if row[11]:
-        user_data['amt'] = Amt(id=row[11], name=row[12], department_id=row[13])
+    if row[10]:
+        user_data['location'] = Location(id=row[10], name=row[11], address=row[12])
+    if row[13]:
+        user_data['department'] = Department(id=row[13], name=row[14], full_name=row[15])
+    if row[16]:
+        user_data['amt'] = Amt(id=row[16], name=row[17], full_name=row[18], department_id=row[19])
     
     return User(**user_data)
 

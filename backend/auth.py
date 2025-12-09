@@ -256,11 +256,12 @@ async def authenticate_user(username: str, password: str, db_conn) -> Optional[U
     cursor = await db_conn.cursor()
     await cursor.execute(
         """
-        SELECT u.id, u.username, u.password_hash, u.role, u.location_id, 
+        SELECT u.id, u.username, u.first_name, u.last_name, u.email, 
+               u.password_hash, u.role, u.location_id, 
                u.department_id, u.amt_id, u.created_at,
                l.id as loc_id, l.name as loc_name, l.address as loc_address,
                d.id as dept_id, d.name as dept_name, d.full_name as dept_full_name,
-               a.id as amt_id_join, a.name as amt_name
+               a.id as amt_id_join, a.name as amt_name, a.full_name as amt_full_name
         FROM users u
         LEFT JOIN locations l ON u.location_id = l.id
         LEFT JOIN departments d ON u.department_id = d.id
@@ -277,7 +278,7 @@ async def authenticate_user(username: str, password: str, db_conn) -> Optional[U
         return None
     
     # Verify password
-    password_hash = row[2]
+    password_hash = row[5]
     if not verify_password(password, password_hash):
         return None
     
@@ -287,21 +288,24 @@ async def authenticate_user(username: str, password: str, db_conn) -> Optional[U
     user_data = {
         'id': row[0],
         'username': row[1],
-        'role': UserRole(row[3]),
-        'location_id': row[4],
-        'department_id': row[5],
-        'amt_id': row[6],
-        'created_at': datetime.fromisoformat(row[7]) if row[7] else datetime.now(),
+        'first_name': row[2],
+        'last_name': row[3],
+        'email': row[4],
+        'role': UserRole(row[6]),
+        'location_id': row[7],
+        'department_id': row[8],
+        'amt_id': row[9],
+        'created_at': datetime.fromisoformat(row[10]) if row[10] else datetime.now(),
     }
     
     # Add related entities if available
-    # Updated indices: loc (8,9,10), dept (11,12,13), amt (14,15)
-    if row[8]:  # location
-        user_data['location'] = Location(id=row[8], name=row[9], address=row[10])
-    if row[11]:  # department
-        user_data['department'] = Department(id=row[11], name=row[12], full_name=row[13])
-    if row[14]:  # amt
-        user_data['amt'] = Amt(id=row[14], name=row[15], department_id=row[5] or 1)
+    # Updated indices: loc (11,12,13), dept (14,15,16), amt (17,18,19)
+    if row[11]:  # location
+        user_data['location'] = Location(id=row[11], name=row[12], address=row[13])
+    if row[14]:  # department
+        user_data['department'] = Department(id=row[14], name=row[15], full_name=row[16])
+    if row[17]:  # amt
+        user_data['amt'] = Amt(id=row[17], name=row[18], full_name=row[19], department_id=row[8] or 1)
     
     return User(**user_data)
 

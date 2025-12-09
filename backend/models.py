@@ -104,6 +104,9 @@ class Amt(AmtBase):
 class UserBase(BaseModel):
     """Base user model with common fields"""
     username: str = Field(..., max_length=50)
+    first_name: str = Field(..., max_length=255)
+    last_name: str = Field(..., max_length=255)
+    email: str = Field(..., max_length=100)
     role: UserRole = UserRole.USER
     location_id: Optional[int] = None
     department_id: Optional[int] = None
@@ -118,6 +121,9 @@ class UserCreate(UserBase):
 class UserUpdate(BaseModel):
     """Model for updating user data (all fields optional)"""
     username: Optional[str] = Field(None, max_length=50)
+    first_name: Optional[str] = Field(None, max_length=255)
+    last_name: Optional[str] = Field(None, max_length=255)
+    email: Optional[str] = Field(None, max_length=100)
     password: Optional[str] = Field(None, min_length=6)
     role: Optional[UserRole] = None
     location_id: Optional[int] = None
