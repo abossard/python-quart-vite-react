@@ -3,7 +3,7 @@ Authentication and Authorization module for Grabit.
 Handles login, session management, password hashing, and role-based access control.
 """
 
-import hashlib
+import bcrypt
 import secrets
 from datetime import datetime, timedelta
 from typing import Optional
@@ -19,29 +19,34 @@ from models import User, UserRole, UserWithPassword, LoginRequest, LoginResponse
 
 def hash_password(password: str) -> str:
     """
-    Hash password using SHA-256.
+    Hash password using bcrypt.
     
     Args:
         password: Plain text password
         
     Returns:
-        Hashed password as hex string
+        Hashed password as string
     """
-    return hashlib.sha256(password.encode()).hexdigest()
+    salt = bcrypt.gensalt()
+    hashed = bcrypt.hashpw(password.encode('utf-8'), salt)
+    return hashed.decode('utf-8')
 
 
 def verify_password(password: str, password_hash: str) -> bool:
     """
-    Verify password against hash.
+    Verify password against bcrypt hash.
     
     Args:
         password: Plain text password
-        password_hash: Stored password hash
+        password_hash: Stored bcrypt password hash
         
     Returns:
         True if password matches
     """
-    return hash_password(password) == password_hash
+    try:
+        return bcrypt.checkpw(password.encode('utf-8'), password_hash.encode('utf-8'))
+    except Exception:
+        return False
 
 
 # ============================================================================

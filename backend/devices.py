@@ -694,11 +694,20 @@ class DeviceService:
             'borrower_user_id': row[15],
             'borrower_snapshot': json.loads(row[16]) if row[16] else None,
             'notes': row[17],
-            'created_at': datetime.fromisoformat(row[18]),
-            'updated_at': datetime.fromisoformat(row[19]),
             'is_overdue': bool(row[36]),
             'days_overdue': int(row[37]) if row[37] else None
         }
+        
+        # Parse timestamps with fallback for invalid formats
+        try:
+            device_data['created_at'] = datetime.fromisoformat(row[18]) if row[18] else datetime.now()
+        except (ValueError, TypeError):
+            device_data['created_at'] = datetime.now()
+        
+        try:
+            device_data['updated_at'] = datetime.fromisoformat(row[19]) if row[19] else datetime.now()
+        except (ValueError, TypeError):
+            device_data['updated_at'] = datetime.now()
         
         # Updated column mapping with address and full_name (shifted by +2 because of department_id and amt_id):
         # row[20]=loc_id, row[21]=loc_name, row[22]=loc_address

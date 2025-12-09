@@ -74,15 +74,15 @@ const useStyles = makeStyles({
   },
   
   timelineIconBorrow: {
-    backgroundColor: '#D1E7DD',
-    borderColor: '#198754',
-    color: '#198754',
-  },
-  
-  timelineIconReturn: {
     backgroundColor: '#F8D7DA',
     borderColor: '#DC3545',
     color: '#DC3545',
+  },
+  
+  timelineIconReturn: {
+    backgroundColor: '#D1E7DD',
+    borderColor: '#198754',
+    color: '#198754',
   },
   
   timelineIconMissing: {
@@ -107,6 +107,12 @@ const useStyles = makeStyles({
     backgroundColor: '#FFF3CD',
     borderColor: '#FFC107',
     color: '#856404',
+  },
+  
+  timelineIconFound: {
+    backgroundColor: '#D1E7DD',
+    borderColor: '#198754',
+    color: '#198754',
   },
   
   timelineContent: {
@@ -343,7 +349,7 @@ export default function History({ searchValue = '' }) {
       case 'missing':
         return styles.timelineIconMissing
       case 'found':
-        return styles.timelineIconBorrow
+        return styles.timelineIconFound
       case 'delete':
         return styles.timelineIconDelete
       case 'location_change':
