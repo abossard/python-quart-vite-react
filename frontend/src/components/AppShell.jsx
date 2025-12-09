@@ -416,6 +416,9 @@ export default function AppShell({ children, currentPage, onNavigate }) {
   const [loading, setLoading] = useState(false)
   const [currentUser, setCurrentUser] = useState(null)
   
+  // Check if user has access to admin section (only admin and editor)
+  const canAccessAdmin = currentUser && ['admin', 'editor'].includes(currentUser.role)
+  
   const navItems = [
     { key: 'overview', label: 'Übersicht' },
     { key: 'history', label: 'Verlauf' },
@@ -580,24 +583,28 @@ export default function AppShell({ children, currentPage, onNavigate }) {
                   
                   <div className={styles.menuDivider}></div>
                   
-                  {/* Section Label */}
-                  <div className={styles.menuLabel}>Verwaltung</div>
-                  
-                  {/* Admin Items */}
-                  {adminItems.map((item) => (
-                    <MenuItem
-                      key={item.key}
-                      className={currentPage === item.key ? styles.menuItemActive : styles.menuItemBase}
-                      onClick={() => {
-                        onNavigate(item.key)
-                        setMenuOpen(false)
-                      }}
-                    >
-                      {item.label}
-                    </MenuItem>
-                  ))}
-                  
-                  <div className={styles.menuDivider}></div>
+                  {/* Section Label - nur für Admin und Editor */}
+                  {canAccessAdmin && (
+                    <>
+                      <div className={styles.menuLabel}>Verwaltung</div>
+                      
+                      {/* Admin Items */}
+                      {adminItems.map((item) => (
+                        <MenuItem
+                          key={item.key}
+                          className={currentPage === item.key ? styles.menuItemActive : styles.menuItemBase}
+                          onClick={() => {
+                            onNavigate(item.key)
+                            setMenuOpen(false)
+                          }}
+                        >
+                          {item.label}
+                        </MenuItem>
+                      ))}
+                      
+                      <div className={styles.menuDivider}></div>
+                    </>
+                  )}
                   
                   {/* Standort ändern */}
                   <MenuItem 
