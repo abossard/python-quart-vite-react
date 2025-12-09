@@ -484,6 +484,9 @@ export default function Dashboard({ searchValue = '' }) {
           device.id === selectedDevice.id ? updatedDevice : device
         )
       )
+      
+      // Close modal after successful operation
+      setIssueModalOpen(false)
     } catch (err) {
       throw err
     }

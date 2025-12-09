@@ -336,22 +336,22 @@ export default function History({ searchValue = '' }) {
     const lowerType = type?.toLowerCase()
     switch (lowerType) {
       case 'borrow':
-        return styles.timelineIconReturn
-      case 'return':
         return styles.timelineIconBorrow
+      case 'return':
+        return styles.timelineIconReturn
       case 'report_missing':
       case 'missing':
         return styles.timelineIconMissing
       case 'found':
-        return styles.timelineIconBorrow // Grün
+        return styles.timelineIconBorrow
       case 'delete':
-        return styles.timelineIconDelete // Rot
+        return styles.timelineIconDelete
       case 'location_change':
-        return styles.timelineIconUpdate // Gelb
+        return styles.timelineIconUpdate
       case 'update':
-        return styles.timelineIconUpdate // Gelb
+        return styles.timelineIconUpdate
       case 'create':
-        return styles.timelineIconCreate // Grün
+        return styles.timelineIconCreate
       default:
         return ''
     }

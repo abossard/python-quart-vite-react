@@ -901,7 +901,7 @@ async def get_transaction_history():
                 dt.id,
                 dt.device_id,
                 dt.user_id,
-                dt.transaction_type,
+                dt.action,
                 dt.snapshot_before,
                 dt.snapshot_after,
                 dt.notes,

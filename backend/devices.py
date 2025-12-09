@@ -490,6 +490,20 @@ class DeviceService:
             # status, location_id, department_id, amt_id, borrowed_at, expected_return_date,
             # borrower_name, borrower_email, borrower_phone, borrower_user_id, borrower_snapshot,
             # notes, created_at, updated_at
+            
+            # Get location_id - must not be NULL
+            location_id = data.last_known_location_id or device_row[7]
+            if not location_id:
+                await cursor.close()
+                raise ValueError("Device must have a location_id to be reported as missing")
+            
+            # Convert status to string if it's numeric
+            status_value = device_row[6]
+            if isinstance(status_value, int):
+                # Map numeric status to string: 0=available, 1=borrowed, 2=reserved
+                status_map = {0: 'available', 1: 'borrowed', 2: 'reserved'}
+                status_value = status_map.get(status_value, 'available')
+            
             await cursor.execute("""
                 INSERT INTO devices_missing (
                     original_device_id, device_type, manufacturer, model, serial_number,
@@ -505,8 +519,8 @@ class DeviceService:
                 device_row[3],  # model
                 device_row[4],  # serial_number
                 device_row[5],  # inventory_number
-                device_row[6],  # status
-                data.last_known_location_id or device_row[7],  # location_id
+                status_value,   # status (converted to string)
+                location_id,    # location_id (validated not NULL)
                 device_row[8],  # department_id
                 device_row[9],  # amt_id
                 device_row[10],  # borrowed_at
@@ -637,13 +651,18 @@ class DeviceService:
         """Log a device transaction."""
         cursor = await self.db.cursor()
         
+        # Get username for the transaction
+        await cursor.execute("SELECT username FROM users WHERE id = ?", (user_id,))
+        user_row = await cursor.fetchone()
+        username = user_row[0] if user_row else "Unknown"
+        
         await cursor.execute("""
             INSERT INTO device_transactions (
-                device_id, user_id, transaction_type, snapshot_before,
-                snapshot_after, notes, created_at
-            ) VALUES (?, ?, ?, ?, ?, ?, ?)
+                device_id, user_id, action, username,
+                snapshot_before, snapshot_after, notes, created_at
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
         """, (
-            device_id, user_id, transaction_type.value,
+            device_id, user_id, transaction_type.value, username,
             json.dumps(snapshot_before) if snapshot_before else None,
             json.dumps(snapshot_after) if snapshot_after else None,
             notes, datetime.now().isoformat()
@@ -712,6 +731,13 @@ class DeviceService:
     
     def _row_to_missing_device(self, row) -> MissingDevice:
         """Convert database row to MissingDevice object."""
+        # Convert status to DeviceStatus enum, handling both string and numeric values
+        status_value = row[7]
+        if isinstance(status_value, int):
+            # Map numeric status to string: 0=available, 1=borrowed, 2=reserved
+            status_map = {0: 'available', 1: 'borrowed', 2: 'reserved'}
+            status_value = status_map.get(status_value, 'available')
+        
         return MissingDevice(
             id=row[0],
             original_device_id=row[1],
@@ -720,18 +746,18 @@ class DeviceService:
             model=row[4],
             serial_number=row[5],
             inventory_number=row[6],
-            status=DeviceStatus(row[7]),
+            status=DeviceStatus(status_value),
             location_id=row[8],
-            borrowed_at=datetime.fromisoformat(row[9]) if row[9] else None,
-            expected_return_date=date.fromisoformat(row[10]) if row[10] else None,
-            borrower_name=row[11],
-            borrower_email=row[12],
-            borrower_phone=row[13],
-            borrower_user_id=row[14],
-            borrower_snapshot=json.loads(row[15]) if row[15] else None,
-            notes=row[16],
-            reported_at=datetime.fromisoformat(row[17]),
-            reported_by_user_id=row[18]
+            borrowed_at=datetime.fromisoformat(row[11]) if row[11] else None,
+            expected_return_date=date.fromisoformat(row[12]) if row[12] else None,
+            borrower_name=row[13],
+            borrower_email=row[14],
+            borrower_phone=row[15],
+            borrower_user_id=row[16],
+            borrower_snapshot=json.loads(row[17]) if row[17] else None,
+            notes=row[18],
+            reported_at=datetime.fromisoformat(row[19]),
+            reported_by_user_id=row[20]
         )
     
     async def restore_missing_device(self, missing_device_id: int, user_id: int) -> DeviceFull:
@@ -761,13 +787,61 @@ class DeviceService:
                 raise ValueError(f"Missing device with id {missing_device_id} not found")
             
             # Extract data from missing device (row indices match devices_missing schema)
-            # Current schema: id(0), original_device_id(1), device_type(2), manufacturer(3), 
+            # Correct schema: id(0), original_device_id(1), device_type(2), manufacturer(3), 
             #                 model(4), serial_number(5), inventory_number(6), status(7), 
-            #                 location_id(8), borrowed_at(9), expected_return_date(10),
-            #                 borrower_name(11), borrower_email(12), borrower_phone(13),
-            #                 borrower_user_id(14), borrower_snapshot(15), notes(16),
-            #                 reported_at(17), reported_by_user_id(18), 
-            #                 department_id(19), amt_id(20)
+            #                 location_id(8), department_id(9), amt_id(10),
+            #                 borrowed_at(11), expected_return_date(12),
+            #                 borrower_name(13), borrower_email(14), borrower_phone(15),
+            #                 borrower_user_id(16), borrower_snapshot(17), notes(18),
+            #                 reported_at(19), reported_by_user_id(20)
+            
+            # Validate Foreign Keys exist, use first available if missing
+            location_id = missing_row[8]
+            if location_id:
+                await cursor.execute("SELECT id FROM locations WHERE id = ?", (location_id,))
+                if not await cursor.fetchone():
+                    await cursor.execute("SELECT id FROM locations LIMIT 1")
+                    fallback = await cursor.fetchone()
+                    location_id = fallback[0] if fallback else None
+            
+            if not location_id:
+                raise ValueError("No valid location found - cannot restore device")
+            
+            # Validate department_id (required - use fallback if missing)
+            department_id = missing_row[9]
+            if department_id:
+                await cursor.execute("SELECT id FROM departments WHERE id = ?", (department_id,))
+                if not await cursor.fetchone():
+                    # Use first available department as fallback
+                    await cursor.execute("SELECT id FROM departments LIMIT 1")
+                    fallback = await cursor.fetchone()
+                    department_id = fallback[0] if fallback else None
+            else:
+                # No department_id set - use first available
+                await cursor.execute("SELECT id FROM departments LIMIT 1")
+                fallback = await cursor.fetchone()
+                department_id = fallback[0] if fallback else None
+            
+            if not department_id:
+                raise ValueError("No valid department found - cannot restore device")
+            
+            # Validate amt_id (required - use fallback if missing)
+            amt_id = missing_row[10]
+            if amt_id:
+                await cursor.execute("SELECT id FROM amt WHERE id = ?", (amt_id,))
+                if not await cursor.fetchone():
+                    # Use first available amt as fallback
+                    await cursor.execute("SELECT id FROM amt LIMIT 1")
+                    fallback = await cursor.fetchone()
+                    amt_id = fallback[0] if fallback else None
+            else:
+                # No amt_id set - use first available
+                await cursor.execute("SELECT id FROM amt LIMIT 1")
+                fallback = await cursor.fetchone()
+                amt_id = fallback[0] if fallback else None
+            
+            if not amt_id:
+                raise ValueError("No valid amt found - cannot restore device")
             
             # Insert back into devices (status set to 'available')
             # Note: created_at and updated_at have DEFAULT values, so we don't set them
@@ -785,9 +859,9 @@ class DeviceService:
                 missing_row[5],  # serial_number
                 missing_row[6],  # inventory_number
                 'available',     # status (reset to available)
-                missing_row[8],  # location_id
-                missing_row[19], # department_id
-                missing_row[20], # amt_id
+                location_id,     # location_id (validated)
+                department_id,   # department_id (validated, can be NULL)
+                amt_id,          # amt_id (validated, can be NULL)
                 None,            # borrowed_at (clear borrowing info)
                 None,            # expected_return_date
                 None,            # borrower_name
@@ -795,7 +869,7 @@ class DeviceService:
                 None,            # borrower_phone
                 None,            # borrower_user_id
                 None,            # borrower_snapshot
-                missing_row[16]  # notes
+                missing_row[18]  # notes (CORRECTED INDEX)
             ))
             
             new_device_id = cursor.lastrowid
@@ -811,6 +885,9 @@ class DeviceService:
             restored_device = await self.get_device(new_device_id)
             
             # Create snapshot_before with device info from missing_row
+            # Row indices: [0]=id, [1]=original_device_id, [2]=device_type, [3]=manufacturer,
+            # [4]=model, [5]=serial_number, [6]=inventory_number, [7]=status, [8]=location_id,
+            # [9]=department_id, [10]=amt_id, [18]=notes
             snapshot_before = {
                 'missing_device_id': missing_device_id,
                 'status': 'missing',
