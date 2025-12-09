@@ -18,6 +18,8 @@ import AmtList from './features/amts/AmtList'
 import LocationList from './features/locations/LocationList'
 import History from './features/history/History'
 import MissingDevices from './features/missing/MissingDevices'
+import Login from './features/auth/Login'
+import ProtectedRoute from './features/auth/ProtectedRoute'
 
 // Map routes to page keys for AppShell
 const routeToPageMap = {
@@ -56,21 +58,31 @@ export default function App() {
   }
 
   return (
-    <AppShell currentPage={currentPage} onNavigate={handleNavigate}>
-      {({ searchValue }) => (
-        <Routes>
-          <Route path="/" element={<Navigate to="/dashboard" replace />} />
-          <Route path="/dashboard" element={<Dashboard searchValue={searchValue} />} />
-          <Route path="/history" element={<History searchValue={searchValue} />} />
-          <Route path="/missing" element={<MissingDevices searchValue={searchValue} />} />
-          <Route path="/devices" element={<DeviceList searchValue={searchValue} />} />
-          <Route path="/users" element={<UserList searchValue={searchValue} />} />
-          <Route path="/departments" element={<DepartmentList searchValue={searchValue} />} />
-          <Route path="/amts" element={<AmtList searchValue={searchValue} />} />
-          <Route path="/locations" element={<LocationList searchValue={searchValue} />} />
-          <Route path="*" element={<Navigate to="/dashboard" replace />} />
-        </Routes>
-      )}
-    </AppShell>
+    <Routes>
+      {/* Public Route - Login */}
+      <Route path="/login" element={<Login />} />
+      
+      {/* Protected Routes - Require Authentication */}
+      <Route path="/*" element={
+        <ProtectedRoute>
+          <AppShell currentPage={currentPage} onNavigate={handleNavigate}>
+            {({ searchValue }) => (
+              <Routes>
+                <Route path="/" element={<Navigate to="/dashboard" replace />} />
+                <Route path="/dashboard" element={<Dashboard searchValue={searchValue} />} />
+                <Route path="/history" element={<History searchValue={searchValue} />} />
+                <Route path="/missing" element={<MissingDevices searchValue={searchValue} />} />
+                <Route path="/devices" element={<DeviceList searchValue={searchValue} />} />
+                <Route path="/users" element={<UserList searchValue={searchValue} />} />
+                <Route path="/departments" element={<DepartmentList searchValue={searchValue} />} />
+                <Route path="/amts" element={<AmtList searchValue={searchValue} />} />
+                <Route path="/locations" element={<LocationList searchValue={searchValue} />} />
+                <Route path="*" element={<Navigate to="/dashboard" replace />} />
+              </Routes>
+            )}
+          </AppShell>
+        </ProtectedRoute>
+      } />
+    </Routes>
   )
 }

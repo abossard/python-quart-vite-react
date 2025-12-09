@@ -1910,6 +1910,32 @@ async def login():
         return jsonify({'error': str(e)}), 500
 
 
+@app.route('/api/auth/session', methods=['GET'])
+async def check_session():
+    """Check if current session is valid"""
+    try:
+        session_id = request.cookies.get('session_id')
+        if not session_id:
+            return jsonify({'authenticated': False}), 401
+        
+        session_data = get_session(session_id)
+        if not session_data:
+            return jsonify({'authenticated': False}), 401
+        
+        # Get user from session data
+        user_data = session_data.get('user')
+        if not user_data:
+            return jsonify({'authenticated': False}), 401
+        
+        return jsonify({
+            'authenticated': True,
+            'user': user_data
+        }), 200
+        
+    except Exception as e:
+        return jsonify({'authenticated': False, 'error': str(e)}), 401
+
+
 @app.route('/api/auth/logout', methods=['POST'])
 @require_auth
 async def logout():

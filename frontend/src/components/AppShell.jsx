@@ -9,6 +9,7 @@
  */
 
 import { useState, useEffect } from 'react'
+import { useNavigate } from 'react-router-dom'
 import {
   makeStyles,
   tokens,
@@ -618,9 +619,18 @@ export default function AppShell({ children, currentPage, onNavigate }) {
                   {/* Abmelden */}
                   <MenuItem
                     className={styles.menuItemDanger}
-                    onClick={() => {
-                      // TODO: Implement logout
-                      setMenuOpen(false)
+                    onClick={async () => {
+                      try {
+                        await fetch('http://localhost:5001/api/auth/logout', {
+                          method: 'POST',
+                          credentials: 'include',
+                        })
+                      } catch (error) {
+                        console.error('Logout error:', error)
+                      } finally {
+                        // Redirect to login regardless of API result
+                        window.location.href = '/login'
+                      }
                     }}
                   >
                     <div className={styles.menuItemContent}>
