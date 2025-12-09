@@ -35,8 +35,10 @@ const useStyles = makeStyles({
   },
   
   headerTitle: {
-    fontSize: '28px',
-    fontWeight: '700',
+    fontFamily: tokens.fontFamilyBase,
+    fontSize: tokens.fontSizeHero700,
+    fontWeight: tokens.fontWeightSemibold,
+    lineHeight: tokens.lineHeightHero700,
     color: tokens.colorNeutralForeground1,
     marginBottom: '52px',
   },
@@ -51,8 +53,9 @@ const useStyles = makeStyles({
   
   locationButton: {
     padding: '0',
-    fontSize: '18px',
-    fontWeight: '400',
+    fontFamily: tokens.fontFamilyBase,
+    fontSize: tokens.fontSizeBase300,
+    fontWeight: tokens.fontWeightRegular,
     borderRadius: '6px',
     border: '1px solid #0d6efd',
     backgroundColor: '#0d6efd',
@@ -82,8 +85,9 @@ const useStyles = makeStyles({
   
   resetButton: {
     padding: '0',
-    fontSize: '18px',
-    fontWeight: '400',
+    fontFamily: tokens.fontFamilyBase,
+    fontSize: tokens.fontSizeBase300,
+    fontWeight: tokens.fontWeightRegular,
     borderRadius: '6px',
     border: `1px solid ${tokens.colorNeutralStroke1}`,
     backgroundColor: '#0d6efd',
@@ -115,6 +119,7 @@ const useStyles = makeStyles({
   },
   
   activeMenuItem: {
+    fontFamily: tokens.fontFamilyBase,
     backgroundColor: '#0d6efd',
     color: '#ffffff',
     ':hover': {
@@ -124,8 +129,10 @@ const useStyles = makeStyles({
   
   categoryButton: {
     padding: '10px 16px',
-    fontSize: '18px',
-    fontWeight: '400',
+    fontFamily: tokens.fontFamilyBase,
+    fontSize: tokens.fontSizeBase300,
+    fontWeight: tokens.fontWeightRegular,
+    lineHeight: tokens.lineHeightBase300,
     borderRadius: '6px',
     border: `1px solid ${tokens.colorNeutralStroke1}`,
     backgroundColor: tokens.colorNeutralBackground1,
@@ -143,8 +150,9 @@ const useStyles = makeStyles({
   },
   
   categoryButtonActive: {
+    fontFamily: tokens.fontFamilyBase,
     backgroundColor: '#0d6efd',
-    color: '#FFFFFF',
+    color: '#ffffff',
     borderColor: '#0d6efd',
     display: 'flex',
     alignItems: 'center',

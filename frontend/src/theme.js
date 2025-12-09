@@ -21,6 +21,9 @@ export const statusBackgrounds = {
 export const grabitTheme = {
   ...webLightTheme,
   
+  // Fluent UI Standard Font Family
+  fontFamilyBase: '"Segoe UI Variable","Segoe UI",system-ui,-apple-system,BlinkMacSystemFont,"Helvetica Neue",Arial,sans-serif',
+  
   // Border Radius: 8px für moderne, weiche Ecken
   borderRadiusSmall: '6px',
   borderRadiusMedium: '8px',

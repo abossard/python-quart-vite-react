@@ -113,20 +113,24 @@ const useStyles = makeStyles({
   amtsbezeichnung: {
     display: 'flex',
     flexDirection: 'column',
-    fontSize: '10px',
+    fontFamily: tokens.fontFamilyBase,
+    fontSize: tokens.fontSizeBase100,
+    fontWeight: tokens.fontWeightRegular,
+    lineHeight: tokens.lineHeightBase100,
     color: tokens.colorNeutralForeground3,
-    lineHeight: '1.2',
     [mediaQueries.mobile]: {
       display: 'none', // Verstecke auf Mobile
     },
   },
   
   brandText: {
-    fontSize: '18px',
-    fontWeight: '700',
+    fontFamily: tokens.fontFamilyBase,
+    fontSize: tokens.fontSizeBase400,
+    fontWeight: tokens.fontWeightSemibold,
+    lineHeight: tokens.lineHeightBase400,
     color: tokens.colorNeutralForeground1,
     [mediaQueries.mobile]: {
-      fontSize: '18px',
+      fontSize: tokens.fontSizeBase400,
     },
   },
   
@@ -142,8 +146,10 @@ const useStyles = makeStyles({
   
   navButton: {
     padding: '10px 16px',
-    fontSize: '18px',
-    fontWeight: '400',
+    fontFamily: tokens.fontFamilyBase,
+    fontSize: tokens.fontSizeBase300,
+    fontWeight: tokens.fontWeightRegular,
+    lineHeight: tokens.lineHeightBase300,
     borderRadius: '6px',
     border: `1px solid ${tokens.colorNeutralStroke1}`,
     backgroundColor: tokens.colorNeutralBackground1,
@@ -161,8 +167,10 @@ const useStyles = makeStyles({
   
   navButtonActive: {
     padding: '10px 16px',
-    fontSize: '18px',
-    fontWeight: '400',
+    fontFamily: tokens.fontFamilyBase,
+    fontSize: tokens.fontSizeBase300,
+    fontWeight: tokens.fontWeightRegular,
+    lineHeight: tokens.lineHeightBase300,
     borderRadius: '6px',
     border: '1px solid #0d6efd',
     backgroundColor: '#0d6efd',
@@ -179,7 +187,7 @@ const useStyles = makeStyles({
   searchContainer: {
     display: 'flex',
     alignItems: 'center',
-    gap: tokens.spacingHorizontalM,
+    gap: '0',
     [mediaQueries.mobile]: {
       flex: 1,
       order: 3,
@@ -194,7 +202,9 @@ const useStyles = makeStyles({
     alignItems: 'stretch',
     backgroundColor: '#ffffff',
     border: `1px solid ${tokens.colorNeutralStroke1}`,
-    borderRadius: '6px',
+    borderTopLeftRadius: '6px',
+    borderBottomLeftRadius: '6px',
+    borderRight: 'none',
     boxShadow: tokens.shadow4,
     overflow: 'hidden',
     [mediaQueries.mobile]: {
@@ -206,32 +216,39 @@ const useStyles = makeStyles({
   searchInput: {
     flex: 1,
     height: '100%',
-    fontSize: '18px',
-    fontWeight: '400',
+    fontFamily: tokens.fontFamilyBase,
+    fontSize: tokens.fontSizeBase300,
+    fontWeight: tokens.fontWeightRegular,
     padding: '0 14px',
     border: 'none',
     outline: 'none',
     backgroundColor: 'transparent',
     color: tokens.colorNeutralForeground1,
     '::placeholder': {
-      color: '#6c757d',
+      color: tokens.colorNeutralForeground3,
     },
   },
   
   searchClearButton: {
-    width: '48px',
-    height: '100%',
+    width: '42px',
+    height: '42px',
+    minWidth: '42px',
+    minHeight: '42px',
     display: 'flex',
     alignItems: 'center',
     justifyContent: 'center',
     backgroundColor: '#0d6efd',
-    border: 'none',
-    borderLeft: '1px solid #dee2e6',
+    border: '1px solid #0d6efd',
+    borderTopRightRadius: '6px',
+    borderBottomRightRadius: '6px',
+    borderLeft: 'none',
     cursor: 'pointer',
     padding: 0,
     transition: 'background-color 0.15s ease',
+    boxShadow: tokens.shadow4,
     ':hover': {
       backgroundColor: '#0b5ed7',
+      borderColor: '#0b5ed7',
     },
   },
   
@@ -247,6 +264,7 @@ const useStyles = makeStyles({
     width: '38px',
     minHeight: '38px',
     minWidth: '38px',
+    marginLeft: tokens.spacingHorizontalM,
   },
   
   mainContent: {
@@ -296,7 +314,10 @@ const useStyles = makeStyles({
     display: 'flex',
     alignItems: 'center',
     justifyContent: 'space-between',
-    fontSize: '18px',
+    fontFamily: tokens.fontFamilyBase,
+    fontSize: tokens.fontSizeBase300,
+    fontWeight: tokens.fontWeightRegular,
+    lineHeight: tokens.lineHeightBase300,
     border: 'none',
     backgroundColor: 'transparent',
     transition: 'all 0.15s ease',
@@ -310,6 +331,10 @@ const useStyles = makeStyles({
     backgroundColor: '#0d6efd',
     color: '#ffffff',
     padding: '10px 16px',
+    fontFamily: tokens.fontFamilyBase,
+    fontSize: tokens.fontSizeBase300,
+    fontWeight: tokens.fontWeightRegular,
+    lineHeight: tokens.lineHeightBase300,
     ':hover': {
       backgroundColor: '#0d6efd',
       color: '#ffffff',
@@ -319,6 +344,10 @@ const useStyles = makeStyles({
   menuItemMuted: {
     color: '#6c757d',
     padding: '10px 16px',
+    fontFamily: tokens.fontFamilyBase,
+    fontSize: tokens.fontSizeBase300,
+    fontWeight: tokens.fontWeightRegular,
+    lineHeight: tokens.lineHeightBase300,
     display: 'flex !important',
     flexDirection: 'row !important',
     alignItems: 'center !important',
@@ -335,6 +364,10 @@ const useStyles = makeStyles({
   menuItemDanger: {
     color: '#dc3545',
     padding: '10px 16px',
+    fontFamily: tokens.fontFamilyBase,
+    fontSize: tokens.fontSizeBase300,
+    fontWeight: tokens.fontWeightRegular,
+    lineHeight: tokens.lineHeightBase300,
     display: 'flex !important',
     flexDirection: 'row !important',
     alignItems: 'center !important',
@@ -502,14 +535,14 @@ export default function AppShell({ children, currentPage, onNavigate }) {
                 value={searchValue}
                 onChange={(e) => setSearchValue(e.target.value)}
               />
-              <button
-                className={styles.searchClearButton}
-                onClick={() => setSearchValue('')}
-                aria-label="Suche löschen"
-              >
-                <Dismiss24Regular className={styles.searchIcon} />
-              </button>
             </div>
+            <button
+              className={styles.searchClearButton}
+              onClick={() => setSearchValue('')}
+              aria-label="Suche löschen"
+            >
+              <Dismiss24Regular className={styles.searchIcon} />
+            </button>
             
             {/* Admin Menu (Verwaltung) - visible on all screen sizes */}
             <Menu open={menuOpen} onOpenChange={(e, data) => setMenuOpen(data.open)}>
