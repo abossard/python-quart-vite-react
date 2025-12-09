@@ -12,16 +12,115 @@ import {
   Spinner,
   MessageBar,
   MessageBarBody,
+  Menu,
+  MenuTrigger,
+  MenuPopover,
+  MenuList,
+  MenuItem,
 } from '@fluentui/react-components'
+import {
+  Location24Regular,
+  Dismiss24Regular,
+} from '@fluentui/react-icons'
 import DeviceLoanCard from '../../components/DeviceLoanCard'
 import IssueDeviceModal from '../../components/IssueDeviceModal'
 import ReturnDeviceModal from '../../components/ReturnDeviceModal'
-import PageHeader from '../../components/PageHeader'
 import DetailDialog from '../../components/DetailDialog'
 
 const useStyles = makeStyles({
   container: {
     padding: tokens.spacingVerticalXXL,
+  },
+  
+  headerTitle: {
+    fontSize: '28px',
+    fontWeight: '700',
+    color: tokens.colorNeutralForeground1,
+    marginBottom: '16px',
+  },
+  
+  filterBar: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: '8px',
+    marginBottom: '24px',
+    flexWrap: 'wrap',
+  },
+  
+  locationButton: {
+    width: '40px',
+    height: '40px',
+    minWidth: '40px',
+    minHeight: '40px',
+    padding: '0',
+    backgroundColor: '#0d6efd',
+    color: '#FFFFFF',
+    border: 'none',
+    borderRadius: '6px',
+    cursor: 'pointer',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    transition: 'background-color 0.2s ease',
+    ':hover': {
+      backgroundColor: '#0b5ed7',
+    },
+  },
+  
+  divider: {
+    width: '1px',
+    height: '32px',
+    backgroundColor: '#dee2e6',
+    margin: '0 4px',
+  },
+  
+  resetButton: {
+    width: '40px',
+    height: '40px',
+    minWidth: '40px',
+    minHeight: '40px',
+    padding: '0',
+    backgroundColor: '#0d6efd',
+    color: '#FFFFFF',
+    border: 'none',
+    borderRadius: '6px',
+    cursor: 'pointer',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    transition: 'background-color 0.2s ease',
+    ':hover': {
+      backgroundColor: '#0b5ed7',
+    },
+  },
+  
+  categoryButton: {
+    height: '38px',
+    padding: '0 14px',
+    backgroundColor: '#FFFFFF',
+    color: '#212529',
+    border: '1px solid #dee2e6',
+    borderRadius: '6px',
+    fontSize: '14px',
+    fontWeight: '400',
+    cursor: 'pointer',
+    transition: 'all 0.15s ease',
+    whiteSpace: 'nowrap',
+    boxShadow: tokens.shadow4,
+    ':hover': {
+      backgroundColor: '#0d6efd',
+      color: '#ffffff',
+      borderColor: '#0d6efd',
+    },
+  },
+  
+  categoryButtonActive: {
+    backgroundColor: '#0d6efd',
+    color: '#FFFFFF',
+    borderColor: '#0d6efd',
+    ':hover': {
+      backgroundColor: '#3d8bfd',
+    },
   },
   
   grid: {
@@ -50,31 +149,104 @@ const useStyles = makeStyles({
 export default function Dashboard({ searchValue = '' }) {
   const styles = useStyles()
   const [devices, setDevices] = useState([])
+  const [locations, setLocations] = useState([])
+  const [currentUser, setCurrentUser] = useState(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
+  
+  console.log('Dashboard rendering, devices:', devices.length, 'locations:', locations.length)
   const [issueModalOpen, setIssueModalOpen] = useState(false)
   const [returnModalOpen, setReturnModalOpen] = useState(false)
   const [selectedDevice, setSelectedDevice] = useState(null)
   const [detailDialogOpen, setDetailDialogOpen] = useState(false)
   const [detailDevice, setDetailDevice] = useState(null)
   
-  // Filter devices based on search value
+  // Filter state
+  const [selectedLocationId, setSelectedLocationId] = useState(null)
+  const [activeCategory, setActiveCategory] = useState(null)
+  
+  // Extract unique categories from devices
+  const categories = [...new Set(devices.map(d => d.device_type).filter(Boolean))].sort()
+  
+  // Get selected location name
+  const selectedLocation = locations.find(loc => loc.id === selectedLocationId)
+  const locationName = selectedLocation?.name || 'Alle Standorte'
+  
+  // Filter devices based on location, category, and search value
   const filteredDevices = devices.filter(device => {
-    if (!searchValue) return true
-    const search = searchValue.toLowerCase()
-    return (
-      device.device_type?.toLowerCase().includes(search) ||
-      device.manufacturer?.toLowerCase().includes(search) ||
-      device.model?.toLowerCase().includes(search) ||
-      device.serial_number?.toLowerCase().includes(search) ||
-      device.inventory_number?.toLowerCase().includes(search) ||
-      device.borrower_name?.toLowerCase().includes(search) ||
-      device.amt?.name?.toLowerCase().includes(search) ||
-      device.department?.name?.toLowerCase().includes(search) ||
-      device.location?.name?.toLowerCase().includes(search)
-    )
+    // Location filter
+    if (selectedLocationId && device.location_id !== selectedLocationId) {
+      return false
+    }
+    
+    // Category filter
+    if (activeCategory && device.device_type !== activeCategory) {
+      return false
+    }
+    
+    // Search filter
+    if (searchValue) {
+      const search = searchValue.toLowerCase()
+      return (
+        device.device_type?.toLowerCase().includes(search) ||
+        device.manufacturer?.toLowerCase().includes(search) ||
+        device.model?.toLowerCase().includes(search) ||
+        device.serial_number?.toLowerCase().includes(search) ||
+        device.inventory_number?.toLowerCase().includes(search) ||
+        device.borrower_name?.toLowerCase().includes(search) ||
+        device.amt?.name?.toLowerCase().includes(search) ||
+        device.department?.name?.toLowerCase().includes(search) ||
+        device.location?.name?.toLowerCase().includes(search)
+      )
+    }
+    
+    return true
   })
 
+  // Load current user
+  const loadCurrentUser = async () => {
+    try {
+      const response = await fetch('http://localhost:5001/api/auth/me', {
+        credentials: 'include',
+      })
+      
+      if (response.ok) {
+        const data = await response.json()
+        console.log('Current user loaded:', data.user)
+        setCurrentUser(data.user)
+        // Set default location from user
+        if (data.user?.location_id) {
+          setSelectedLocationId(data.user.location_id)
+        }
+      } else {
+        console.warn('Failed to load current user, status:', response.status)
+      }
+    } catch (err) {
+      console.error('Failed to load current user:', err)
+      setError(`Fehler beim Laden des Benutzers: ${err.message}`)
+    }
+  }
+  
+  // Load locations
+  const loadLocations = async () => {
+    try {
+      const response = await fetch('http://localhost:5001/api/locations', {
+        credentials: 'include',
+      })
+      
+      if (response.ok) {
+        const data = await response.json()
+        console.log('Locations loaded:', data.length)
+        setLocations(data)
+      } else {
+        console.warn('Failed to load locations, status:', response.status)
+      }
+    } catch (err) {
+      console.error('Failed to load locations:', err)
+      setError(`Fehler beim Laden der Standorte: ${err.message}`)
+    }
+  }
+  
   // Load devices
   const loadDevices = async (showLoadingIndicator = true) => {
     try {
@@ -103,9 +275,11 @@ export default function Dashboard({ searchValue = '' }) {
 
   useEffect(() => {
     // Initial load with loading indicator
+    loadCurrentUser()
+    loadLocations()
     loadDevices(true)
     
-    // Auto-refresh every 10 seconds in background (smooth)
+    // Auto-refresh devices every 10 seconds in background (smooth)
     const interval = setInterval(() => loadDevices(false), 10000)
     
     return () => clearInterval(interval)
@@ -249,10 +423,60 @@ export default function Dashboard({ searchValue = '' }) {
 
   return (
     <div className={styles.container}>
-      <PageHeader 
-        title="Ausleihgeräte" 
-        subtitle="Übersicht aller verfügbaren Geräte"
-      />
+      {/* Custom title with location */}
+      <h1 className={styles.headerTitle}>
+        Ausleihgeräte {locationName}
+      </h1>
+      
+      {/* Filter bar */}
+      <div className={styles.filterBar}>
+        {/* Location selector button */}
+        <Menu>
+          <MenuTrigger disableButtonEnhancement>
+            <button className={styles.locationButton} aria-label="Standort wählen">
+              <Location24Regular style={{ width: '20px', height: '20px' }} />
+            </button>
+          </MenuTrigger>
+          <MenuPopover>
+            <MenuList>
+              <MenuItem onClick={() => setSelectedLocationId(null)}>
+                Alle Standorte
+              </MenuItem>
+              {locations.map(location => (
+                <MenuItem 
+                  key={location.id}
+                  onClick={() => setSelectedLocationId(location.id)}
+                >
+                  {location.name}
+                </MenuItem>
+              ))}
+            </MenuList>
+          </MenuPopover>
+        </Menu>
+        
+        {/* Divider */}
+        <div className={styles.divider} />
+        
+        {/* Reset filter button */}
+        <button 
+          className={styles.resetButton}
+          onClick={() => setActiveCategory(null)}
+          aria-label="Filter zurücksetzen"
+        >
+          <Dismiss24Regular style={{ width: '20px', height: '20px' }} />
+        </button>
+        
+        {/* Category filter buttons */}
+        {categories.map(category => (
+          <button
+            key={category}
+            className={`${styles.categoryButton} ${activeCategory === category ? styles.categoryButtonActive : ''}`}
+            onClick={() => setActiveCategory(activeCategory === category ? null : category)}
+          >
+            {category}
+          </button>
+        ))}
+      </div>
       
       {error && (
         <MessageBar intent="error" style={{ marginBottom: tokens.spacingVerticalL }}>
