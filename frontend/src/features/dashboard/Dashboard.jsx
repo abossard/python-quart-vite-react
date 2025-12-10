@@ -286,9 +286,13 @@ export default function Dashboard({ searchValue = '' }) {
         const data = await response.json()
         console.log('Current user loaded:', data.user)
         setCurrentUser(data.user)
-        // Set default location from user
+        // Set default location from user ONLY if user has a location assigned
+        // Users without location (location_id = null) always see "Alle Standorte"
         if (data.user?.location_id) {
           setSelectedLocationId(data.user.location_id)
+        } else {
+          // User without location → force "Alle Standorte"
+          setSelectedLocationId(null)
         }
       } else {
         console.warn('Failed to load current user, status:', response.status)

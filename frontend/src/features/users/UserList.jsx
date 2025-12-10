@@ -34,6 +34,8 @@ import {
   MenuList,
   MenuPopover,
   MenuTrigger,
+  RadioGroup,
+  Radio,
 } from '@fluentui/react-components'
 import {
   Add24Regular,
@@ -139,6 +141,7 @@ export default function UserList({ searchValue = '' }) {
     email: '',
     password: '',
     role: 'user',
+    hasLocation: 'without', // 'with' or 'without'
     location_id: null,
     department_id: null,
     amt_id: null,
@@ -271,6 +274,7 @@ export default function UserList({ searchValue = '' }) {
         email: '',
         password: '',
         role: 'user',
+        hasLocation: 'without',
         location_id: null,
         department_id: null,
         amt_id: null,
@@ -366,8 +370,12 @@ export default function UserList({ searchValue = '' }) {
     setSelectedUser(user)
     setFormData({
       username: user.username,
+      first_name: user.first_name || '',
+      last_name: user.last_name || '',
+      email: user.email || '',
       password: '',
       role: user.role,
+      hasLocation: user.location_id ? 'with' : 'without',
       location_id: user.location_id,
       department_id: user.department_id,
       amt_id: user.amt_id,
@@ -510,11 +518,26 @@ export default function UserList({ searchValue = '' }) {
                           <Option value="admin">Admin</Option>
                         </Dropdown>
                       </Field>
-                      <Field label="Location">
+                      <Field label="Location Zuordnung" required className={styles.fullWidth}>
+                        <RadioGroup
+                          value={formData.hasLocation}
+                          onChange={(_, data) => setFormData({ 
+                            ...formData, 
+                            hasLocation: data.value,
+                            location_id: data.value === 'without' ? null : formData.location_id
+                          })}
+                          layout="horizontal"
+                        >
+                          <Radio value="with" label="Mit Location" />
+                          <Radio value="without" label="Ohne Location" />
+                        </RadioGroup>
+                      </Field>
+                      <Field label="Location" className={styles.fullWidth}>
                         <Dropdown
                           placeholder="Select location"
                           value={locations.find(l => l.id === formData.location_id)?.name || ''}
                           onOptionSelect={(_, data) => setFormData({ ...formData, location_id: parseInt(data.optionValue) })}
+                          disabled={formData.hasLocation === 'without'}
                         >
                           {locations.map(loc => (
                             <Option key={loc.id} value={loc.id.toString()}>{loc.name}</Option>
@@ -572,8 +595,10 @@ export default function UserList({ searchValue = '' }) {
             key={user.id}
             title={user.username}
             fields={[
+              { label: 'Name', value: `${user.first_name || ''} ${user.last_name || ''}`.trim() || '-' },
+              { label: 'Email', value: user.email || '-' },
               { label: 'Rolle', value: user.role },
-              { label: 'Standort', value: user.location?.name || '-' },
+              { label: 'Standort', value: user.location?.name || 'Alle Standorte' },
               { label: 'Department', value: user.department?.name || '-' },
               { label: 'Amt', value: user.amt?.name || '-' },
             ]}
@@ -596,6 +621,28 @@ export default function UserList({ searchValue = '' }) {
                     onChange={(e) => setFormData({ ...formData, username: e.target.value })}
                   />
                 </Field>
+                <Field label="First Name" required>
+                  <Input
+                    value={formData.first_name}
+                    onChange={(e) => setFormData({ ...formData, first_name: e.target.value })}
+                    placeholder="Enter first name"
+                  />
+                </Field>
+                <Field label="Last Name" required>
+                  <Input
+                    value={formData.last_name}
+                    onChange={(e) => setFormData({ ...formData, last_name: e.target.value })}
+                    placeholder="Enter last name"
+                  />
+                </Field>
+                <Field label="Email" required className={styles.fullWidth}>
+                  <Input
+                    type="email"
+                    value={formData.email}
+                    onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+                    placeholder="Enter email"
+                  />
+                </Field>
                 <Field label="New Password (leave empty to keep current)" className={styles.fullWidth}>
                   <Input
                     type="password"
@@ -616,11 +663,26 @@ export default function UserList({ searchValue = '' }) {
                     <Option value="admin">Admin</Option>
                   </Dropdown>
                 </Field>
-                <Field label="Location">
+                <Field label="Location Zuordnung" required className={styles.fullWidth}>
+                  <RadioGroup
+                    value={formData.hasLocation}
+                    onChange={(_, data) => setFormData({ 
+                      ...formData, 
+                      hasLocation: data.value,
+                      location_id: data.value === 'without' ? null : formData.location_id
+                    })}
+                    layout="horizontal"
+                  >
+                    <Radio value="with" label="Mit Location" />
+                    <Radio value="without" label="Ohne Location" />
+                  </RadioGroup>
+                </Field>
+                <Field label="Location" className={styles.fullWidth}>
                   <Dropdown
                     placeholder="Select location"
                     value={locations.find(l => l.id === formData.location_id)?.name || ''}
                     onOptionSelect={(_, data) => setFormData({ ...formData, location_id: parseInt(data.optionValue) })}
+                    disabled={formData.hasLocation === 'without'}
                   >
                     {locations.map(loc => (
                       <Option key={loc.id} value={loc.id.toString()}>{loc.name}</Option>
