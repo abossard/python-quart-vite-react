@@ -233,20 +233,24 @@ export default function Dashboard({ searchValue = '' }) {
   const [selectedLocationId, setSelectedLocationId] = useState(null)
   const [activeCategories, setActiveCategories] = useState([])
   
-  // Extract unique categories from devices
-  const categories = [...new Set(devices.map(d => d.device_type).filter(Boolean))].sort()
-  
   // Get selected location name
   const selectedLocation = locations.find(loc => loc.id === selectedLocationId)
   const locationName = selectedLocation?.name || 'Alle Standorte'
   
-  // Filter devices based on location, category, and search value
-  const filteredDevices = devices.filter(device => {
-    // Location filter
+  // Filter devices by location first (for computing available categories)
+  const locationFilteredDevices = devices.filter(device => {
+    // Location filter only
     if (selectedLocationId && device.location_id !== selectedLocationId) {
       return false
     }
-    
+    return true
+  })
+  
+  // Extract unique categories from location-filtered devices (dynamic filter options)
+  const categories = [...new Set(locationFilteredDevices.map(d => d.device_type).filter(Boolean))].sort()
+  
+  // Filter devices based on location, category, and search value
+  const filteredDevices = locationFilteredDevices.filter(device => {
     // Category filter - allow multiple selections
     if (activeCategories.length > 0 && !activeCategories.includes(device.device_type)) {
       return false
