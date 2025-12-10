@@ -1002,7 +1002,8 @@ async def list_users():
                    u.role, u.location_id, u.department_id, u.amt_id, u.created_at,
                    l.id as loc_id, l.name as loc_name, l.address as loc_address,
                    d.id as dept_id, d.name as dept_name, d.full_name as dept_full_name,
-                   a.id as amt_id_join, a.name as amt_name, a.full_name as amt_full_name
+                   a.id as amt_id_join, a.name as amt_name, a.full_name as amt_full_name,
+                   u.department, u.amt
             FROM users u
             LEFT JOIN locations l ON u.location_id = l.id
             LEFT JOIN departments d ON u.department_id = d.id
@@ -1026,15 +1027,15 @@ async def list_users():
                 'department_id': row[7],
                 'amt_id': row[8],
                 'created_at': datetime.fromisoformat(row[9]) if row[9] else datetime.now(),
+                'department': row[19] if len(row) > 19 else None,
+                'amt': row[20] if len(row) > 20 else None,
             }
             
-            # Updated indices: loc (10,11,12), dept (13,14,15), amt (16,17,18)
+            # Updated indices: loc (10,11,12), dept (13,14,15), amt (16,17,18), text fields (19,20)
             if row[10]:
                 user_data['location'] = Location(id=row[10], name=row[11], address=row[12])
-            if row[13]:
-                user_data['department'] = Department(id=row[13], name=row[14], full_name=row[15])
-            if row[16]:
-                user_data['amt'] = Amt(id=row[16], name=row[17], full_name=row[18], department_id=row[7] or 1)
+            
+            # Don't populate department/amt objects anymore - we use text fields from admindir
             
             users.append(User(**user_data))
         
@@ -1085,12 +1086,13 @@ async def create_user():
         
         await cursor.execute("""
             INSERT INTO users (username, first_name, last_name, email, password_hash, role, 
-                             location_id, department_id, amt_id, is_active, created_at, updated_at)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                             location_id, department_id, amt_id, department, amt, is_active, created_at, updated_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         """, (
             user_data.username, user_data.first_name, user_data.last_name, user_data.email,
             password_hash, user_data.role.value,
             user_data.location_id, user_data.department_id, user_data.amt_id,
+            user_data.department, user_data.amt,
             True, now, now
         ))
         
@@ -1291,6 +1293,70 @@ async def change_user_location(user_id: int):
         return jsonify({'error': str(e)}), 500
 
 
+@app.route('/api/admindir/search', methods=['GET'])
+@require_auth
+async def search_admindir():
+    """Proxy for admindir.verzeichnisse.admin.ch user search"""
+    try:
+        import aiohttp
+        
+        search_term = request.args.get('s', '')
+        lang = request.args.get('lang', 'de')
+        
+        if not search_term or len(search_term.strip()) < 2:
+            return jsonify([]), 200
+        
+        url = f'https://admindir.verzeichnisse.admin.ch/api/search/suggestions?s={search_term}&lang={lang}'
+        
+        async with aiohttp.ClientSession() as session:
+            async with session.get(
+                url,
+                headers={
+                    'Accept': 'application/json, text/plain, */*',
+                    'X-Requested-With': 'XMLHttpRequest',
+                }
+            ) as response:
+                if response.status == 200:
+                    data = await response.json()
+                    return jsonify(data), 200
+                else:
+                    return jsonify({'error': f'Admindir search failed: {response.status}'}), response.status
+    
+    except Exception as e:
+        print(f'Admindir search error: {e}')
+        return jsonify({'error': 'Fehler beim Suchen in Admindir'}), 500
+
+
+@app.route('/api/admindir/person/<person_id>', methods=['GET'])
+@require_auth
+async def get_admindir_person(person_id: str):
+    """Proxy to get full person details from admindir.verzeichnisse.admin.ch"""
+    try:
+        import aiohttp
+        
+        lang = request.args.get('lang', 'de')
+        # Use the persons search endpoint with person_id as search term
+        url = f'https://admindir.verzeichnisse.admin.ch/api/search/persons?lang={lang}&s={person_id}&page=1&pageSize=10'
+        
+        async with aiohttp.ClientSession() as session:
+            async with session.get(
+                url,
+                headers={
+                    'Accept': 'application/json, text/plain, */*',
+                    'X-Requested-With': 'XMLHttpRequest',
+                }
+            ) as response:
+                if response.status == 200:
+                    data = await response.json()
+                    return jsonify(data), 200
+                else:
+                    return jsonify({'error': f'Admindir person fetch failed: {response.status}'}), response.status
+    
+    except Exception as e:
+        print(f'Admindir person fetch error: {e}')
+        return jsonify({'error': 'Fehler beim Laden der Benutzerdetails'}), 500
+
+
 @app.route('/api/password-reset/request', methods=['POST'])
 async def request_password_reset():
     """Request a password reset token"""
@@ -1364,12 +1430,9 @@ async def authenticate_user_by_id(user_id: int, db_conn) -> Optional[User]:
         SELECT u.id, u.username, u.first_name, u.last_name, u.email, 
                u.role, u.location_id, u.department_id, u.amt_id, u.created_at,
                l.id as loc_id, l.name as loc_name, l.address as loc_address,
-               d.id as dept_id, d.name as dept_name, d.full_name as dept_full_name,
-               a.id as amt_id_join, a.name as amt_name, a.full_name as amt_full_name, a.department_id as amt_dept_id
+               u.department, u.amt
         FROM users u
         LEFT JOIN locations l ON u.location_id = l.id
-        LEFT JOIN departments d ON u.department_id = d.id
-        LEFT JOIN amt a ON u.amt_id = a.id
         WHERE u.id = ?
     """, (user_id,))
     
@@ -1390,14 +1453,12 @@ async def authenticate_user_by_id(user_id: int, db_conn) -> Optional[User]:
         'department_id': row[7],
         'amt_id': row[8],
         'created_at': datetime.fromisoformat(row[9]) if row[9] else datetime.now(),
+        'department': row[13] if len(row) > 13 else None,
+        'amt': row[14] if len(row) > 14 else None,
     }
     
     if row[10]:
         user_data['location'] = Location(id=row[10], name=row[11], address=row[12])
-    if row[13]:
-        user_data['department'] = Department(id=row[13], name=row[14], full_name=row[15])
-    if row[16]:
-        user_data['amt'] = Amt(id=row[16], name=row[17], full_name=row[18], department_id=row[19])
     
     return User(**user_data)
 

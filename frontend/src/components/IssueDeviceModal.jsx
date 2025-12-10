@@ -16,6 +16,7 @@ import {
 import {
   Dismiss24Regular,
 } from '@fluentui/react-icons'
+import AdmindirSearch from './AdmindirSearch'
 
 const useStyles = makeStyles({
   overlay: {
@@ -165,13 +166,17 @@ export default function IssueDeviceModal({
 }) {
   const styles = useStyles()
   const [personName, setPersonName] = useState('')
+  const [borrowerEmail, setBorrowerEmail] = useState('')
   const [error, setError] = useState('')
   const [isSubmitting, setIsSubmitting] = useState(false)
+  const [admindirSelected, setAdmindirSelected] = useState(false)
   
   const handleClose = () => {
     setPersonName('')
+    setBorrowerEmail('')
     setError('')
     setIsSubmitting(false)
+    setAdmindirSelected(false)
     onOpenChange(null, { open: false })
   }
   
@@ -179,7 +184,7 @@ export default function IssueDeviceModal({
     // Validation: Name darf nicht leer sein
     const trimmedName = personName.trim()
     if (!trimmedName) {
-      setError('Bitte Name eingeben')
+      setError('Bitte Name eingeben (verwenden Sie die Admindir-Suche)')
       return
     }
     
@@ -190,7 +195,7 @@ export default function IssueDeviceModal({
       // Prepare data with all required fields
       const borrowData = {
         borrower_name: trimmedName,
-        borrower_email: `${trimmedName.toLowerCase().replace(/\s+/g, '.')}@temp.local`,
+        borrower_email: borrowerEmail || `${trimmedName.toLowerCase().replace(/\s+/g, '.')}@temp.local`,
         expected_return_date: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0], // 30 days from now
       }
       
@@ -231,6 +236,20 @@ export default function IssueDeviceModal({
         {/* Content */}
         <div className={styles.content}>
           <label className={styles.label}>
+            Admindir Suche
+          </label>
+          <AdmindirSearch
+            placeholder="Benutzer suchen..."
+            onSelect={(person) => {
+              const fullName = `${person.firstname || ''} ${person.lastname || ''}`.trim()
+              setPersonName(fullName)
+              setBorrowerEmail(person.email || '')
+              setAdmindirSelected(true)
+              if (error) setError('')
+            }}
+          />
+          
+          <label className={styles.label} style={{ marginTop: '16px' }}>
             Name der Person
           </label>
           <input
@@ -242,10 +261,21 @@ export default function IssueDeviceModal({
               if (error) setError('')
             }}
             onKeyPress={handleKeyPress}
-            placeholder=""
-            disabled={isSubmitting}
-            autoFocus
+            placeholder="Wird über Admindir-Suche ausgefüllt"
+            disabled={true}
           />
+          
+          <label className={styles.label} style={{ marginTop: '16px' }}>
+            E-Mail
+          </label>
+          <input
+            type="email"
+            className={styles.input}
+            value={borrowerEmail}
+            placeholder="Wird über Admindir-Suche ausgefüllt"
+            disabled={true}
+          />
+          
           {error && (
             <div className={styles.errorText}>{error}</div>
           )}

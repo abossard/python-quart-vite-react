@@ -49,6 +49,7 @@ import { connectToEventsStream } from '../../services/api'
 import AdminCard from '../../components/AdminCard'
 import ResponsiveGrid from '../../components/ResponsiveGrid'
 import PageHeader from '../../components/PageHeader'
+import AdmindirSearch from '../../components/AdmindirSearch'
 
 const useStyles = makeStyles({
   container: {
@@ -120,8 +121,8 @@ export default function UserList({ searchValue = '' }) {
       user.email?.toLowerCase().includes(search) ||
       user.role?.toLowerCase().includes(search) ||
       user.location?.name?.toLowerCase().includes(search) ||
-      user.department?.name?.toLowerCase().includes(search) ||
-      user.amt?.name?.toLowerCase().includes(search)
+      user.department?.toLowerCase().includes(search) ||
+      user.amt?.toLowerCase().includes(search)
     )
   })
   const [loading, setLoading] = useState(true)
@@ -134,6 +135,8 @@ export default function UserList({ searchValue = '' }) {
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
   const [selectedUser, setSelectedUser] = useState(null)
   const [userToDelete, setUserToDelete] = useState(null)
+  const [admindirDataLoaded, setAdmindirDataLoaded] = useState(false)
+  const [validationError, setValidationError] = useState(null)
   const [formData, setFormData] = useState({
     username: '',
     first_name: '',
@@ -145,6 +148,8 @@ export default function UserList({ searchValue = '' }) {
     location_id: null,
     department_id: null,
     amt_id: null,
+    department: '',
+    amt: '',
   })
 
   const roleColors = {
@@ -252,7 +257,40 @@ export default function UserList({ searchValue = '' }) {
     return cleanup
   }, [])
 
+  const validateForm = () => {
+    if (!formData.username) {
+      setValidationError('Bitte Benutzername eingeben (verwenden Sie die Admindir-Suche)')
+      return false
+    }
+    if (!formData.first_name) {
+      setValidationError('Bitte Vorname eingeben (verwenden Sie die Admindir-Suche)')
+      return false
+    }
+    if (!formData.last_name) {
+      setValidationError('Bitte Nachname eingeben (verwenden Sie die Admindir-Suche)')
+      return false
+    }
+    if (!formData.email) {
+      setValidationError('Bitte E-Mail eingeben (verwenden Sie die Admindir-Suche)')
+      return false
+    }
+    if (!formData.password) {
+      setValidationError('Bitte Passwort eingeben')
+      return false
+    }
+    if (formData.hasLocation === 'with' && !formData.location_id) {
+      setValidationError('Bitte Location auswählen')
+      return false
+    }
+    setValidationError(null)
+    return true
+  }
+
   const handleCreateUser = async () => {
+    if (!validateForm()) {
+      return
+    }
+    
     try {
       const response = await fetch('http://localhost:5001/api/users', {
         method: 'POST',
@@ -401,6 +439,8 @@ export default function UserList({ searchValue = '' }) {
       location_id: user.location_id,
       department_id: user.department_id,
       amt_id: user.amt_id,
+      department: user.department || '',
+      amt: user.amt || '',
     })
     setEditDialogOpen(true)
   }
@@ -481,8 +521,31 @@ export default function UserList({ searchValue = '' }) {
             Refresh
           </Button>
           {(isAdmin || isRedakteur) && (
-            <Dialog open={createDialogOpen} onOpenChange={(_, data) => setCreateDialogOpen(data.open)}>
-              <DialogTrigger disableButtonEnhancement>
+            <Dialog 
+              open={createDialogOpen} 
+              onOpenChange={(_, data) => {
+                setCreateDialogOpen(data.open)
+                // Reset form when dialog is closed
+                if (!data.open) {
+                  setFormData({
+                    username: '',
+                    first_name: '',
+                    last_name: '',
+                    email: '',
+                    password: '',
+                    role: 'user',
+                    hasLocation: 'without',
+                    location_id: null,
+                    department_id: null,
+                    amt_id: null,
+                    department: '',
+                    amt: '',
+                  })
+                  setAdmindirDataLoaded(false)
+                  setValidationError(null)
+                }
+              }}
+            >              <DialogTrigger disableButtonEnhancement>
                 <Button appearance="primary" icon={<Add24Regular />}>
                   Add User
                 </Button>
@@ -491,34 +554,80 @@ export default function UserList({ searchValue = '' }) {
                 <DialogBody>
                   <DialogTitle>Create New User</DialogTitle>
                   <DialogContent>
+                    {validationError && (
+                      <MessageBar intent="error" style={{ marginBottom: tokens.spacingVerticalM }}>
+                        <MessageBarBody>{validationError}</MessageBarBody>
+                      </MessageBar>
+                    )}
                     <div className={styles.formGrid}>
+                      <Field label="Admindir Suche" hint="Suche nach Benutzern im Admindir" className={styles.fullWidth}>
+                        <AdmindirSearch
+                          onSelect={(person) => {
+                            console.log('Selected person from admindir:', person)
+                            
+                            // Extract data from admindir response
+                            // Handle both search result format and full person detail format
+                            let firstName = ''
+                            let lastName = ''
+                            let email = ''
+                            let username = ''
+                            
+                            // Parse name from new API format
+                            firstName = person.firstname || ''
+                            lastName = person.lastname || ''
+                            
+                            // Get email
+                            email = person.email || ''
+                            
+                            // Username is already generated in AdmindirSearch component
+                            // Format: first 2 letters of surname + first 2 letters of givenName
+                            // Example: Alessandro Roschi -> roal
+                            username = person.username || ''
+                            
+                            // Get department and organization from admindir
+                            const department = person.department || ''
+                            const amt = person.organization || ''
+                            
+                            setFormData({
+                              ...formData,
+                              username: username,
+                              first_name: firstName,
+                              last_name: lastName,
+                              email: email,
+                              department: department,
+                              amt: amt,
+                            })
+                            setAdmindirDataLoaded(true)
+                          }}
+                        />
+                      </Field>
                       <Field label="Username" required className={styles.fullWidth}>
                         <Input
                           value={formData.username}
-                          onChange={(e) => setFormData({ ...formData, username: e.target.value })}
-                          placeholder="Enter username"
+                          placeholder="Use Admindir search to auto-fill"
+                          disabled={true}
                         />
                       </Field>
                       <Field label="First Name" required>
                         <Input
                           value={formData.first_name}
-                          onChange={(e) => setFormData({ ...formData, first_name: e.target.value })}
-                          placeholder="Enter first name"
+                          placeholder="Use Admindir search to auto-fill"
+                          disabled={true}
                         />
                       </Field>
                       <Field label="Last Name" required>
                         <Input
                           value={formData.last_name}
-                          onChange={(e) => setFormData({ ...formData, last_name: e.target.value })}
-                          placeholder="Enter last name"
+                          placeholder="Use Admindir search to auto-fill"
+                          disabled={true}
                         />
                       </Field>
                       <Field label="Email" required className={styles.fullWidth}>
                         <Input
                           type="email"
                           value={formData.email}
-                          onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-                          placeholder="Enter email"
+                          placeholder="Use Admindir search to auto-fill"
+                          disabled={true}
                         />
                       </Field>
                       <Field label="Password" required className={styles.fullWidth}>
@@ -568,26 +677,18 @@ export default function UserList({ searchValue = '' }) {
                         </Dropdown>
                       </Field>
                       <Field label="Department">
-                        <Dropdown
-                          placeholder="Select department"
-                          value={departments.find(d => d.id === formData.department_id)?.name || ''}
-                          onOptionSelect={(_, data) => setFormData({ ...formData, department_id: parseInt(data.optionValue) })}
-                        >
-                          {departments.map(dept => (
-                            <Option key={dept.id} value={dept.id.toString()}>{dept.name}</Option>
-                          ))}
-                        </Dropdown>
+                        <Input
+                          value={formData.department}
+                          placeholder="Use Admindir search to auto-fill"
+                          disabled={true}
+                        />
                       </Field>
                       <Field label="Amt">
-                        <Dropdown
-                          placeholder="Select amt"
-                          value={amts.find(a => a.id === formData.amt_id)?.name || ''}
-                          onOptionSelect={(_, data) => setFormData({ ...formData, amt_id: parseInt(data.optionValue) })}
-                        >
-                          {amts.map(amt => (
-                            <Option key={amt.id} value={amt.id.toString()}>{amt.name}</Option>
-                          ))}
-                        </Dropdown>
+                        <Input
+                          value={formData.amt}
+                          placeholder="Use Admindir search to auto-fill"
+                          disabled={true}
+                        />
                       </Field>
                     </div>
                   </DialogContent>
@@ -627,8 +728,8 @@ export default function UserList({ searchValue = '' }) {
                 { label: 'Email', value: user.email || '-' },
                 { label: 'Rolle', value: user.role },
                 { label: 'Standort', value: user.location?.name || 'Alle Standorte' },
-                { label: 'Department', value: user.department?.name || '-' },
-                { label: 'Amt', value: user.amt?.name || '-' },
+                { label: 'Department', value: user.department || '-' },
+                { label: 'Amt', value: user.amt || '-' },
               ]}
               onEdit={canEdit ? () => openEditDialog(user) : null}
               onDelete={canDelete ? () => handleDeleteUser(user) : null}
@@ -647,29 +748,30 @@ export default function UserList({ searchValue = '' }) {
                 <Field label="Username" required className={styles.fullWidth}>
                   <Input
                     value={formData.username}
-                    onChange={(e) => setFormData({ ...formData, username: e.target.value })}
+                    placeholder="Cannot be changed"
+                    disabled={true}
                   />
                 </Field>
                 <Field label="First Name" required>
                   <Input
                     value={formData.first_name}
-                    onChange={(e) => setFormData({ ...formData, first_name: e.target.value })}
-                    placeholder="Enter first name"
+                    placeholder="Cannot be changed"
+                    disabled={true}
                   />
                 </Field>
                 <Field label="Last Name" required>
                   <Input
                     value={formData.last_name}
-                    onChange={(e) => setFormData({ ...formData, last_name: e.target.value })}
-                    placeholder="Enter last name"
+                    placeholder="Cannot be changed"
+                    disabled={true}
                   />
                 </Field>
                 <Field label="Email" required className={styles.fullWidth}>
                   <Input
                     type="email"
                     value={formData.email}
-                    onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-                    placeholder="Enter email"
+                    placeholder="Cannot be changed"
+                    disabled={true}
                   />
                 </Field>
                 <Field label="New Password (leave empty to keep current)" className={styles.fullWidth}>
@@ -719,26 +821,18 @@ export default function UserList({ searchValue = '' }) {
                   </Dropdown>
                 </Field>
                 <Field label="Department">
-                  <Dropdown
-                    placeholder="Select department"
-                    value={departments.find(d => d.id === formData.department_id)?.name || ''}
-                    onOptionSelect={(_, data) => setFormData({ ...formData, department_id: parseInt(data.optionValue) })}
-                  >
-                    {departments.map(dept => (
-                      <Option key={dept.id} value={dept.id.toString()}>{dept.name}</Option>
-                    ))}
-                  </Dropdown>
+                  <Input
+                    value={formData.department}
+                    placeholder="Cannot be changed"
+                    disabled={true}
+                  />
                 </Field>
                 <Field label="Amt">
-                  <Dropdown
-                    placeholder="Select amt"
-                    value={amts.find(a => a.id === formData.amt_id)?.name || ''}
-                    onOptionSelect={(_, data) => setFormData({ ...formData, amt_id: parseInt(data.optionValue) })}
-                  >
-                    {amts.map(amt => (
-                      <Option key={amt.id} value={amt.id.toString()}>{amt.name}</Option>
-                    ))}
-                  </Dropdown>
+                  <Input
+                    value={formData.amt}
+                    placeholder="Cannot be changed"
+                    disabled={true}
+                  />
                 </Field>
               </div>
             </DialogContent>

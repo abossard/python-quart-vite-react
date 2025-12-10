@@ -111,6 +111,8 @@ class UserBase(BaseModel):
     location_id: Optional[int] = None
     department_id: Optional[int] = None
     amt_id: Optional[int] = None
+    department: Optional[str] = None
+    amt: Optional[str] = None
 
 
 class UserCreate(UserBase):
@@ -129,6 +131,8 @@ class UserUpdate(BaseModel):
     location_id: Optional[int] = None
     department_id: Optional[int] = None
     amt_id: Optional[int] = None
+    department: Optional[str] = None
+    amt: Optional[str] = None
 
 
 class User(UserBase):
@@ -136,10 +140,8 @@ class User(UserBase):
     id: int
     created_at: datetime
     
-    # Related entities (populated via JOINs)
+    # Related entities (populated via JOINs) - using different names to avoid conflict
     location: Optional[Location] = None
-    department: Optional[Department] = None
-    amt: Optional[Amt] = None
     
     model_config = ConfigDict(from_attributes=True)
 

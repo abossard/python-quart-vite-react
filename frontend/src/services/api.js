@@ -220,3 +220,40 @@ export async function getCurrentUser() {
   const data = await response.json()
   return data.authenticated ? data.user : null
 }
+
+// ============================================================================
+// Admindir User Search APIs
+// ============================================================================
+
+/**
+ * Search for users in admindir.verzeichnisse.admin.ch via backend proxy
+ * @param {string} searchTerm - Search term (e.g., name)
+ * @param {string} lang - Language code (default: 'de')
+ * @returns {Promise<Array>} Array of user suggestions
+ */
+export async function searchAdmindirUsers(searchTerm, lang = 'de') {
+  if (!searchTerm || searchTerm.trim().length < 2) {
+    return []
+  }
+
+  try {
+    const url = `http://localhost:5001/api/admindir/search?s=${encodeURIComponent(searchTerm)}&lang=${lang}`
+    const response = await fetch(url, {
+      method: 'GET',
+      credentials: 'include',
+      headers: {
+        'Accept': 'application/json',
+      },
+    })
+
+    if (!response.ok) {
+      throw new Error(`Admindir search failed: ${response.status}`)
+    }
+
+    const data = await response.json()
+    return data
+  } catch (error) {
+    console.error('Admindir search error:', error)
+    throw new Error('Fehler beim Suchen in Admindir')
+  }
+}

@@ -260,12 +260,9 @@ async def authenticate_user(username: str, password: str, db_conn) -> Optional[U
                u.password_hash, u.role, u.location_id, 
                u.department_id, u.amt_id, u.created_at,
                l.id as loc_id, l.name as loc_name, l.address as loc_address,
-               d.id as dept_id, d.name as dept_name, d.full_name as dept_full_name,
-               a.id as amt_id_join, a.name as amt_name, a.full_name as amt_full_name
+               u.department, u.amt
         FROM users u
         LEFT JOIN locations l ON u.location_id = l.id
-        LEFT JOIN departments d ON u.department_id = d.id
-        LEFT JOIN amt a ON u.amt_id = a.id
         WHERE u.username = ?
         """,
         (username,)
@@ -283,7 +280,7 @@ async def authenticate_user(username: str, password: str, db_conn) -> Optional[U
         return None
     
     # Build User object
-    from models import Location, Department, Amt
+    from models import Location
     
     user_data = {
         'id': row[0],
@@ -296,16 +293,13 @@ async def authenticate_user(username: str, password: str, db_conn) -> Optional[U
         'department_id': row[8],
         'amt_id': row[9],
         'created_at': datetime.fromisoformat(row[10]) if row[10] else datetime.now(),
+        'department': row[14] if len(row) > 14 else None,
+        'amt': row[15] if len(row) > 15 else None,
     }
     
-    # Add related entities if available
-    # Updated indices: loc (11,12,13), dept (14,15,16), amt (17,18,19)
-    if row[11]:  # location
+    # Add location if available (indices: 11,12,13)
+    if row[11]:
         user_data['location'] = Location(id=row[11], name=row[12], address=row[13])
-    if row[14]:  # department
-        user_data['department'] = Department(id=row[14], name=row[15], full_name=row[16])
-    if row[17]:  # amt
-        user_data['amt'] = Amt(id=row[17], name=row[18], full_name=row[19], department_id=row[8] or 1)
     
     return User(**user_data)
 
