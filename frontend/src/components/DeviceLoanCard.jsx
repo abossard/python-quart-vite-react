@@ -172,6 +172,7 @@ export default function DeviceLoanCard({
   onIssueClick,
   onReturnClick,
   onInfoClick,
+  disableActions = false,
 }) {
   const styles = useStyles()
   
@@ -237,7 +238,10 @@ export default function DeviceLoanCard({
         {isAvailable ? (
           <button 
             className={`${styles.actionButton} ${styles.issueButton}`}
-            onClick={onIssueClick}
+            onClick={disableActions ? undefined : onIssueClick}
+            disabled={disableActions}
+            style={disableActions ? { opacity: 0.5, cursor: 'not-allowed' } : {}}
+            aria-disabled={disableActions}
           >
             <ArrowExportLtr24Regular style={{ width: '20px', height: '20px' }} />
             Herausgeben
@@ -245,7 +249,10 @@ export default function DeviceLoanCard({
         ) : (
           <button 
             className={`${styles.actionButton} ${styles.returnButton}`}
-            onClick={onReturnClick}
+            onClick={disableActions ? undefined : onReturnClick}
+            disabled={disableActions}
+            style={disableActions ? { opacity: 0.5, cursor: 'not-allowed' } : {}}
+            aria-disabled={disableActions}
           >
             <ArrowEnterLeft24Regular style={{ width: '20px', height: '20px' }} />
             Zuruecknehmen

@@ -254,7 +254,18 @@ export default function Login() {
       
       // Kurz warten, damit Cookie gesetzt wird
       await new Promise(resolve => setTimeout(resolve, 100))
-      
+      // Nach Login: Userinfo holen und global setzen
+      try {
+        const userRes = await fetch('http://localhost:5001/api/auth/me', { credentials: 'include' })
+        if (userRes.ok) {
+          const userData = await userRes.json()
+          // Backend returns {user: {...}, session: {...}}
+          const user = userData.user || userData
+          window.grabitUser = user
+        }
+      } catch (e) {
+        // Fallback: ignore
+      }
       // Redirect zur Dashboard-Seite
       navigate('/', { replace: true })
     } catch (err) {

@@ -407,31 +407,72 @@ const useStyles = makeStyles({
 })
 
 export default function AppShell({ children, currentPage, onNavigate }) {
-  const styles = useStyles()
-  const [searchValue, setSearchValue] = useState('')
-  const [menuOpen, setMenuOpen] = useState(false)
-  const [locationDialogOpen, setLocationDialogOpen] = useState(false)
-  const [locations, setLocations] = useState([])
-  const [selectedLocation, setSelectedLocation] = useState('')
-  const [loading, setLoading] = useState(false)
-  const [currentUser, setCurrentUser] = useState(null)
-  
-  // Check if user has access to admin section (only admin and editor)
-  const canAccessAdmin = currentUser && ['admin', 'editor'].includes(currentUser.role)
-  
-  const navItems = [
-    { key: 'overview', label: 'Übersicht' },
-    { key: 'history', label: 'Verlauf' },
-    { key: 'missing', label: 'Vermisst' },
-    { key: 'devices', label: 'Geräte' },
-  ]
-  
-  const adminItems = [
-    { key: 'users', label: 'Benutzer' },
-    { key: 'departments', label: 'Departments' },
-    { key: 'amts', label: 'Ämter' },
-    { key: 'locations', label: 'Standorte' },
-  ]
+  const styles = useStyles();
+  const [searchValue, setSearchValue] = useState('');
+  const [menuOpen, setMenuOpen] = useState(false);
+  const [locationDialogOpen, setLocationDialogOpen] = useState(false);
+  const [locations, setLocations] = useState([]);
+  const [selectedLocation, setSelectedLocation] = useState('');
+  const [loading, setLoading] = useState(false);
+  const [currentUser, setCurrentUser] = useState(null);
+  const canAccessAdmin = currentUser && ['admin', 'editor'].includes(currentUser.role);
+  // Fallback: window.grabitUser falls currentUser noch nicht geladen ist
+  // Immer Servicedesk-Restriktion, egal ob currentUser geladen ist
+  let role = currentUser?.role;
+  if (!role && typeof window !== 'undefined' && window.grabitUser?.role) {
+    role = window.grabitUser.role;
+  }
+  const isServicedesk = role === 'Servicedesk';
+  // Rollenbasierte Navigation
+  let navItems = [];
+  let adminItems = [];
+  switch (role) {
+    case 'servicedesk':
+      navItems = [{ key: 'overview', label: 'Übersicht' }];
+      adminItems = [];
+      break;
+    case 'user':
+      navItems = [
+        { key: 'overview', label: 'Übersicht' },
+        { key: 'history', label: 'Verlauf' },
+        { key: 'missing', label: 'Vermisst' },
+        { key: 'devices', label: 'Geräte' },
+      ];
+      adminItems = [];
+      break;
+    case 'editor':
+    case 'redakteur':
+      navItems = [
+        { key: 'overview', label: 'Übersicht' },
+        { key: 'history', label: 'Verlauf' },
+        { key: 'missing', label: 'Vermisst' },
+        { key: 'devices', label: 'Geräte' },
+      ];
+      adminItems = [
+        { key: 'users', label: 'Benutzer' },
+        { key: 'departments', label: 'Departments' },
+        { key: 'amts', label: 'Ämter' },
+        { key: 'locations', label: 'Standorte' },
+      ];
+      break;
+    case 'admin':
+      navItems = [
+        { key: 'overview', label: 'Übersicht' },
+        { key: 'history', label: 'Verlauf' },
+        { key: 'missing', label: 'Vermisst' },
+        { key: 'devices', label: 'Geräte' },
+      ];
+      adminItems = [
+        { key: 'users', label: 'Benutzer' },
+        { key: 'departments', label: 'Departments' },
+        { key: 'amts', label: 'Ämter' },
+        { key: 'locations', label: 'Standorte' },
+      ];
+      break;
+    default:
+      navItems = [{ key: 'overview', label: 'Übersicht' }];
+      adminItems = [];
+  }
 
   // Load user info and locations
   useEffect(() => {
@@ -562,68 +603,54 @@ export default function AppShell({ children, currentPage, onNavigate }) {
               
               <MenuPopover>
                 <MenuList style={{ padding: '8px 0', minWidth: '220px' }}>
-                  {/* Greeting Header */}
                   <div className={styles.menuGreeting}>
                     Hallo {currentUser?.username || 'User'}
                   </div>
-                  
-                  {/* Navigation Items */}
                   {navItems.map((item) => (
                     <MenuItem
                       key={item.key}
                       className={currentPage === item.key ? styles.menuItemActive : styles.menuItemBase}
                       onClick={() => {
-                        onNavigate(item.key)
-                        setMenuOpen(false)
+                        onNavigate(item.key);
+                        setMenuOpen(false);
                       }}
                     >
                       {item.label}
                     </MenuItem>
                   ))}
-                  
-                  <div className={styles.menuDivider}></div>
-                  
-                  {/* Section Label - nur für Admin und Editor */}
-                  {canAccessAdmin && (
+                  {adminItems.length > 0 && (
                     <>
                       <div className={styles.menuLabel}>Verwaltung</div>
-                      
-                      {/* Admin Items */}
                       {adminItems.map((item) => (
                         <MenuItem
                           key={item.key}
                           className={currentPage === item.key ? styles.menuItemActive : styles.menuItemBase}
                           onClick={() => {
-                            onNavigate(item.key)
-                            setMenuOpen(false)
+                            onNavigate(item.key);
+                            setMenuOpen(false);
                           }}
                         >
                           {item.label}
                         </MenuItem>
                       ))}
-                      
+                      <div className={styles.menuDivider}></div>
+                      <MenuItem
+                        className={styles.menuItemMuted}
+                        onClick={() => {
+                          setSelectedLocation(currentUser?.location_id?.toString() || '');
+                          setLocationDialogOpen(true);
+                          setMenuOpen(false);
+                        }}
+                      >
+                        <div className={styles.menuItemContent}>
+                          <span>Standort ändern</span>
+                          <ArrowSwap24Regular className={styles.menuIcon} />
+                        </div>
+                      </MenuItem>
                       <div className={styles.menuDivider}></div>
                     </>
                   )}
-                  
-                  {/* Standort ändern */}
-                  <MenuItem 
-                    className={styles.menuItemMuted}
-                    onClick={() => {
-                      setSelectedLocation(currentUser?.location_id?.toString() || '')
-                      setLocationDialogOpen(true)
-                      setMenuOpen(false)
-                    }}
-                  >
-                    <div className={styles.menuItemContent}>
-                      <span>Standort ändern</span>
-                      <ArrowSwap24Regular className={styles.menuIcon} />
-                    </div>
-                  </MenuItem>
-                  
-                  <div className={styles.menuDivider}></div>
-                  
-                  {/* Abmelden */}
+                  {/* Abmelden immer sichtbar */}
                   <MenuItem
                     className={styles.menuItemDanger}
                     onClick={async () => {
@@ -631,12 +658,11 @@ export default function AppShell({ children, currentPage, onNavigate }) {
                         await fetch('http://localhost:5001/api/auth/logout', {
                           method: 'POST',
                           credentials: 'include',
-                        })
+                        });
                       } catch (error) {
-                        console.error('Logout error:', error)
+                        console.error('Logout error:', error);
                       } finally {
-                        // Redirect to login regardless of API result
-                        window.location.href = '/login'
+                        window.location.href = '/login';
                       }
                     }}
                   >
@@ -662,53 +688,46 @@ export default function AppShell({ children, currentPage, onNavigate }) {
         © 2025 BIT-Store
       </footer>
 
-      {/* Location Change Dialog */}
-      <Dialog
-        open={locationDialogOpen}
-        onOpenChange={(event, data) => setLocationDialogOpen(data.open)}
-      >
-        <DialogSurface>
-          <DialogBody>
-            <DialogTitle>Standort ändern</DialogTitle>
-            <DialogContent>
-              <Field label="Aktueller Benutzer" disabled>
-                <Input value={currentUser?.username || ''} disabled />
-              </Field>
-              
-              <Field label="Standort wechseln" required>
-                <Dropdown
-                  placeholder={currentUser?.location?.name || 'Standort auswählen'}
-                  value={locations.find(loc => loc.id.toString() === selectedLocation)?.name || ''}
-                  selectedOptions={[selectedLocation]}
-                  onOptionSelect={(e, data) => setSelectedLocation(data.optionValue)}
-                >
-                  {locations.map((location) => (
-                    <Option key={location.id} value={location.id.toString()}>
-                      {location.name}
-                    </Option>
-                  ))}
-                </Dropdown>
-              </Field>
-            </DialogContent>
-            <DialogActions>
-              <Button 
-                appearance="secondary" 
-                onClick={() => setLocationDialogOpen(false)}
-                disabled={loading}
-              >
-                Abbrechen
-              </Button>
-              <Button 
-                appearance="primary" 
-                onClick={handleLocationChange}
-                disabled={loading || !selectedLocation}
-              >
-                {loading ? <Spinner size="tiny" /> : 'Speichern'}
-              </Button>
-            </DialogActions>
-          </DialogBody>
-        </DialogSurface>
-      </Dialog>
+      {/* Standort Dialog nur für Nicht-Servicedesk */}
+      {!isServicedesk && (
+        <Dialog
+          open={locationDialogOpen}
+          onOpenChange={(event, data) => setLocationDialogOpen(data.open)}
+        >
+          <DialogSurface>
+            <DialogBody>
+              <DialogTitle>Standort ändern</DialogTitle>
+              <DialogContent>
+                <Field label="Aktueller Benutzer" disabled>
+                  <Input value={currentUser?.username || ''} disabled />
+                </Field>
+                <Field label="Standort wechseln" required>
+                  <Dropdown
+                    placeholder={currentUser?.location?.name || 'Standort auswählen'}
+                    value={locations.find(loc => loc.id.toString() === selectedLocation)?.name || ''}
+                    selectedOptions={[selectedLocation]}
+                    onOptionSelect={(e, data) => setSelectedLocation(data.optionValue)}
+                  >
+                    {locations.map((location) => (
+                      <Option key={location.id} value={location.id.toString()}>
+                        {location.name}
+                      </Option>
+                    ))}
+                  </Dropdown>
+                </Field>
+              </DialogContent>
+              <DialogActions>
+                <Button appearance="secondary" onClick={() => setLocationDialogOpen(false)} disabled={loading}>
+                  Abbrechen
+                </Button>
+                <Button appearance="primary" onClick={handleLocationChange} disabled={loading || !selectedLocation}>
+                  {loading ? <Spinner size="tiny" /> : 'Speichern'}
+                </Button>
+              </DialogActions>
+            </DialogBody>
+          </DialogSurface>
+        </Dialog>
+      )}
     </div>
-  )
+  );
 }

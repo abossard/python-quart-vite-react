@@ -279,6 +279,17 @@ export default function UserList({ searchValue = '' }) {
         department_id: null,
         amt_id: null,
       })
+      // Nach Create: Userinfo holen und global setzen
+      try {
+        const userRes = await fetch('http://localhost:5001/api/auth/me', { credentials: 'include' })
+        if (userRes.ok) {
+          const userData = await userRes.json()
+          const user = userData.user || userData
+          window.grabitUser = user
+        }
+      } catch (e) {
+        // Fallback: ignore
+      }
       await loadData()
     } catch (err) {
       setError(err.message)
@@ -309,6 +320,17 @@ export default function UserList({ searchValue = '' }) {
       
       setEditDialogOpen(false)
       setSelectedUser(null)
+      // Nach Update: Userinfo holen und global setzen
+      try {
+        const userRes = await fetch('http://localhost:5001/api/auth/me', { credentials: 'include' })
+        if (userRes.ok) {
+          const userData = await userRes.json()
+          const user = userData.user || userData
+          window.grabitUser = user
+        }
+      } catch (e) {
+        // Fallback: ignore
+      }
       await loadData()
     } catch (err) {
       setError(err.message)
@@ -397,7 +419,8 @@ export default function UserList({ searchValue = '' }) {
     )
   }
 
-  const isAdmin = currentUser?.role === 'admin'
+  const isAdmin = currentUser?.role === 'admin';
+  const isRedakteur = currentUser?.role === 'redakteur';
 
   if (loading) {
     return (
@@ -457,7 +480,7 @@ export default function UserList({ searchValue = '' }) {
           >
             Refresh
           </Button>
-          {isAdmin && (
+          {(isAdmin || isRedakteur) && (
             <Dialog open={createDialogOpen} onOpenChange={(_, data) => setCreateDialogOpen(data.open)}>
               <DialogTrigger disableButtonEnhancement>
                 <Button appearance="primary" icon={<Add24Regular />}>
@@ -515,7 +538,7 @@ export default function UserList({ searchValue = '' }) {
                           <Option value="user">User</Option>
                           <Option value="editor">Editor</Option>
                           <Option value="redakteur">Redakteur</Option>
-                          <Option value="admin">Admin</Option>
+                          {isAdmin && <Option value="admin">Admin</Option>}
                         </Dropdown>
                       </Field>
                       <Field label="Location Zuordnung" required className={styles.fullWidth}>
@@ -590,22 +613,28 @@ export default function UserList({ searchValue = '' }) {
       )}
 
       <ResponsiveGrid>
-        {filteredUsers.map((user) => (
-          <AdminCard
-            key={user.id}
-            title={user.username}
-            fields={[
-              { label: 'Name', value: `${user.first_name || ''} ${user.last_name || ''}`.trim() || '-' },
-              { label: 'Email', value: user.email || '-' },
-              { label: 'Rolle', value: user.role },
-              { label: 'Standort', value: user.location?.name || 'Alle Standorte' },
-              { label: 'Department', value: user.department?.name || '-' },
-              { label: 'Amt', value: user.amt?.name || '-' },
-            ]}
-            onEdit={isAdmin ? () => openEditDialog(user) : null}
-            onDelete={isAdmin && user.id !== currentUser?.id ? () => handleDeleteUser(user) : null}
-          />
-        ))}
+        {filteredUsers.map((user) => {
+          // Redakteur darf Admins nicht bearbeiten/löschen
+          const isTargetAdmin = user.role === 'admin';
+          const canEdit = (isAdmin || (isRedakteur && !isTargetAdmin));
+          const canDelete = (isAdmin && user.id !== currentUser?.id) || (isRedakteur && !isTargetAdmin && user.id !== currentUser?.id);
+          return (
+            <AdminCard
+              key={user.id}
+              title={user.username}
+              fields={[
+                { label: 'Name', value: `${user.first_name || ''} ${user.last_name || ''}`.trim() || '-' },
+                { label: 'Email', value: user.email || '-' },
+                { label: 'Rolle', value: user.role },
+                { label: 'Standort', value: user.location?.name || 'Alle Standorte' },
+                { label: 'Department', value: user.department?.name || '-' },
+                { label: 'Amt', value: user.amt?.name || '-' },
+              ]}
+              onEdit={canEdit ? () => openEditDialog(user) : null}
+              onDelete={canDelete ? () => handleDeleteUser(user) : null}
+            />
+          );
+        })}
       </ResponsiveGrid>
 
       {/* Edit User Dialog */}

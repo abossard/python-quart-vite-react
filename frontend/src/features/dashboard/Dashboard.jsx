@@ -221,7 +221,10 @@ export default function Dashboard({ searchValue = '' }) {
   const [currentUser, setCurrentUser] = useState(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
-  
+
+  // Berechtigungslogik für Servicedesk
+  const isServicedesk = currentUser?.role === 'servicedesk'
+
   console.log('Dashboard rendering, devices:', devices.length, 'locations:', locations.length)
   const [issueModalOpen, setIssueModalOpen] = useState(false)
   const [returnModalOpen, setReturnModalOpen] = useState(false)
@@ -363,12 +366,14 @@ export default function Dashboard({ searchValue = '' }) {
 
   // Handler für "Herausgeben" Button
   const handleIssueClick = (device) => {
+    if (isServicedesk) return
     setSelectedDevice(device)
     setIssueModalOpen(true)
   }
-  
+
   // Handler für "Zurücknehmen" Button - öffnet Modal
   const handleReturnClick = (device) => {
+    if (isServicedesk) return
     setSelectedDevice(device)
     setReturnModalOpen(true)
   }
@@ -624,6 +629,7 @@ export default function Dashboard({ searchValue = '' }) {
                 onIssueClick={() => handleIssueClick(device)}
                 onReturnClick={() => handleReturnClick(device)}
                 onInfoClick={() => handleInfoClick(device)}
+                disableActions={isServicedesk}
               />
             )
           })}
@@ -631,21 +637,24 @@ export default function Dashboard({ searchValue = '' }) {
       )}
       
       {/* Issue Device Modal */}
-      <IssueDeviceModal
-        open={issueModalOpen}
-        onOpenChange={(_, data) => setIssueModalOpen(data.open)}
-        onSubmit={handleIssueSubmit}
-        deviceInfo={selectedDevice}
-      />
-      
+      {!isServicedesk && (
+        <IssueDeviceModal
+          open={issueModalOpen}
+          onOpenChange={(_, data) => setIssueModalOpen(data.open)}
+          onSubmit={handleIssueSubmit}
+          deviceInfo={selectedDevice}
+        />
+      )}
       {/* Return Device Modal */}
-      <ReturnDeviceModal
-        open={returnModalOpen}
-        onOpenChange={(_, data) => setReturnModalOpen(data.open)}
-        deviceName={selectedDevice ? `${selectedDevice.device_type || 'Gerät'}` : 'Gerät'}
-        onReturn={handleReturnConfirm}
-        onMarkMissing={handleMarkMissing}
-      />
+      {!isServicedesk && (
+        <ReturnDeviceModal
+          open={returnModalOpen}
+          onOpenChange={(_, data) => setReturnModalOpen(data.open)}
+          deviceName={selectedDevice ? `${selectedDevice.device_type || 'Gerät'}` : 'Gerät'}
+          onReturn={handleReturnConfirm}
+          onMarkMissing={handleMarkMissing}
+        />
+      )}
       
       {/* Detail Dialog */}
       <DetailDialog

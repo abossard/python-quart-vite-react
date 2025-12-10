@@ -45,23 +45,27 @@ const pageToRouteMap = {
 }
 
 export default function App() {
-  const location = useLocation()
-  const navigate = useNavigate()
-  
-  const currentPage = routeToPageMap[location.pathname] || 'overview'
-  
+  const location = useLocation();
+  const navigate = useNavigate();
+
+  const currentPage = routeToPageMap[location.pathname] || 'overview';
+
   const handleNavigate = (pageKey) => {
-    const route = pageToRouteMap[pageKey]
+    const route = pageToRouteMap[pageKey];
     if (route) {
-      navigate(route)
+      navigate(route);
     }
-  }
+  };
+
+  // Servicedesk: Nur Dashboard erlauben
+  // Rolle aus globalem State oder Auth-Kontext holen
+  // Hier als Beispiel: window.grabitUser?.role
+  const isServicedesk = window.grabitUser?.role === 'Servicedesk';
 
   return (
     <Routes>
       {/* Public Route - Login */}
       <Route path="/login" element={<Login />} />
-      
       {/* Protected Routes - Require Authentication */}
       <Route path="/*" element={
         <ProtectedRoute>
@@ -70,13 +74,13 @@ export default function App() {
               <Routes>
                 <Route path="/" element={<Navigate to="/dashboard" replace />} />
                 <Route path="/dashboard" element={<Dashboard searchValue={searchValue} />} />
-                <Route path="/history" element={<History searchValue={searchValue} />} />
-                <Route path="/missing" element={<MissingDevices searchValue={searchValue} />} />
-                <Route path="/devices" element={<DeviceList searchValue={searchValue} />} />
-                <Route path="/users" element={<UserList searchValue={searchValue} />} />
-                <Route path="/departments" element={<DepartmentList searchValue={searchValue} />} />
-                <Route path="/amts" element={<AmtList searchValue={searchValue} />} />
-                <Route path="/locations" element={<LocationList searchValue={searchValue} />} />
+                {!isServicedesk && <Route path="/history" element={<History searchValue={searchValue} />} />}
+                {!isServicedesk && <Route path="/missing" element={<MissingDevices searchValue={searchValue} />} />}
+                {!isServicedesk && <Route path="/devices" element={<DeviceList searchValue={searchValue} />} />}
+                {!isServicedesk && <Route path="/users" element={<UserList searchValue={searchValue} />} />}
+                {!isServicedesk && <Route path="/departments" element={<DepartmentList searchValue={searchValue} />} />}
+                {!isServicedesk && <Route path="/amts" element={<AmtList searchValue={searchValue} />} />}
+                {!isServicedesk && <Route path="/locations" element={<LocationList searchValue={searchValue} />} />}
                 <Route path="*" element={<Navigate to="/dashboard" replace />} />
               </Routes>
             )}
@@ -84,5 +88,5 @@ export default function App() {
         </ProtectedRoute>
       } />
     </Routes>
-  )
+  );
 }
