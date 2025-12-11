@@ -54,21 +54,21 @@ const useStyles = makeStyles({
   
   statusButtons: {
     display: 'flex',
-    gap: '10px',
+    gap: '8px',
     alignItems: 'center',
   },
   
   countButton: {
     fontSize: tokens.fontSizeBase200,
     fontWeight: tokens.fontWeightMedium,
-    padding: '8px 16px',
-    borderRadius: '6px',
+    padding: '6px 12px',
+    borderRadius: '4px',
     display: 'inline-flex',
     alignItems: 'center',
-    gap: '8px',
-    border: '1.5px solid',
+    gap: '6px',
+    border: 'none',
     cursor: 'pointer',
-    transition: 'all 0.2s ease',
+    transition: 'all 0.15s ease',
     fontFamily: tokens.fontFamilyBase,
     outline: 'none',
     ':focus-visible': {
@@ -79,57 +79,42 @@ const useStyles = makeStyles({
   
   availableButton: {
     backgroundColor: '#ffffff',
-    color: '#155724',
-    borderColor: '#c3e6cb',
-    boxShadow: '0 1px 3px rgba(0, 0, 0, 0.08)',
+    color: '#1e7e34',
+    boxShadow: 'inset 0 0 0 1px rgba(40, 167, 69, 0.3)',
     ':hover': {
-      backgroundColor: '#d4edda',
-      borderColor: '#b1dfbb',
-      boxShadow: '0 2px 6px rgba(40, 167, 69, 0.15)',
-      transform: 'translateY(-1px)',
+      backgroundColor: 'rgba(40, 167, 69, 0.05)',
     },
   },
   
   availableButtonActive: {
-    backgroundColor: '#28a745',
-    color: '#ffffff',
-    borderColor: '#28a745',
-    boxShadow: '0 2px 6px rgba(40, 167, 69, 0.3)',
+    backgroundColor: 'rgba(40, 167, 69, 0.15)',
+    color: '#1e7e34',
+    boxShadow: 'inset 0 0 0 1px rgba(40, 167, 69, 0.3)',
     ':hover': {
-      backgroundColor: '#218838',
-      borderColor: '#1e7e34',
-      boxShadow: '0 3px 8px rgba(40, 167, 69, 0.4)',
+      backgroundColor: 'rgba(40, 167, 69, 0.2)',
     },
   },
   
   issuedButton: {
     backgroundColor: '#ffffff',
-    color: '#721c24',
-    borderColor: '#f5c6cb',
-    boxShadow: '0 1px 3px rgba(0, 0, 0, 0.08)',
+    color: '#bd2130',
+    boxShadow: 'inset 0 0 0 1px rgba(220, 53, 69, 0.3)',
     ':hover': {
-      backgroundColor: '#f8d7da',
-      borderColor: '#f1b0b7',
-      boxShadow: '0 2px 6px rgba(220, 53, 69, 0.15)',
-      transform: 'translateY(-1px)',
+      backgroundColor: 'rgba(220, 53, 69, 0.05)',
     },
   },
   
   issuedButtonActive: {
-    backgroundColor: '#dc3545',
-    color: '#ffffff',
-    borderColor: '#dc3545',
-    boxShadow: '0 2px 6px rgba(220, 53, 69, 0.3)',
+    backgroundColor: 'rgba(220, 53, 69, 0.15)',
+    color: '#bd2130',
+    boxShadow: 'inset 0 0 0 1px rgba(220, 53, 69, 0.3)',
     ':hover': {
-      backgroundColor: '#c82333',
-      borderColor: '#bd2130',
-      boxShadow: '0 3px 8px rgba(220, 53, 69, 0.4)',
+      backgroundColor: 'rgba(220, 53, 69, 0.2)',
     },
   },
   
   countNumber: {
     fontWeight: tokens.fontWeightSemibold,
-    fontSize: tokens.fontSizeBase300,
   },
   
   filterBar: {
