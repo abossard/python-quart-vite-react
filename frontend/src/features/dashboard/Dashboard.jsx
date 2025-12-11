@@ -34,13 +34,102 @@ const useStyles = makeStyles({
     padding: tokens.spacingVerticalXXL,
   },
   
+  headerContainer: {
+    display: 'flex',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: '52px',
+    gap: '24px',
+    flexWrap: 'wrap',
+  },
+  
   headerTitle: {
     fontFamily: tokens.fontFamilyBase,
     fontSize: tokens.fontSizeHero700,
     fontWeight: tokens.fontWeightSemibold,
     lineHeight: tokens.lineHeightHero700,
     color: tokens.colorNeutralForeground1,
-    marginBottom: '52px',
+    margin: '0',
+  },
+  
+  statusButtons: {
+    display: 'flex',
+    gap: '10px',
+    alignItems: 'center',
+  },
+  
+  countButton: {
+    fontSize: tokens.fontSizeBase200,
+    fontWeight: tokens.fontWeightMedium,
+    padding: '8px 16px',
+    borderRadius: '6px',
+    display: 'inline-flex',
+    alignItems: 'center',
+    gap: '8px',
+    border: '1.5px solid',
+    cursor: 'pointer',
+    transition: 'all 0.2s ease',
+    fontFamily: tokens.fontFamilyBase,
+    outline: 'none',
+    ':focus-visible': {
+      outline: `2px solid ${tokens.colorBrandStroke1}`,
+      outlineOffset: '2px',
+    },
+  },
+  
+  availableButton: {
+    backgroundColor: '#ffffff',
+    color: '#155724',
+    borderColor: '#c3e6cb',
+    boxShadow: '0 1px 3px rgba(0, 0, 0, 0.08)',
+    ':hover': {
+      backgroundColor: '#d4edda',
+      borderColor: '#b1dfbb',
+      boxShadow: '0 2px 6px rgba(40, 167, 69, 0.15)',
+      transform: 'translateY(-1px)',
+    },
+  },
+  
+  availableButtonActive: {
+    backgroundColor: '#28a745',
+    color: '#ffffff',
+    borderColor: '#28a745',
+    boxShadow: '0 2px 6px rgba(40, 167, 69, 0.3)',
+    ':hover': {
+      backgroundColor: '#218838',
+      borderColor: '#1e7e34',
+      boxShadow: '0 3px 8px rgba(40, 167, 69, 0.4)',
+    },
+  },
+  
+  issuedButton: {
+    backgroundColor: '#ffffff',
+    color: '#721c24',
+    borderColor: '#f5c6cb',
+    boxShadow: '0 1px 3px rgba(0, 0, 0, 0.08)',
+    ':hover': {
+      backgroundColor: '#f8d7da',
+      borderColor: '#f1b0b7',
+      boxShadow: '0 2px 6px rgba(220, 53, 69, 0.15)',
+      transform: 'translateY(-1px)',
+    },
+  },
+  
+  issuedButtonActive: {
+    backgroundColor: '#dc3545',
+    color: '#ffffff',
+    borderColor: '#dc3545',
+    boxShadow: '0 2px 6px rgba(220, 53, 69, 0.3)',
+    ':hover': {
+      backgroundColor: '#c82333',
+      borderColor: '#bd2130',
+      boxShadow: '0 3px 8px rgba(220, 53, 69, 0.4)',
+    },
+  },
+  
+  countNumber: {
+    fontWeight: tokens.fontWeightSemibold,
+    fontSize: tokens.fontSizeBase300,
   },
   
   filterBar: {
@@ -235,6 +324,7 @@ export default function Dashboard({ searchValue = '' }) {
   // Filter state
   const [selectedLocationId, setSelectedLocationId] = useState(null)
   const [activeCategories, setActiveCategories] = useState([])
+  const [statusFilter, setStatusFilter] = useState(null) // 'available', 'issued', or null
   
   // Get selected location name
   const selectedLocation = locations.find(loc => loc.id === selectedLocationId)
@@ -252,10 +342,18 @@ export default function Dashboard({ searchValue = '' }) {
   // Extract unique categories from location-filtered devices (dynamic filter options)
   const categories = [...new Set(locationFilteredDevices.map(d => d.device_type).filter(Boolean))].sort()
   
-  // Filter devices based on location, category, and search value
+  // Filter devices based on location, category, status, and search value
   const filteredDevices = locationFilteredDevices.filter(device => {
     // Category filter - allow multiple selections
     if (activeCategories.length > 0 && !activeCategories.includes(device.device_type)) {
+      return false
+    }
+    
+    // Status filter
+    if (statusFilter === 'available' && device.status !== 'available') {
+      return false
+    }
+    if (statusFilter === 'issued' && device.status === 'available') {
       return false
     }
     
@@ -507,10 +605,30 @@ export default function Dashboard({ searchValue = '' }) {
 
   return (
     <div className={styles.container}>
-      {/* Custom title with location */}
-      <h1 className={styles.headerTitle}>
-        Ausleihgeräte {locationName}
-      </h1>
+      {/* Header with title and status buttons */}
+      <div className={styles.headerContainer}>
+        <h1 className={styles.headerTitle}>
+          Ausleihgeräte {locationName}
+        </h1>
+        <div className={styles.statusButtons}>
+          <button
+            className={`${styles.countButton} ${styles.availableButton} ${statusFilter === 'available' ? styles.availableButtonActive : ''}`}
+            onClick={() => setStatusFilter(statusFilter === 'available' ? null : 'available')}
+            aria-label="Nur verfügbare Geräte anzeigen"
+          >
+            <span className={styles.countNumber}>{locationFilteredDevices.filter(d => d.status === 'available').length}</span>
+            <span>verfügbar</span>
+          </button>
+          <button
+            className={`${styles.countButton} ${styles.issuedButton} ${statusFilter === 'issued' ? styles.issuedButtonActive : ''}`}
+            onClick={() => setStatusFilter(statusFilter === 'issued' ? null : 'issued')}
+            aria-label="Nur herausgegebene Geräte anzeigen"
+          >
+            <span className={styles.countNumber}>{locationFilteredDevices.filter(d => d.status !== 'available').length}</span>
+            <span>herausgegeben</span>
+          </button>
+        </div>
+      </div>
       
       {/* Filter bar */}
       <div className={styles.filterBar}>
