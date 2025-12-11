@@ -91,7 +91,7 @@ const useStyles = makeStyles({
     color: '#1e7e34',
     boxShadow: 'inset 0 0 0 1px rgba(40, 167, 69, 0.3)',
     ':hover': {
-      backgroundColor: 'rgba(40, 167, 69, 0.2)',
+      backgroundColor: 'rgba(40, 167, 69, 0.15)',
     },
   },
   
@@ -109,7 +109,7 @@ const useStyles = makeStyles({
     color: '#bd2130',
     boxShadow: 'inset 0 0 0 1px rgba(220, 53, 69, 0.3)',
     ':hover': {
-      backgroundColor: 'rgba(220, 53, 69, 0.2)',
+      backgroundColor: 'rgba(220, 53, 69, 0.15)',
     },
   },
   
@@ -208,18 +208,15 @@ const useStyles = makeStyles({
     fontWeight: tokens.fontWeightRegular,
     lineHeight: tokens.lineHeightBase300,
     borderRadius: '6px',
-    border: `1px solid ${tokens.colorNeutralStroke1}`,
-    backgroundColor: tokens.colorNeutralBackground1,
-    boxShadow: tokens.shadow4,
+    border: 'none',
+    backgroundColor: '#ffffff',
+    boxShadow: `inset 0 0 0 1px rgba(0, 0, 0, 0.2), ${tokens.shadow4}`,
     transition: 'all 0.15s ease',
     cursor: 'pointer',
     color: tokens.colorNeutralForeground1,
     whiteSpace: 'nowrap',
     ':hover': {
-      backgroundColor: '#0d6efd',
-      color: '#ffffff',
-      boxShadow: tokens.shadow8,
-      borderColor: '#0d6efd',
+      backgroundColor: 'rgba(13, 110, 253, 0.1)',
     },
   },
   
@@ -227,13 +224,11 @@ const useStyles = makeStyles({
     fontFamily: tokens.fontFamilyBase,
     backgroundColor: '#0d6efd',
     color: '#ffffff',
-    borderColor: '#0d6efd',
-    display: 'flex',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    gap: '0',
-    padding: '10px 0 10px 16px',
-    overflow: 'hidden',
+    boxShadow: `inset 0 0 0 1px #0d6efd, ${tokens.shadow4}`,
+    padding: '10px 16px',
+    ':hover': {
+      backgroundColor: '#0d6efd',
+    },
   },
   
   removeIconContainer: {
@@ -667,23 +662,14 @@ export default function Dashboard({ searchValue = '' }) {
             key={category}
             className={`${styles.categoryButton} ${activeCategories.includes(category) ? styles.categoryButtonActive : ''}`}
             onClick={() => {
-              if (!activeCategories.includes(category)) {
+              if (activeCategories.includes(category)) {
+                setActiveCategories(activeCategories.filter(c => c !== category))
+              } else {
                 setActiveCategories([...activeCategories, category])
               }
             }}
           >
             <span>{category}</span>
-            {activeCategories.includes(category) && (
-              <div 
-                className={styles.removeIconContainer}
-                onClick={(e) => {
-                  e.stopPropagation()
-                  setActiveCategories(activeCategories.filter(c => c !== category))
-                }}
-              >
-                <Dismiss20Regular className={styles.removeIcon} />
-              </div>
-            )}
           </button>
         ))}
       </div>
