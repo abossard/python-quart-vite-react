@@ -260,12 +260,35 @@ const useStyles = makeStyles({
   },
   
   hamburgerButton: {
-    boxShadow: tokens.shadow8,
-    height: '38px',
-    width: '38px',
-    minHeight: '38px',
-    minWidth: '38px',
+    boxShadow: `inset 0 0 0 1px rgba(0, 0, 0, 0.2), ${tokens.shadow4}`,
+    height: '42px',
+    width: '42px',
+    minHeight: '42px',
+    minWidth: '42px',
     marginLeft: tokens.spacingHorizontalM,
+    backgroundColor: '#ffffff !important',
+    border: 'none',
+    color: `${tokens.colorNeutralForeground1} !important`,
+    transition: 'all 0.15s ease',
+    '& svg': {
+      color: `${tokens.colorNeutralForeground1} !important`,
+    },
+    ':hover': {
+      backgroundColor: '#0d6efd !important',
+      color: '#ffffff !important',
+      '& svg': {
+        color: '#ffffff !important',
+      },
+    },
+  },
+  
+  hamburgerButtonActive: {
+    backgroundColor: '#0d6efd !important',
+    color: '#ffffff !important',
+    boxShadow: `inset 0 0 0 1px #0d6efd, ${tokens.shadow4}`,
+    '& svg': {
+      color: '#ffffff !important',
+    },
   },
   
   mainContent: {
@@ -601,7 +624,7 @@ export default function AppShell({ children, currentPage, onNavigate }) {
                   shape="circular"
                   appearance="subtle"
                   icon={<Navigation24Regular />}
-                  className={styles.hamburgerButton}
+                  className={`${styles.hamburgerButton} ${menuOpen ? styles.hamburgerButtonActive : ''}`}
                   aria-label="Verwaltungsmenü"
                 />
               </MenuTrigger>
