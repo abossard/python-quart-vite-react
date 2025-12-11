@@ -48,6 +48,50 @@ from devices import DeviceService
 from events import get_event_manager, broadcast_event, EventType
 
 # ============================================================================
+# AUDIT LOGGING HELPER
+# ============================================================================
+
+async def log_audit(
+    entity_type: str,
+    action: str,
+    entity_id: Optional[int] = None,
+    user_id: Optional[int] = None,
+    username: Optional[str] = None,
+    snapshot_before: Optional[dict] = None,
+    snapshot_after: Optional[dict] = None,
+    details: Optional[str] = None
+):
+    """Log audit trail for all system changes"""
+    try:
+        db = get_db()
+        cursor = await db.cursor()
+        
+        # Use explicit timestamp to match device_transactions format
+        now = datetime.now().isoformat()
+        
+        await cursor.execute("""
+            INSERT INTO audit_log (
+                entity_type, entity_id, action, user_id, username,
+                snapshot_before, snapshot_after, details, created_at
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+        """, (
+            entity_type,
+            entity_id,
+            action,
+            user_id,
+            username,
+            json.dumps(snapshot_before) if snapshot_before else None,
+            json.dumps(snapshot_after) if snapshot_after else None,
+            details,
+            now
+        ))
+        
+        await db.commit()
+        await cursor.close()
+    except Exception as e:
+        print(f"Audit log error: {e}")
+
+# ============================================================================
 # APPLICATION SETUP
 # ============================================================================
 
@@ -986,6 +1030,145 @@ async def get_transaction_history():
 
 
 # ============================================================================
+# SYSTEM LOGS ENDPOINT (Admin Only)
+# ============================================================================
+
+@app.route('/api/logs', methods=['GET'])
+@require_admin
+async def get_system_logs():
+    """Get system activity logs (admin only) - combines device transactions and audit logs"""
+    try:
+        db = get_db()
+        cursor = await db.cursor()
+        
+        # Query audit_log for user/department/amt/location changes
+        await cursor.execute("""
+            SELECT 
+                'audit' as source,
+                al.id,
+                al.action,
+                al.entity_type,
+                al.created_at,
+                al.details,
+                al.snapshot_after,
+                al.username,
+                u.first_name,
+                u.last_name
+            FROM audit_log al
+            LEFT JOIN users u ON al.user_id = u.id
+            ORDER BY al.created_at DESC
+            LIMIT 200
+        """)
+        
+        audit_rows = await cursor.fetchall()
+        
+        # Query device transactions for device-related logs
+        await cursor.execute("""
+            SELECT 
+                'device' as source,
+                dt.id,
+                dt.action,
+                'device' as entity_type,
+                dt.created_at,
+                dt.notes,
+                dt.snapshot_after,
+                u.username,
+                u.first_name,
+                u.last_name
+            FROM device_transactions dt
+            LEFT JOIN users u ON dt.user_id = u.id
+            ORDER BY dt.created_at DESC
+            LIMIT 200
+        """)
+        
+        device_rows = await cursor.fetchall()
+        await cursor.close()
+        
+        # Combine and process all logs
+        all_logs = []
+        
+        # Process audit logs
+        for row in audit_rows:
+            details = row[5] or ''  # details column
+            entity_type = row[3] or 'system'  # entity_type
+            
+            if row[6]:  # snapshot_after
+                try:
+                    snapshot = json.loads(row[6])
+                    if entity_type == 'user':
+                        info = f"{snapshot.get('username', '')} ({snapshot.get('first_name', '')} {snapshot.get('last_name', '')})".strip()
+                    elif entity_type == 'department':
+                        info = snapshot.get('name', '')
+                    elif entity_type == 'amt':
+                        info = snapshot.get('name', '')
+                    elif entity_type == 'location':
+                        info = snapshot.get('name', '')
+                    else:
+                        info = ''
+                    
+                    if info:
+                        details = f"{info} - {details}" if details else info
+                except:
+                    pass
+            
+            log = {
+                'id': f"audit-{row[1]}",
+                'event_type': row[2],  # action
+                'entity_type': entity_type,
+                'timestamp': row[4],   # created_at
+                'details': details,
+                'user': f"{row[8]} {row[9]}" if row[8] and row[9] else (row[7] or 'System')
+            }
+            all_logs.append(log)
+        
+        # Process device transaction logs
+        for row in device_rows:
+            details = row[5] or ''  # notes
+            if row[6]:  # snapshot_after
+                try:
+                    snapshot = json.loads(row[6])
+                    device_info = f"{snapshot.get('device_type', '')} {snapshot.get('model', '')}".strip()
+                    if device_info:
+                        details = f"{device_info} - {details}" if details else device_info
+                except:
+                    pass
+            
+            log = {
+                'id': f"device-{row[1]}",
+                'event_type': row[2],  # action
+                'entity_type': 'device',
+                'timestamp': row[4],   # created_at
+                'details': details,
+                'user': f"{row[8]} {row[9]}" if row[8] and row[9] else (row[7] or 'System')
+            }
+            all_logs.append(log)
+        
+        # Sort all logs by timestamp (descending)
+        # Handle different timestamp formats: ISO (device) vs SQLite (audit)
+        def parse_timestamp(ts_str):
+            try:
+                # Try ISO format first (device transactions): 2025-12-11T12:57:22.417560
+                if 'T' in ts_str:
+                    return datetime.fromisoformat(ts_str.replace('Z', '+00:00'))
+                # SQLite format (audit log): 2025-12-11 12:25:23
+                else:
+                    return datetime.strptime(ts_str, '%Y-%m-%d %H:%M:%S')
+            except:
+                # Fallback: return epoch if parsing fails
+                return datetime(1970, 1, 1)
+        
+        all_logs.sort(key=lambda x: parse_timestamp(x['timestamp']), reverse=True)
+        
+        # Limit to 200 most recent
+        all_logs = all_logs[:200]
+        
+        return jsonify(all_logs), 200
+        
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
+# ============================================================================
 # GRABIT USER MANAGEMENT ENDPOINTS
 # ============================================================================
 
@@ -1103,6 +1286,18 @@ async def create_user():
         # Return created user
         user = await authenticate_user_by_id(user_id, db)
         
+        # Log audit trail
+        current_user_info = get_current_user()
+        await log_audit(
+            entity_type='user',
+            action='create',
+            entity_id=user_id,
+            user_id=current_user_info.id if current_user_info else None,
+            username=current_user_info.username if current_user_info else 'System',
+            snapshot_after=user.model_dump(mode='json'),
+            details=f"Benutzer {user.username} erstellt"
+        )
+        
         # Broadcast event to all clients
         await broadcast_event(EventType.USER_CREATED, user.model_dump(mode='json'))
         
@@ -1182,6 +1377,18 @@ async def update_user(user_id: int):
         # Return updated user
         user = await authenticate_user_by_id(user_id, db)
         
+        # Log audit trail
+        current_user_info = get_current_user()
+        await log_audit(
+            entity_type='user',
+            action='update',
+            entity_id=user_id,
+            user_id=current_user_info.id if current_user_info else None,
+            username=current_user_info.username if current_user_info else 'System',
+            snapshot_after=user.model_dump(mode='json'),
+            details=f"Benutzer {user.username} aktualisiert"
+        )
+        
         # Broadcast event to all clients
         await broadcast_event(EventType.USER_UPDATED, user.model_dump(mode='json'))
         
@@ -1245,14 +1452,36 @@ async def delete_user(user_id: int):
         db = get_db()
         cursor = await db.cursor()
         
-        await cursor.execute("SELECT id FROM users WHERE id = ?", (user_id,))
-        if not await cursor.fetchone():
+        # Get user data before deletion for audit log
+        await cursor.execute("SELECT username, first_name, last_name, email, role FROM users WHERE id = ?", (user_id,))
+        user_row = await cursor.fetchone()
+        if not user_row:
             await cursor.close()
             return jsonify({'error': 'User not found'}), 404
+        
+        user_snapshot = {
+            'username': user_row[0],
+            'first_name': user_row[1],
+            'last_name': user_row[2],
+            'email': user_row[3],
+            'role': user_row[4]
+        }
         
         await cursor.execute("DELETE FROM users WHERE id = ?", (user_id,))
         await db.commit()
         await cursor.close()
+        
+        # Log audit trail
+        current_user_info = get_current_user()
+        await log_audit(
+            entity_type='user',
+            action='delete',
+            entity_id=user_id,
+            user_id=current_user_info.id if current_user_info else None,
+            username=current_user_info.username if current_user_info else 'System',
+            snapshot_before=user_snapshot,
+            details=f"Benutzer {user_snapshot['username']} gelöscht"
+        )
         
         # Broadcast event to all clients
         await broadcast_event(EventType.USER_DELETED, {'id': user_id})
@@ -1544,6 +1773,18 @@ async def create_department():
         
         dept_data = {'id': dept_id, 'name': name, 'full_name': full_name}
         
+        # Log audit trail
+        current_user_info = get_current_user()
+        await log_audit(
+            entity_type='department',
+            action='create',
+            entity_id=dept_id,
+            user_id=current_user_info.id if current_user_info else None,
+            username=current_user_info.username if current_user_info else 'System',
+            snapshot_after=dept_data,
+            details=f"Department {name} erstellt"
+        )
+        
         # Broadcast event to all clients
         await broadcast_event(EventType.DEPARTMENT_CREATED, dept_data)
         
@@ -1580,6 +1821,18 @@ async def update_department(dept_id):
         
         dept_data = {'id': dept_id, 'name': name, 'full_name': full_name}
         
+        # Log audit trail
+        current_user_info = get_current_user()
+        await log_audit(
+            entity_type='department',
+            action='update',
+            entity_id=dept_id,
+            user_id=current_user_info.id if current_user_info else None,
+            username=current_user_info.username if current_user_info else 'System',
+            snapshot_after=dept_data,
+            details=f"Department {name} aktualisiert"
+        )
+        
         # Broadcast event to all clients
         await broadcast_event(EventType.DEPARTMENT_UPDATED, dept_data)
         
@@ -1597,6 +1850,15 @@ async def delete_department(dept_id):
         db = get_db()
         cursor = await db.cursor()
         
+        # Get department data before deletion for audit log
+        await cursor.execute("SELECT name, full_name FROM departments WHERE id = ?", (dept_id,))
+        dept_row = await cursor.fetchone()
+        if not dept_row:
+            await cursor.close()
+            return jsonify({'error': 'Department not found'}), 404
+        
+        dept_snapshot = {'id': dept_id, 'name': dept_row[0], 'full_name': dept_row[1]}
+        
         # Check if department is in use
         await cursor.execute("SELECT COUNT(*) FROM users WHERE department_id = ?", (dept_id,))
         count = (await cursor.fetchone())[0]
@@ -1608,6 +1870,18 @@ async def delete_department(dept_id):
         await cursor.execute("DELETE FROM departments WHERE id = ?", (dept_id,))
         await db.commit()
         await cursor.close()
+        
+        # Log audit trail
+        current_user_info = get_current_user()
+        await log_audit(
+            entity_type='department',
+            action='delete',
+            entity_id=dept_id,
+            user_id=current_user_info.id if current_user_info else None,
+            username=current_user_info.username if current_user_info else 'System',
+            snapshot_before=dept_snapshot,
+            details=f"Department {dept_snapshot['name']} gelöscht"
+        )
         
         # Broadcast event to all clients
         await broadcast_event(EventType.DEPARTMENT_DELETED, {'id': dept_id})
@@ -1724,6 +1998,18 @@ async def create_amt():
         
         amt_data = {'id': amt_id, 'name': name, 'full_name': full_name, 'department_id': department_id}
         
+        # Log audit trail
+        current_user_info = get_current_user()
+        await log_audit(
+            entity_type='amt',
+            action='create',
+            entity_id=amt_id,
+            user_id=current_user_info.id if current_user_info else None,
+            username=current_user_info.username if current_user_info else 'System',
+            snapshot_after=amt_data,
+            details=f"Amt {name} erstellt"
+        )
+        
         # Broadcast event to all clients
         await broadcast_event(EventType.AMT_CREATED, amt_data)
         
@@ -1769,6 +2055,18 @@ async def update_amt(amt_id):
         
         amt_data = {'id': amt_id, 'name': name, 'full_name': full_name, 'department_id': department_id}
         
+        # Log audit trail
+        current_user_info = get_current_user()
+        await log_audit(
+            entity_type='amt',
+            action='update',
+            entity_id=amt_id,
+            user_id=current_user_info.id if current_user_info else None,
+            username=current_user_info.username if current_user_info else 'System',
+            snapshot_after=amt_data,
+            details=f"Amt {name} aktualisiert"
+        )
+        
         # Broadcast event to all clients
         await broadcast_event(EventType.AMT_UPDATED, amt_data)
         
@@ -1786,6 +2084,15 @@ async def delete_amt(amt_id):
         db = get_db()
         cursor = await db.cursor()
         
+        # Get amt data before deletion for audit log
+        await cursor.execute("SELECT name, full_name, department_id FROM amt WHERE id = ?", (amt_id,))
+        amt_row = await cursor.fetchone()
+        if not amt_row:
+            await cursor.close()
+            return jsonify({'error': 'Amt not found'}), 404
+        
+        amt_snapshot = {'id': amt_id, 'name': amt_row[0], 'full_name': amt_row[1], 'department_id': amt_row[2]}
+        
         # Check if amt is in use
         await cursor.execute("SELECT COUNT(*) FROM users WHERE amt_id = ?", (amt_id,))
         count = (await cursor.fetchone())[0]
@@ -1797,6 +2104,18 @@ async def delete_amt(amt_id):
         await cursor.execute("DELETE FROM amt WHERE id = ?", (amt_id,))
         await db.commit()
         await cursor.close()
+        
+        # Log audit trail
+        current_user_info = get_current_user()
+        await log_audit(
+            entity_type='amt',
+            action='delete',
+            entity_id=amt_id,
+            user_id=current_user_info.id if current_user_info else None,
+            username=current_user_info.username if current_user_info else 'System',
+            snapshot_before=amt_snapshot,
+            details=f"Amt {amt_snapshot['name']} gelöscht"
+        )
         
         # Broadcast event to all clients
         await broadcast_event(EventType.AMT_DELETED, {'id': amt_id})
@@ -1879,6 +2198,18 @@ async def create_location():
         
         location_data = {'id': location_id, 'name': name, 'address': address}
         
+        # Log audit trail
+        current_user_info = get_current_user()
+        await log_audit(
+            entity_type='location',
+            action='create',
+            entity_id=location_id,
+            user_id=current_user_info.id if current_user_info else None,
+            username=current_user_info.username if current_user_info else 'System',
+            snapshot_after=location_data,
+            details=f"Standort {name} erstellt"
+        )
+        
         # Broadcast event to all clients
         await broadcast_event(EventType.LOCATION_CREATED, location_data)
         
@@ -1915,6 +2246,18 @@ async def update_location(location_id):
         
         location_data = {'id': location_id, 'name': name, 'address': address}
         
+        # Log audit trail
+        current_user_info = get_current_user()
+        await log_audit(
+            entity_type='location',
+            action='update',
+            entity_id=location_id,
+            user_id=current_user_info.id if current_user_info else None,
+            username=current_user_info.username if current_user_info else 'System',
+            snapshot_after=location_data,
+            details=f"Standort {name} aktualisiert"
+        )
+        
         # Broadcast event to all clients
         await broadcast_event(EventType.LOCATION_UPDATED, location_data)
         
@@ -1931,6 +2274,15 @@ async def delete_location(location_id):
     try:
         db = get_db()
         cursor = await db.cursor()
+        
+        # Get location data before deletion for audit log
+        await cursor.execute("SELECT name, address FROM locations WHERE id = ?", (location_id,))
+        location_row = await cursor.fetchone()
+        if not location_row:
+            await cursor.close()
+            return jsonify({'error': 'Location not found'}), 404
+        
+        location_snapshot = {'id': location_id, 'name': location_row[0], 'address': location_row[1]}
         
         # Check if location is in use by users
         await cursor.execute("SELECT COUNT(*) FROM users WHERE location_id = ?", (location_id,))
@@ -1949,6 +2301,18 @@ async def delete_location(location_id):
         await cursor.execute("DELETE FROM locations WHERE id = ?", (location_id,))
         await db.commit()
         await cursor.close()
+        
+        # Log audit trail
+        current_user_info = get_current_user()
+        await log_audit(
+            entity_type='location',
+            action='delete',
+            entity_id=location_id,
+            user_id=current_user_info.id if current_user_info else None,
+            username=current_user_info.username if current_user_info else 'System',
+            snapshot_before=location_snapshot,
+            details=f"Standort {location_snapshot['name']} gelöscht"
+        )
         
         # Broadcast event to all clients
         await broadcast_event(EventType.LOCATION_DELETED, {'id': location_id})

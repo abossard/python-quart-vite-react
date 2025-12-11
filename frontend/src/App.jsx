@@ -8,6 +8,7 @@
  * - Custom Theme
  */
 
+import { useState, useEffect } from 'react'
 import { Navigate, Route, Routes, useLocation, useNavigate } from 'react-router-dom'
 import AppShell from './components/AppShell'
 import Dashboard from './features/dashboard/Dashboard'
@@ -18,6 +19,7 @@ import AmtList from './features/amts/AmtList'
 import LocationList from './features/locations/LocationList'
 import History from './features/history/History'
 import MissingDevices from './features/missing/MissingDevices'
+import LogList from './features/logs/LogList'
 import Login from './features/auth/Login'
 import ProtectedRoute from './features/auth/ProtectedRoute'
 
@@ -31,6 +33,7 @@ const routeToPageMap = {
   '/departments': 'departments',
   '/amts': 'amts',
   '/locations': 'locations',
+  '/logs': 'logs',
 }
 
 const pageToRouteMap = {
@@ -42,11 +45,30 @@ const pageToRouteMap = {
   'history': '/history',
   'missing': '/missing',
   'locations': '/locations',
+  'logs': '/logs',
 }
 
 export default function App() {
   const location = useLocation();
   const navigate = useNavigate();
+  const [userRole, setUserRole] = useState(null);
+
+  // Watch for window.grabitUser changes
+  useEffect(() => {
+    // Initial check
+    if (window.grabitUser?.role) {
+      setUserRole(window.grabitUser.role);
+    }
+
+    // Poll for updates (in case it's set asynchronously)
+    const interval = setInterval(() => {
+      if (window.grabitUser?.role && window.grabitUser.role !== userRole) {
+        setUserRole(window.grabitUser.role);
+      }
+    }, 100);
+
+    return () => clearInterval(interval);
+  }, [userRole]);
 
   const currentPage = routeToPageMap[location.pathname] || 'overview';
 
@@ -59,8 +81,8 @@ export default function App() {
 
   // Servicedesk: Nur Dashboard erlauben
   // Rolle aus globalem State oder Auth-Kontext holen
-  // Hier als Beispiel: window.grabitUser?.role
-  const isServicedesk = window.grabitUser?.role === 'Servicedesk';
+  const isServicedesk = userRole === 'servicedesk';
+  const isAdmin = userRole === 'admin';
 
   return (
     <Routes>
@@ -81,6 +103,7 @@ export default function App() {
                 {!isServicedesk && <Route path="/departments" element={<DepartmentList searchValue={searchValue} />} />}
                 {!isServicedesk && <Route path="/amts" element={<AmtList searchValue={searchValue} />} />}
                 {!isServicedesk && <Route path="/locations" element={<LocationList searchValue={searchValue} />} />}
+                {isAdmin && <Route path="/logs" element={<LogList searchValue={searchValue} />} />}
                 <Route path="*" element={<Navigate to="/dashboard" replace />} />
               </Routes>
             )}

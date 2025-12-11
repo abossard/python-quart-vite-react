@@ -256,7 +256,13 @@ export default function DepartmentList({ searchValue = '' }) {
           >
             Zu Amt
           </Button>,
-          <Dialog key="create-dialog" open={createDialogOpen} onOpenChange={(_, data) => setCreateDialogOpen(data.open)}>
+          <Dialog key="create-dialog" open={createDialogOpen} onOpenChange={(_, data) => {
+            setCreateDialogOpen(data.open)
+            if (!data.open) {
+              // Reset form when dialog closes
+              setFormData({ name: '', full_name: '' })
+            }
+          }}>
             <DialogTrigger disableButtonEnhancement>
               <Button appearance="primary" icon={<Add24Regular />} className={styles.successButton}>
                 Neues Department
@@ -318,7 +324,14 @@ export default function DepartmentList({ searchValue = '' }) {
       </ResponsiveGrid>
 
       {/* Edit Dialog */}
-      <Dialog open={editDialogOpen} onOpenChange={(_, data) => setEditDialogOpen(data.open)}>
+      <Dialog open={editDialogOpen} onOpenChange={(_, data) => {
+        setEditDialogOpen(data.open)
+        if (!data.open) {
+          // Reset form when dialog closes
+          setFormData({ name: '', full_name: '' })
+          setSelectedDept(null)
+        }
+      }}>
         <DialogSurface>
           <DialogBody>
             <DialogTitle>Edit Department</DialogTitle>

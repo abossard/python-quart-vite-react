@@ -307,6 +307,8 @@ const useStyles = makeStyles({
     letterSpacing: '0.5px',
     cursor: 'default',
     pointerEvents: 'none',
+    borderTop: '1px solid #d2d2d2',
+    marginTop: '8px',
   },
   
   menuItemBase: {
@@ -467,6 +469,7 @@ export default function AppShell({ children, currentPage, onNavigate }) {
         { key: 'departments', label: 'Departments' },
         { key: 'amts', label: 'Ämter' },
         { key: 'locations', label: 'Standorte' },
+        { key: 'logs', label: 'System Logs' },
       ];
       break;
     default:
@@ -489,6 +492,8 @@ export default function AppShell({ children, currentPage, onNavigate }) {
         const user = data.user || data
         setCurrentUser(user)
         setSelectedLocation(user.location_id?.toString() || '')
+        // Set global user object for route guards in App.jsx
+        window.grabitUser = user
       }
     } catch (error) {
       console.error('Failed to load user info:', error)

@@ -295,7 +295,13 @@ export default function AmtList({ searchValue = '' }) {
       <PageHeader
         title="Ämter verwalten"
         actions={[
-          <Dialog key="create-dialog" open={createDialogOpen} onOpenChange={(_, data) => setCreateDialogOpen(data.open)}>
+          <Dialog key="create-dialog" open={createDialogOpen} onOpenChange={(_, data) => {
+            setCreateDialogOpen(data.open)
+            if (!data.open) {
+              // Reset form when dialog closes
+              setFormData({ name: '', full_name: '', department_id: '' })
+            }
+          }}>
             <DialogTrigger disableButtonEnhancement>
               <Button 
                 appearance="primary" 
@@ -371,7 +377,14 @@ export default function AmtList({ searchValue = '' }) {
       </ResponsiveGrid>
 
       {/* Edit Dialog */}
-      <Dialog open={editDialogOpen} onOpenChange={(_, data) => setEditDialogOpen(data.open)}>
+      <Dialog open={editDialogOpen} onOpenChange={(_, data) => {
+        setEditDialogOpen(data.open)
+        if (!data.open) {
+          // Reset form when dialog closes
+          setFormData({ name: '', full_name: '', department_id: '' })
+          setSelectedAmt(null)
+        }
+      }}>
         <DialogSurface>
           <DialogBody>
             <DialogTitle>Edit Amt</DialogTitle>
