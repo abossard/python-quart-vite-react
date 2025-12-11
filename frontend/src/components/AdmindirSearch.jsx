@@ -150,7 +150,7 @@ export default function AdmindirSearch({ onSelect, placeholder = 'Benutzer suche
       setError(null)
       try {
         const data = await searchAdmindirUsers(searchTerm)
-        // Transform the API response into a flat list of persons
+        // Transform the API response into a flat list of persons (email is already included from backend)
         const persons = data.persons || []
         setResults(persons)
         setSelectedIndex(-1) // Reset selection when new results arrive
@@ -328,7 +328,7 @@ export default function AdmindirSearch({ onSelect, placeholder = 'Benutzer suche
                   {person.result}
                 </div>
                 <div className={styles.itemDetails}>
-                  <div>ID: {person.id}</div>
+                  <div>{person.email || 'Keine E-Mail verfügbar'}</div>
                 </div>
               </div>
             </div>

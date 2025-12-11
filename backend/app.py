@@ -1296,7 +1296,7 @@ async def change_user_location(user_id: int):
 @app.route('/api/admindir/search', methods=['GET'])
 @require_auth
 async def search_admindir():
-    """Proxy for admindir.verzeichnisse.admin.ch user search"""
+    """Proxy for admindir.verzeichnisse.admin.ch user search - uses persons API for faster results with email"""
     try:
         import aiohttp
         
@@ -1304,9 +1304,10 @@ async def search_admindir():
         lang = request.args.get('lang', 'de')
         
         if not search_term or len(search_term.strip()) < 2:
-            return jsonify([]), 200
+            return jsonify({'persons': []}), 200
         
-        url = f'https://admindir.verzeichnisse.admin.ch/api/search/suggestions?s={search_term}&lang={lang}'
+        # Use persons API directly - it's faster and includes email
+        url = f'https://admindir.verzeichnisse.admin.ch/api/search/persons?s={search_term}&lang={lang}&page=1&pageSize=10'
         
         async with aiohttp.ClientSession() as session:
             async with session.get(
@@ -1318,7 +1319,15 @@ async def search_admindir():
             ) as response:
                 if response.status == 200:
                     data = await response.json()
-                    return jsonify(data), 200
+                    # Transform to match the expected format
+                    persons = []
+                    for person in data.get('result', []):
+                        persons.append({
+                            'id': person.get('id', ''),
+                            'result': f"{person.get('givenName', '')} {person.get('surname', '')}".strip(),
+                            'email': person.get('email', ''),
+                        })
+                    return jsonify({'persons': persons}), 200
                 else:
                     return jsonify({'error': f'Admindir search failed: {response.status}'}), response.status
     
