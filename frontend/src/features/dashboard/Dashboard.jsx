@@ -23,6 +23,7 @@ import {
   FilterDismissRegular,
   HomeCheckmarkRegular,
   Dismiss20Regular,
+  Dismiss24Regular,
 } from '@fluentui/react-icons'
 import DeviceLoanCard from '../../components/DeviceLoanCard'
 import IssueDeviceModal from '../../components/IssueDeviceModal'
@@ -115,6 +116,25 @@ const useStyles = makeStyles({
   
   countNumber: {
     fontWeight: tokens.fontWeightSemibold,
+  },
+  
+  clearStatusButton: {
+    padding: '6px 10px',
+    fontSize: tokens.fontSizeBase200,
+    fontWeight: tokens.fontWeightMedium,
+    borderRadius: '4px',
+    border: 'none',
+    cursor: 'pointer',
+    backgroundColor: '#f8f9fa',
+    color: '#6c757d',
+    display: 'inline-flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    transition: 'all 0.15s ease',
+    ':hover': {
+      backgroundColor: '#e9ecef',
+      color: '#495057',
+    },
   },
   
   filterBar: {
@@ -592,6 +612,15 @@ export default function Dashboard({ searchValue = '' }) {
           Ausleihgeräte {locationName}
         </h1>
         <div className={styles.statusButtons}>
+          {statusFilter && (
+            <button
+              className={styles.clearStatusButton}
+              onClick={() => setStatusFilter(null)}
+              aria-label="Statusfilter zurücksetzen"
+            >
+              <Dismiss24Regular style={{ width: '16px', height: '16px' }} />
+            </button>
+          )}
           <button
             className={`${styles.countButton} ${styles.availableButton} ${statusFilter === 'available' ? styles.availableButtonActive : ''}`}
             onClick={() => setStatusFilter(statusFilter === 'available' ? null : 'available')}
