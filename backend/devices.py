@@ -402,13 +402,14 @@ class DeviceService:
         
         return device_updated
     
-    async def return_device(self, device_id: int, user_id: int, notes: Optional[str] = None) -> Optional[Device]:
+    async def return_device(self, device_id: int, user_id: int, user_location_id: Optional[int] = None, notes: Optional[str] = None) -> Optional[Device]:
         """
         Return a borrowed device.
         
         Args:
             device_id: Device ID
             user_id: ID of user returning the device
+            user_location_id: Location ID of the user returning the device (for inventory tracking)
             notes: Optional notes about the return
             
         Returns:
@@ -424,9 +425,11 @@ class DeviceService:
         cursor = await self.db.cursor()
         now = datetime.now().isoformat()
         
+        # Update device status and location to user's location
         await cursor.execute("""
             UPDATE devices SET
                 status = ?,
+                location_id = ?,
                 borrowed_at = NULL,
                 expected_return_date = NULL,
                 borrower_name = NULL,
@@ -436,7 +439,7 @@ class DeviceService:
                 borrower_snapshot = NULL,
                 updated_at = ?
             WHERE id = ?
-        """, (DeviceStatus.AVAILABLE.value, now, device_id))
+        """, (DeviceStatus.AVAILABLE.value, user_location_id, now, device_id))
         
         await self.db.commit()
         await cursor.close()

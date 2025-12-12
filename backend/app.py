@@ -712,7 +712,14 @@ async def return_device(device_id: int):
         notes = data.get('notes') if data else None
         
         user = get_current_user()
-        device = await device_service.return_device(device_id, user.id, notes)
+        
+        # Load fresh user data from database to get current location_id
+        # (session may have stale data if user location was updated after login)
+        db = get_db()
+        fresh_user = await authenticate_user_by_id(user.id, db)
+        user_location_id = fresh_user.location_id if fresh_user else None
+        
+        device = await device_service.return_device(device_id, user.id, user_location_id, notes)
         
         if not device:
             return jsonify({'error': 'Device not found'}), 404

@@ -202,19 +202,14 @@ export default function UserList({ searchValue = '' }) {
 
   const loadReferenceData = async () => {
     try {
-      // Load locations, departments, and amts
-      const [locResponse, deptResponse, amtResponse] = await Promise.all([
-        fetch('http://localhost:5001/api/devices/stats/locations', { credentials: 'include' }),
-        fetch('http://localhost:5001/api/devices/stats/locations', { credentials: 'include' }),
-        fetch('http://localhost:5001/api/devices/stats/locations', { credentials: 'include' }),
-      ])
+      // Load locations from API
+      const locResponse = await fetch('http://localhost:5001/api/locations', { credentials: 'include' })
+      if (locResponse.ok) {
+        const locations = await locResponse.json()
+        setLocations(locations)
+      }
       
-      // For now, hardcode the reference data since we don't have dedicated endpoints
-      setLocations([
-        { id: 1, name: 'Bollwerk' },
-        { id: 2, name: 'Zollikofen' },
-        { id: 3, name: 'Guisanplatz' },
-      ])
+      // For now, hardcode departments and amts since we don't have dedicated endpoints
       setDepartments([
         { id: 1, name: 'EDI' },
         { id: 2, name: 'EFD' },
