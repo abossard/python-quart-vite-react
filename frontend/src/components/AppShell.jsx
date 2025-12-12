@@ -71,8 +71,9 @@ const useStyles = makeStyles({
     display: 'flex',
     alignItems: 'center',
     gap: tokens.spacingHorizontalXL,
+    flexWrap: 'nowrap',
+    overflow: 'hidden',
     [mediaQueries.mobile]: {
-      flexWrap: 'wrap',
       gap: tokens.spacingHorizontalM,
     },
   },
@@ -83,8 +84,10 @@ const useStyles = makeStyles({
     gap: tokens.spacingHorizontalM,
     paddingRight: tokens.spacingHorizontalL,
     borderRight: `1px solid ${tokens.colorNeutralStroke2}`,
-    [mediaQueries.mobile]: {
+    flexShrink: 0,
+    '@media (max-width: 600px)': {
       paddingRight: tokens.spacingHorizontalM,
+      gap: tokens.spacingHorizontalS,
     },
   },
   
@@ -140,8 +143,8 @@ const useStyles = makeStyles({
     gap: tokens.spacingHorizontalS,
     flex: 1,
     justifyContent: 'flex-end',
-    [mediaQueries.mobile]: {
-      display: 'none', // Verstecke auf Mobile (nur Hamburger)
+    '@media (max-width: 1000px)': {
+      display: 'none',
     },
   },
   
@@ -189,15 +192,18 @@ const useStyles = makeStyles({
     display: 'flex',
     alignItems: 'center',
     gap: '0',
-    [mediaQueries.mobile]: {
-      flex: 1,
-      order: 3,
-      width: '100%',
+    flex: 1,
+    minWidth: 0,
+    '@media (max-width: 1000px)': {
+      marginLeft: 'auto',
+      flex: '0 1 auto',
     },
   },
   
   searchWrapper: {
-    minWidth: '250px',
+    minWidth: '150px',
+    maxWidth: '400px',
+    width: '100%',
     height: '42px',
     display: 'flex',
     alignItems: 'stretch',
@@ -208,10 +214,7 @@ const useStyles = makeStyles({
     borderRight: 'none',
     boxShadow: tokens.shadow4,
     overflow: 'hidden',
-    [mediaQueries.mobile]: {
-      minWidth: 'auto',
-      flex: 1,
-    },
+    flexShrink: 1,
   },
   
   searchInput: {
@@ -247,6 +250,7 @@ const useStyles = makeStyles({
     padding: 0,
     transition: 'background-color 0.15s ease',
     boxShadow: tokens.shadow4,
+    flexShrink: 0,
     ':hover': {
       backgroundColor: '#0b5ed7',
       borderColor: '#0b5ed7',
@@ -263,32 +267,28 @@ const useStyles = makeStyles({
     boxShadow: `inset 0 0 0 1px rgba(0, 0, 0, 0.2), ${tokens.shadow4}`,
     height: '42px',
     width: '42px',
-    minHeight: '42px',
     minWidth: '42px',
+    borderRadius: '50%',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
     marginLeft: tokens.spacingHorizontalM,
-    backgroundColor: '#ffffff !important',
+    backgroundColor: '#ffffff',
     border: 'none',
-    color: `${tokens.colorNeutralForeground1} !important`,
+    color: tokens.colorNeutralForeground1,
+    cursor: 'pointer',
     transition: 'all 0.15s ease',
-    '& svg': {
-      color: `${tokens.colorNeutralForeground1} !important`,
-    },
+    flexShrink: 0,
     ':hover': {
-      backgroundColor: '#0d6efd !important',
-      color: '#ffffff !important',
-      '& svg': {
-        color: '#ffffff !important',
-      },
+      backgroundColor: '#0d6efd',
+      color: '#ffffff',
     },
   },
   
   hamburgerButtonActive: {
-    backgroundColor: '#0d6efd !important',
-    color: '#ffffff !important',
+    backgroundColor: '#0d6efd',
+    color: '#ffffff',
     boxShadow: `inset 0 0 0 1px #0d6efd, ${tokens.shadow4}`,
-    '& svg': {
-      color: '#ffffff !important',
-    },
   },
   
   mainContent: {
@@ -619,14 +619,13 @@ export default function AppShell({ children, currentPage, onNavigate }) {
             
             {/* Admin Menu (Verwaltung) - visible on all screen sizes */}
             <Menu open={menuOpen} onOpenChange={(e, data) => setMenuOpen(data.open)}>
-              <MenuTrigger>
-                <Button
-                  shape="circular"
-                  appearance="subtle"
-                  icon={<Navigation24Regular />}
+              <MenuTrigger disableButtonEnhancement>
+                <button
                   className={`${styles.hamburgerButton} ${menuOpen ? styles.hamburgerButtonActive : ''}`}
                   aria-label="Verwaltungsmenü"
-                />
+                >
+                  <Navigation24Regular style={{ width: '20px', height: '20px' }} />
+                </button>
               </MenuTrigger>
               
               <MenuPopover>
