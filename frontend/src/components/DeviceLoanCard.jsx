@@ -15,13 +15,13 @@ import {
 import {
   Info24Regular,
   ArrowExportLtr24Regular,
-  ArrowEnterLeft24Regular,
+  ArrowImport24Regular,
 } from '@fluentui/react-icons'
 
 const useStyles = makeStyles({
   card: {
     width: '100%',
-    minHeight: '230px',
+    minHeight: '300px',
     backgroundColor: '#FFFFFF',
     border: '1px solid #D2D2D2',
     borderRadius: '6px',
@@ -254,7 +254,7 @@ export default function DeviceLoanCard({
             style={disableActions ? { opacity: 0.5, cursor: 'not-allowed' } : {}}
             aria-disabled={disableActions}
           >
-            <ArrowEnterLeft24Regular style={{ width: '20px', height: '20px' }} />
+            <ArrowImport24Regular style={{ width: '20px', height: '20px', transform: 'rotate(180deg)' }} />
             Zuruecknehmen
           </button>
         )}
