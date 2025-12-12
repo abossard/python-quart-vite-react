@@ -399,4 +399,4 @@ az containerapp update \
 
 ---
 
-**Need help?** Open an issue or check the [Troubleshooting guide](TROUBLESHOOTING.md).
+**Need help?** Open an issue or check the [Troubleshooting guide](docs/TROUBLESHOOTING.md).

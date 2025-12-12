@@ -164,13 +164,20 @@ create_resource_group() {
 create_container_registry() {
     print_header "Creating Azure Container Registry"
     
-    # Check if ACR name is available
+    # Check if ACR name is available and generate a unique one if needed
     print_info "Checking ACR name availability..."
-    if ! az acr check-name --name $ACR_NAME --query nameAvailable -o tsv | grep -q true; then
-        print_warning "ACR name '$ACR_NAME' is not available"
-        ACR_NAME="quartreactdemo$(date +%s)"
-        print_info "Using new name: $ACR_NAME"
-    fi
+    ATTEMPT=0
+    while ! az acr check-name --name $ACR_NAME --query nameAvailable -o tsv | grep -q true; do
+        ATTEMPT=$((ATTEMPT + 1))
+        if [ $ATTEMPT -gt 5 ]; then
+            print_error "Could not generate unique ACR name after 5 attempts"
+            exit 1
+        fi
+        print_warning "ACR name '$ACR_NAME' is not available (attempt $ATTEMPT)"
+        ACR_NAME="quartreactdemo$(date +%s)${RANDOM:0:4}"
+        print_info "Trying new name: $ACR_NAME"
+        sleep 1  # Small delay to ensure timestamp changes
+    done
     
     print_info "Creating container registry '$ACR_NAME'..."
     az acr create \
