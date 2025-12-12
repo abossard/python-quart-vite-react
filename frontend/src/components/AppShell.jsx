@@ -692,6 +692,10 @@ export default function AppShell({ children, currentPage, onNavigate }) {
                       <div className={styles.menuDivider}></div>
                     </>
                   )}
+                  {/* Trennlinie vor Abmelden für User/Editor ohne Admin-Menü */}
+                  {adminItems.length === 0 && (
+                    <div className={styles.menuDivider}></div>
+                  )}
                   {/* Abmelden immer sichtbar */}
                   <MenuItem
                     className={styles.menuItemDanger}
