@@ -674,7 +674,20 @@ export default function UserList({ searchValue = '' }) {
                       <Field label="Role" required>
                         <Dropdown
                           value={formData.role}
-                          onOptionSelect={(_, data) => setFormData({ ...formData, role: data.optionValue })}
+                          onOptionSelect={(_, data) => {
+                            const newRole = data.optionValue;
+                            // Wenn servicedesk gewählt wird, automatisch "ohne Location" setzen
+                            if (newRole === 'servicedesk') {
+                              setFormData({ 
+                                ...formData, 
+                                role: newRole,
+                                hasLocation: 'without',
+                                location_id: null
+                              });
+                            } else {
+                              setFormData({ ...formData, role: newRole });
+                            }
+                          }}
                         >
                           <Option value="servicedesk">Servicedesk</Option>
                           <Option value="user">User</Option>
@@ -692,6 +705,7 @@ export default function UserList({ searchValue = '' }) {
                             location_id: data.value === 'without' ? null : formData.location_id
                           })}
                           layout="horizontal"
+                          disabled={formData.role === 'servicedesk'}
                         >
                           <Radio value="with" label="Mit Location" />
                           <Radio value="without" label="Ohne Location" />
@@ -818,7 +832,20 @@ export default function UserList({ searchValue = '' }) {
                 <Field label="Role" required>
                   <Dropdown
                     value={formData.role}
-                    onOptionSelect={(_, data) => setFormData({ ...formData, role: data.optionValue })}
+                    onOptionSelect={(_, data) => {
+                      const newRole = data.optionValue;
+                      // Wenn servicedesk gewählt wird, automatisch "ohne Location" setzen
+                      if (newRole === 'servicedesk') {
+                        setFormData({ 
+                          ...formData, 
+                          role: newRole,
+                          hasLocation: 'without',
+                          location_id: null
+                        });
+                      } else {
+                        setFormData({ ...formData, role: newRole });
+                      }
+                    }}
                   >
                     <Option value="servicedesk">Servicedesk</Option>
                     <Option value="user">User</Option>
@@ -836,6 +863,7 @@ export default function UserList({ searchValue = '' }) {
                       location_id: data.value === 'without' ? null : formData.location_id
                     })}
                     layout="horizontal"
+                    disabled={formData.role === 'servicedesk'}
                   >
                     <Radio value="with" label="Mit Location" />
                     <Radio value="without" label="Ohne Location" />
