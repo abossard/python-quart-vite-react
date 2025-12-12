@@ -467,7 +467,7 @@ export default function AppShell({ children, currentPage, onNavigate }) {
     }
   }
   
-  const canAccessAdmin = currentUser && ['admin', 'editor'].includes(currentUser.role);
+  const canAccessAdmin = currentUser && ['admin', 'redakteur'].includes(currentUser.role);
   // Fallback: window.grabitUser falls currentUser noch nicht geladen ist
   // Immer Servicedesk-Restriktion, egal ob currentUser geladen ist
   let role = currentUser?.role;
@@ -496,6 +496,14 @@ export default function AppShell({ children, currentPage, onNavigate }) {
       adminItems = [];
       break;
     case 'editor':
+      navItems = [
+        { key: 'overview', label: 'Übersicht' },
+        { key: 'history', label: 'Verlauf' },
+        { key: 'missing', label: 'Vermisst' },
+        { key: 'devices', label: 'Geräte' },
+      ];
+      adminItems = []; // Editor has no admin access
+      break;
     case 'redakteur':
       navItems = [
         { key: 'overview', label: 'Übersicht' },

@@ -51,28 +51,6 @@ const pageToRouteMap = {
 export default function App() {
   const location = useLocation();
   const navigate = useNavigate();
-  const [userRole, setUserRole] = useState(null);
-
-  // Watch for window.grabitUser changes
-  useEffect(() => {
-    // Initial check
-    if (window.grabitUser?.role) {
-      console.log('App.jsx: Setting userRole from window.grabitUser:', window.grabitUser.role);
-      setUserRole(window.grabitUser.role);
-    } else {
-      console.log('App.jsx: window.grabitUser not yet available');
-    }
-
-    // Poll for updates (in case it's set asynchronously)
-    const interval = setInterval(() => {
-      if (window.grabitUser?.role && window.grabitUser.role !== userRole) {
-        console.log('App.jsx: Updating userRole to:', window.grabitUser.role);
-        setUserRole(window.grabitUser.role);
-      }
-    }, 100);
-
-    return () => clearInterval(interval);
-  }, [userRole]);
 
   const currentPage = routeToPageMap[location.pathname] || 'overview';
 
@@ -82,13 +60,6 @@ export default function App() {
       navigate(route);
     }
   };
-
-  // Servicedesk: Nur Dashboard erlauben
-  // Rolle aus globalem State oder Auth-Kontext holen
-  const isServicedesk = userRole === 'servicedesk';
-  const isAdmin = userRole === 'admin';
-
-  console.log('App.jsx: Current userRole:', userRole, 'isServicedesk:', isServicedesk, 'isAdmin:', isAdmin);
 
   return (
     <Routes>
@@ -102,14 +73,14 @@ export default function App() {
               <Routes>
                 <Route path="/" element={<Navigate to="/dashboard" replace />} />
                 <Route path="/dashboard" element={<Dashboard searchValue={searchValue} />} />
-                {!isServicedesk && <Route path="/history" element={<History searchValue={searchValue} />} />}
-                {!isServicedesk && <Route path="/missing" element={<MissingDevices searchValue={searchValue} />} />}
-                {!isServicedesk && <Route path="/devices" element={<DeviceList searchValue={searchValue} />} />}
-                {!isServicedesk && <Route path="/users" element={<UserList searchValue={searchValue} />} />}
-                {!isServicedesk && <Route path="/departments" element={<DepartmentList searchValue={searchValue} />} />}
-                {!isServicedesk && <Route path="/amts" element={<AmtList searchValue={searchValue} />} />}
-                {!isServicedesk && <Route path="/locations" element={<LocationList searchValue={searchValue} />} />}
-                {isAdmin && <Route path="/logs" element={<LogList searchValue={searchValue} />} />}
+                <Route path="/history" element={<History searchValue={searchValue} />} />
+                <Route path="/missing" element={<MissingDevices searchValue={searchValue} />} />
+                <Route path="/devices" element={<DeviceList searchValue={searchValue} />} />
+                <Route path="/users" element={<UserList searchValue={searchValue} />} />
+                <Route path="/departments" element={<DepartmentList searchValue={searchValue} />} />
+                <Route path="/amts" element={<AmtList searchValue={searchValue} />} />
+                <Route path="/locations" element={<LocationList searchValue={searchValue} />} />
+                <Route path="/logs" element={<LogList searchValue={searchValue} />} />
                 <Route path="*" element={<Navigate to="/dashboard" replace />} />
               </Routes>
             )}

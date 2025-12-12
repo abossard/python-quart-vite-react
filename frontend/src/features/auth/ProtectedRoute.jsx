@@ -34,6 +34,12 @@ export default function ProtectedRoute({ children, requiredRole = null }) {
       if (response.ok) {
         const data = await response.json()
         console.log('Auth check successful, user:', data.user?.username)
+        
+        // Set global user state for role-based navigation
+        if (data.user) {
+          window.grabitUser = data.user
+        }
+        
         setAuthState({
           loading: false,
           authenticated: true,
