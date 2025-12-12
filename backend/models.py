@@ -80,7 +80,6 @@ class Department(DepartmentBase):
 class AmtBase(BaseModel):
     """Base amt (office) model with common fields"""
     name: str = Field(..., max_length=100)
-    full_name: Optional[str] = Field(None, max_length=255)
     department_id: int = Field(..., gt=0)
 
 
@@ -104,15 +103,15 @@ class Amt(AmtBase):
 class UserBase(BaseModel):
     """Base user model with common fields"""
     username: str = Field(..., max_length=50)
-    first_name: str = Field(..., max_length=255)
-    last_name: str = Field(..., max_length=255)
-    email: str = Field(..., max_length=100)
+    first_name: Optional[str] = None
+    last_name: Optional[str] = None
+    email: Optional[str] = None
     role: UserRole = UserRole.USER
     location_id: Optional[int] = None
     department_id: Optional[int] = None
+    department_name: Optional[str] = None
     amt_id: Optional[int] = None
-    department: Optional[str] = None
-    amt: Optional[str] = None
+    amt_name: Optional[str] = None
 
 
 class UserCreate(UserBase):
@@ -123,16 +122,16 @@ class UserCreate(UserBase):
 class UserUpdate(BaseModel):
     """Model for updating user data (all fields optional)"""
     username: Optional[str] = Field(None, max_length=50)
-    first_name: Optional[str] = Field(None, max_length=255)
-    last_name: Optional[str] = Field(None, max_length=255)
-    email: Optional[str] = Field(None, max_length=100)
+    first_name: Optional[str] = None
+    last_name: Optional[str] = None
+    email: Optional[str] = None
     password: Optional[str] = Field(None, min_length=6)
     role: Optional[UserRole] = None
     location_id: Optional[int] = None
     department_id: Optional[int] = None
+    department_name: Optional[str] = None
     amt_id: Optional[int] = None
-    department: Optional[str] = None
-    amt: Optional[str] = None
+    amt_name: Optional[str] = None
 
 
 class User(UserBase):
@@ -142,6 +141,8 @@ class User(UserBase):
     
     # Related entities (populated via JOINs) - using different names to avoid conflict
     location: Optional[Location] = None
+    department: Optional[str] = None  # Department name from JOIN
+    amt: Optional[str] = None  # Amt name from JOIN
     
     model_config = ConfigDict(from_attributes=True)
 
@@ -234,7 +235,7 @@ class DeviceFull(Device):
 class MissingDeviceCreate(BaseModel):
     """Model for reporting a device as missing"""
     device_id: int
-    reported_by_user_id: int
+    reported_by_user_id: Optional[int] = None
     last_known_location_id: Optional[int] = None
     notes: Optional[str] = None
 

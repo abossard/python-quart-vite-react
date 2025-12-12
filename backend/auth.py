@@ -256,11 +256,9 @@ async def authenticate_user(username: str, password: str, db_conn) -> Optional[U
     cursor = await db_conn.cursor()
     await cursor.execute(
         """
-        SELECT u.id, u.username, u.first_name, u.last_name, u.email, 
-               u.password_hash, u.role, u.location_id, 
+        SELECT u.id, u.username, u.password_hash, u.role, u.location_id, 
                u.department_id, u.amt_id, u.created_at,
-               l.id as loc_id, l.name as loc_name, l.address as loc_address,
-               u.department, u.amt
+               l.id as loc_id, l.name as loc_name, l.address as loc_address
         FROM users u
         LEFT JOIN locations l ON u.location_id = l.id
         WHERE u.username = ?
@@ -275,7 +273,7 @@ async def authenticate_user(username: str, password: str, db_conn) -> Optional[U
         return None
     
     # Verify password
-    password_hash = row[5]
+    password_hash = row[2]
     if not verify_password(password, password_hash):
         return None
     
@@ -285,21 +283,16 @@ async def authenticate_user(username: str, password: str, db_conn) -> Optional[U
     user_data = {
         'id': row[0],
         'username': row[1],
-        'first_name': row[2],
-        'last_name': row[3],
-        'email': row[4],
-        'role': UserRole(row[6]),
-        'location_id': row[7],
-        'department_id': row[8],
-        'amt_id': row[9],
-        'created_at': datetime.fromisoformat(row[10]) if row[10] else datetime.now(),
-        'department': row[14] if len(row) > 14 else None,
-        'amt': row[15] if len(row) > 15 else None,
+        'role': UserRole(row[3]),
+        'location_id': row[4],
+        'department_id': row[5],
+        'amt_id': row[6],
+        'created_at': datetime.fromisoformat(row[7]) if row[7] else datetime.now(),
     }
     
-    # Add location if available (indices: 11,12,13)
-    if row[11]:
-        user_data['location'] = Location(id=row[11], name=row[12], address=row[13])
+    # Add location if available (indices: 8,9,10)
+    if row[8]:
+        user_data['location'] = Location(id=row[8], name=row[9], address=row[10])
     
     return User(**user_data)
 

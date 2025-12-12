@@ -57,12 +57,16 @@ export default function App() {
   useEffect(() => {
     // Initial check
     if (window.grabitUser?.role) {
+      console.log('App.jsx: Setting userRole from window.grabitUser:', window.grabitUser.role);
       setUserRole(window.grabitUser.role);
+    } else {
+      console.log('App.jsx: window.grabitUser not yet available');
     }
 
     // Poll for updates (in case it's set asynchronously)
     const interval = setInterval(() => {
       if (window.grabitUser?.role && window.grabitUser.role !== userRole) {
+        console.log('App.jsx: Updating userRole to:', window.grabitUser.role);
         setUserRole(window.grabitUser.role);
       }
     }, 100);
@@ -83,6 +87,8 @@ export default function App() {
   // Rolle aus globalem State oder Auth-Kontext holen
   const isServicedesk = userRole === 'servicedesk';
   const isAdmin = userRole === 'admin';
+
+  console.log('App.jsx: Current userRole:', userRole, 'isServicedesk:', isServicedesk, 'isAdmin:', isAdmin);
 
   return (
     <Routes>

@@ -440,6 +440,33 @@ export default function AppShell({ children, currentPage, onNavigate }) {
   const [selectedLocation, setSelectedLocation] = useState('');
   const [loading, setLoading] = useState(false);
   const [currentUser, setCurrentUser] = useState(null);
+  
+  // Load user info and locations on mount
+  useEffect(() => {
+    loadUserInfo()
+    loadLocations()
+  }, [])
+
+  const loadUserInfo = async () => {
+    try {
+      const response = await fetch('/api/auth/me', { credentials: 'include' })
+      if (response.ok) {
+        const data = await response.json()
+        // Backend returns {user: {...}, session: {...}}
+        const user = data.user || data
+        console.log('AppShell: Loaded user info:', user)
+        setCurrentUser(user)
+        setSelectedLocation(user.location_id?.toString() || '')
+        // Set global user object for route guards in App.jsx
+        window.grabitUser = user
+      } else {
+        console.error('AppShell: Failed to load user, status:', response.status)
+      }
+    } catch (error) {
+      console.error('AppShell: Error loading user info:', error)
+    }
+  }
+  
   const canAccessAdmin = currentUser && ['admin', 'editor'].includes(currentUser.role);
   // Fallback: window.grabitUser falls currentUser noch nicht geladen ist
   // Immer Servicedesk-Restriktion, egal ob currentUser geladen ist
@@ -447,7 +474,10 @@ export default function AppShell({ children, currentPage, onNavigate }) {
   if (!role && typeof window !== 'undefined' && window.grabitUser?.role) {
     role = window.grabitUser.role;
   }
-  const isServicedesk = role === 'Servicedesk';
+  
+  console.log('AppShell: Current role:', role, 'from user:', currentUser)
+  
+  const isServicedesk = role === 'servicedesk';
   // Rollenbasierte Navigation
   let navItems = [];
   let adminItems = [];
@@ -498,29 +528,6 @@ export default function AppShell({ children, currentPage, onNavigate }) {
     default:
       navItems = [{ key: 'overview', label: 'Übersicht' }];
       adminItems = [];
-  }
-
-  // Load user info and locations
-  useEffect(() => {
-    loadUserInfo()
-    loadLocations()
-  }, [])
-
-  const loadUserInfo = async () => {
-    try {
-      const response = await fetch('/api/auth/me')
-      if (response.ok) {
-        const data = await response.json()
-        // Backend returns {user: {...}, session: {...}}
-        const user = data.user || data
-        setCurrentUser(user)
-        setSelectedLocation(user.location_id?.toString() || '')
-        // Set global user object for route guards in App.jsx
-        window.grabitUser = user
-      }
-    } catch (error) {
-      console.error('Failed to load user info:', error)
-    }
   }
 
   const loadLocations = async () => {

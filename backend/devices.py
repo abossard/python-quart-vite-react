@@ -283,7 +283,7 @@ class DeviceService:
     
     async def delete_device(self, device_id: int, user_id: int) -> bool:
         """
-        Delete a device (soft delete by moving to devices_missing).
+        Delete a device completely (removes device and all its transaction history).
         
         Args:
             device_id: Device ID
@@ -298,17 +298,15 @@ class DeviceService:
         
         cursor = await self.db.cursor()
         
-        # Log transaction before deletion
-        await self._log_transaction(
-            device_id, user_id, TransactionType.DELETE,
-            snapshot_before=device.model_dump(mode='json'),
-            snapshot_after=None,
-            notes="Device deleted"
-        )
+        # Delete all transactions for this device first (to avoid FK constraint)
+        await cursor.execute("""
+            DELETE FROM device_transactions WHERE device_id = ?
+        """, (device_id,))
         
         # Broadcast event to all clients
         await broadcast_event(EventType.DEVICE_DELETED, {'id': device_id})
         
+        # Delete the device
         await cursor.execute("DELETE FROM devices WHERE id = ?", (device_id,))
         await self.db.commit()
         await cursor.close()
@@ -425,7 +423,10 @@ class DeviceService:
         cursor = await self.db.cursor()
         now = datetime.now().isoformat()
         
-        # Update device status and location to user's location
+        # If no user location provided, keep device at its current location
+        return_location_id = user_location_id if user_location_id is not None else device.location_id
+        
+        # Update device status and location to user's location (or keep current if user has none)
         await cursor.execute("""
             UPDATE devices SET
                 status = ?,
@@ -439,7 +440,7 @@ class DeviceService:
                 borrower_snapshot = NULL,
                 updated_at = ?
             WHERE id = ?
-        """, (DeviceStatus.AVAILABLE.value, user_location_id, now, device_id))
+        """, (DeviceStatus.AVAILABLE.value, return_location_id, now, device_id))
         
         await self.db.commit()
         await cursor.close()
@@ -552,8 +553,9 @@ class DeviceService:
                 notes=data.notes or "Device reported missing"
             )
             
-            # Delete from devices table (FK constraint now has ON DELETE SET NULL)
-            await cursor.execute("DELETE FROM devices WHERE id = ?", (data.device_id,))
+            # Don't delete from devices table - keep it there with reference to missing entry
+            # The device can be found in both tables: devices (original) and devices_missing (reported)
+            # await cursor.execute("DELETE FROM devices WHERE id = ?", (data.device_id,))
             
             await self.db.commit()
         except Exception as e:
@@ -661,11 +663,11 @@ class DeviceService:
         
         await cursor.execute("""
             INSERT INTO device_transactions (
-                device_id, user_id, action, username,
+                device_id, user_id, transaction_type,
                 snapshot_before, snapshot_after, notes, created_at
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+            ) VALUES (?, ?, ?, ?, ?, ?, ?)
         """, (
-            device_id, user_id, transaction_type.value, username,
+            device_id, user_id, transaction_type.value,
             json.dumps(snapshot_before) if snapshot_before else None,
             json.dumps(snapshot_after) if snapshot_after else None,
             notes, datetime.now().isoformat()

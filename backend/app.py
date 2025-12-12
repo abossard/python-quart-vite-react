@@ -952,7 +952,7 @@ async def get_transaction_history():
                 dt.id,
                 dt.device_id,
                 dt.user_id,
-                dt.action,
+                dt.transaction_type,
                 dt.snapshot_before,
                 dt.snapshot_after,
                 dt.notes,
@@ -1043,93 +1043,34 @@ async def get_transaction_history():
 @app.route('/api/logs', methods=['GET'])
 @require_admin
 async def get_system_logs():
-    """Get system activity logs (admin only) - combines device transactions and audit logs"""
+    """Get system activity logs (admin only) - device transactions only"""
     try:
         db = get_db()
         cursor = await db.cursor()
-        
-        # Query audit_log for user/department/amt/location changes
-        await cursor.execute("""
-            SELECT 
-                'audit' as source,
-                al.id,
-                al.action,
-                al.entity_type,
-                al.created_at,
-                al.details,
-                al.snapshot_after,
-                al.username,
-                u.first_name,
-                u.last_name
-            FROM audit_log al
-            LEFT JOIN users u ON al.user_id = u.id
-            ORDER BY al.created_at DESC
-            LIMIT 200
-        """)
-        
-        audit_rows = await cursor.fetchall()
         
         # Query device transactions for device-related logs
         await cursor.execute("""
             SELECT 
                 'device' as source,
                 dt.id,
-                dt.action,
+                dt.transaction_type,
                 'device' as entity_type,
                 dt.created_at,
                 dt.notes,
                 dt.snapshot_after,
-                u.username,
-                u.first_name,
-                u.last_name
+                u.username
             FROM device_transactions dt
             LEFT JOIN users u ON dt.user_id = u.id
             ORDER BY dt.created_at DESC
             LIMIT 200
         """)
         
-        device_rows = await cursor.fetchall()
+        rows = await cursor.fetchall()
         await cursor.close()
         
-        # Combine and process all logs
-        all_logs = []
-        
-        # Process audit logs
-        for row in audit_rows:
-            details = row[5] or ''  # details column
-            entity_type = row[3] or 'system'  # entity_type
-            
-            if row[6]:  # snapshot_after
-                try:
-                    snapshot = json.loads(row[6])
-                    if entity_type == 'user':
-                        info = f"{snapshot.get('username', '')} ({snapshot.get('first_name', '')} {snapshot.get('last_name', '')})".strip()
-                    elif entity_type == 'department':
-                        info = snapshot.get('name', '')
-                    elif entity_type == 'amt':
-                        info = snapshot.get('name', '')
-                    elif entity_type == 'location':
-                        info = snapshot.get('name', '')
-                    else:
-                        info = ''
-                    
-                    if info:
-                        details = f"{info} - {details}" if details else info
-                except:
-                    pass
-            
-            log = {
-                'id': f"audit-{row[1]}",
-                'event_type': row[2],  # action
-                'entity_type': entity_type,
-                'timestamp': row[4],   # created_at
-                'details': details,
-                'user': f"{row[8]} {row[9]}" if row[8] and row[9] else (row[7] or 'System')
-            }
-            all_logs.append(log)
-        
         # Process device transaction logs
-        for row in device_rows:
+        all_logs = []
+        for row in rows:
             details = row[5] or ''  # notes
             if row[6]:  # snapshot_after
                 try:
@@ -1146,31 +1087,14 @@ async def get_system_logs():
                 'entity_type': 'device',
                 'timestamp': row[4],   # created_at
                 'details': details,
-                'user': f"{row[8]} {row[9]}" if row[8] and row[9] else (row[7] or 'System')
+                'user': row[7] or 'System'  # username from device_transactions
             }
             all_logs.append(log)
         
-        # Sort all logs by timestamp (descending)
-        # Handle different timestamp formats: ISO (device) vs SQLite (audit)
-        def parse_timestamp(ts_str):
-            try:
-                # Try ISO format first (device transactions): 2025-12-11T12:57:22.417560
-                if 'T' in ts_str:
-                    return datetime.fromisoformat(ts_str.replace('Z', '+00:00'))
-                # SQLite format (audit log): 2025-12-11 12:25:23
-                else:
-                    return datetime.strptime(ts_str, '%Y-%m-%d %H:%M:%S')
-            except:
-                # Fallback: return epoch if parsing fails
-                return datetime(1970, 1, 1)
-        
-        all_logs.sort(key=lambda x: parse_timestamp(x['timestamp']), reverse=True)
-        
-        # Limit to 200 most recent
-        all_logs = all_logs[:200]
-        
         return jsonify(all_logs), 200
         
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 
@@ -1188,12 +1112,11 @@ async def list_users():
         cursor = await db.cursor()
         
         await cursor.execute("""
-            SELECT u.id, u.username, u.first_name, u.last_name, u.email,
-                   u.role, u.location_id, u.department_id, u.amt_id, u.created_at,
+            SELECT u.id, u.username, u.role, u.location_id, u.department_id, u.amt_id, u.created_at,
+                   u.first_name, u.last_name, u.email, u.department_name, u.amt_name,
                    l.id as loc_id, l.name as loc_name, l.address as loc_address,
                    d.id as dept_id, d.name as dept_name, d.full_name as dept_full_name,
-                   a.id as amt_id_join, a.name as amt_name, a.full_name as amt_full_name,
-                   u.department, u.amt
+                   a.id as amt_id_join, a.name as amt_name_join
             FROM users u
             LEFT JOIN locations l ON u.location_id = l.id
             LEFT JOIN departments d ON u.department_id = d.id
@@ -1209,23 +1132,32 @@ async def list_users():
             user_data = {
                 'id': row[0],
                 'username': row[1],
-                'first_name': row[2],
-                'last_name': row[3],
-                'email': row[4],
-                'role': UserRole(row[5]),
-                'location_id': row[6],
-                'department_id': row[7],
-                'amt_id': row[8],
-                'created_at': datetime.fromisoformat(row[9]) if row[9] else datetime.now(),
-                'department': row[19] if len(row) > 19 else None,
-                'amt': row[20] if len(row) > 20 else None,
+                'role': UserRole(row[2]),
+                'location_id': row[3],
+                'department_id': row[4],
+                'amt_id': row[5],
+                'created_at': datetime.fromisoformat(row[6]) if row[6] else datetime.now(),
+                'first_name': row[7],
+                'last_name': row[8],
+                'email': row[9],
+                'department_name': row[10],
+                'amt_name': row[11],
             }
             
-            # Updated indices: loc (10,11,12), dept (13,14,15), amt (16,17,18), text fields (19,20)
-            if row[10]:
-                user_data['location'] = Location(id=row[10], name=row[11], address=row[12])
+            # Location: indices 12, 13, 14
+            if row[12]:
+                user_data['location'] = Location(id=row[12], name=row[13], address=row[14])
             
-            # Don't populate department/amt objects anymore - we use text fields from admindir
+            # Department and Amt names from stored values (indices 10, 11) - fallback to JOIN if empty
+            if not user_data['department_name'] and row[16]:
+                user_data['department'] = row[16]
+            else:
+                user_data['department'] = user_data['department_name']
+                
+            if not user_data['amt_name'] and row[19]:
+                user_data['amt'] = row[19]
+            else:
+                user_data['amt'] = user_data['amt_name']
             
             users.append(User(**user_data))
         
@@ -1275,15 +1207,15 @@ async def create_user():
         now = datetime.now().isoformat()
         
         await cursor.execute("""
-            INSERT INTO users (username, first_name, last_name, email, password_hash, role, 
-                             location_id, department_id, amt_id, department, amt, is_active, created_at, updated_at)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            INSERT INTO users (username, password_hash, role, location_id, department_id, amt_id, created_at, first_name, last_name, email, department_name, amt_name)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         """, (
-            user_data.username, user_data.first_name, user_data.last_name, user_data.email,
+            user_data.username,
             password_hash, user_data.role.value,
             user_data.location_id, user_data.department_id, user_data.amt_id,
-            user_data.department, user_data.amt,
-            True, now, now
+            now,
+            user_data.first_name, user_data.last_name, user_data.email,
+            user_data.department_name, user_data.amt_name
         ))
         
         user_id = cursor.lastrowid
@@ -1356,19 +1288,24 @@ async def update_user(user_id: int):
         if update_data.role is not None:
             updates.append("role = ?")
             params.append(update_data.role.value)
-        if update_data.location_id is not None:
+        # Special handling for location_id to allow explicit null (for "ohne location")
+        if 'location_id' in data:
             updates.append("location_id = ?")
             params.append(update_data.location_id)
         if update_data.department_id is not None:
             updates.append("department_id = ?")
             params.append(update_data.department_id)
+        if update_data.department_name is not None:
+            updates.append("department_name = ?")
+            params.append(update_data.department_name)
         if update_data.amt_id is not None:
             updates.append("amt_id = ?")
             params.append(update_data.amt_id)
+        if update_data.amt_name is not None:
+            updates.append("amt_name = ?")
+            params.append(update_data.amt_name)
         
-        # Always update updated_at timestamp
-        updates.append("updated_at = ?")
-        params.append(datetime.now().isoformat())
+        # Note: users table has no updated_at column in SQLite schema
         
         if not updates:
             await cursor.close()
@@ -1460,18 +1397,16 @@ async def delete_user(user_id: int):
         cursor = await db.cursor()
         
         # Get user data before deletion for audit log
-        await cursor.execute("SELECT username, first_name, last_name, email, role FROM users WHERE id = ?", (user_id,))
+        await cursor.execute("SELECT username, role FROM users WHERE id = ?", (user_id,))
         user_row = await cursor.fetchone()
         if not user_row:
             await cursor.close()
             return jsonify({'error': 'User not found'}), 404
         
         user_snapshot = {
+            'id': user_id,
             'username': user_row[0],
-            'first_name': user_row[1],
-            'last_name': user_row[2],
-            'email': user_row[3],
-            'role': user_row[4]
+            'role': user_row[1]
         }
         
         await cursor.execute("DELETE FROM users WHERE id = ?", (user_id,))
@@ -1672,12 +1607,15 @@ async def authenticate_user_by_id(user_id: int, db_conn) -> Optional[User]:
     """Get user by ID with related entities"""
     cursor = await db_conn.cursor()
     await cursor.execute("""
-        SELECT u.id, u.username, u.first_name, u.last_name, u.email, 
-               u.role, u.location_id, u.department_id, u.amt_id, u.created_at,
+        SELECT u.id, u.username, u.role, u.location_id, u.department_id, u.amt_id, u.created_at,
+               u.first_name, u.last_name, u.email, u.department_name, u.amt_name,
                l.id as loc_id, l.name as loc_name, l.address as loc_address,
-               u.department, u.amt
+               d.name as dept_name,
+               a.name as amt_name
         FROM users u
         LEFT JOIN locations l ON u.location_id = l.id
+        LEFT JOIN departments d ON u.department_id = d.id
+        LEFT JOIN amt a ON u.amt_id = a.id
         WHERE u.id = ?
     """, (user_id,))
     
@@ -1690,20 +1628,32 @@ async def authenticate_user_by_id(user_id: int, db_conn) -> Optional[User]:
     user_data = {
         'id': row[0],
         'username': row[1],
-        'first_name': row[2],
-        'last_name': row[3],
-        'email': row[4],
-        'role': UserRole(row[5]),
-        'location_id': row[6],
-        'department_id': row[7],
-        'amt_id': row[8],
-        'created_at': datetime.fromisoformat(row[9]) if row[9] else datetime.now(),
-        'department': row[13] if len(row) > 13 else None,
-        'amt': row[14] if len(row) > 14 else None,
+        'role': UserRole(row[2]),
+        'location_id': row[3],
+        'department_id': row[4],
+        'amt_id': row[5],
+        'created_at': datetime.fromisoformat(row[6]) if row[6] else datetime.now(),
+        'first_name': row[7],
+        'last_name': row[8],
+        'email': row[9],
+        'department_name': row[10],
+        'amt_name': row[11],
     }
     
+    # Location: indices 12, 13, 14
+    if row[12]:
+        user_data['location'] = Location(id=row[12], name=row[13], address=row[14])
+    
+    # Add department and amt as simple string fields - use stored values, fallback to JOIN
     if row[10]:
-        user_data['location'] = Location(id=row[10], name=row[11], address=row[12])
+        user_data['department'] = row[10]
+    elif row[15]:
+        user_data['department'] = row[15]
+        
+    if row[11]:
+        user_data['amt'] = row[11]
+    elif row[16]:
+        user_data['amt'] = row[16]
     
     return User(**user_data)
 
@@ -1911,7 +1861,7 @@ async def list_amts():
         db = get_db()
         cursor = await db.cursor()
         await cursor.execute("""
-            SELECT a.id, a.name, a.full_name, a.department_id, d.name as dept_name, d.full_name as dept_full_name
+            SELECT a.id, a.name, a.department_id, d.name as dept_name
             FROM amt a
             LEFT JOIN departments d ON a.department_id = d.id
             ORDER BY a.name
@@ -1924,9 +1874,8 @@ async def list_amts():
             {
                 'id': row[0],
                 'name': row[1],
-                'full_name': row[2],
-                'department_id': row[3],
-                'department': {'id': row[3], 'name': row[4], 'full_name': row[5]} if row[3] else None
+                'department_id': row[2],
+                'department': {'id': row[2], 'name': row[3]} if row[2] else None
             }
             for row in rows
         ]
@@ -1944,7 +1893,7 @@ async def get_amt(amt_id):
         db = get_db()
         cursor = await db.cursor()
         await cursor.execute("""
-            SELECT a.id, a.name, a.full_name, a.department_id, d.name as dept_name, d.full_name as dept_full_name
+            SELECT a.id, a.name, a.department_id, d.name as dept_name, d.full_name as dept_full_name
             FROM amt a
             LEFT JOIN departments d ON a.department_id = d.id
             WHERE a.id = ?
@@ -1959,9 +1908,8 @@ async def get_amt(amt_id):
         return jsonify({
             'id': row[0],
             'name': row[1],
-            'full_name': row[2],
-            'department_id': row[3],
-            'department': {'id': row[3], 'name': row[4], 'full_name': row[5]} if row[3] else None
+            'department_id': row[2],
+            'department': {'id': row[2], 'name': row[3], 'full_name': row[4]} if row[2] else None
         }), 200
         
     except Exception as e:
@@ -1998,12 +1946,12 @@ async def create_amt():
             await cursor.close()
             return jsonify({'error': 'Amt already exists'}), 400
         
-        await cursor.execute("INSERT INTO amt (name, full_name, department_id) VALUES (?, ?, ?)", (name, full_name, department_id))
+        await cursor.execute("INSERT INTO amt (name, department_id) VALUES (?, ?)", (name, department_id))
         amt_id = cursor.lastrowid
         await db.commit()
         await cursor.close()
         
-        amt_data = {'id': amt_id, 'name': name, 'full_name': full_name, 'department_id': department_id}
+        amt_data = {'id': amt_id, 'name': name, 'department_id': department_id}
         
         # Log audit trail
         current_user_info = get_current_user()
@@ -2056,11 +2004,11 @@ async def update_amt(amt_id):
             await cursor.close()
             return jsonify({'error': 'Department not found'}), 404
         
-        await cursor.execute("UPDATE amt SET name = ?, full_name = ?, department_id = ? WHERE id = ?", (name, full_name, department_id, amt_id))
+        await cursor.execute("UPDATE amt SET name = ?, department_id = ? WHERE id = ?", (name, department_id, amt_id))
         await db.commit()
         await cursor.close()
         
-        amt_data = {'id': amt_id, 'name': name, 'full_name': full_name, 'department_id': department_id}
+        amt_data = {'id': amt_id, 'name': name, 'department_id': department_id}
         
         # Log audit trail
         current_user_info = get_current_user()
@@ -2092,13 +2040,13 @@ async def delete_amt(amt_id):
         cursor = await db.cursor()
         
         # Get amt data before deletion for audit log
-        await cursor.execute("SELECT name, full_name, department_id FROM amt WHERE id = ?", (amt_id,))
+        await cursor.execute("SELECT name, department_id FROM amt WHERE id = ?", (amt_id,))
         amt_row = await cursor.fetchone()
         if not amt_row:
             await cursor.close()
             return jsonify({'error': 'Amt not found'}), 404
         
-        amt_snapshot = {'id': amt_id, 'name': amt_row[0], 'full_name': amt_row[1], 'department_id': amt_row[2]}
+        amt_snapshot = {'id': amt_id, 'name': amt_row[0], 'department_id': amt_row[1]}
         
         # Check if amt is in use
         await cursor.execute("SELECT COUNT(*) FROM users WHERE amt_id = ?", (amt_id,))

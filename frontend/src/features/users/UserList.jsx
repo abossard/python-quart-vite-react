@@ -109,6 +109,7 @@ export default function UserList({ searchValue = '' }) {
   const [locations, setLocations] = useState([])
   const [departments, setDepartments] = useState([])
   const [amts, setAmts] = useState([])
+  const [filteredAmts, setFilteredAmts] = useState([])
   
   // Filter users based on search
   const filteredUsers = users.filter(user => {
@@ -116,9 +117,7 @@ export default function UserList({ searchValue = '' }) {
     const search = searchValue.toLowerCase()
     return (
       user.username?.toLowerCase().includes(search) ||
-      user.first_name?.toLowerCase().includes(search) ||
-      user.last_name?.toLowerCase().includes(search) ||
-      user.email?.toLowerCase().includes(search) ||
+
       user.role?.toLowerCase().includes(search) ||
       user.location?.name?.toLowerCase().includes(search) ||
       user.department?.toLowerCase().includes(search) ||
@@ -144,13 +143,23 @@ export default function UserList({ searchValue = '' }) {
     email: '',
     password: '',
     role: 'user',
-    hasLocation: 'without', // 'with' or 'without'
+    hasLocation: 'with', // 'with' or 'without'
     location_id: null,
     department_id: null,
+    department_name: '',
     amt_id: null,
-    department: '',
-    amt: '',
+    amt_name: '',
   })
+
+  // Filter amts based on selected department
+  useEffect(() => {
+    if (formData.department_id) {
+      const filtered = amts.filter(amt => amt.department_id === formData.department_id)
+      setFilteredAmts(filtered)
+    } else {
+      setFilteredAmts([])
+    }
+  }, [formData.department_id, amts])
 
   const roleColors = {
     admin: 'danger',
@@ -209,17 +218,19 @@ export default function UserList({ searchValue = '' }) {
         setLocations(locations)
       }
       
-      // For now, hardcode departments and amts since we don't have dedicated endpoints
-      setDepartments([
-        { id: 1, name: 'EDI' },
-        { id: 2, name: 'EFD' },
-        { id: 3, name: 'EJPD' },
-      ])
-      setAmts([
-        { id: 1, name: 'BIT' },
-        { id: 2, name: 'BAG' },
-        { id: 3, name: 'BSV' },
-      ])
+      // Load departments from API
+      const deptResponse = await fetch('http://localhost:5001/api/departments', { credentials: 'include' })
+      if (deptResponse.ok) {
+        const departments = await deptResponse.json()
+        setDepartments(departments)
+      }
+      
+      // Load amts from API
+      const amtResponse = await fetch('http://localhost:5001/api/amts', { credentials: 'include' })
+      if (amtResponse.ok) {
+        const amts = await amtResponse.json()
+        setAmts(amts)
+      }
     } catch (err) {
       console.error('Failed to load reference data:', err)
     }
@@ -257,18 +268,6 @@ export default function UserList({ searchValue = '' }) {
       setValidationError('Bitte Benutzername eingeben (verwenden Sie die Admindir-Suche)')
       return false
     }
-    if (!formData.first_name) {
-      setValidationError('Bitte Vorname eingeben (verwenden Sie die Admindir-Suche)')
-      return false
-    }
-    if (!formData.last_name) {
-      setValidationError('Bitte Nachname eingeben (verwenden Sie die Admindir-Suche)')
-      return false
-    }
-    if (!formData.email) {
-      setValidationError('Bitte E-Mail eingeben (verwenden Sie die Admindir-Suche)')
-      return false
-    }
     if (!formData.password) {
       setValidationError('Bitte Passwort eingeben')
       return false
@@ -287,15 +286,22 @@ export default function UserList({ searchValue = '' }) {
     }
     
     try {
+      // Only send fields that backend expects (exclude hasLocation only)
+      const { hasLocation, ...backendData } = formData
+      
+      console.log('Sende an Backend:', backendData)
+      
       const response = await fetch('http://localhost:5001/api/users', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         credentials: 'include',
-        body: JSON.stringify(formData),
+        body: JSON.stringify(backendData),
       })
       
       if (!response.ok) {
         const errorData = await response.json()
+        console.error('Backend Error Response:', errorData)
+        console.error('Validation Details:', JSON.stringify(errorData.details, null, 2))
         throw new Error(errorData.error || 'Failed to create user')
       }
       
@@ -307,10 +313,12 @@ export default function UserList({ searchValue = '' }) {
         email: '',
         password: '',
         role: 'user',
-        hasLocation: 'without',
+        hasLocation: 'with',
         location_id: null,
         department_id: null,
+        department_name: '',
         amt_id: null,
+        amt_name: '',
       })
       // Nach Create: Userinfo holen und global setzen
       try {
@@ -325,7 +333,12 @@ export default function UserList({ searchValue = '' }) {
       }
       await loadData()
     } catch (err) {
-      setError(err.message)
+      // Show error in modal instead of page-level error
+      if (err.message.includes('already exists')) {
+        setValidationError('User existiert bereits')
+      } else {
+        setValidationError(err.message)
+      }
     }
   }
 
@@ -333,11 +346,18 @@ export default function UserList({ searchValue = '' }) {
     if (!selectedUser) return
     
     try {
-      const updateData = { ...formData }
+      // Exclude fields that backend doesn't expect
+      const { hasLocation, ...updateData } = formData
+      
+      console.log('Update - Original formData:', formData)
+      console.log('Update - Sende an Backend:', updateData)
+      
       delete updateData.password // Don't send empty password
       if (formData.password) {
         updateData.password = formData.password
       }
+      
+      console.log('Update - Nach Password-Handling:', updateData)
       
       const response = await fetch(`http://localhost:5001/api/users/${selectedUser.id}`, {
         method: 'PUT',
@@ -348,6 +368,7 @@ export default function UserList({ searchValue = '' }) {
       
       if (!response.ok) {
         const errorData = await response.json()
+        console.error('Update failed:', errorData)
         throw new Error(errorData.error || 'Failed to update user')
       }
       
@@ -433,9 +454,9 @@ export default function UserList({ searchValue = '' }) {
       hasLocation: user.location_id ? 'with' : 'without',
       location_id: user.location_id,
       department_id: user.department_id,
+      department_name: user.department || '',
       amt_id: user.amt_id,
-      department: user.department || '',
-      amt: user.amt || '',
+      amt_name: user.amt || '',
     })
     setEditDialogOpen(true)
   }
@@ -520,8 +541,8 @@ export default function UserList({ searchValue = '' }) {
               open={createDialogOpen} 
               onOpenChange={(_, data) => {
                 setCreateDialogOpen(data.open)
-                // Reset form when dialog is closed
-                if (!data.open) {
+                // Reset form when dialog is opened or closed
+                if (data.open || !data.open) {
                   setFormData({
                     username: '',
                     first_name: '',
@@ -529,12 +550,12 @@ export default function UserList({ searchValue = '' }) {
                     email: '',
                     password: '',
                     role: 'user',
-                    hasLocation: 'without',
+                    hasLocation: 'with',
                     location_id: null,
                     department_id: null,
+                    department_name: '',
                     amt_id: null,
-                    department: '',
-                    amt: '',
+                    amt_name: '',
                   })
                   setAdmindirDataLoaded(false)
                   setValidationError(null)
@@ -561,36 +582,53 @@ export default function UserList({ searchValue = '' }) {
                             console.log('Selected person from admindir:', person)
                             
                             // Extract data from admindir response
-                            // Handle both search result format and full person detail format
-                            let firstName = ''
-                            let lastName = ''
-                            let email = ''
-                            let username = ''
+                            let username = person.username || ''
+                            let firstName = person.firstname || ''
+                            let lastName = person.lastname || ''
+                            let email = person.email || ''
+                            let departmentName = person.department || ''
+                            let amtName = person.organization || ''
                             
-                            // Parse name from new API format
-                            firstName = person.firstname || ''
-                            lastName = person.lastname || ''
+                            // Find matching department by name
+                            let departmentId = null
+                            const matchingDept = departments.find(d => 
+                              d.name === departmentName || d.full_name === departmentName
+                            )
+                            if (matchingDept) {
+                              departmentId = matchingDept.id
+                            }
                             
-                            // Get email
-                            email = person.email || ''
-                            
-                            // Username is already generated in AdmindirSearch component
-                            // Format: first 2 letters of surname + first 2 letters of givenName
-                            // Example: Alessandro Roschi -> roal
-                            username = person.username || ''
-                            
-                            // Get department and organization from admindir
-                            const department = person.department || ''
-                            const amt = person.organization || ''
+                            // Find matching amt by name (only if department is set)
+                            let amtId = null
+                            if (departmentId && amtName) {
+                              const matchingAmt = amts.find(a => 
+                                a.name === amtName && a.department_id === departmentId
+                              )
+                              if (matchingAmt) {
+                                amtId = matchingAmt.id
+                              }
+                            }
                             
                             setFormData({
                               ...formData,
-                              username: username,
+                              username,
                               first_name: firstName,
                               last_name: lastName,
-                              email: email,
-                              department: department,
-                              amt: amt,
+                              email,
+                              department_id: departmentId,
+                              department_name: departmentName,
+                              amt_id: amtId,
+                              amt_name: amtName
+                            })
+                            console.log('FormData nach AdmindirSearch:', {
+                              username,
+                              firstName,
+                              lastName,
+                              email,
+                              departmentId,
+                              departmentName,
+                              amtId,
+                              amtName
                             })
                             setAdmindirDataLoaded(true)
                           }}
@@ -603,14 +641,14 @@ export default function UserList({ searchValue = '' }) {
                           disabled={true}
                         />
                       </Field>
-                      <Field label="First Name" required>
+                      <Field label="Vorname" required>
                         <Input
                           value={formData.first_name}
                           placeholder="Use Admindir search to auto-fill"
                           disabled={true}
                         />
                       </Field>
-                      <Field label="Last Name" required>
+                      <Field label="Nachname" required>
                         <Input
                           value={formData.last_name}
                           placeholder="Use Admindir search to auto-fill"
@@ -673,14 +711,14 @@ export default function UserList({ searchValue = '' }) {
                       </Field>
                       <Field label="Department">
                         <Input
-                          value={formData.department}
+                          value={formData.department_name}
                           placeholder="Use Admindir search to auto-fill"
                           disabled={true}
                         />
                       </Field>
                       <Field label="Amt">
                         <Input
-                          value={formData.amt}
+                          value={formData.amt_name}
                           placeholder="Use Admindir search to auto-fill"
                           disabled={true}
                         />
@@ -747,21 +785,21 @@ export default function UserList({ searchValue = '' }) {
                     disabled={true}
                   />
                 </Field>
-                <Field label="First Name" required>
+                <Field label="Vorname" className={styles.fullWidth}>
                   <Input
                     value={formData.first_name}
                     placeholder="Cannot be changed"
                     disabled={true}
                   />
                 </Field>
-                <Field label="Last Name" required>
+                <Field label="Nachname" className={styles.fullWidth}>
                   <Input
                     value={formData.last_name}
                     placeholder="Cannot be changed"
                     disabled={true}
                   />
                 </Field>
-                <Field label="Email" required className={styles.fullWidth}>
+                <Field label="Email" className={styles.fullWidth}>
                   <Input
                     type="email"
                     value={formData.email}
@@ -817,14 +855,14 @@ export default function UserList({ searchValue = '' }) {
                 </Field>
                 <Field label="Department">
                   <Input
-                    value={formData.department}
+                    value={formData.department_name}
                     placeholder="Cannot be changed"
                     disabled={true}
                   />
                 </Field>
                 <Field label="Amt">
                   <Input
-                    value={formData.amt}
+                    value={formData.amt_name}
                     placeholder="Cannot be changed"
                     disabled={true}
                   />
