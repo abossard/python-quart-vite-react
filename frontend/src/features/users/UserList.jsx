@@ -637,21 +637,21 @@ export default function UserList({ searchValue = '' }) {
                       <Field label="Username" required className={styles.fullWidth}>
                         <Input
                           value={formData.username}
-                          placeholder="Use Admindir search to auto-fill"
+                          placeholder="Wird automatisch ausgefüllt"
                           disabled={true}
                         />
                       </Field>
                       <Field label="Vorname" required>
                         <Input
                           value={formData.first_name}
-                          placeholder="Use Admindir search to auto-fill"
+                          placeholder="Wird automatisch ausgefüllt"
                           disabled={true}
                         />
                       </Field>
                       <Field label="Nachname" required>
                         <Input
                           value={formData.last_name}
-                          placeholder="Use Admindir search to auto-fill"
+                          placeholder="Wird automatisch ausgefüllt"
                           disabled={true}
                         />
                       </Field>
@@ -659,19 +659,19 @@ export default function UserList({ searchValue = '' }) {
                         <Input
                           type="email"
                           value={formData.email}
-                          placeholder="Use Admindir search to auto-fill"
+                          placeholder="Wird automatisch ausgefüllt"
                           disabled={true}
                         />
                       </Field>
-                      <Field label="Password" required className={styles.fullWidth}>
+                      <Field label="Passwort" required className={styles.fullWidth}>
                         <Input
                           type="password"
                           value={formData.password}
                           onChange={(e) => setFormData({ ...formData, password: e.target.value })}
-                          placeholder="Enter password"
+                          placeholder="Passwort eingeben"
                         />
                       </Field>
-                      <Field label="Role" required>
+                      <Field label="Rolle" required>
                         <Dropdown
                           value={formData.role}
                           onOptionSelect={(_, data) => {
@@ -696,7 +696,7 @@ export default function UserList({ searchValue = '' }) {
                           {isAdmin && <Option value="admin">Admin</Option>}
                         </Dropdown>
                       </Field>
-                      <Field label="Location Zuordnung" required className={styles.fullWidth}>
+                      <Field label="Standort Zuordnung" required className={styles.fullWidth}>
                         <RadioGroup
                           value={formData.hasLocation}
                           onChange={(_, data) => setFormData({ 
@@ -707,13 +707,13 @@ export default function UserList({ searchValue = '' }) {
                           layout="horizontal"
                           disabled={formData.role === 'servicedesk'}
                         >
-                          <Radio value="with" label="Mit Location" />
-                          <Radio value="without" label="Ohne Location" />
+                          <Radio value="with" label="Mit Standort" />
+                          <Radio value="without" label="Kein Standort" />
                         </RadioGroup>
                       </Field>
-                      <Field label="Location" className={styles.fullWidth}>
+                      <Field label="Standort" className={styles.fullWidth}>
                         <Dropdown
-                          placeholder="Select location"
+                          placeholder="Standort wählen"
                           value={locations.find(l => l.id === formData.location_id)?.name || ''}
                           onOptionSelect={(_, data) => setFormData({ ...formData, location_id: parseInt(data.optionValue) })}
                           disabled={formData.hasLocation === 'without'}
@@ -726,14 +726,14 @@ export default function UserList({ searchValue = '' }) {
                       <Field label="Department">
                         <Input
                           value={formData.department_name}
-                          placeholder="Use Admindir search to auto-fill"
+                          placeholder="Wird automatisch ausgefüllt"
                           disabled={true}
                         />
                       </Field>
                       <Field label="Amt">
                         <Input
                           value={formData.amt_name}
-                          placeholder="Use Admindir search to auto-fill"
+                          placeholder="Wird automatisch ausgefüllt"
                           disabled={true}
                         />
                       </Field>
