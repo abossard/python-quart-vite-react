@@ -646,7 +646,7 @@ export default function AppShell({ children, currentPage, onNavigate }) {
               <MenuPopover>
                 <MenuList style={{ padding: '8px 0', minWidth: '220px' }}>
                   <div className={styles.menuGreeting}>
-                    Hallo {currentUser?.username || 'User'}
+                    Hallo {currentUser?.first_name || currentUser?.username || 'User'}
                   </div>
                   {navItems.map((item) => (
                     <MenuItem
