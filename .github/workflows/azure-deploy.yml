@@ -17,6 +17,10 @@ on:
 env:
   IMAGE_NAME: quart-react-demo
 
+permissions:
+  contents: read
+  id-token: write
+
 jobs:
   build-and-deploy:
     runs-on: ubuntu-latest
