@@ -969,27 +969,8 @@ class DeviceService:
             if not missing_row:
                 raise ValueError(f"Missing device with id {missing_device_id} not found")
             
-            # Log the deletion (use device_id=NULL since device doesn't exist in devices table)
-            await cursor.execute("""
-                INSERT INTO device_transactions (
-                    device_id, user_id, transaction_type, snapshot_before,
-                    snapshot_after, notes, created_at
-                ) VALUES (?, ?, ?, ?, ?, ?, ?)
-            """, (
-                None,  # device_id is NULL
-                user_id,
-                TransactionType.DELETE.value,
-                json.dumps({
-                    'missing_device_id': missing_device_id,
-                    'device_type': missing_row[2],
-                    'manufacturer': missing_row[3],
-                    'model': missing_row[4],
-                    'serial_number': missing_row[5]
-                }),
-                None,
-                f"Permanently deleted missing device (ID: {missing_device_id})",
-                datetime.now().isoformat()
-            ))
+            # Note: Logging is done in the endpoint via log_system_action
+            # We don't log to device_transactions because device_id is NOT NULL
             
             # Delete from devices_missing
             await cursor.execute("""

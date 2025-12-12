@@ -597,7 +597,11 @@ export default function MissingDevices({ searchValue = '' }) {
               <Button appearance="secondary" onClick={() => setDeleteDialogOpen(false)}>
                 Abbrechen
               </Button>
-              <Button appearance="primary" onClick={handleDeleteConfirm}>
+              <Button 
+                appearance="primary" 
+                onClick={handleDeleteConfirm}
+                style={{ backgroundColor: tokens.colorPaletteRedBackground3, color: '#FFFFFF' }}
+              >
                 Löschen
               </Button>
             </DialogActions>

@@ -998,7 +998,28 @@ async def delete_missing_device(device_id: int):
         db_conn = get_db()
         device_service = DeviceService(db_conn)
         
+        # Get device info before deletion for logging
+        cursor = await db_conn.cursor()
+        await cursor.execute("SELECT device_type, manufacturer, model, serial_number FROM devices_missing WHERE id = ?", (device_id,))
+        row = await cursor.fetchone()
+        await cursor.close()
+        
+        if row:
+            device_info = f"{row[0]} {row[2]}" if row[0] and row[2] else f"ID {device_id}"
+        else:
+            device_info = f"ID {device_id}"
+        
         await device_service.delete_missing_device(device_id, user.id)
+        
+        # Log to system_logs
+        await log_system_action(
+            event_type='delete',
+            entity_type='missing_device',
+            entity_id=device_id,
+            details=f"Vermisstes Gerät '{device_info}' wurde permanent gelöscht",
+            user_id=user.id,
+            username=user.username
+        )
         
         return jsonify({'message': 'Missing device deleted successfully'}), 200
         
