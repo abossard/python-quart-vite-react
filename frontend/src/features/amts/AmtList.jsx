@@ -297,10 +297,8 @@ export default function AmtList({ searchValue = '' }) {
         actions={[
           <Dialog key="create-dialog" open={createDialogOpen} onOpenChange={(_, data) => {
             setCreateDialogOpen(data.open)
-            if (!data.open) {
-              // Reset form when dialog closes
-              setFormData({ name: '', full_name: '', department_id: '' })
-            }
+            // Reset form when dialog opens or closes
+            setFormData({ name: '', full_name: '', department_id: '' })
           }}>
             <DialogTrigger disableButtonEnhancement>
               <Button 

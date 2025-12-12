@@ -48,6 +48,41 @@ from devices import DeviceService
 from events import get_event_manager, broadcast_event, EventType
 
 # ============================================================================
+# SYSTEM LOGGING HELPER
+# ============================================================================
+
+async def log_system_action(
+    event_type: str,
+    entity_type: str,
+    entity_id: Optional[int] = None,
+    details: Optional[str] = None,
+    user_id: Optional[int] = None,
+    username: Optional[str] = None
+):
+    """Log system actions to system_logs table"""
+    try:
+        db = get_db()
+        cursor = await db.cursor()
+        
+        await cursor.execute("""
+            INSERT INTO system_logs (
+                event_type, entity_type, entity_id, details, user_id, username, timestamp
+            ) VALUES (?, ?, ?, ?, ?, ?, datetime('now'))
+        """, (
+            event_type,
+            entity_type,
+            entity_id,
+            details,
+            user_id,
+            username
+        ))
+        
+        await db.commit()
+        await cursor.close()
+    except Exception as e:
+        print(f"System log error: {e}")
+
+# ============================================================================
 # AUDIT LOGGING HELPER
 # ============================================================================
 
@@ -632,6 +667,16 @@ async def create_device():
         user = get_current_user()
         device = await device_service.create_device(device_data, user.id)
         
+        # Log to system_logs
+        await log_system_action(
+            event_type='create',
+            entity_type='device',
+            entity_id=device.id,
+            details=f"Gerät '{device.device_type} {device.model}' wurde erstellt",
+            user_id=user.id,
+            username=user.username
+        )
+        
         return jsonify(device.model_dump(mode='json')), 201
         
     except ValidationError as e:
@@ -654,6 +699,16 @@ async def update_device(device_id: int):
         if not device:
             return jsonify({'error': 'Device not found'}), 404
         
+        # Log to system_logs
+        await log_system_action(
+            event_type='update',
+            entity_type='device',
+            entity_id=device.id,
+            details=f"Gerät '{device.device_type} {device.model}' wurde aktualisiert",
+            user_id=user.id,
+            username=user.username
+        )
+        
         return jsonify(device.model_dump(mode='json')), 200
         
     except ValidationError as e:
@@ -668,10 +723,28 @@ async def delete_device(device_id: int):
     """Delete a device (requires editor role)"""
     try:
         user = get_current_user()
+        
+        # Get device info before deletion for logging
+        device = await device_service.get_device(device_id)
+        if not device:
+            return jsonify({'error': 'Device not found'}), 404
+        
+        device_info = f"{device.device_type} {device.model}"
+        
         success = await device_service.delete_device(device_id, user.id)
         
         if not success:
             return jsonify({'error': 'Device not found'}), 404
+        
+        # Log to system_logs
+        await log_system_action(
+            event_type='delete',
+            entity_type='device',
+            entity_id=device_id,
+            details=f"Gerät '{device_info}' wurde gelöscht",
+            user_id=user.id,
+            username=user.username
+        )
         
         return jsonify({'message': 'Device deleted successfully'}), 200
         
@@ -1043,51 +1116,40 @@ async def get_transaction_history():
 @app.route('/api/logs', methods=['GET'])
 @require_admin
 async def get_system_logs():
-    """Get system activity logs (admin only) - device transactions only"""
+    """Get system activity logs (admin only) - all entity types"""
     try:
         db = get_db()
         cursor = await db.cursor()
         
-        # Query device transactions for device-related logs
+        # Query system_logs table for all logged activities
         await cursor.execute("""
             SELECT 
-                'device' as source,
-                dt.id,
-                dt.transaction_type,
-                'device' as entity_type,
-                dt.created_at,
-                dt.notes,
-                dt.snapshot_after,
-                u.username
-            FROM device_transactions dt
-            LEFT JOIN users u ON dt.user_id = u.id
-            ORDER BY dt.created_at DESC
-            LIMIT 200
+                id,
+                event_type,
+                entity_type,
+                entity_id,
+                details,
+                username,
+                timestamp
+            FROM system_logs
+            ORDER BY timestamp DESC
+            LIMIT 500
         """)
         
         rows = await cursor.fetchall()
         await cursor.close()
         
-        # Process device transaction logs
+        # Process system logs
         all_logs = []
         for row in rows:
-            details = row[5] or ''  # notes
-            if row[6]:  # snapshot_after
-                try:
-                    snapshot = json.loads(row[6])
-                    device_info = f"{snapshot.get('device_type', '')} {snapshot.get('model', '')}".strip()
-                    if device_info:
-                        details = f"{device_info} - {details}" if details else device_info
-                except:
-                    pass
-            
             log = {
-                'id': f"device-{row[1]}",
-                'event_type': row[2],  # action
-                'entity_type': 'device',
-                'timestamp': row[4],   # created_at
-                'details': details,
-                'user': row[7] or 'System'  # username from device_transactions
+                'id': f"{row[2]}-{row[0]}",  # entity_type-id
+                'event_type': row[1],         # event_type (create/update/delete)
+                'entity_type': row[2],        # entity_type (user/device/department/etc)
+                'entity_id': row[3],          # entity_id
+                'timestamp': row[6],          # timestamp
+                'details': row[4] or '',      # details
+                'user': row[5] or 'System'    # username
             }
             all_logs.append(log)
         
@@ -1237,6 +1299,16 @@ async def create_user():
             details=f"Benutzer {user.username} erstellt"
         )
         
+        # Log to system_logs
+        await log_system_action(
+            event_type='create',
+            entity_type='user',
+            entity_id=user_id,
+            details=f"Benutzer '{user.username}' wurde erstellt",
+            user_id=current_user_info.id if current_user_info else None,
+            username=current_user_info.username if current_user_info else 'System'
+        )
+        
         # Broadcast event to all clients
         await broadcast_event(EventType.USER_CREATED, user.model_dump(mode='json'))
         
@@ -1333,6 +1405,16 @@ async def update_user(user_id: int):
             details=f"Benutzer {user.username} aktualisiert"
         )
         
+        # Log to system_logs
+        await log_system_action(
+            event_type='update',
+            entity_type='user',
+            entity_id=user_id,
+            details=f"Benutzer '{user.username}' wurde aktualisiert",
+            user_id=current_user_info.id if current_user_info else None,
+            username=current_user_info.username if current_user_info else 'System'
+        )
+        
         # Broadcast event to all clients
         await broadcast_event(EventType.USER_UPDATED, user.model_dump(mode='json'))
         
@@ -1423,6 +1505,16 @@ async def delete_user(user_id: int):
             username=current_user_info.username if current_user_info else 'System',
             snapshot_before=user_snapshot,
             details=f"Benutzer {user_snapshot['username']} gelöscht"
+        )
+        
+        # Log to system_logs
+        await log_system_action(
+            event_type='delete',
+            entity_type='user',
+            entity_id=user_id,
+            details=f"Benutzer '{user_snapshot['username']}' wurde gelöscht",
+            user_id=current_user_info.id if current_user_info else None,
+            username=current_user_info.username if current_user_info else 'System'
         )
         
         # Broadcast event to all clients
@@ -1742,6 +1834,16 @@ async def create_department():
             details=f"Department {name} erstellt"
         )
         
+        # Log to system_logs
+        await log_system_action(
+            event_type='create',
+            entity_type='department',
+            entity_id=dept_id,
+            details=f"Department '{name}' wurde erstellt",
+            user_id=current_user_info.id if current_user_info else None,
+            username=current_user_info.username if current_user_info else 'System'
+        )
+        
         # Broadcast event to all clients
         await broadcast_event(EventType.DEPARTMENT_CREATED, dept_data)
         
@@ -1788,6 +1890,16 @@ async def update_department(dept_id):
             username=current_user_info.username if current_user_info else 'System',
             snapshot_after=dept_data,
             details=f"Department {name} aktualisiert"
+        )
+        
+        # Log to system_logs
+        await log_system_action(
+            event_type='update',
+            entity_type='department',
+            entity_id=dept_id,
+            details=f"Department '{name}' wurde aktualisiert",
+            user_id=current_user_info.id if current_user_info else None,
+            username=current_user_info.username if current_user_info else 'System'
         )
         
         # Broadcast event to all clients
@@ -1838,6 +1950,16 @@ async def delete_department(dept_id):
             username=current_user_info.username if current_user_info else 'System',
             snapshot_before=dept_snapshot,
             details=f"Department {dept_snapshot['name']} gelöscht"
+        )
+        
+        # Log to system_logs
+        await log_system_action(
+            event_type='delete',
+            entity_type='department',
+            entity_id=dept_id,
+            details=f"Department '{dept_snapshot['name']}' wurde gelöscht",
+            user_id=current_user_info.id if current_user_info else None,
+            username=current_user_info.username if current_user_info else 'System'
         )
         
         # Broadcast event to all clients
@@ -1965,6 +2087,16 @@ async def create_amt():
             details=f"Amt {name} erstellt"
         )
         
+        # Log to system_logs
+        await log_system_action(
+            event_type='create',
+            entity_type='amt',
+            entity_id=amt_id,
+            details=f"Amt '{name}' wurde erstellt",
+            user_id=current_user_info.id if current_user_info else None,
+            username=current_user_info.username if current_user_info else 'System'
+        )
+        
         # Broadcast event to all clients
         await broadcast_event(EventType.AMT_CREATED, amt_data)
         
@@ -2022,6 +2154,16 @@ async def update_amt(amt_id):
             details=f"Amt {name} aktualisiert"
         )
         
+        # Log to system_logs
+        await log_system_action(
+            event_type='update',
+            entity_type='amt',
+            entity_id=amt_id,
+            details=f"Amt '{name}' wurde aktualisiert",
+            user_id=current_user_info.id if current_user_info else None,
+            username=current_user_info.username if current_user_info else 'System'
+        )
+        
         # Broadcast event to all clients
         await broadcast_event(EventType.AMT_UPDATED, amt_data)
         
@@ -2070,6 +2212,16 @@ async def delete_amt(amt_id):
             username=current_user_info.username if current_user_info else 'System',
             snapshot_before=amt_snapshot,
             details=f"Amt {amt_snapshot['name']} gelöscht"
+        )
+        
+        # Log to system_logs
+        await log_system_action(
+            event_type='delete',
+            entity_type='amt',
+            entity_id=amt_id,
+            details=f"Amt '{amt_snapshot['name']}' wurde gelöscht",
+            user_id=current_user_info.id if current_user_info else None,
+            username=current_user_info.username if current_user_info else 'System'
         )
         
         # Broadcast event to all clients
@@ -2165,6 +2317,16 @@ async def create_location():
             details=f"Standort {name} erstellt"
         )
         
+        # Log to system_logs
+        await log_system_action(
+            event_type='create',
+            entity_type='location',
+            entity_id=location_id,
+            details=f"Standort '{name}' wurde erstellt",
+            user_id=current_user_info.id if current_user_info else None,
+            username=current_user_info.username if current_user_info else 'System'
+        )
+        
         # Broadcast event to all clients
         await broadcast_event(EventType.LOCATION_CREATED, location_data)
         
@@ -2211,6 +2373,16 @@ async def update_location(location_id):
             username=current_user_info.username if current_user_info else 'System',
             snapshot_after=location_data,
             details=f"Standort {name} aktualisiert"
+        )
+        
+        # Log to system_logs
+        await log_system_action(
+            event_type='update',
+            entity_type='location',
+            entity_id=location_id,
+            details=f"Standort '{name}' wurde aktualisiert",
+            user_id=current_user_info.id if current_user_info else None,
+            username=current_user_info.username if current_user_info else 'System'
         )
         
         # Broadcast event to all clients
@@ -2267,6 +2439,16 @@ async def delete_location(location_id):
             username=current_user_info.username if current_user_info else 'System',
             snapshot_before=location_snapshot,
             details=f"Standort {location_snapshot['name']} gelöscht"
+        )
+        
+        # Log to system_logs
+        await log_system_action(
+            event_type='delete',
+            entity_type='location',
+            entity_id=location_id,
+            details=f"Standort '{location_snapshot['name']}' wurde gelöscht",
+            user_id=current_user_info.id if current_user_info else None,
+            username=current_user_info.username if current_user_info else 'System'
         )
         
         # Broadcast event to all clients

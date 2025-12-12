@@ -258,10 +258,8 @@ export default function DepartmentList({ searchValue = '' }) {
           </Button>,
           <Dialog key="create-dialog" open={createDialogOpen} onOpenChange={(_, data) => {
             setCreateDialogOpen(data.open)
-            if (!data.open) {
-              // Reset form when dialog closes
-              setFormData({ name: '', full_name: '' })
-            }
+            // Reset form when dialog opens or closes
+            setFormData({ name: '', full_name: '' })
           }}>
             <DialogTrigger disableButtonEnhancement>
               <Button appearance="primary" icon={<Add24Regular />} className={styles.successButton}>
