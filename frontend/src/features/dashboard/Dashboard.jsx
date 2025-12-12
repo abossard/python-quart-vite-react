@@ -228,6 +228,7 @@ const useStyles = makeStyles({
     padding: '10px 16px',
     ':hover': {
       backgroundColor: '#0d6efd',
+      color: '#ffffff',
     },
   },
   

@@ -167,6 +167,8 @@ export default function IssueDeviceModal({
   const styles = useStyles()
   const [personName, setPersonName] = useState('')
   const [borrowerEmail, setBorrowerEmail] = useState('')
+  const [borrowerDepartment, setBorrowerDepartment] = useState('')
+  const [borrowerOrganization, setBorrowerOrganization] = useState('')
   const [error, setError] = useState('')
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [admindirSelected, setAdmindirSelected] = useState(false)
@@ -174,6 +176,8 @@ export default function IssueDeviceModal({
   const handleClose = () => {
     setPersonName('')
     setBorrowerEmail('')
+    setBorrowerDepartment('')
+    setBorrowerOrganization('')
     setError('')
     setIsSubmitting(false)
     setAdmindirSelected(false)
@@ -196,6 +200,8 @@ export default function IssueDeviceModal({
       const borrowData = {
         borrower_name: trimmedName,
         borrower_email: borrowerEmail || `${trimmedName.toLowerCase().replace(/\s+/g, '.')}@temp.local`,
+        borrower_department: borrowerDepartment,
+        borrower_organization: borrowerOrganization,
         expected_return_date: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0], // 30 days from now
       }
       
@@ -244,6 +250,8 @@ export default function IssueDeviceModal({
               const fullName = `${person.firstname || ''} ${person.lastname || ''}`.trim()
               setPersonName(fullName)
               setBorrowerEmail(person.email || '')
+              setBorrowerDepartment(person.department || '')
+              setBorrowerOrganization(person.organization || '')
               setAdmindirSelected(true)
               if (error) setError('')
             }}

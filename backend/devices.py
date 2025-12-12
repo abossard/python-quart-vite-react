@@ -71,6 +71,7 @@ class DeviceService:
         LEFT JOIN departments bd ON u.department_id = bd.id
         LEFT JOIN amt ba ON u.amt_id = ba.id
         WHERE 1=1
+        AND d.status != 'missing'
         """
         
         params = []
@@ -360,6 +361,15 @@ class DeviceService:
                 'amt_name': user_row[8]
             })
         
+        # If department/organization provided from admindir, add to snapshot
+        if data.borrower_department or data.borrower_organization:
+            snapshot_dict = json.loads(borrower_snapshot) if borrower_snapshot else {}
+            if data.borrower_department:
+                snapshot_dict['department_name'] = data.borrower_department
+            if data.borrower_organization:
+                snapshot_dict['organization_name'] = data.borrower_organization
+            borrower_snapshot = json.dumps(snapshot_dict)
+        
         now = datetime.now().isoformat()
         
         await cursor.execute("""
@@ -545,7 +555,7 @@ class DeviceService:
             snapshot_after['status'] = 'missing'
             snapshot_after['missing_id'] = missing_id
             
-            # Log transaction before deleting
+            # Log transaction before updating status
             await self._log_transaction(
                 data.device_id, user_id, TransactionType.REPORT_MISSING,
                 snapshot_before=device.model_dump(mode='json'),
@@ -553,9 +563,14 @@ class DeviceService:
                 notes=data.notes or "Device reported missing"
             )
             
-            # Don't delete from devices table - keep it there with reference to missing entry
-            # The device can be found in both tables: devices (original) and devices_missing (reported)
-            # await cursor.execute("DELETE FROM devices WHERE id = ?", (data.device_id,))
+            # Update device status to 'missing' instead of deleting
+            # (Can't delete due to FOREIGN KEY constraint with device_transactions)
+            await cursor.execute("""
+                UPDATE devices 
+                SET status = 'missing',
+                    updated_at = ?
+                WHERE id = ?
+            """, (datetime.now().isoformat(), data.device_id))
             
             await self.db.commit()
         except Exception as e:
@@ -574,7 +589,10 @@ class DeviceService:
         
         missing_device = self._row_to_missing_device(row)
         
-        # Broadcast event to all clients
+        # Broadcast events to all clients
+        # First notify that device was deleted from active devices
+        await broadcast_event(EventType.DEVICE_DELETED, {'id': data.device_id})
+        # Then notify about new missing device
         await broadcast_event(EventType.DEVICE_MISSING, missing_device.model_dump(mode='json'))
         
         return missing_device
@@ -727,13 +745,30 @@ class DeviceService:
         if row[20]:
             device_data['location'] = Location(id=row[20], name=row[21], address=row[22])
         
-        # Add borrower location/department/amt
+        # Add borrower location/department/amt from JOINs or borrower_snapshot
+        borrower_snapshot = device_data.get('borrower_snapshot')
+        
         if row[23]:
             device_data['borrower_location'] = Location(id=row[23], name=row[24], address=row[25])
+        elif borrower_snapshot and borrower_snapshot.get('location_id'):
+            device_data['borrower_location'] = Location(
+                id=borrower_snapshot['location_id'],
+                name=borrower_snapshot.get('location_name', ''),
+                address=None
+            )
+        
         if row[26]:
             device_data['borrower_department'] = Department(id=row[26], name=row[27], full_name=row[28])
+        
         if row[29]:
             device_data['borrower_amt'] = Amt(id=row[29], name=row[30], department_id=row[26] or 1)
+        
+        # Add display-only fields from borrower_snapshot (admindir data)
+        if borrower_snapshot:
+            if borrower_snapshot.get('department_name') and not row[26]:
+                device_data['borrower_department_name'] = borrower_snapshot.get('department_name')
+            if borrower_snapshot.get('organization_name') and not row[29]:
+                device_data['borrower_organization_name'] = borrower_snapshot.get('organization_name')
         
         # Add device department/amt
         if row[31]:

@@ -122,6 +122,15 @@ const useStyles = makeStyles({
     marginBottom: '8px',
   },
   
+  sectionTitle: {
+    color: '#6c757d',
+    fontSize: '11px',
+    fontWeight: '600',
+    textTransform: 'uppercase',
+    letterSpacing: '0.5px',
+    marginBottom: '4px',
+  },
+  
   textarea: {
     width: '100%',
     height: '84px',
@@ -192,6 +201,7 @@ export default function DetailDialog({ open, onOpenChange, data }) {
           <DialogContent className={styles.contentWrapper}>
             <div className={styles.content}>
             <div className={styles.infoList}>
+              <div className={styles.sectionTitle}>Geräteinformationen</div>
               <div className={styles.infoLine}>
                 <span className={styles.label}>Kategorie: </span>
                 <span className={styles.value}>{data.device_type || '-'}</span>
@@ -221,10 +231,36 @@ export default function DetailDialog({ open, onOpenChange, data }) {
                 <span className={styles.value}>{data.status || '-'}</span>
               </div>
               {data.borrower_name && (
-                <div className={styles.infoLine}>
-                  <span className={styles.label}>Ausgeliehen an: </span>
-                  <span className={styles.value}>{data.borrower_name}</span>
-                </div>
+                <>
+                  <div style={{ marginTop: '16px' }}></div>
+                  <div className={styles.sectionTitle}>Kundeninformationen</div>
+                  <div className={styles.infoLine}>
+                    <span className={styles.label}>Ausgeliehen an: </span>
+                    <span className={styles.value}>{data.borrower_name}</span>
+                  </div>
+                  {data.borrower_email && (
+                    <div className={styles.infoLine}>
+                      <span className={styles.label}>E-Mail: </span>
+                      <span className={styles.value}>{data.borrower_email}</span>
+                    </div>
+                  )}
+                  {(data.borrower_department?.name || data.borrower_department_name) && (
+                    <div className={styles.infoLine}>
+                      <span className={styles.label}>Department: </span>
+                      <span className={styles.value}>
+                        {data.borrower_department?.name || data.borrower_department_name}
+                      </span>
+                    </div>
+                  )}
+                  {(data.borrower_amt?.name || data.borrower_organization_name) && (
+                    <div className={styles.infoLine} style={{ marginBottom: '16px' }}>
+                      <span className={styles.label}>Organisation: </span>
+                      <span className={styles.value}>
+                        {data.borrower_amt?.name || data.borrower_organization_name}
+                      </span>
+                    </div>
+                  )}
+                </>
               )}
             </div>
             

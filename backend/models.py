@@ -27,6 +27,7 @@ class DeviceStatus(str, Enum):
     AVAILABLE = "available"
     BORROWED = "borrowed"
     RESERVED = "reserved"
+    MISSING = "missing"
 
 
 # ============================================================================
@@ -191,7 +192,9 @@ class DeviceBorrow(BaseModel):
     """Model for borrowing a device"""
     borrower_name: str = Field(..., max_length=100)
     borrower_email: str = Field(..., max_length=100)
-    borrower_phone: Optional[str] = Field(None, max_length=50)
+    borrower_phone: Optional[str] = Field(default=None, max_length=50)
+    borrower_department: Optional[str] = Field(default=None, max_length=200)
+    borrower_organization: Optional[str] = Field(default=None, max_length=200)
     expected_return_date: date
 
 
@@ -226,6 +229,10 @@ class DeviceFull(Device):
     borrower_location: Optional[Location] = None
     borrower_department: Optional[Department] = None
     borrower_amt: Optional[Amt] = None
+    
+    # Display-only fields from admindir (when borrower is not a system user)
+    borrower_department_name: Optional[str] = None
+    borrower_organization_name: Optional[str] = None
 
 
 # ============================================================================
