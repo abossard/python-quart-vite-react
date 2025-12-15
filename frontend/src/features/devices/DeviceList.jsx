@@ -137,6 +137,7 @@ export default function DeviceList({ searchValue = '' }) {
   const [filteredAmts, setFilteredAmts] = useState([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
+  const [validationError, setValidationError] = useState(null)
   const [authenticated, setAuthenticated] = useState(false)
   const [createDialogOpen, setCreateDialogOpen] = useState(false)
   const [editDialogOpen, setEditDialogOpen] = useState(false)
@@ -311,7 +312,48 @@ export default function DeviceList({ searchValue = '' }) {
     setCreateDialogOpen(true)
   }
 
+  const validateDeviceForm = () => {
+    if (!formData.asset_tag) {
+      setValidationError('Bitte Asset-Tag eingeben')
+      return false
+    }
+    if (!formData.inventory_number) {
+      setValidationError('Bitte CM-Nummer eingeben')
+      return false
+    }
+    if (!formData.device_type) {
+      setValidationError('Bitte Kategorie eingeben')
+      return false
+    }
+    if (!formData.model) {
+      setValidationError('Bitte Model eingeben')
+      return false
+    }
+    if (!formData.windows_version) {
+      setValidationError('Bitte Windows Version eingeben')
+      return false
+    }
+    if (!formData.location_id) {
+      setValidationError('Bitte Location auswählen')
+      return false
+    }
+    if (!formData.department_id) {
+      setValidationError('Bitte Department auswählen')
+      return false
+    }
+    if (!formData.amt_id) {
+      setValidationError('Bitte Amt auswählen')
+      return false
+    }
+    setValidationError(null)
+    return true
+  }
+
   const handleCreateDevice = async () => {
+    if (!validateDeviceForm()) {
+      return
+    }
+    
     try {
       const response = await fetch('http://localhost:5001/api/devices', {
         method: 'POST',
@@ -333,6 +375,7 @@ export default function DeviceList({ searchValue = '' }) {
       }
       
       setCreateDialogOpen(false)
+      setValidationError(null)
       setFormData({
         asset_tag: '',
         inventory_number: '',
@@ -346,7 +389,7 @@ export default function DeviceList({ searchValue = '' }) {
       })
       await loadData()
     } catch (err) {
-      setError(err.message)
+      setValidationError(err.message)
     }
   }
 
@@ -591,11 +634,19 @@ export default function DeviceList({ searchValue = '' }) {
           >
             Add Device
           </Button>
-          <Dialog open={createDialogOpen} onOpenChange={(_, data) => setCreateDialogOpen(data.open)}>
+          <Dialog open={createDialogOpen} onOpenChange={(_, data) => {
+            setCreateDialogOpen(data.open)
+            if (data.open) setValidationError(null)
+          }}>
             <DialogSurface>
               <DialogBody>
                 <DialogTitle>Add New Device</DialogTitle>
                 <DialogContent>
+                  {validationError && (
+                    <MessageBar intent="error" style={{ marginBottom: tokens.spacingVerticalM }}>
+                      <MessageBarBody>{validationError}</MessageBarBody>
+                    </MessageBar>
+                  )}
                   <div className={styles.formGrid}>
                     <Field label="Asset-Tag" required>
                       <Input
@@ -604,7 +655,7 @@ export default function DeviceList({ searchValue = '' }) {
                         placeholder="Asset-Tag eingeben oder scannen"
                       />
                     </Field>
-                    <Field label="CM-Nummer">
+                    <Field label="CM-Nummer" required>
                       <Input
                         value={formData.inventory_number}
                         onChange={(e) => setFormData({ ...formData, inventory_number: e.target.value })}
@@ -625,7 +676,7 @@ export default function DeviceList({ searchValue = '' }) {
                         placeholder="z.B. Dell Latitude 7490"
                       />
                     </Field>
-                    <Field label="Windows Version">
+                    <Field label="Windows Version" required>
                       <Input
                         value={formData.windows_version}
                         onChange={(e) => setFormData({ ...formData, windows_version: e.target.value })}
@@ -643,7 +694,7 @@ export default function DeviceList({ searchValue = '' }) {
                         ))}
                       </Dropdown>
                     </Field>
-                    <Field label="Department">
+                    <Field label="Department" required>
                       <Dropdown
                         placeholder="Select department"
                         value={departments.find(d => d.id === formData.department_id)?.name || ''}
@@ -657,7 +708,7 @@ export default function DeviceList({ searchValue = '' }) {
                         ))}
                       </Dropdown>
                     </Field>
-                    <Field label="Amt" disabled={!formData.department_id}>
+                    <Field label="Amt" required disabled={!formData.department_id}>
                       <Dropdown
                         placeholder={formData.department_id ? "Select amt" : "Select department first"}
                         value={filteredAmts.find(a => a.id === formData.amt_id)?.name || ''}
