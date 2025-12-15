@@ -384,7 +384,7 @@ export default function DeviceList({ searchValue = '' }) {
         return false
       }
       if (!formData.location_id) {
-        setValidationError('Bitte Location auswählen')
+        setValidationError('Bitte Standort auswählen')
         return false
       }
       if (!formData.department_id) {
@@ -697,7 +697,7 @@ export default function DeviceList({ searchValue = '' }) {
             disabled={!canEditDevices}
             title={!canEditDevices ? "Nur Editor, Redakteur oder Admin können Geräte erstellen" : ""}
           >
-            Add Device
+            Gerät hinzufügen
           </Button>
           <Dialog open={createDialogOpen} onOpenChange={(_, data) => {
             setCreateDialogOpen(data.open)
@@ -705,7 +705,7 @@ export default function DeviceList({ searchValue = '' }) {
           }}>
             <DialogSurface>
               <DialogBody>
-                <DialogTitle>Add New Device</DialogTitle>
+                <DialogTitle>Neues Gerät hinzufügen</DialogTitle>
                 <DialogContent>
                   {validationError && (
                     <MessageBar intent="error" style={{ marginBottom: tokens.spacingVerticalM }}>
@@ -763,9 +763,9 @@ export default function DeviceList({ searchValue = '' }) {
                             placeholder="z.B. Windows 11 Pro"
                           />
                         </Field>
-                        <Field label="Location" required>
+                        <Field label="Standort" required>
                           <Dropdown
-                            placeholder="Select location"
+                            placeholder="Standort wählen"
                             value={locations.find(l => l.id === parseInt(formData.location_id))?.name || ''}
                             onOptionSelect={(_, data) => setFormData({ ...formData, location_id: data.optionValue })}
                           >
@@ -776,7 +776,7 @@ export default function DeviceList({ searchValue = '' }) {
                         </Field>
                         <Field label="Department" required>
                           <Dropdown
-                            placeholder="Select department"
+                            placeholder="Department wählen"
                             value={departments.find(d => d.id === formData.department_id)?.name || ''}
                             onOptionSelect={(_, data) => {
                               const deptId = parseInt(data.optionValue)
@@ -790,7 +790,7 @@ export default function DeviceList({ searchValue = '' }) {
                         </Field>
                         <Field label="Amt" required disabled={!formData.department_id}>
                           <Dropdown
-                            placeholder={formData.department_id ? "Select amt" : "Select department first"}
+                            placeholder={formData.department_id ? "Amt wählen" : "Zuerst Department wählen"}
                             value={filteredAmts.find(a => a.id === formData.amt_id)?.name || ''}
                             onOptionSelect={(_, data) => setFormData({ ...formData, amt_id: parseInt(data.optionValue) })}
                             disabled={!formData.department_id}
@@ -913,9 +913,9 @@ export default function DeviceList({ searchValue = '' }) {
                         }
                       />
                     </Field>
-                    <Field label="Location" required>
+                    <Field label="Standort" required>
                       <Dropdown
-                        placeholder="Select location"
+                        placeholder="Standort wählen"
                         value={locations.find(l => l.id === parseInt(formData.location_id))?.name || ''}
                         selectedOptions={[formData.location_id?.toString()]}
                         onOptionSelect={(_, data) => setFormData({ ...formData, location_id: data.optionValue })}
@@ -927,7 +927,7 @@ export default function DeviceList({ searchValue = '' }) {
                     </Field>
                     <Field label="Department">
                       <Dropdown
-                        placeholder="Select department"
+                        placeholder="Department wählen"
                         value={departments.find(d => d.id === formData.department_id)?.name || ''}
                         selectedOptions={formData.department_id ? [formData.department_id.toString()] : []}
                         onOptionSelect={(_, data) => {
@@ -942,7 +942,7 @@ export default function DeviceList({ searchValue = '' }) {
                     </Field>
                     <Field label="Amt" disabled={!formData.department_id}>
                       <Dropdown
-                        placeholder={formData.department_id ? "Select amt" : "Select department first"}
+                        placeholder={formData.department_id ? "Amt wählen" : "Zuerst Department wählen"}
                         value={filteredAmts.find(a => a.id === formData.amt_id)?.name || ''}
                         selectedOptions={formData.amt_id ? [formData.amt_id.toString()] : []}
                         onOptionSelect={(_, data) => setFormData({ ...formData, amt_id: parseInt(data.optionValue) })}
