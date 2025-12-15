@@ -17,6 +17,7 @@ import UserList from './features/users/UserList'
 import DepartmentList from './features/departments/DepartmentList'
 import AmtList from './features/amts/AmtList'
 import LocationList from './features/locations/LocationList'
+import PeripheralList from './features/peripherals/PeripheralList'
 import History from './features/history/History'
 import MissingDevices from './features/missing/MissingDevices'
 import LogList from './features/logs/LogList'
@@ -32,6 +33,7 @@ const routeToPageMap = {
   '/users': 'users',
   '/departments': 'departments',
   '/amts': 'amts',
+  '/peripherals': 'peripherals',
   '/locations': 'locations',
   '/logs': 'logs',
 }
@@ -42,6 +44,7 @@ const pageToRouteMap = {
   'users': '/users',
   'departments': '/departments',
   'amts': '/amts',
+  'peripherals': '/peripherals',
   'history': '/history',
   'missing': '/missing',
   'locations': '/locations',
@@ -79,6 +82,7 @@ export default function App() {
                 <Route path="/users" element={<UserList searchValue={searchValue} />} />
                 <Route path="/departments" element={<DepartmentList searchValue={searchValue} />} />
                 <Route path="/amts" element={<AmtList searchValue={searchValue} />} />
+                <Route path="/peripherals" element={<PeripheralList searchValue={searchValue} />} />
                 <Route path="/locations" element={<LocationList searchValue={searchValue} />} />
                 <Route path="/logs" element={<LogList searchValue={searchValue} />} />
                 <Route path="*" element={<Navigate to="/dashboard" replace />} />

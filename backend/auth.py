@@ -236,6 +236,24 @@ require_redakteur = require_role(UserRole.REDAKTEUR)
 require_admin = require_role(UserRole.ADMIN)
 
 
+def require_admin_or_editor(f):
+    """
+    Decorator to require editor, redakteur, or admin role.
+    Returns 403 if insufficient permissions.
+    """
+    @wraps(f)
+    async def decorated_function(*args, **kwargs):
+        user = get_current_user()
+        if not user:
+            return jsonify({'error': 'Authentication required'}), 401
+        
+        if user.role not in [UserRole.EDITOR, UserRole.REDAKTEUR, UserRole.ADMIN]:
+            return jsonify({'error': 'Insufficient permissions. Editor, Redakteur, or Admin role required.'}), 403
+        
+        return await f(*args, **kwargs)
+    return decorated_function
+
+
 # ============================================================================
 # Helper Functions
 # ============================================================================

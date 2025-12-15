@@ -526,6 +526,7 @@ export default function AppShell({ children, currentPage, onNavigate }) {
         { key: 'users', label: 'Benutzer' },
         { key: 'departments', label: 'Departments' },
         { key: 'amts', label: 'Ämter' },
+        { key: 'peripherals', label: 'Peripheriegeräte' },
         { key: 'locations', label: 'Standorte' },
       ];
       break;
@@ -540,6 +541,7 @@ export default function AppShell({ children, currentPage, onNavigate }) {
         { key: 'users', label: 'Benutzer' },
         { key: 'departments', label: 'Departments' },
         { key: 'amts', label: 'Ämter' },
+        { key: 'peripherals', label: 'Peripheriegeräte' },
         { key: 'locations', label: 'Standorte' },
         { key: 'logs', label: 'System Logs' },
       ];
@@ -647,7 +649,7 @@ export default function AppShell({ children, currentPage, onNavigate }) {
             <Menu open={menuOpen} onOpenChange={(e, data) => setMenuOpen(data.open)}>
               <MenuTrigger disableButtonEnhancement>
                 <button
-                  className={`${styles.hamburgerButton} ${menuOpen ? styles.hamburgerButtonActive : ''} ${['users', 'departments', 'amts', 'locations', 'logs'].includes(currentPage) ? styles.hamburgerButtonWithBorder : ''}`}
+                  className={`${styles.hamburgerButton} ${menuOpen ? styles.hamburgerButtonActive : ''} ${['users', 'departments', 'amts', 'peripherals', 'locations', 'logs'].includes(currentPage) ? styles.hamburgerButtonWithBorder : ''}`}
                   aria-label="Verwaltungsmenü"
                 >
                   <Navigation24Regular style={{ width: '20px', height: '20px' }} />

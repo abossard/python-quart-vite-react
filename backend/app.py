@@ -41,7 +41,8 @@ from models import (
 from auth import (
     authenticate_user, create_session, get_session, destroy_session,
     get_current_user, require_auth, require_role,
-    get_session_info, require_user, require_editor, require_admin
+    get_session_info, require_user, require_editor, require_admin,
+    require_admin_or_editor
 )
 from typing import Optional
 from database import init_db, close_db, get_db
@@ -2198,6 +2199,187 @@ async def delete_amt(amt_id):
 
 
 # ============================================================================
+# PERIPHERALS ENDPOINTS
+# ============================================================================
+
+@app.route('/api/peripherals', methods=['GET'])
+@require_auth
+async def list_peripherals():
+    """List all peripherals"""
+    try:
+        db = get_db()
+        cursor = await db.cursor()
+        await cursor.execute("SELECT id, name FROM peripherals ORDER BY name")
+        
+        rows = await cursor.fetchall()
+        await cursor.close()
+        
+        peripherals = [{'id': row[0], 'name': row[1]} for row in rows]
+        return jsonify(peripherals), 200
+        
+    except Exception as e:
+        print(f"ERROR in list_peripherals: {e}")
+        import traceback
+        traceback.print_exc()
+        return jsonify({'error': str(e)}), 500
+
+
+@app.route('/api/peripherals/<int:peripheral_id>', methods=['GET'])
+@require_auth
+async def get_peripheral(peripheral_id):
+    """Get a specific peripheral"""
+    try:
+        db = get_db()
+        cursor = await db.cursor()
+        await cursor.execute("SELECT id, name FROM peripherals WHERE id = ?", (peripheral_id,))
+        
+        row = await cursor.fetchone()
+        await cursor.close()
+        
+        if not row:
+            return jsonify({'error': 'Peripheral not found'}), 404
+        
+        return jsonify({'id': row[0], 'name': row[1]}), 200
+        
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
+@app.route('/api/peripherals', methods=['POST'])
+@require_admin_or_editor
+async def create_peripheral():
+    """Create a new peripheral (editor, redakteur, or admin)"""
+    try:
+        data = await request.get_json()
+        name = data.get('name')
+        
+        if not name:
+            return jsonify({'error': 'name is required'}), 400
+        
+        db = get_db()
+        cursor = await db.cursor()
+        
+        # Check if peripheral already exists
+        await cursor.execute("SELECT id FROM peripherals WHERE name = ?", (name,))
+        if await cursor.fetchone():
+            await cursor.close()
+            return jsonify({'error': 'Peripheral already exists'}), 400
+        
+        await cursor.execute("INSERT INTO peripherals (name) VALUES (?)", (name,))
+        peripheral_id = cursor.lastrowid
+        await db.commit()
+        await cursor.close()
+        
+        peripheral_data = {'id': peripheral_id, 'name': name}
+        
+        # Log to system_logs
+        current_user_info = get_current_user()
+        await log_system_action(
+            event_type='create',
+            entity_type='peripheral',
+            entity_id=peripheral_id,
+            details=f"Peripheral '{name}' wurde erstellt",
+            user_id=current_user_info.id if current_user_info else None,
+            username=current_user_info.username if current_user_info else 'System'
+        )
+        
+        # Broadcast event to all clients
+        await broadcast_event(EventType.PERIPHERAL_CREATED, peripheral_data)
+        
+        return jsonify(peripheral_data), 201
+        
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
+@app.route('/api/peripherals/<int:peripheral_id>', methods=['PUT'])
+@require_admin_or_editor
+async def update_peripheral(peripheral_id):
+    """Update a peripheral (editor, redakteur, or admin)"""
+    try:
+        data = await request.get_json()
+        name = data.get('name')
+        
+        if not name:
+            return jsonify({'error': 'name is required'}), 400
+        
+        db = get_db()
+        cursor = await db.cursor()
+        
+        # Check if peripheral exists
+        await cursor.execute("SELECT id FROM peripherals WHERE id = ?", (peripheral_id,))
+        if not await cursor.fetchone():
+            await cursor.close()
+            return jsonify({'error': 'Peripheral not found'}), 404
+        
+        await cursor.execute("UPDATE peripherals SET name = ? WHERE id = ?", (name, peripheral_id))
+        await db.commit()
+        await cursor.close()
+        
+        peripheral_data = {'id': peripheral_id, 'name': name}
+        
+        # Log to system_logs
+        current_user_info = get_current_user()
+        await log_system_action(
+            event_type='update',
+            entity_type='peripheral',
+            entity_id=peripheral_id,
+            details=f"Peripheral '{name}' wurde aktualisiert",
+            user_id=current_user_info.id if current_user_info else None,
+            username=current_user_info.username if current_user_info else 'System'
+        )
+        
+        # Broadcast event to all clients
+        await broadcast_event(EventType.PERIPHERAL_UPDATED, peripheral_data)
+        
+        return jsonify(peripheral_data), 200
+        
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
+@app.route('/api/peripherals/<int:peripheral_id>', methods=['DELETE'])
+@require_admin_or_editor
+async def delete_peripheral(peripheral_id):
+    """Delete a peripheral (editor, redakteur, or admin)"""
+    try:
+        db = get_db()
+        cursor = await db.cursor()
+        
+        # Get peripheral data before deletion for audit log
+        await cursor.execute("SELECT name FROM peripherals WHERE id = ?", (peripheral_id,))
+        peripheral_row = await cursor.fetchone()
+        if not peripheral_row:
+            await cursor.close()
+            return jsonify({'error': 'Peripheral not found'}), 404
+        
+        peripheral_snapshot = {'id': peripheral_id, 'name': peripheral_row[0]}
+        
+        await cursor.execute("DELETE FROM peripherals WHERE id = ?", (peripheral_id,))
+        await db.commit()
+        await cursor.close()
+        
+        # Log to system_logs
+        current_user_info = get_current_user()
+        await log_system_action(
+            event_type='delete',
+            entity_type='peripheral',
+            entity_id=peripheral_id,
+            details=f"Peripheral '{peripheral_snapshot['name']}' wurde gelöscht",
+            user_id=current_user_info.id if current_user_info else None,
+            username=current_user_info.username if current_user_info else 'System'
+        )
+        
+        # Broadcast event to all clients
+        await broadcast_event(EventType.PERIPHERAL_DELETED, {'id': peripheral_id})
+        
+        return jsonify({'message': 'Peripheral deleted successfully'}), 200
+        
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
+# ============================================================================
 # LOCATIONS ENDPOINTS
 # ============================================================================
 
@@ -2571,6 +2753,4 @@ if __name__ == "__main__":
     print("   Username: testuser / Password: test123")
     print()
     print("💡 Port 5001 (macOS AirPlay uses 5000)")
-    print("=" * 70)
-
-    app.run(debug=True, host="0.0.0.0", port=5001)
+    print("=" app.run(debug=True, host="0.0.0.0", port=5001)

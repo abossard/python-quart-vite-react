@@ -29,6 +29,8 @@ import {
   Textarea,
   Card,
   CardHeader,
+  Radio,
+  RadioGroup,
 } from '@fluentui/react-components'
 import {
   Add24Regular,
@@ -103,6 +105,34 @@ const useStyles = makeStyles({
   fullWidth: {
     gridColumn: '1 / -1',
   },
+  radioGroup: {
+    display: 'flex',
+    flexDirection: 'row',
+    gap: tokens.spacingHorizontalL,
+    '& label': {
+      fontWeight: '400',
+    },
+  },
+  boldLabel: {
+    fontWeight: '700',
+  },
+  extraInfoLabel: {
+    fontSize: '14px',
+    fontWeight: '700',
+    color: '#212529',
+    marginBottom: '8px',
+  },
+  textarea: {
+    width: '100%',
+    minHeight: '84px',
+    border: '1px solid #CED4DA',
+    borderRadius: '6px',
+    backgroundColor: '#F8F8F8',
+    padding: '12px',
+    fontSize: '14px',
+    fontFamily: 'inherit',
+    resize: 'vertical',
+  },
 })
 
 export default function DeviceList({ searchValue = '' }) {
@@ -135,6 +165,8 @@ export default function DeviceList({ searchValue = '' }) {
   const [departments, setDepartments] = useState([])
   const [amts, setAmts] = useState([])
   const [filteredAmts, setFilteredAmts] = useState([])
+  const [peripherals, setPeripherals] = useState([])
+  const [deviceCategory, setDeviceCategory] = useState('bab-client')
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
   const [validationError, setValidationError] = useState(null)
@@ -241,6 +273,21 @@ export default function DeviceList({ searchValue = '' }) {
     }
   }
 
+  const loadPeripherals = async () => {
+    try {
+      const response = await fetch('http://localhost:5001/api/peripherals', {
+        credentials: 'include',
+      })
+      
+      if (response.ok) {
+        const data = await response.json()
+        setPeripherals(data)
+      }
+    } catch (err) {
+      console.error('Failed to load peripherals:', err)
+    }
+  }
+
   const loadCurrentUser = async () => {
     try {
       const response = await fetch('http://localhost:5001/api/auth/session', {
@@ -260,7 +307,7 @@ export default function DeviceList({ searchValue = '' }) {
 
   const loadData = async () => {
     setLoading(true)
-    await Promise.all([loadDevices(), loadStats(), loadLocations(), loadDepartments(), loadAmts(), loadCurrentUser()])
+    await Promise.all([loadDevices(), loadStats(), loadLocations(), loadDepartments(), loadAmts(), loadPeripherals(), loadCurrentUser()])
     setLoading(false)
   }
 
@@ -298,6 +345,7 @@ export default function DeviceList({ searchValue = '' }) {
   }, [formData.department_id, amts])
 
   const handleOpenCreateDialog = () => {
+    setDeviceCategory('bab-client')
     setFormData({
       asset_tag: '',
       inventory_number: '',
@@ -313,37 +361,54 @@ export default function DeviceList({ searchValue = '' }) {
   }
 
   const validateDeviceForm = () => {
-    if (!formData.asset_tag) {
-      setValidationError('Bitte Asset-Tag eingeben')
-      return false
-    }
-    if (!formData.inventory_number) {
-      setValidationError('Bitte CM-Nummer eingeben')
-      return false
-    }
-    if (!formData.device_type) {
-      setValidationError('Bitte Kategorie eingeben')
-      return false
-    }
-    if (!formData.model) {
-      setValidationError('Bitte Model eingeben')
-      return false
-    }
-    if (!formData.windows_version) {
-      setValidationError('Bitte Windows Version eingeben')
-      return false
-    }
-    if (!formData.location_id) {
-      setValidationError('Bitte Location auswählen')
-      return false
-    }
-    if (!formData.department_id) {
-      setValidationError('Bitte Department auswählen')
-      return false
-    }
-    if (!formData.amt_id) {
-      setValidationError('Bitte Amt auswählen')
-      return false
+    if (deviceCategory === 'bab-client') {
+      // BAB-Client Validierung
+      if (!formData.asset_tag) {
+        setValidationError('Bitte Asset-Tag eingeben')
+        return false
+      }
+      if (!formData.inventory_number) {
+        setValidationError('Bitte CM-Nummer eingeben')
+        return false
+      }
+      if (!formData.device_type) {
+        setValidationError('Bitte Kategorie eingeben')
+        return false
+      }
+      if (!formData.model) {
+        setValidationError('Bitte Model eingeben')
+        return false
+      }
+      if (!formData.windows_version) {
+        setValidationError('Bitte Windows Version eingeben')
+        return false
+      }
+      if (!formData.location_id) {
+        setValidationError('Bitte Location auswählen')
+        return false
+      }
+      if (!formData.department_id) {
+        setValidationError('Bitte Department auswählen')
+        return false
+      }
+      if (!formData.amt_id) {
+        setValidationError('Bitte Amt auswählen')
+        return false
+      }
+    } else {
+      // Sonstige Validierung
+      if (!formData.device_type) {
+        setValidationError('Bitte Gerätetyp auswählen')
+        return false
+      }
+      if (!formData.manufacturer) {
+        setValidationError('Bitte Marke eingeben')
+        return false
+      }
+      if (!formData.model) {
+        setValidationError('Bitte Modell eingeben')
+        return false
+      }
     }
     setValidationError(null)
     return true
@@ -647,86 +712,143 @@ export default function DeviceList({ searchValue = '' }) {
                       <MessageBarBody>{validationError}</MessageBarBody>
                     </MessageBar>
                   )}
-                  <div className={styles.formGrid}>
-                    <Field label="Asset-Tag" required>
-                      <Input
-                        value={formData.asset_tag}
-                        onChange={(e) => setFormData({ ...formData, asset_tag: e.target.value })}
-                        placeholder="Asset-Tag eingeben oder scannen"
-                      />
-                    </Field>
-                    <Field label="CM-Nummer" required>
-                      <Input
-                        value={formData.inventory_number}
-                        onChange={(e) => setFormData({ ...formData, inventory_number: e.target.value })}
-                        placeholder="CM-Nummer"
-                      />
-                    </Field>
-                    <Field label="Kategorie" required>
-                      <Input
-                        value={formData.device_type}
-                        onChange={(e) => setFormData({ ...formData, device_type: e.target.value })}
-                        placeholder="z.B. Laptop, Beamer"
-                      />
-                    </Field>
-                    <Field label="Model" required>
-                      <Input
-                        value={formData.model}
-                        onChange={(e) => setFormData({ ...formData, model: e.target.value })}
-                        placeholder="z.B. Dell Latitude 7490"
-                      />
-                    </Field>
-                    <Field label="Windows Version" required>
-                      <Input
-                        value={formData.windows_version}
-                        onChange={(e) => setFormData({ ...formData, windows_version: e.target.value })}
-                        placeholder="z.B. Windows 11 Pro"
-                      />
-                    </Field>
-                    <Field label="Location" required>
-                      <Dropdown
-                        placeholder="Select location"
-                        value={locations.find(l => l.id === parseInt(formData.location_id))?.name || ''}
-                        onOptionSelect={(_, data) => setFormData({ ...formData, location_id: data.optionValue })}
-                      >
-                        {locations.map(loc => (
-                          <Option key={loc.id} value={loc.id.toString()}>{loc.name}</Option>
-                        ))}
-                      </Dropdown>
-                    </Field>
-                    <Field label="Department" required>
-                      <Dropdown
-                        placeholder="Select department"
-                        value={departments.find(d => d.id === formData.department_id)?.name || ''}
-                        onOptionSelect={(_, data) => {
-                          const deptId = parseInt(data.optionValue)
-                          setFormData({ ...formData, department_id: deptId, amt_id: null })
-                        }}
-                      >
-                        {departments.map(dept => (
-                          <Option key={dept.id} value={dept.id.toString()}>{dept.name}</Option>
-                        ))}
-                      </Dropdown>
-                    </Field>
-                    <Field label="Amt" required disabled={!formData.department_id}>
-                      <Dropdown
-                        placeholder={formData.department_id ? "Select amt" : "Select department first"}
-                        value={filteredAmts.find(a => a.id === formData.amt_id)?.name || ''}
-                        onOptionSelect={(_, data) => setFormData({ ...formData, amt_id: parseInt(data.optionValue) })}
-                        disabled={!formData.department_id}
-                      >
-                        {filteredAmts.map(amt => (
-                          <Option key={amt.id} value={amt.id.toString()}>{amt.name}</Option>
-                        ))}
-                      </Dropdown>
-                    </Field>
-                    <Field label="Zusätzliche Informationen" className={styles.fullWidth}>
-                      <Input
-                        value={formData.notes}
-                        onChange={(e) => setFormData({ ...formData, notes: e.target.value })}
-                        placeholder="Optionale Notizen"
-                      />
-                    </Field>
+                  
+                  <Field label="Gerätetyp wählen" className={styles.boldLabel}>
+                    <RadioGroup
+                      value={deviceCategory}
+                      onChange={(_, data) => setDeviceCategory(data.value)}
+                      className={styles.radioGroup}
+                    >
+                      <Radio value="bab-client" label="BAB-Client" />
+                      <Radio value="sonstige" label="Sonstige" />
+                    </RadioGroup>
+                  </Field>
+
+                  <div className={styles.formGrid} style={{ marginTop: tokens.spacingVerticalM }} style={{ marginTop: tokens.spacingVerticalM }}>
+                    {deviceCategory === 'bab-client' ? (
+                      // BAB-Client Felder
+                      <>
+                        <Field label="Asset-Tag" required>
+                          <Input
+                            value={formData.asset_tag}
+                            onChange={(e) => setFormData({ ...formData, asset_tag: e.target.value })}
+                            placeholder="Asset-Tag eingeben oder scannen"
+                          />
+                        </Field>
+                        <Field label="CM-Nummer" required>
+                          <Input
+                            value={formData.inventory_number}
+                            onChange={(e) => setFormData({ ...formData, inventory_number: e.target.value })}
+                            placeholder="CM-Nummer"
+                          />
+                        </Field>
+                        <Field label="Kategorie" required>
+                          <Input
+                            value={formData.device_type}
+                            onChange={(e) => setFormData({ ...formData, device_type: e.target.value })}
+                            placeholder="z.B. Laptop, Beamer"
+                          />
+                        </Field>
+                        <Field label="Model" required>
+                          <Input
+                            value={formData.model}
+                            onChange={(e) => setFormData({ ...formData, model: e.target.value })}
+                            placeholder="z.B. Dell Latitude 7490"
+                          />
+                        </Field>
+                        <Field label="Windows Version" required>
+                          <Input
+                            value={formData.windows_version}
+                            onChange={(e) => setFormData({ ...formData, windows_version: e.target.value })}
+                            placeholder="z.B. Windows 11 Pro"
+                          />
+                        </Field>
+                        <Field label="Location" required>
+                          <Dropdown
+                            placeholder="Select location"
+                            value={locations.find(l => l.id === parseInt(formData.location_id))?.name || ''}
+                            onOptionSelect={(_, data) => setFormData({ ...formData, location_id: data.optionValue })}
+                          >
+                            {locations.map(loc => (
+                              <Option key={loc.id} value={loc.id.toString()}>{loc.name}</Option>
+                            ))}
+                          </Dropdown>
+                        </Field>
+                        <Field label="Department" required>
+                          <Dropdown
+                            placeholder="Select department"
+                            value={departments.find(d => d.id === formData.department_id)?.name || ''}
+                            onOptionSelect={(_, data) => {
+                              const deptId = parseInt(data.optionValue)
+                              setFormData({ ...formData, department_id: deptId, amt_id: null })
+                            }}
+                          >
+                            {departments.map(dept => (
+                              <Option key={dept.id} value={dept.id.toString()}>{dept.name}</Option>
+                            ))}
+                          </Dropdown>
+                        </Field>
+                        <Field label="Amt" required disabled={!formData.department_id}>
+                          <Dropdown
+                            placeholder={formData.department_id ? "Select amt" : "Select department first"}
+                            value={filteredAmts.find(a => a.id === formData.amt_id)?.name || ''}
+                            onOptionSelect={(_, data) => setFormData({ ...formData, amt_id: parseInt(data.optionValue) })}
+                            disabled={!formData.department_id}
+                          >
+                            {filteredAmts.map(amt => (
+                              <Option key={amt.id} value={amt.id.toString()}>{amt.name}</Option>
+                            ))}
+                          </Dropdown>
+                        </Field>
+                        <div className={styles.fullWidth}>
+                          <div className={styles.extraInfoLabel}>Zusatz Info:</div>
+                          <textarea
+                            className={styles.textarea}
+                            value={formData.notes}
+                            onChange={(e) => setFormData({ ...formData, notes: e.target.value })}
+                            placeholder="Zusätzliche Informationen..."
+                          />
+                        </div>
+                      </>
+                    ) : (
+                      // Sonstige Felder
+                      <>
+                        <Field label="Gerätetyp" required>
+                          <Dropdown
+                            placeholder="Wählen Sie ein Peripheriegerät"
+                            value={peripherals.find(p => p.name === formData.device_type)?.name || ''}
+                            onOptionSelect={(_, data) => setFormData({ ...formData, device_type: data.optionText })}
+                          >
+                            {peripherals.map(peripheral => (
+                              <Option key={peripheral.id} value={peripheral.name}>{peripheral.name}</Option>
+                            ))}
+                          </Dropdown>
+                        </Field>
+                        <Field label="Marke" required>
+                          <Input
+                            value={formData.manufacturer || ''}
+                            onChange={(e) => setFormData({ ...formData, manufacturer: e.target.value })}
+                            placeholder="z.B. Logitech"
+                          />
+                        </Field>
+                        <Field label="Modell" required>
+                          <Input
+                            value={formData.model}
+                            onChange={(e) => setFormData({ ...formData, model: e.target.value })}
+                            placeholder="z.B. MX Master 3"
+                          />
+                        </Field>
+                        <div className={styles.fullWidth}>
+                          <div className={styles.extraInfoLabel}>Zusatz Info:</div>
+                          <textarea
+                            className={styles.textarea}
+                            value={formData.notes}
+                            onChange={(e) => setFormData({ ...formData, notes: e.target.value })}
+                            placeholder="Zusätzliche Informationen..."
+                          />
+                        </div>
+                      </>
+                    )}
                   </div>
                 </DialogContent>
                 <DialogActions>
@@ -831,15 +953,15 @@ export default function DeviceList({ searchValue = '' }) {
                         ))}
                       </Dropdown>
                     </Field>
-                    <Field label="Zusätzliche Informationen" style={{ gridColumn: "1 / -1" }}>
-                      <Textarea
+                    <div style={{ gridColumn: "1 / -1" }}>
+                      <div className={styles.extraInfoLabel}>Zusatz Info:</div>
+                      <textarea
+                        className={styles.textarea}
                         value={formData.notes}
-                        onChange={(e, data) =>
-                          setFormData({ ...formData, notes: data.value })
-                        }
-                        rows={3}
+                        onChange={(e) => setFormData({ ...formData, notes: e.target.value })}
+                        placeholder="Zusätzliche Informationen..."
                       />
-                    </Field>
+                    </div>
                   </div>
                 </DialogContent>
                 <DialogActions>
@@ -928,32 +1050,37 @@ export default function DeviceList({ searchValue = '' }) {
       )}
 
       <ResponsiveGrid>
-        {filteredDevices.map((device) => (
-          <AdminCard
-            key={device.id}
-            title={`${device.asset_tag || 'Kein Asset-Tag'}`}
-            fields={[
-              { label: 'Kategorie', value: device.device_type },
-              { label: 'Model', value: device.model },
-              { label: 'CM-Nummer', value: device.inventory_number || '-' },
-              { label: 'Windows Version', value: device.windows_version || '-' },
-              { label: 'Standort', value: device.location?.name || '-' },
-              { label: 'Status', value: device.status },
-            ]}
-            statusBackground={
-              device.status === 'available' ? 'success' :
-              device.status === 'borrowed' ? 'warning' :
-              device.status === 'missing' ? 'danger' : null
-            }
-            showInfo={true}
-            detailData={device}
-            onInfo={() => console.log('Device info:', device)}
-            onEdit={() => handleEditDevice(device)}
-            onDelete={() => handleDeleteDevice(device)}
-            disableEdit={!canEditDevices}
-            disableDelete={!canEditDevices}
-          />
-        ))}
+        {filteredDevices.map((device) => {
+          // Nur Felder mit Werten anzeigen
+          const allFields = [
+            { label: 'Asset-Tag', value: device.asset_tag },
+            { label: 'Kategorie', value: device.device_type },
+            { label: 'Marke', value: device.manufacturer },
+            { label: 'Model', value: device.model },
+            { label: 'CM-Nummer', value: device.inventory_number },
+            { label: 'Windows Version', value: device.windows_version },
+            { label: 'Standort', value: device.location?.name },
+            { label: 'Status', value: device.status },
+          ]
+          
+          // Filtere Felder ohne Wert heraus
+          const fieldsWithValues = allFields.filter(field => field.value && field.value.trim() !== '')
+          
+          return (
+            <AdminCard
+              key={device.id}
+              title={device.asset_tag || device.device_type || 'Gerät'}
+              fields={fieldsWithValues}
+              showInfo={true}
+              detailData={device}
+              onInfo={() => console.log('Device info:', device)}
+              onEdit={() => handleEditDevice(device)}
+              onDelete={() => handleDeleteDevice(device)}
+              disableEdit={!canEditDevices}
+              disableDelete={!canEditDevices}
+            />
+          )
+        })}
       </ResponsiveGrid>
     </div>
   )

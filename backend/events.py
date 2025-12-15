@@ -48,6 +48,11 @@ class EventType(str, Enum):
     LOCATION_CREATED = "location:created"
     LOCATION_UPDATED = "location:updated"
     LOCATION_DELETED = "location:deleted"
+    
+    # Peripheral events
+    PERIPHERAL_CREATED = "peripheral:created"
+    PERIPHERAL_UPDATED = "peripheral:updated"
+    PERIPHERAL_DELETED = "peripheral:deleted"
 
 
 class EventManager:

@@ -78,6 +78,12 @@ async def _ensure_schema():
         FOREIGN KEY (department_id) REFERENCES departments(id) ON DELETE CASCADE
     );
     
+    CREATE TABLE IF NOT EXISTS peripherals (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        name TEXT NOT NULL UNIQUE,
+        full_name TEXT
+    );
+    
     CREATE TABLE IF NOT EXISTS users (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         username TEXT NOT NULL UNIQUE,

@@ -202,34 +202,54 @@ export default function DetailDialog({ open, onOpenChange, data }) {
             <div className={styles.content}>
             <div className={styles.infoList}>
               <div className={styles.sectionTitle}>Geräteinformationen</div>
-              <div className={styles.infoLine}>
-                <span className={styles.label}>Asset-Tag: </span>
-                <span className={styles.value}>{data.asset_tag || '-'}</span>
-              </div>
-              <div className={styles.infoLine}>
-                <span className={styles.label}>Kategorie: </span>
-                <span className={styles.value}>{data.device_type || '-'}</span>
-              </div>
-              <div className={styles.infoLine}>
-                <span className={styles.label}>Modell: </span>
-                <span className={styles.value}>{data.model || '-'}</span>
-              </div>
-              <div className={styles.infoLine}>
-                <span className={styles.label}>CM-Nummer: </span>
-                <span className={styles.value}>{data.inventory_number || '-'}</span>
-              </div>
-              <div className={styles.infoLine}>
-                <span className={styles.label}>Windows Version: </span>
-                <span className={styles.value}>{data.windows_version || '-'}</span>
-              </div>
-              <div className={styles.infoLine}>
-                <span className={styles.label}>Standort: </span>
-                <span className={styles.value}>{data.location?.name || '-'}</span>
-              </div>
-              <div className={styles.infoLine}>
-                <span className={styles.label}>Status: </span>
-                <span className={styles.value}>{data.status || '-'}</span>
-              </div>
+              {data.asset_tag && (
+                <div className={styles.infoLine}>
+                  <span className={styles.label}>Asset-Tag: </span>
+                  <span className={styles.value}>{data.asset_tag}</span>
+                </div>
+              )}
+              {data.device_type && (
+                <div className={styles.infoLine}>
+                  <span className={styles.label}>Kategorie: </span>
+                  <span className={styles.value}>{data.device_type}</span>
+                </div>
+              )}
+              {data.manufacturer && (
+                <div className={styles.infoLine}>
+                  <span className={styles.label}>Marke: </span>
+                  <span className={styles.value}>{data.manufacturer}</span>
+                </div>
+              )}
+              {data.model && (
+                <div className={styles.infoLine}>
+                  <span className={styles.label}>Modell: </span>
+                  <span className={styles.value}>{data.model}</span>
+                </div>
+              )}
+              {data.inventory_number && (
+                <div className={styles.infoLine}>
+                  <span className={styles.label}>CM-Nummer: </span>
+                  <span className={styles.value}>{data.inventory_number}</span>
+                </div>
+              )}
+              {data.windows_version && (
+                <div className={styles.infoLine}>
+                  <span className={styles.label}>Windows Version: </span>
+                  <span className={styles.value}>{data.windows_version}</span>
+                </div>
+              )}
+              {data.location?.name && (
+                <div className={styles.infoLine}>
+                  <span className={styles.label}>Standort: </span>
+                  <span className={styles.value}>{data.location.name}</span>
+                </div>
+              )}
+              {data.status && (
+                <div className={styles.infoLine}>
+                  <span className={styles.label}>Status: </span>
+                  <span className={styles.value}>{data.status}</span>
+                </div>
+              )}
               {data.borrower_name && (
                 <>
                   <div style={{ marginTop: '16px' }}></div>
@@ -264,7 +284,7 @@ export default function DetailDialog({ open, onOpenChange, data }) {
               )}
             </div>
             
-            <div className={styles.extraInfoLabel}>Extra Info:</div>
+            <div className={styles.extraInfoLabel}>Zusatz Info:</div>
             <textarea 
               className={styles.textarea}
               placeholder="Zusätzliche Informationen..."
