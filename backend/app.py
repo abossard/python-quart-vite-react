@@ -28,15 +28,17 @@ load_dotenv()
 
 
 # Import unified operation system
-from api_decorators import operation
 from mcp import handle_mcp_request
-from ollama_service import ChatRequest, ChatResponse, ModelListResponse, OllamaService
+from ollama_service import ChatRequest
+from operations import (op_create_task, op_delete_task, op_get_task,
+                        op_get_task_stats, op_list_ollama_models,
+                        op_list_tasks, op_ollama_chat, op_update_task,
+                        task_service)
 from pydantic import ValidationError
 from quart import Quart, jsonify, request, send_from_directory
 from quart_cors import cors
-
 # Import Pydantic models and service
-from tasks import Task, TaskCreate, TaskFilter, TaskService, TaskStats, TaskUpdate
+from tasks import Task, TaskCreate, TaskFilter, TaskStats, TaskUpdate
 
 # ============================================================================
 # APPLICATION SETUP
@@ -45,9 +47,7 @@ from tasks import Task, TaskCreate, TaskFilter, TaskService, TaskStats, TaskUpda
 app = Quart(__name__)
 app = cors(app, allow_origin="*")
 
-# Service instances
-task_service = TaskService()
-ollama_service = OllamaService()
+# Service instances live in operations.py so every interface shares them
 
 
 # ============================================================================
@@ -59,144 +59,10 @@ def format_datetime(dt: datetime) -> str:
     return dt.isoformat()
 
 
-# ============================================================================
+# =========================================================================
 # UNIFIED OPERATIONS
-# Define once with Pydantic types, use for both REST and MCP!
-# ============================================================================
-
-@operation(
-    name="list_tasks",
-    description="List all tasks with optional filtering by completion status",
-    http_method="GET",
-    http_path="/api/tasks"
-)
-async def op_list_tasks(filter: TaskFilter = TaskFilter.ALL) -> list[Task]:
-    """
-    List tasks with optional filtering.
-
-    This operation serves BOTH:
-    - REST API: GET /api/tasks?filter=...
-    - MCP tool: list_tasks(filter=...)
-
-    Pydantic's TaskFilter enum automatically generates MCP schema!
-    """
-    return task_service.list_tasks(filter)
-
-
-@operation(
-    name="create_task",
-    description="Create a new task with validation",
-    http_method="POST",
-    http_path="/api/tasks"
-)
-async def op_create_task(data: TaskCreate) -> Task:
-    """
-    Create a new task.
-
-    Pydantic automatically:
-    - Validates title is not empty
-    - Trims whitespace
-    - Generates JSON schema for MCP
-
-    Returns the created Task model.
-    """
-    return task_service.create_task(data)
-
-
-@operation(
-    name="get_task",
-    description="Retrieve a specific task by its unique identifier",
-    http_method="GET",
-    http_path="/api/tasks/{task_id}"
-)
-async def op_get_task(task_id: str) -> Task | None:
-    """
-    Get task by ID.
-
-    Returns None if not found - caller handles 404.
-    """
-    return task_service.get_task(task_id)
-
-
-@operation(
-    name="update_task",
-    description="Update an existing task's properties",
-    http_method="PUT",
-    http_path="/api/tasks/{task_id}"
-)
-async def op_update_task(task_id: str, data: TaskUpdate) -> Task | None:
-    """
-    Update task with validation.
-
-    TaskUpdate has all optional fields - only provided fields are updated.
-    Pydantic validates any provided values automatically.
-
-    Returns None if task not found.
-    """
-    return task_service.update_task(task_id, data)
-
-
-@operation(
-    name="delete_task",
-    description="Delete a task permanently by its identifier",
-    http_method="DELETE",
-    http_path="/api/tasks/{task_id}"
-)
-async def op_delete_task(task_id: str) -> bool:
-    """
-    Delete task.
-
-    Returns True if deleted, False if not found.
-    """
-    return task_service.delete_task(task_id)
-
-
-@operation(
-    name="get_task_stats",
-    description="Get summary statistics for all tasks",
-    http_method="GET",
-    http_path="/api/tasks/stats"
-)
-async def op_get_task_stats() -> TaskStats:
-    """
-    Get task statistics.
-
-    Returns Pydantic TaskStats model with total, completed, pending counts.
-    """
-    return task_service.get_stats()
-
-
-@operation(
-    name="ollama_chat",
-    description="Generate a chat completion using local Ollama LLM",
-    http_method="POST",
-    http_path="/api/ollama/chat"
-)
-async def op_ollama_chat(request: ChatRequest) -> ChatResponse:
-    """
-    Chat with Ollama LLM.
-
-    Supports conversation history and configurable temperature.
-    Pydantic automatically validates message format and parameters.
-
-    Returns the generated response with metadata.
-    """
-    return await ollama_service.chat(request)
-
-
-@operation(
-    name="list_ollama_models",
-    description="List all available Ollama models on the local system",
-    http_method="GET",
-    http_path="/api/ollama/models"
-)
-async def op_list_ollama_models() -> ModelListResponse:
-    """
-    List available Ollama models.
-
-    Returns list of models with name, size, and modification time.
-    """
-    return await ollama_service.list_models()
+# Defined once in operations.py so REST, MCP, and agents share logic.
+# =========================================================================
 
 
 # ============================================================================
@@ -299,6 +165,84 @@ async def rest_list_ollama_models():
         return jsonify({"error": str(e)}), 500
 
 
+
+
+# ============================================================================
+# QA TICKETS ENDPOINT
+# ============================================================================
+
+@app.route("/api/qa-tickets", methods=["GET"])
+async def get_qa_tickets():
+    """Get QA tickets that need escalation."""
+    # Mock data - will be replaced with real database later
+    tickets = [
+        {
+            "id": "INC-1001",
+            "title": "Login page nicht erreichbar",
+            "status": "Open",
+            "priority": "High",
+            "assignee": None,
+            "createdAt": "2025-12-09T08:30:00Z",
+            "updatedAt": "2025-12-09T08:30:00Z",
+            "escalationNeeded": True,
+            "description": "Benutzer können sich nicht anmelden. Die Login-Seite gibt einen 500-Fehler zurück. Betrifft alle Umgebungen.",
+            "category": "QA",
+            "reporter": "M. Schmidt",
+        },
+        {
+            "id": "INC-1002",
+            "title": "Performance-Problem im Dashboard",
+            "status": "Open",
+            "priority": "Medium",
+            "assignee": None,
+            "createdAt": "2025-12-09T10:15:00Z",
+            "updatedAt": "2025-12-09T10:15:00Z",
+            "escalationNeeded": True,
+            "description": "Dashboard lädt sehr langsam (>10 Sekunden). API-Aufrufe scheinen blockiert zu sein.",
+            "category": "QA",
+            "reporter": "A. Müller",
+        },
+        {
+            "id": "INC-1003",
+            "title": "Datenverlust beim Speichern",
+            "status": "Open",
+            "priority": "Critical",
+            "assignee": None,
+            "createdAt": "2025-12-09T14:45:00Z",
+            "updatedAt": "2025-12-09T14:45:00Z",
+            "escalationNeeded": True,
+            "description": "Formulardaten werden nicht gespeichert. Validierung schlägt fehl ohne Fehlermeldung.",
+            "category": "QA",
+            "reporter": "T. Weber",
+        },
+        {
+            "id": "INC-1004",
+            "title": "Export-Funktion fehlerhaft",
+            "status": "Open",
+            "priority": "Low",
+            "assignee": None,
+            "createdAt": "2025-12-10T09:00:00Z",
+            "updatedAt": "2025-12-10T09:00:00Z",
+            "escalationNeeded": True,
+            "description": "CSV-Export generiert leere Dateien. Excel-Export funktioniert korrekt.",
+            "category": "QA",
+            "reporter": "L. Fischer",
+        },
+        {
+            "id": "INC-1005",
+            "title": "Notification-Service offline",
+            "status": "Open",
+            "priority": "High",
+            "assignee": None,
+            "createdAt": "2025-12-10T11:30:00Z",
+            "updatedAt": "2025-12-10T11:30:00Z",
+            "escalationNeeded": True,
+            "description": "E-Mail-Benachrichtigungen werden nicht versendet. Queue läuft voll.",
+            "category": "QA",
+            "reporter": "K. Becker",
+        },
+    ]
+    return jsonify({"tickets": tickets})
 
 
 # ============================================================================

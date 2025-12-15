@@ -34,13 +34,13 @@ import os
 from datetime import datetime
 from typing import Literal, Optional
 
+# Ensure operations register before we request LangChain tools
+import operations  # noqa: F401
 # Local - Import operations registry for automatic tool discovery
 from api_decorators import get_langchain_tools
-
 # Third-party - LangChain and LangGraph
 from langchain_openai import ChatOpenAI
 from langgraph.prebuilt import create_react_agent
-
 # Third-party - Pydantic for validation
 from pydantic import BaseModel, Field, field_validator
 

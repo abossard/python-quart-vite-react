@@ -127,3 +127,15 @@ export async function ollamaChat(chatRequest) {
 export async function listOllamaModels() {
   return fetchJSON(`${API_BASE_URL}/ollama/models`)
 }
+
+// ============================================================================
+// QA Tickets APIs
+// ============================================================================
+
+/**
+ * Fetch QA tickets that need escalation
+ * @returns {Promise<Object>} Response with tickets array
+ */
+export async function getQATickets() {
+  return fetchJSON(`${API_BASE_URL}/qa-tickets`)
+}
