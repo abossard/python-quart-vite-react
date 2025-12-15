@@ -73,6 +73,7 @@ const useStyles = makeStyles({
     gap: tokens.spacingHorizontalXL,
     flexWrap: 'nowrap',
     overflow: 'hidden',
+    justifyContent: 'space-between',
     [mediaQueries.mobile]: {
       gap: tokens.spacingHorizontalM,
     },
@@ -141,8 +142,7 @@ const useStyles = makeStyles({
   navigation: {
     display: 'flex',
     gap: tokens.spacingHorizontalS,
-    flex: 1,
-    justifyContent: 'flex-end',
+    marginLeft: 'auto',
     '@media (max-width: 1000px)': {
       display: 'none',
     },
@@ -192,17 +192,15 @@ const useStyles = makeStyles({
     display: 'flex',
     alignItems: 'center',
     gap: '0',
-    flex: 1,
     minWidth: 0,
     '@media (max-width: 1000px)': {
       marginLeft: 'auto',
-      flex: '0 1 auto',
     },
   },
   
   searchWrapper: {
     minWidth: '150px',
-    maxWidth: '400px',
+    maxWidth: '250px',
     width: '100%',
     height: '42px',
     display: 'flex',

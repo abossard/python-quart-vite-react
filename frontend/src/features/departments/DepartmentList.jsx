@@ -34,6 +34,9 @@ import ResponsiveGrid from '../../components/ResponsiveGrid'
 import PageHeader from '../../components/PageHeader'
 
 const useStyles = makeStyles({
+  container: {
+    padding: tokens.spacingVerticalXXL,
+  },
   loading: {
     display: 'flex',
     justifyContent: 'center',
@@ -245,7 +248,7 @@ export default function DepartmentList({ searchValue = '' }) {
   }
 
   return (
-    <>
+    <div className={styles.container}>
       <PageHeader
         title="Departments verwalten"
         actions={[
@@ -387,6 +390,6 @@ export default function DepartmentList({ searchValue = '' }) {
           </DialogBody>
         </DialogSurface>
       </Dialog>
-    </>
+    </div>
   )
 }

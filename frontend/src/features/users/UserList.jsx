@@ -61,6 +61,14 @@ const useStyles = makeStyles({
     alignItems: 'center',
     marginBottom: tokens.spacingVerticalXL,
   },
+  headerTitle: {
+    fontFamily: tokens.fontFamilyBase,
+    fontSize: tokens.fontSizeHero700,
+    fontWeight: tokens.fontWeightSemibold,
+    lineHeight: tokens.lineHeightHero700,
+    color: tokens.colorNeutralForeground1,
+    margin: '0',
+  },
   actions: {
     display: 'flex',
     gap: tokens.spacingHorizontalM,
@@ -526,7 +534,7 @@ export default function UserList({ searchValue = '' }) {
     <div className={styles.container}>
       <div className={styles.header}>
         <div>
-          <Title3>Benutzer verwalten</Title3>
+          <h1 className={styles.headerTitle}>Benutzer verwalten</h1>
         </div>
         <div className={styles.actions}>
           <Button

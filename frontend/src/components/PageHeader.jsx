@@ -29,9 +29,12 @@ const useStyles = makeStyles({
   },
   
   title: {
-    fontSize: '32px',
-    fontWeight: tokens.fontWeightBold,
+    fontFamily: tokens.fontFamilyBase,
+    fontSize: tokens.fontSizeHero700,
+    fontWeight: tokens.fontWeightSemibold,
+    lineHeight: tokens.lineHeightHero700,
     color: tokens.colorNeutralForeground1,
+    margin: '0',
   },
   
   actions: {
@@ -49,7 +52,7 @@ export default function PageHeader({ title, actions = [] }) {
   
   return (
     <div className={styles.header}>
-      <Title1 className={styles.title}>{title}</Title1>
+      <h1 className={styles.title}>{title}</h1>
       
       {actions.length > 0 && (
         <div className={styles.actions}>
