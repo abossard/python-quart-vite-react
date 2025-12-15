@@ -82,10 +82,15 @@ async def _ensure_schema():
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         username TEXT NOT NULL UNIQUE,
         password_hash TEXT NOT NULL,
+        first_name TEXT,
+        last_name TEXT,
+        email TEXT,
         role TEXT NOT NULL DEFAULT 'user',
         location_id INTEGER,
         department_id INTEGER,
+        department_name TEXT,
         amt_id INTEGER,
+        amt_name TEXT,
         created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
         FOREIGN KEY (location_id) REFERENCES locations(id),
         FOREIGN KEY (department_id) REFERENCES departments(id),
@@ -94,11 +99,11 @@ async def _ensure_schema():
     
     CREATE TABLE IF NOT EXISTS devices (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
+        asset_tag TEXT,
         device_type TEXT NOT NULL,
-        manufacturer TEXT NOT NULL,
         model TEXT NOT NULL,
-        serial_number TEXT,
         inventory_number TEXT,
+        windows_version TEXT,
         status TEXT NOT NULL DEFAULT 'available',
         location_id INTEGER NOT NULL,
         department_id INTEGER,
@@ -122,11 +127,11 @@ async def _ensure_schema():
     CREATE TABLE IF NOT EXISTS devices_missing (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         original_device_id INTEGER NOT NULL,
+        asset_tag TEXT,
         device_type TEXT NOT NULL,
-        manufacturer TEXT NOT NULL,
         model TEXT NOT NULL,
-        serial_number TEXT,
         inventory_number TEXT,
+        windows_version TEXT,
         status TEXT NOT NULL,
         location_id INTEGER NOT NULL,
         department_id INTEGER,
@@ -170,12 +175,25 @@ async def _ensure_schema():
         FOREIGN KEY (user_id) REFERENCES users(id)
     );
     
+    CREATE TABLE IF NOT EXISTS system_logs (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        event_type TEXT NOT NULL,
+        entity_type TEXT NOT NULL,
+        entity_id INTEGER,
+        details TEXT,
+        user_id INTEGER,
+        username TEXT,
+        timestamp TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+    );
+    
     CREATE INDEX IF NOT EXISTS idx_devices_status ON devices(status);
     CREATE INDEX IF NOT EXISTS idx_devices_location ON devices(location_id);
     CREATE INDEX IF NOT EXISTS idx_devices_borrower ON devices(borrower_user_id);
     CREATE INDEX IF NOT EXISTS idx_transactions_device ON device_transactions(device_id);
     CREATE INDEX IF NOT EXISTS idx_transactions_user ON device_transactions(user_id);
     CREATE INDEX IF NOT EXISTS idx_password_resets_token ON password_resets(token);
+    CREATE INDEX IF NOT EXISTS idx_system_logs_timestamp ON system_logs(timestamp);
+    CREATE INDEX IF NOT EXISTS idx_system_logs_entity ON system_logs(entity_type, entity_id);
     """
     
     await _db_connection.executescript(schema)
@@ -253,36 +271,36 @@ async def _insert_seed_data():
     # Default admin user
     admin_hash = hash_password('admin123')
     await cursor.execute(
-        "INSERT OR IGNORE INTO users (username, password_hash, role) VALUES (?, ?, ?)",
-        ('admin', admin_hash, 'admin')
+        "INSERT OR IGNORE INTO users (username, password_hash, first_name, last_name, email, role) VALUES (?, ?, ?, ?, ?, ?)",
+        ('admin', admin_hash, 'Admin', 'User', 'admin@example.com', 'admin')
     )
     
     # Test user
     test_hash = hash_password('test123')
     await cursor.execute(
-        "INSERT OR IGNORE INTO users (username, password_hash, role, location_id, department_id, amt_id) VALUES (?, ?, ?, 1, 1, 1)",
-        ('testuser', test_hash, 'user')
+        "INSERT OR IGNORE INTO users (username, password_hash, first_name, last_name, email, role, location_id, department_id, amt_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+        ('testuser', test_hash, 'Test', 'User', 'test@example.com', 'user', 1, 1, 1)
     )
     
     # Sample devices
     now = datetime.now().isoformat()
     devices = [
-        ('Laptop', 'Dell', 'Latitude 7490', 'SN123456', 'INV-001', 'available', 1, None, now, now),
-        ('Laptop', 'HP', 'EliteBook 840', 'SN234567', 'INV-002', 'available', 1, None, now, now),
-        ('Beamer', 'Epson', 'EB-X05', 'SN345678', 'INV-003', 'available', 2, None, now, now),
-        ('Headset', 'Logitech', 'H390', 'SN456789', 'INV-004', 'available', 1, 'USB Headset', now, now),
-        ('Monitor', 'Samsung', 'S24R350', 'SN567890', 'INV-005', 'available', 3, '24 Zoll', now, now),
-        ('Tablet', 'Apple', 'iPad Pro', 'SN678901', 'INV-006', 'available', 1, '12.9 Zoll', now, now),
-        ('Dockingstation', 'Dell', 'WD19', 'SN789012', 'INV-007', 'available', 2, None, now, now),
-        ('Webcam', 'Logitech', 'C920', 'SN890123', 'INV-008', 'available', 1, 'Full HD', now, now),
-        ('Maus', 'Logitech', 'MX Master 3', 'SN901234', 'INV-009', 'available', 2, None, now, now),
-        ('Tastatur', 'Logitech', 'MX Keys', 'SN012345', 'INV-010', 'available', 3, None, now, now),
+        ('AT-001', 'Laptop', 'Dell Latitude 7490', 'INV-001', 'Windows 11 Pro', 'available', 1, None, now, now),
+        ('AT-002', 'Laptop', 'HP EliteBook 840', 'INV-002', 'Windows 11 Pro', 'available', 1, None, now, now),
+        ('AT-003', 'Beamer', 'Epson EB-X05', 'INV-003', None, 'available', 2, None, now, now),
+        ('AT-004', 'Headset', 'Logitech H390', 'INV-004', None, 'available', 1, 'USB Headset', now, now),
+        ('AT-005', 'Monitor', 'Samsung S24R350', 'INV-005', None, 'available', 3, '24 Zoll', now, now),
+        ('AT-006', 'Tablet', 'Apple iPad Pro', 'INV-006', 'iPadOS 17', 'available', 1, '12.9 Zoll', now, now),
+        ('AT-007', 'Dockingstation', 'Dell WD19', 'INV-007', None, 'available', 2, None, now, now),
+        ('AT-008', 'Webcam', 'Logitech C920', 'INV-008', None, 'available', 1, 'Full HD', now, now),
+        ('AT-009', 'Maus', 'Logitech MX Master 3', 'INV-009', None, 'available', 2, None, now, now),
+        ('AT-010', 'Tastatur', 'Logitech MX Keys', 'INV-010', None, 'available', 3, None, now, now),
     ]
     
     for device in devices:
         await cursor.execute("""
             INSERT OR IGNORE INTO devices (
-                device_type, manufacturer, model, serial_number, inventory_number,
+                asset_tag, device_type, model, inventory_number, windows_version,
                 status, location_id, notes, created_at, updated_at
             ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         """, device)

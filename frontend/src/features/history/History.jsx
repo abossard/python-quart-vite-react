@@ -197,7 +197,7 @@ export default function History({ searchValue = '' }) {
       transaction.action?.toLowerCase().includes(search) ||
       transaction.transaction_type?.toLowerCase().includes(search) ||
       transaction.device_type?.toLowerCase().includes(search) ||
-      transaction.manufacturer?.toLowerCase().includes(search) ||
+      transaction.asset_tag?.toLowerCase().includes(search) ||
       transaction.model?.toLowerCase().includes(search) ||
       transaction.serial_number?.toLowerCase().includes(search) ||
       transaction.inventory_number?.toLowerCase().includes(search) ||
@@ -433,7 +433,7 @@ export default function History({ searchValue = '' }) {
                 <div className={styles.timelineHeader}>
                   <div>
                     <div className={styles.timelineTitle}>
-                      {transaction.device_type} - {transaction.manufacturer} {transaction.model}
+                      {transaction.device_type} - {transaction.model}
                     </div>
                     <div className={styles.timelineSubtitle}>
                       {getTypeText(transaction.transaction_type)}

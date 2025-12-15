@@ -42,8 +42,8 @@ class DeviceService:
         # Build query with optional filters
         query = """
         SELECT 
-            d.id, d.device_type, d.manufacturer, d.model, d.serial_number,
-            d.inventory_number, d.status, d.location_id, d.department_id, d.amt_id,
+            d.id, d.asset_tag, d.device_type, d.model,
+            d.inventory_number, d.windows_version, d.status, d.location_id, d.department_id, d.amt_id,
             d.borrowed_at, d.expected_return_date, d.borrower_name, d.borrower_email,
             d.borrower_phone, d.borrower_user_id, d.borrower_snapshot,
             d.notes, d.created_at, d.updated_at,
@@ -109,8 +109,8 @@ class DeviceService:
         
         query = """
         SELECT 
-            d.id, d.device_type, d.manufacturer, d.model, d.serial_number,
-            d.inventory_number, d.status, d.location_id, d.department_id, d.amt_id,
+            d.id, d.asset_tag, d.device_type, d.model,
+            d.inventory_number, d.windows_version, d.status, d.location_id, d.department_id, d.amt_id,
             d.borrowed_at, d.expected_return_date, d.borrower_name, d.borrower_email,
             d.borrower_phone, d.borrower_user_id, d.borrower_snapshot,
             d.notes, d.created_at, d.updated_at,
@@ -166,13 +166,13 @@ class DeviceService:
         
         await cursor.execute("""
             INSERT INTO devices (
-                device_type, manufacturer, model, serial_number, inventory_number,
+                asset_tag, device_type, model, inventory_number, windows_version,
                 status, location_id, department_id, amt_id, notes, created_at, updated_at
             ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         """, (
-            data.device_type, data.manufacturer, data.model, data.serial_number,
-            data.inventory_number, DeviceStatus.AVAILABLE.value, data.location_id,
-            data.department_id, data.amt_id, data.notes, now, now
+            data.asset_tag, data.device_type, data.model,
+            data.inventory_number, data.windows_version, DeviceStatus.AVAILABLE.value, 
+            data.location_id, data.department_id, data.amt_id, data.notes, now, now
         ))
         
         device_id = cursor.lastrowid
@@ -194,7 +194,6 @@ class DeviceService:
         await broadcast_event(EventType.DEVICE_CREATED, device.model_dump(mode='json'))
         
         return device
-    
     async def update_device(self, device_id: int, data: DeviceUpdate, user_id: int) -> Optional[Device]:
         """
         Update device information.
@@ -221,21 +220,21 @@ class DeviceService:
         updates = []
         params = []
         
+        if data.asset_tag is not None:
+            updates.append("asset_tag = ?")
+            params.append(data.asset_tag)
         if data.device_type is not None:
             updates.append("device_type = ?")
             params.append(data.device_type)
-        if data.manufacturer is not None:
-            updates.append("manufacturer = ?")
-            params.append(data.manufacturer)
         if data.model is not None:
             updates.append("model = ?")
             params.append(data.model)
-        if data.serial_number is not None:
-            updates.append("serial_number = ?")
-            params.append(data.serial_number)
         if data.inventory_number is not None:
             updates.append("inventory_number = ?")
             params.append(data.inventory_number)
+        if data.windows_version is not None:
+            updates.append("windows_version = ?")
+            params.append(data.windows_version)
         if data.location_id is not None:
             updates.append("location_id = ?")
             params.append(data.location_id)
@@ -500,7 +499,7 @@ class DeviceService:
             reporter_id = data.reported_by_user_id if data.reported_by_user_id else user_id
             
             # Copy device to devices_missing (using raw column positions from devices table)
-            # devices columns: id, device_type, manufacturer, model, serial_number, inventory_number,
+            # devices columns: id, asset_tag, device_type, model, inventory_number, windows_version,
             # status, location_id, department_id, amt_id, borrowed_at, expected_return_date,
             # borrower_name, borrower_email, borrower_phone, borrower_user_id, borrower_snapshot,
             # notes, created_at, updated_at
@@ -520,19 +519,19 @@ class DeviceService:
             
             await cursor.execute("""
                 INSERT INTO devices_missing (
-                    original_device_id, device_type, manufacturer, model, serial_number,
-                    inventory_number, status, location_id, department_id, amt_id,
+                    original_device_id, asset_tag, device_type, model,
+                    inventory_number, windows_version, status, location_id, department_id, amt_id,
                     borrowed_at, expected_return_date,
                     borrower_name, borrower_email, borrower_phone, borrower_user_id,
                     borrower_snapshot, notes, reported_by_user_id
                 ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """, (
                 device_row[0],  # id -> original_device_id
-                device_row[1],  # device_type
-                device_row[2],  # manufacturer
+                device_row[1],  # asset_tag
+                device_row[2],  # device_type
                 device_row[3],  # model
-                device_row[4],  # serial_number
-                device_row[5],  # inventory_number
+                device_row[4],  # inventory_number
+                device_row[5],  # windows_version
                 status_value,   # status (converted to string)
                 location_id,    # location_id (validated not NULL)
                 device_row[8],  # department_id
@@ -700,11 +699,11 @@ class DeviceService:
         
         device_data = {
             'id': row[0],
-            'device_type': row[1],
-            'manufacturer': row[2],
+            'asset_tag': row[1],
+            'device_type': row[2],
             'model': row[3],
-            'serial_number': row[4],
-            'inventory_number': row[5],
+            'inventory_number': row[4],
+            'windows_version': row[5],
             'status': DeviceStatus(row[6]),
             'location_id': row[7],
             'department_id': row[8],
@@ -732,7 +731,7 @@ class DeviceService:
         except (ValueError, TypeError):
             device_data['updated_at'] = datetime.now()
         
-        # Updated column mapping with address and full_name (shifted by +2 because of department_id and amt_id):
+        # Updated column mapping (without manufacturer and serial_number):
         # row[20]=loc_id, row[21]=loc_name, row[22]=loc_address
         # row[23]=borrower_loc_id, row[24]=borrower_loc_name, row[25]=borrower_loc_address
         # row[26]=borrower_dept_id, row[27]=borrower_dept_name, row[28]=borrower_dept_full_name
@@ -790,11 +789,11 @@ class DeviceService:
         return MissingDevice(
             id=row[0],
             original_device_id=row[1],
-            device_type=row[2],
-            manufacturer=row[3],
+            asset_tag=row[2],
+            device_type=row[3],
             model=row[4],
-            serial_number=row[5],
-            inventory_number=row[6],
+            inventory_number=row[5],
+            windows_version=row[6],
             status=DeviceStatus(status_value),
             location_id=row[8],
             borrowed_at=datetime.fromisoformat(row[11]) if row[11] else None,
@@ -836,8 +835,8 @@ class DeviceService:
                 raise ValueError(f"Missing device with id {missing_device_id} not found")
             
             # Extract data from missing device (row indices match devices_missing schema)
-            # Correct schema: id(0), original_device_id(1), device_type(2), manufacturer(3), 
-            #                 model(4), serial_number(5), inventory_number(6), status(7), 
+            # Correct schema: id(0), original_device_id(1), asset_tag(2), device_type(3), 
+            #                 model(4), inventory_number(5), windows_version(6), status(7), 
             #                 location_id(8), department_id(9), amt_id(10),
             #                 borrowed_at(11), expected_return_date(12),
             #                 borrower_name(13), borrower_email(14), borrower_phone(15),
@@ -896,17 +895,17 @@ class DeviceService:
             # Note: created_at and updated_at have DEFAULT values, so we don't set them
             await cursor.execute("""
                 INSERT INTO devices (
-                    device_type, manufacturer, model, serial_number, inventory_number,
+                    asset_tag, device_type, model, inventory_number, windows_version,
                     status, location_id, department_id, amt_id,
                     borrowed_at, expected_return_date, borrower_name, borrower_email,
                     borrower_phone, borrower_user_id, borrower_snapshot, notes
                 ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """, (
-                missing_row[2],  # device_type
-                missing_row[3],  # manufacturer
+                missing_row[2],  # asset_tag
+                missing_row[3],  # device_type
                 missing_row[4],  # model
-                missing_row[5],  # serial_number
-                missing_row[6],  # inventory_number
+                missing_row[5],  # inventory_number
+                missing_row[6],  # windows_version
                 'available',     # status (reset to available)
                 location_id,     # location_id (validated)
                 department_id,   # department_id (validated, can be NULL)
@@ -934,17 +933,17 @@ class DeviceService:
             restored_device = await self.get_device(new_device_id)
             
             # Create snapshot_before with device info from missing_row
-            # Row indices: [0]=id, [1]=original_device_id, [2]=device_type, [3]=manufacturer,
-            # [4]=model, [5]=serial_number, [6]=inventory_number, [7]=status, [8]=location_id,
+            # Row indices: [0]=id, [1]=original_device_id, [2]=asset_tag, [3]=device_type,
+            # [4]=model, [5]=inventory_number, [6]=windows_version, [7]=status, [8]=location_id,
             # [9]=department_id, [10]=amt_id, [18]=notes
             snapshot_before = {
                 'missing_device_id': missing_device_id,
                 'status': 'missing',
-                'device_type': missing_row[2],
-                'manufacturer': missing_row[3],
+                'asset_tag': missing_row[2],
+                'device_type': missing_row[3],
                 'model': missing_row[4],
-                'serial_number': missing_row[5],
-                'inventory_number': missing_row[6]
+                'inventory_number': missing_row[5],
+                'windows_version': missing_row[6]
             }
             
             # Log transaction AFTER getting full device data

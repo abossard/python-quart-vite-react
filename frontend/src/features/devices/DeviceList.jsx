@@ -144,11 +144,11 @@ export default function DeviceList({ searchValue = '' }) {
   const [deviceToEdit, setDeviceToEdit] = useState(null)
   const [deviceToDelete, setDeviceToDelete] = useState(null)
   const [formData, setFormData] = useState({
-    device_type: '',
-    manufacturer: '',
-    model: '',
-    serial_number: '',
+    asset_tag: '',
     inventory_number: '',
+    device_type: '',
+    model: '',
+    windows_version: '',
     location_id: '1',
     department_id: null,
     amt_id: null,
@@ -298,11 +298,11 @@ export default function DeviceList({ searchValue = '' }) {
 
   const handleOpenCreateDialog = () => {
     setFormData({
-      device_type: '',
-      manufacturer: '',
-      model: '',
-      serial_number: '',
+      asset_tag: '',
       inventory_number: '',
+      device_type: '',
+      model: '',
+      windows_version: '',
       location_id: '1',
       department_id: null,
       amt_id: null,
@@ -334,11 +334,11 @@ export default function DeviceList({ searchValue = '' }) {
       
       setCreateDialogOpen(false)
       setFormData({
-        device_type: '',
-        manufacturer: '',
-        model: '',
-        serial_number: '',
+        asset_tag: '',
         inventory_number: '',
+        device_type: '',
+        model: '',
+        windows_version: '',
         location_id: '1',
         department_id: null,
         amt_id: null,
@@ -353,11 +353,11 @@ export default function DeviceList({ searchValue = '' }) {
   const handleEditDevice = (device) => {
     setDeviceToEdit(device)
     setFormData({
-      device_type: device.device_type || '',
-      manufacturer: device.manufacturer || '',
-      model: device.model || '',
-      serial_number: device.serial_number || '',
+      asset_tag: device.asset_tag || '',
       inventory_number: device.inventory_number || '',
+      device_type: device.device_type || '',
+      model: device.model || '',
+      windows_version: device.windows_version || '',
       location_id: String(device.location_id || 1),
       department_id: device.department_id || null,
       amt_id: device.amt_id || null,
@@ -597,39 +597,39 @@ export default function DeviceList({ searchValue = '' }) {
                 <DialogTitle>Add New Device</DialogTitle>
                 <DialogContent>
                   <div className={styles.formGrid}>
-                    <Field label="Device Type" required>
+                    <Field label="Asset-Tag" required>
+                      <Input
+                        value={formData.asset_tag}
+                        onChange={(e) => setFormData({ ...formData, asset_tag: e.target.value })}
+                        placeholder="Asset-Tag eingeben oder scannen"
+                      />
+                    </Field>
+                    <Field label="CM-Nummer">
+                      <Input
+                        value={formData.inventory_number}
+                        onChange={(e) => setFormData({ ...formData, inventory_number: e.target.value })}
+                        placeholder="CM-Nummer"
+                      />
+                    </Field>
+                    <Field label="Kategorie" required>
                       <Input
                         value={formData.device_type}
                         onChange={(e) => setFormData({ ...formData, device_type: e.target.value })}
-                        placeholder="e.g., Laptop, Beamer"
-                      />
-                    </Field>
-                    <Field label="Manufacturer" required>
-                      <Input
-                        value={formData.manufacturer}
-                        onChange={(e) => setFormData({ ...formData, manufacturer: e.target.value })}
-                        placeholder="e.g., Dell, HP"
+                        placeholder="z.B. Laptop, Beamer"
                       />
                     </Field>
                     <Field label="Model" required>
                       <Input
                         value={formData.model}
                         onChange={(e) => setFormData({ ...formData, model: e.target.value })}
-                        placeholder="e.g., Latitude 7490"
+                        placeholder="z.B. Dell Latitude 7490"
                       />
                     </Field>
-                    <Field label="Serial Number">
+                    <Field label="Windows Version">
                       <Input
-                        value={formData.serial_number}
-                        onChange={(e) => setFormData({ ...formData, serial_number: e.target.value })}
-                        placeholder="Optional"
-                      />
-                    </Field>
-                    <Field label="Inventory Number">
-                      <Input
-                        value={formData.inventory_number}
-                        onChange={(e) => setFormData({ ...formData, inventory_number: e.target.value })}
-                        placeholder="Optional"
+                        value={formData.windows_version}
+                        onChange={(e) => setFormData({ ...formData, windows_version: e.target.value })}
+                        placeholder="z.B. Windows 11 Pro"
                       />
                     </Field>
                     <Field label="Location" required>
@@ -669,11 +669,11 @@ export default function DeviceList({ searchValue = '' }) {
                         ))}
                       </Dropdown>
                     </Field>
-                    <Field label="Notes" className={styles.fullWidth}>
+                    <Field label="Zusätzliche Informationen" className={styles.fullWidth}>
                       <Input
                         value={formData.notes}
                         onChange={(e) => setFormData({ ...formData, notes: e.target.value })}
-                        placeholder="Optional notes"
+                        placeholder="Optionale Notizen"
                       />
                     </Field>
                   </div>
@@ -700,19 +700,27 @@ export default function DeviceList({ searchValue = '' }) {
                 <DialogTitle>Gerät bearbeiten</DialogTitle>
                 <DialogContent>
                   <div className={styles.formGrid}>
-                    <Field label="Device Type" required>
+                    <Field label="Asset-Tag" required>
+                      <Input
+                        value={formData.asset_tag}
+                        onChange={(e, data) =>
+                          setFormData({ ...formData, asset_tag: data.value })
+                        }
+                      />
+                    </Field>
+                    <Field label="CM-Nummer">
+                      <Input
+                        value={formData.inventory_number}
+                        onChange={(e, data) =>
+                          setFormData({ ...formData, inventory_number: data.value })
+                        }
+                      />
+                    </Field>
+                    <Field label="Kategorie" required>
                       <Input
                         value={formData.device_type}
                         onChange={(e, data) =>
                           setFormData({ ...formData, device_type: data.value })
-                        }
-                      />
-                    </Field>
-                    <Field label="Manufacturer" required>
-                      <Input
-                        value={formData.manufacturer}
-                        onChange={(e, data) =>
-                          setFormData({ ...formData, manufacturer: data.value })
                         }
                       />
                     </Field>
@@ -724,19 +732,11 @@ export default function DeviceList({ searchValue = '' }) {
                         }
                       />
                     </Field>
-                    <Field label="Serial Number" required>
+                    <Field label="Windows Version">
                       <Input
-                        value={formData.serial_number}
+                        value={formData.windows_version}
                         onChange={(e, data) =>
-                          setFormData({ ...formData, serial_number: data.value })
-                        }
-                      />
-                    </Field>
-                    <Field label="Inventory Number" required>
-                      <Input
-                        value={formData.inventory_number}
-                        onChange={(e, data) =>
-                          setFormData({ ...formData, inventory_number: data.value })
+                          setFormData({ ...formData, windows_version: data.value })
                         }
                       />
                     </Field>
@@ -780,7 +780,7 @@ export default function DeviceList({ searchValue = '' }) {
                         ))}
                       </Dropdown>
                     </Field>
-                    <Field label="Notes" style={{ gridColumn: "1 / -1" }}>
+                    <Field label="Zusätzliche Informationen" style={{ gridColumn: "1 / -1" }}>
                       <Textarea
                         value={formData.notes}
                         onChange={(e, data) =>
@@ -880,11 +880,12 @@ export default function DeviceList({ searchValue = '' }) {
         {filteredDevices.map((device) => (
           <AdminCard
             key={device.id}
-            title={`${device.device_type} - ${device.manufacturer}`}
+            title={`${device.asset_tag || 'Kein Asset-Tag'}`}
             fields={[
-              { label: 'Modell', value: device.model },
-              { label: 'Seriennummer', value: device.serial_number || '-' },
-              { label: 'Inventarnummer', value: device.inventory_number || '-' },
+              { label: 'Kategorie', value: device.device_type },
+              { label: 'Model', value: device.model },
+              { label: 'CM-Nummer', value: device.inventory_number || '-' },
+              { label: 'Windows Version', value: device.windows_version || '-' },
               { label: 'Standort', value: device.location?.name || '-' },
               { label: 'Status', value: device.status },
             ]}

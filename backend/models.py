@@ -159,11 +159,11 @@ class UserWithPassword(User):
 
 class DeviceBase(BaseModel):
     """Base device model with common fields"""
+    asset_tag: Optional[str] = Field(None, max_length=100)
     device_type: str = Field(..., max_length=50)
-    manufacturer: str = Field(..., max_length=100)
     model: str = Field(..., max_length=100)
-    serial_number: Optional[str] = Field(None, max_length=100)
     inventory_number: Optional[str] = Field(None, max_length=100)
+    windows_version: Optional[str] = Field(None, max_length=100)
     location_id: int
     department_id: Optional[int] = None
     amt_id: Optional[int] = None
@@ -177,11 +177,11 @@ class DeviceCreate(DeviceBase):
 
 class DeviceUpdate(BaseModel):
     """Model for updating device data (all fields optional)"""
+    asset_tag: Optional[str] = Field(None, max_length=100)
     device_type: Optional[str] = Field(None, max_length=50)
-    manufacturer: Optional[str] = Field(None, max_length=100)
     model: Optional[str] = Field(None, max_length=100)
-    serial_number: Optional[str] = Field(None, max_length=100)
     inventory_number: Optional[str] = Field(None, max_length=100)
+    windows_version: Optional[str] = Field(None, max_length=100)
     location_id: Optional[int] = None
     department_id: Optional[int] = None
     amt_id: Optional[int] = None

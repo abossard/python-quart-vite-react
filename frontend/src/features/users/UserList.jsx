@@ -800,7 +800,7 @@ export default function UserList({ searchValue = '' }) {
             <DialogTitle>Edit User</DialogTitle>
             <DialogContent>
               <div className={styles.formGrid}>
-                <Field label="Username" required className={styles.fullWidth}>
+                <Field label="Benutzernaem" required className={styles.fullWidth}>
                   <Input
                     value={formData.username}
                     placeholder="Cannot be changed"

@@ -203,24 +203,24 @@ export default function DetailDialog({ open, onOpenChange, data }) {
             <div className={styles.infoList}>
               <div className={styles.sectionTitle}>Geräteinformationen</div>
               <div className={styles.infoLine}>
-                <span className={styles.label}>Kategorie: </span>
-                <span className={styles.value}>{data.device_type || '-'}</span>
+                <span className={styles.label}>Asset-Tag: </span>
+                <span className={styles.value}>{data.asset_tag || '-'}</span>
               </div>
               <div className={styles.infoLine}>
-                <span className={styles.label}>Hersteller: </span>
-                <span className={styles.value}>{data.manufacturer || '-'}</span>
+                <span className={styles.label}>Kategorie: </span>
+                <span className={styles.value}>{data.device_type || '-'}</span>
               </div>
               <div className={styles.infoLine}>
                 <span className={styles.label}>Modell: </span>
                 <span className={styles.value}>{data.model || '-'}</span>
               </div>
               <div className={styles.infoLine}>
-                <span className={styles.label}>Seriennummer: </span>
-                <span className={styles.value}>{data.serial_number || '-'}</span>
+                <span className={styles.label}>CM-Nummer: </span>
+                <span className={styles.value}>{data.inventory_number || '-'}</span>
               </div>
               <div className={styles.infoLine}>
-                <span className={styles.label}>Inventarnummer: </span>
-                <span className={styles.value}>{data.inventory_number || '-'}</span>
+                <span className={styles.label}>Windows Version: </span>
+                <span className={styles.value}>{data.windows_version || '-'}</span>
               </div>
               <div className={styles.infoLine}>
                 <span className={styles.label}>Standort: </span>

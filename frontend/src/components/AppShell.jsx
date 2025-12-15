@@ -165,7 +165,10 @@ const useStyles = makeStyles({
       backgroundColor: '#0d6efd',
       color: '#ffffff',
       boxShadow: tokens.shadow8,
-      borderColor: '#0d6efd',
+      borderTopColor: '#0d6efd',
+      borderRightColor: '#0d6efd',
+      borderBottomColor: '#0d6efd',
+      borderLeftColor: '#0d6efd',
     },
   },
   
@@ -184,7 +187,10 @@ const useStyles = makeStyles({
     ':hover': {
       backgroundColor: '#0d6efd',
       color: '#ffffff',
-      borderColor: '#0d6efd',
+      borderTopColor: '#0d6efd',
+      borderRightColor: '#0d6efd',
+      borderBottomColor: '#0d6efd',
+      borderLeftColor: '#0d6efd',
     },
   },
   
@@ -251,7 +257,10 @@ const useStyles = makeStyles({
     flexShrink: 0,
     ':hover': {
       backgroundColor: '#0b5ed7',
-      borderColor: '#0b5ed7',
+      borderTopColor: '#0b5ed7',
+      borderRightColor: '#0b5ed7',
+      borderBottomColor: '#0b5ed7',
+      borderLeftColor: '#0b5ed7',
     },
   },
   

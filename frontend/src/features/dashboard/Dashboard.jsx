@@ -720,14 +720,19 @@ export default function Dashboard({ searchValue = '' }) {
             // Build fields array
             const fields = []
             
-            // Office Version (optional)
-            if (device.office_version) {
-              fields.push({ label: 'Office Version', value: device.office_version })
+            // Asset-Tag
+            if (device.asset_tag) {
+              fields.push({ label: 'Asset-Tag', value: device.asset_tag })
             }
             
             // CM-Nummer
             if (device.inventory_number) {
               fields.push({ label: 'CM-Nummer', value: device.inventory_number })
+            }
+            
+            // Windows Version
+            if (device.windows_version) {
+              fields.push({ label: 'Windows Version', value: device.windows_version })
             }
             
             // Standort
@@ -739,7 +744,7 @@ export default function Dashboard({ searchValue = '' }) {
               <DeviceLoanCard
                 key={device.id}
                 category={device.device_type || 'Gerät'}
-                subtitle={device.model ? `${device.manufacturer || ''} ${device.model}`.trim() : device.manufacturer || '-'}
+                subtitle={device.model || '-'}
                 fields={fields}
                 department={device.department?.name}
                 amt={device.amt?.name}

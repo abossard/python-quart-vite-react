@@ -15,6 +15,7 @@ import asyncio
 from datetime import datetime
 from typing import Dict, Any, Set
 from enum import Enum
+from zoneinfo import ZoneInfo
 
 
 class EventType(str, Enum):
@@ -87,7 +88,7 @@ class EventManager:
         event = {
             "type": event_type.value,
             "data": data,
-            "timestamp": datetime.now().isoformat()
+            "timestamp": datetime.now(ZoneInfo("Europe/Zurich")).isoformat()
         }
         
         # Get current queues under lock

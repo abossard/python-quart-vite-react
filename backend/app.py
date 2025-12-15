@@ -19,6 +19,7 @@ import asyncio
 import json
 import os
 from datetime import datetime
+from zoneinfo import ZoneInfo
 from pathlib import Path
 
 # Import unified operation system
@@ -64,17 +65,21 @@ async def log_system_action(
         db = get_db()
         cursor = await db.cursor()
         
+        # Create timestamp in Europe/Zurich timezone
+        timestamp = datetime.now(ZoneInfo("Europe/Zurich")).strftime("%Y-%m-%d %H:%M:%S")
+        
         await cursor.execute("""
             INSERT INTO system_logs (
                 event_type, entity_type, entity_id, details, user_id, username, timestamp
-            ) VALUES (?, ?, ?, ?, ?, ?, datetime('now'))
+            ) VALUES (?, ?, ?, ?, ?, ?, ?)
         """, (
             event_type,
             entity_type,
             entity_id,
             details,
             user_id,
-            username
+            username,
+            timestamp
         ))
         
         await db.commit()
@@ -96,33 +101,17 @@ async def log_audit(
     snapshot_after: Optional[dict] = None,
     details: Optional[str] = None
 ):
-    """Log audit trail for all system changes"""
+    """Log audit trail for all system changes - uses system_logs table"""
     try:
-        db = get_db()
-        cursor = await db.cursor()
-        
-        # Use explicit timestamp to match device_transactions format
-        now = datetime.now().isoformat()
-        
-        await cursor.execute("""
-            INSERT INTO audit_log (
-                entity_type, entity_id, action, user_id, username,
-                snapshot_before, snapshot_after, details, created_at
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-        """, (
-            entity_type,
-            entity_id,
-            action,
-            user_id,
-            username,
-            json.dumps(snapshot_before) if snapshot_before else None,
-            json.dumps(snapshot_after) if snapshot_after else None,
-            details,
-            now
-        ))
-        
-        await db.commit()
-        await cursor.close()
+        # Redirect to log_system_action to use unified logging
+        await log_system_action(
+            event_type=action,
+            entity_type=entity_type,
+            entity_id=entity_id,
+            details=details,
+            user_id=user_id,
+            username=username
+        )
     except Exception as e:
         print(f"Audit log error: {e}")
 
@@ -766,6 +755,16 @@ async def borrow_device(device_id: int):
         if not device:
             return jsonify({'error': 'Device not found'}), 404
         
+        # Log to system_logs
+        await log_system_action(
+            event_type='borrow',
+            entity_type='device',
+            entity_id=device.id,
+            details=f"Gerät '{device.device_type} {device.model}' wurde ausgeliehen von {borrow_data.borrower_name}",
+            user_id=user.id,
+            username=user.username
+        )
+        
         return jsonify(device.model_dump(mode='json')), 200
         
     except ValidationError as e:
@@ -797,6 +796,16 @@ async def return_device(device_id: int):
         if not device:
             return jsonify({'error': 'Device not found'}), 404
         
+        # Log to system_logs
+        await log_system_action(
+            event_type='return',
+            entity_type='device',
+            entity_id=device.id,
+            details=f"Gerät '{device.device_type} {device.model}' wurde zurückgegeben",
+            user_id=user.id,
+            username=user.username
+        )
+        
         return jsonify(device.model_dump(mode='json')), 200
         
     except ValueError as e:
@@ -815,6 +824,16 @@ async def report_device_missing(device_id: int):
         
         user = get_current_user()
         missing_device = await device_service.report_missing(missing_data, user.id)
+        
+        # Log to system_logs
+        await log_system_action(
+            event_type='report_missing',
+            entity_type='device',
+            entity_id=missing_data.device_id,
+            details=f"Gerät '{missing_device.device_type} {missing_device.model}' wurde als vermisst gemeldet",
+            user_id=user.id,
+            username=user.username
+        )
         
         return jsonify(missing_device.model_dump(mode='json')), 200
         
@@ -860,8 +879,8 @@ async def get_missing_devices():
         
         await cursor.execute("""
             SELECT 
-                dm.id, dm.original_device_id, dm.device_type, dm.manufacturer, 
-                dm.model, dm.serial_number, dm.inventory_number, dm.status,
+                dm.id, dm.original_device_id, dm.asset_tag, dm.device_type, 
+                dm.model, dm.inventory_number, dm.windows_version, dm.status,
                 dm.location_id, dm.borrowed_at, dm.expected_return_date,
                 dm.borrower_name, dm.borrower_email, dm.borrower_phone,
                 dm.borrower_user_id, dm.borrower_snapshot, dm.notes,
@@ -882,11 +901,11 @@ async def get_missing_devices():
             device = {
                 'id': row[0],
                 'original_device_id': row[1],
-                'device_type': row[2],
-                'manufacturer': row[3],
+                'asset_tag': row[2],
+                'device_type': row[3],
                 'model': row[4],
-                'serial_number': row[5],
-                'inventory_number': row[6],
+                'inventory_number': row[5],
+                'windows_version': row[6],
                 'status': row[7],
                 'location_id': row[8],
                 'borrowed_at': row[9],
@@ -929,6 +948,16 @@ async def restore_missing_device(device_id: int):
         
         restored_device = await device_service.restore_missing_device(device_id, user.id)
         
+        # Log to system_logs
+        await log_system_action(
+            event_type='restore',
+            entity_type='device',
+            entity_id=restored_device.id,
+            details=f"Gerät '{restored_device.device_type} {restored_device.model}' wurde wiederhergestellt",
+            user_id=user.id,
+            username=user.username
+        )
+        
         return jsonify(restored_device.model_dump(mode='json')), 200
         
     except ValueError as e:
@@ -956,22 +985,22 @@ async def update_missing_device(device_id: int):
         # Update all device fields
         await cursor.execute("""
             UPDATE devices_missing 
-            SET device_type = ?,
-                manufacturer = ?,
+            SET asset_tag = ?,
+                device_type = ?,
                 model = ?,
-                serial_number = ?,
                 inventory_number = ?,
+                windows_version = ?,
                 location_id = ?,
                 department_id = ?,
                 amt_id = ?,
                 notes = ?
             WHERE id = ?
         """, (
+            data.get('asset_tag'),
             data.get('device_type'),
-            data.get('manufacturer'),
             data.get('model'),
-            data.get('serial_number'),
             data.get('inventory_number'),
+            data.get('windows_version'),
             data.get('location_id'),
             data.get('department_id'),
             data.get('amt_id'),
@@ -980,6 +1009,19 @@ async def update_missing_device(device_id: int):
         ))
         
         await db_conn.commit()
+        
+        user = get_current_user()
+        
+        # Log to system_logs
+        await log_system_action(
+            event_type='update',
+            entity_type='missing_device',
+            entity_id=device_id,
+            details=f"Vermisstes Gerät wurde aktualisiert",
+            user_id=user.id,
+            username=user.username
+        )
+        
         await cursor.close()
         
         return jsonify({'message': 'Missing device updated successfully'}), 200
@@ -1084,7 +1126,7 @@ async def get_transaction_history():
             snapshot = transaction['snapshot_before'] or transaction['snapshot_after']
             if snapshot:
                 transaction['device_type'] = snapshot.get('device_type', 'Unknown')
-                transaction['manufacturer'] = snapshot.get('manufacturer', 'Unknown')
+                transaction['asset_tag'] = snapshot.get('asset_tag', '-')
                 transaction['model'] = snapshot.get('model', 'Unknown')
                 transaction['inventory_number'] = snapshot.get('inventory_number', '-')
                 transaction['borrower_name'] = snapshot.get('borrower_name')
@@ -1094,7 +1136,7 @@ async def get_transaction_history():
                     try:
                         device_cursor = await db.cursor()
                         await device_cursor.execute("""
-                            SELECT device_type, manufacturer, model, inventory_number
+                            SELECT device_type, asset_tag, model, inventory_number
                             FROM devices WHERE id = ?
                         """, (transaction['device_id'],))
                         device_row = await device_cursor.fetchone()
@@ -1102,23 +1144,23 @@ async def get_transaction_history():
                         
                         if device_row:
                             transaction['device_type'] = device_row[0]
-                            transaction['manufacturer'] = device_row[1]
+                            transaction['asset_tag'] = device_row[1]
                             transaction['model'] = device_row[2]
                             transaction['inventory_number'] = device_row[3]
                         else:
                             # Device might be deleted, set defaults
                             transaction['device_type'] = 'Unknown'
-                            transaction['manufacturer'] = 'Unknown'
+                            transaction['asset_tag'] = '-'
                             transaction['model'] = 'Unknown'
                             transaction['inventory_number'] = '-'
                     except Exception:
                         transaction['device_type'] = 'Unknown'
-                        transaction['manufacturer'] = 'Unknown'
+                        transaction['asset_tag'] = '-'
                         transaction['model'] = 'Unknown'
                         transaction['inventory_number'] = '-'
                 else:
                     transaction['device_type'] = 'Unknown'
-                    transaction['manufacturer'] = 'Unknown'
+                    transaction['asset_tag'] = '-'
                     transaction['model'] = 'Unknown'
                     transaction['inventory_number'] = '-'
             
@@ -1308,19 +1350,8 @@ async def create_user():
         # Return created user
         user = await authenticate_user_by_id(user_id, db)
         
-        # Log audit trail
-        current_user_info = get_current_user()
-        await log_audit(
-            entity_type='user',
-            action='create',
-            entity_id=user_id,
-            user_id=current_user_info.id if current_user_info else None,
-            username=current_user_info.username if current_user_info else 'System',
-            snapshot_after=user.model_dump(mode='json'),
-            details=f"Benutzer {user.username} erstellt"
-        )
-        
         # Log to system_logs
+        current_user_info = get_current_user()
         await log_system_action(
             event_type='create',
             entity_type='user',
@@ -1414,19 +1445,8 @@ async def update_user(user_id: int):
         # Return updated user
         user = await authenticate_user_by_id(user_id, db)
         
-        # Log audit trail
-        current_user_info = get_current_user()
-        await log_audit(
-            entity_type='user',
-            action='update',
-            entity_id=user_id,
-            user_id=current_user_info.id if current_user_info else None,
-            username=current_user_info.username if current_user_info else 'System',
-            snapshot_after=user.model_dump(mode='json'),
-            details=f"Benutzer {user.username} aktualisiert"
-        )
-        
         # Log to system_logs
+        current_user_info = get_current_user()
         await log_system_action(
             event_type='update',
             entity_type='user',
@@ -1516,19 +1536,8 @@ async def delete_user(user_id: int):
         await db.commit()
         await cursor.close()
         
-        # Log audit trail
-        current_user_info = get_current_user()
-        await log_audit(
-            entity_type='user',
-            action='delete',
-            entity_id=user_id,
-            user_id=current_user_info.id if current_user_info else None,
-            username=current_user_info.username if current_user_info else 'System',
-            snapshot_before=user_snapshot,
-            details=f"Benutzer {user_snapshot['username']} gelöscht"
-        )
-        
         # Log to system_logs
+        current_user_info = get_current_user()
         await log_system_action(
             event_type='delete',
             entity_type='user',
@@ -1843,19 +1852,8 @@ async def create_department():
         
         dept_data = {'id': dept_id, 'name': name, 'full_name': full_name}
         
-        # Log audit trail
-        current_user_info = get_current_user()
-        await log_audit(
-            entity_type='department',
-            action='create',
-            entity_id=dept_id,
-            user_id=current_user_info.id if current_user_info else None,
-            username=current_user_info.username if current_user_info else 'System',
-            snapshot_after=dept_data,
-            details=f"Department {name} erstellt"
-        )
-        
         # Log to system_logs
+        current_user_info = get_current_user()
         await log_system_action(
             event_type='create',
             entity_type='department',
@@ -1901,19 +1899,8 @@ async def update_department(dept_id):
         
         dept_data = {'id': dept_id, 'name': name, 'full_name': full_name}
         
-        # Log audit trail
-        current_user_info = get_current_user()
-        await log_audit(
-            entity_type='department',
-            action='update',
-            entity_id=dept_id,
-            user_id=current_user_info.id if current_user_info else None,
-            username=current_user_info.username if current_user_info else 'System',
-            snapshot_after=dept_data,
-            details=f"Department {name} aktualisiert"
-        )
-        
         # Log to system_logs
+        current_user_info = get_current_user()
         await log_system_action(
             event_type='update',
             entity_type='department',
@@ -1961,19 +1948,8 @@ async def delete_department(dept_id):
         await db.commit()
         await cursor.close()
         
-        # Log audit trail
-        current_user_info = get_current_user()
-        await log_audit(
-            entity_type='department',
-            action='delete',
-            entity_id=dept_id,
-            user_id=current_user_info.id if current_user_info else None,
-            username=current_user_info.username if current_user_info else 'System',
-            snapshot_before=dept_snapshot,
-            details=f"Department {dept_snapshot['name']} gelöscht"
-        )
-        
         # Log to system_logs
+        current_user_info = get_current_user()
         await log_system_action(
             event_type='delete',
             entity_type='department',
@@ -2096,19 +2072,8 @@ async def create_amt():
         
         amt_data = {'id': amt_id, 'name': name, 'department_id': department_id}
         
-        # Log audit trail
-        current_user_info = get_current_user()
-        await log_audit(
-            entity_type='amt',
-            action='create',
-            entity_id=amt_id,
-            user_id=current_user_info.id if current_user_info else None,
-            username=current_user_info.username if current_user_info else 'System',
-            snapshot_after=amt_data,
-            details=f"Amt {name} erstellt"
-        )
-        
         # Log to system_logs
+        current_user_info = get_current_user()
         await log_system_action(
             event_type='create',
             entity_type='amt',
@@ -2163,19 +2128,8 @@ async def update_amt(amt_id):
         
         amt_data = {'id': amt_id, 'name': name, 'department_id': department_id}
         
-        # Log audit trail
-        current_user_info = get_current_user()
-        await log_audit(
-            entity_type='amt',
-            action='update',
-            entity_id=amt_id,
-            user_id=current_user_info.id if current_user_info else None,
-            username=current_user_info.username if current_user_info else 'System',
-            snapshot_after=amt_data,
-            details=f"Amt {name} aktualisiert"
-        )
-        
         # Log to system_logs
+        current_user_info = get_current_user()
         await log_system_action(
             event_type='update',
             entity_type='amt',
@@ -2223,19 +2177,8 @@ async def delete_amt(amt_id):
         await db.commit()
         await cursor.close()
         
-        # Log audit trail
-        current_user_info = get_current_user()
-        await log_audit(
-            entity_type='amt',
-            action='delete',
-            entity_id=amt_id,
-            user_id=current_user_info.id if current_user_info else None,
-            username=current_user_info.username if current_user_info else 'System',
-            snapshot_before=amt_snapshot,
-            details=f"Amt {amt_snapshot['name']} gelöscht"
-        )
-        
         # Log to system_logs
+        current_user_info = get_current_user()
         await log_system_action(
             event_type='delete',
             entity_type='amt',
@@ -2326,19 +2269,8 @@ async def create_location():
         
         location_data = {'id': location_id, 'name': name, 'address': address}
         
-        # Log audit trail
-        current_user_info = get_current_user()
-        await log_audit(
-            entity_type='location',
-            action='create',
-            entity_id=location_id,
-            user_id=current_user_info.id if current_user_info else None,
-            username=current_user_info.username if current_user_info else 'System',
-            snapshot_after=location_data,
-            details=f"Standort {name} erstellt"
-        )
-        
         # Log to system_logs
+        current_user_info = get_current_user()
         await log_system_action(
             event_type='create',
             entity_type='location',
@@ -2384,19 +2316,8 @@ async def update_location(location_id):
         
         location_data = {'id': location_id, 'name': name, 'address': address}
         
-        # Log audit trail
-        current_user_info = get_current_user()
-        await log_audit(
-            entity_type='location',
-            action='update',
-            entity_id=location_id,
-            user_id=current_user_info.id if current_user_info else None,
-            username=current_user_info.username if current_user_info else 'System',
-            snapshot_after=location_data,
-            details=f"Standort {name} aktualisiert"
-        )
-        
         # Log to system_logs
+        current_user_info = get_current_user()
         await log_system_action(
             event_type='update',
             entity_type='location',
@@ -2450,19 +2371,8 @@ async def delete_location(location_id):
         await db.commit()
         await cursor.close()
         
-        # Log audit trail
-        current_user_info = get_current_user()
-        await log_audit(
-            entity_type='location',
-            action='delete',
-            entity_id=location_id,
-            user_id=current_user_info.id if current_user_info else None,
-            username=current_user_info.username if current_user_info else 'System',
-            snapshot_before=location_snapshot,
-            details=f"Standort {location_snapshot['name']} gelöscht"
-        )
-        
         # Log to system_logs
+        current_user_info = get_current_user()
         await log_system_action(
             event_type='delete',
             entity_type='location',
