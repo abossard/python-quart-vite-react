@@ -334,6 +334,17 @@ export default function DeviceList({ searchValue = '' }) {
     return cleanup
   }, [])
 
+  // Auto-hide validation error after 3 seconds
+  useEffect(() => {
+    if (validationError) {
+      const timer = setTimeout(() => {
+        setValidationError(null)
+      }, 3000)
+      
+      return () => clearTimeout(timer)
+    }
+  }, [validationError])
+
   // Filter amts based on selected department
   useEffect(() => {
     if (formData.department_id) {
