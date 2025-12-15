@@ -285,6 +285,10 @@ const useStyles = makeStyles({
     },
   },
   
+  hamburgerButtonWithBorder: {
+    boxShadow: `inset 0 0 0 2px #0d6efd, ${tokens.shadow4}`,
+  },
+  
   hamburgerButtonActive: {
     backgroundColor: '#0d6efd',
     color: '#ffffff',
@@ -636,7 +640,7 @@ export default function AppShell({ children, currentPage, onNavigate }) {
             <Menu open={menuOpen} onOpenChange={(e, data) => setMenuOpen(data.open)}>
               <MenuTrigger disableButtonEnhancement>
                 <button
-                  className={`${styles.hamburgerButton} ${menuOpen ? styles.hamburgerButtonActive : ''}`}
+                  className={`${styles.hamburgerButton} ${menuOpen ? styles.hamburgerButtonActive : ''} ${['users', 'departments', 'amts', 'locations', 'logs'].includes(currentPage) ? styles.hamburgerButtonWithBorder : ''}`}
                   aria-label="Verwaltungsmenü"
                 >
                   <Navigation24Regular style={{ width: '20px', height: '20px' }} />
