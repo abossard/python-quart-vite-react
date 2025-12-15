@@ -68,6 +68,7 @@ export default function DepartmentList({ searchValue = '' }) {
   })
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
+  const [validationError, setValidationError] = useState(null)
   const [authenticated, setAuthenticated] = useState(false)
   const [createDialogOpen, setCreateDialogOpen] = useState(false)
   const [editDialogOpen, setEditDialogOpen] = useState(false)
@@ -140,9 +141,10 @@ export default function DepartmentList({ searchValue = '' }) {
       
       setCreateDialogOpen(false)
       setFormData({ name: '' })
+      setValidationError(null)
       await loadDepartments()
     } catch (err) {
-      setError(err.message)
+      setValidationError(err.message)
     }
   }
 
@@ -164,9 +166,10 @@ export default function DepartmentList({ searchValue = '' }) {
       
       setEditDialogOpen(false)
       setSelectedDept(null)
+      setValidationError(null)
       await loadDepartments()
     } catch (err) {
-      setError(err.message)
+      setValidationError(err.message)
     }
   }
 
@@ -263,6 +266,7 @@ export default function DepartmentList({ searchValue = '' }) {
             setCreateDialogOpen(data.open)
             // Reset form when dialog opens or closes
             setFormData({ name: '', full_name: '' })
+            if (data.open) setValidationError(null)
           }}>
             <DialogTrigger disableButtonEnhancement>
               <Button appearance="primary" icon={<Add24Regular />} className={styles.successButton}>
@@ -273,6 +277,11 @@ export default function DepartmentList({ searchValue = '' }) {
               <DialogBody>
                 <DialogTitle>Create New Department</DialogTitle>
                 <DialogContent>
+                  {validationError && (
+                    <MessageBar intent="error" style={{ marginBottom: tokens.spacingVerticalM }}>
+                      <MessageBarBody>{validationError}</MessageBarBody>
+                    </MessageBar>
+                  )}
                   <Field label="Department Name" required>
                     <Input
                       value={formData.name}
@@ -327,6 +336,9 @@ export default function DepartmentList({ searchValue = '' }) {
       {/* Edit Dialog */}
       <Dialog open={editDialogOpen} onOpenChange={(_, data) => {
         setEditDialogOpen(data.open)
+        if (data.open) {
+          setValidationError(null)
+        }
         if (!data.open) {
           // Reset form when dialog closes
           setFormData({ name: '', full_name: '' })
@@ -337,6 +349,11 @@ export default function DepartmentList({ searchValue = '' }) {
           <DialogBody>
             <DialogTitle>Edit Department</DialogTitle>
             <DialogContent>
+              {validationError && (
+                <MessageBar intent="error" style={{ marginBottom: tokens.spacingVerticalM }}>
+                  <MessageBarBody>{validationError}</MessageBarBody>
+                </MessageBar>
+              )}
               <Field label="Department Name" required>
                 <Input
                   value={formData.name}

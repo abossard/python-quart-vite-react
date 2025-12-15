@@ -67,6 +67,7 @@ export default function LocationList({ searchValue = '' }) {
   })
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
+  const [validationError, setValidationError] = useState(null)
   const [authenticated, setAuthenticated] = useState(false)
   const [createDialogOpen, setCreateDialogOpen] = useState(false)
   const [editDialogOpen, setEditDialogOpen] = useState(false)
@@ -139,9 +140,10 @@ export default function LocationList({ searchValue = '' }) {
       
       setCreateDialogOpen(false)
       setFormData({ name: '', address: '' })
+      setValidationError(null)
       await loadLocations()
     } catch (err) {
-      setError(err.message)
+      setValidationError(err.message)
     }
   }
 
@@ -163,9 +165,10 @@ export default function LocationList({ searchValue = '' }) {
       
       setEditDialogOpen(false)
       setSelectedLocation(null)
+      setValidationError(null)
       await loadLocations()
     } catch (err) {
-      setError(err.message)
+      setValidationError(err.message)
     }
   }
 
@@ -255,6 +258,7 @@ export default function LocationList({ searchValue = '' }) {
             setCreateDialogOpen(data.open)
             if (data.open) {
               setFormData({ name: '', address: '' })
+              setValidationError(null)
             }
           }}>
             <DialogTrigger disableButtonEnhancement>
@@ -266,6 +270,11 @@ export default function LocationList({ searchValue = '' }) {
               <DialogBody>
                 <DialogTitle>Create New Location</DialogTitle>
                 <DialogContent>
+                  {validationError && (
+                    <MessageBar intent="error" style={{ marginBottom: tokens.spacingVerticalM }}>
+                      <MessageBarBody>{validationError}</MessageBarBody>
+                    </MessageBar>
+                  )}
                   <Field label="Location Name" required>
                     <Input
                       value={formData.name}
@@ -318,11 +327,19 @@ export default function LocationList({ searchValue = '' }) {
       </ResponsiveGrid>
 
       {/* Edit Dialog */}
-      <Dialog open={editDialogOpen} onOpenChange={(_, data) => setEditDialogOpen(data.open)}>
+      <Dialog open={editDialogOpen} onOpenChange={(_, data) => {
+        setEditDialogOpen(data.open)
+        if (data.open) setValidationError(null)
+      }}>
         <DialogSurface>
           <DialogBody>
             <DialogTitle>Edit Location</DialogTitle>
             <DialogContent>
+              {validationError && (
+                <MessageBar intent="error" style={{ marginBottom: tokens.spacingVerticalM }}>
+                  <MessageBarBody>{validationError}</MessageBarBody>
+                </MessageBar>
+              )}
               <Field label="Location Name" required>
                 <Input
                   value={formData.name}

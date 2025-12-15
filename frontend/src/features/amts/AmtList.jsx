@@ -92,6 +92,7 @@ export default function AmtList({ searchValue = '' }) {
   })
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
+  const [validationError, setValidationError] = useState(null)
   const [authenticated, setAuthenticated] = useState(false)
   const [createDialogOpen, setCreateDialogOpen] = useState(false)
   const [editDialogOpen, setEditDialogOpen] = useState(false)
@@ -183,9 +184,10 @@ export default function AmtList({ searchValue = '' }) {
       
       setCreateDialogOpen(false)
       setFormData({ name: '', full_name: '', department_id: null })
+      setValidationError(null)
       await loadAmts()
     } catch (err) {
-      setError(err.message)
+      setValidationError(err.message)
     }
   }
 
@@ -207,9 +209,10 @@ export default function AmtList({ searchValue = '' }) {
       
       setEditDialogOpen(false)
       setSelectedAmt(null)
+      setValidationError(null)
       await loadAmts()
     } catch (err) {
-      setError(err.message)
+      setValidationError(err.message)
     }
   }
 
@@ -299,6 +302,7 @@ export default function AmtList({ searchValue = '' }) {
             setCreateDialogOpen(data.open)
             // Reset form when dialog opens or closes
             setFormData({ name: '', full_name: '', department_id: '' })
+            if (data.open) setValidationError(null)
           }}>
             <DialogTrigger disableButtonEnhancement>
               <Button 
@@ -313,6 +317,11 @@ export default function AmtList({ searchValue = '' }) {
               <DialogBody>
                 <DialogTitle>Neues Amt erstellen</DialogTitle>
                 <DialogContent>
+                  {validationError && (
+                    <MessageBar intent="error" style={{ marginBottom: tokens.spacingVerticalM }}>
+                      <MessageBarBody>{validationError}</MessageBarBody>
+                    </MessageBar>
+                  )}
                   <Field label="Kürzel" required>
                     <Input
                       value={formData.name}
@@ -377,6 +386,9 @@ export default function AmtList({ searchValue = '' }) {
       {/* Edit Dialog */}
       <Dialog open={editDialogOpen} onOpenChange={(_, data) => {
         setEditDialogOpen(data.open)
+        if (data.open) {
+          setValidationError(null)
+        }
         if (!data.open) {
           // Reset form when dialog closes
           setFormData({ name: '', full_name: '', department_id: '' })
@@ -387,6 +399,11 @@ export default function AmtList({ searchValue = '' }) {
           <DialogBody>
             <DialogTitle>Edit Amt</DialogTitle>
             <DialogContent>
+              {validationError && (
+                <MessageBar intent="error" style={{ marginBottom: tokens.spacingVerticalM }}>
+                  <MessageBarBody>{validationError}</MessageBarBody>
+                </MessageBar>
+              )}
               <Field label="Kürzel" required>
                 <Input
                   value={formData.name}
