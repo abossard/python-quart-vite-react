@@ -2753,4 +2753,5 @@ if __name__ == "__main__":
     print("   Username: testuser / Password: test123")
     print()
     print("💡 Port 5001 (macOS AirPlay uses 5000)")
-    print("=" app.run(debug=True, host="0.0.0.0", port=5001)
+    print("=" * 60)
+    app.run(debug=True, host="0.0.0.0", port=5001)
