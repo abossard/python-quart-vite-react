@@ -235,20 +235,17 @@ const useStyles = makeStyles({
     cursor: 'pointer',
     color: tokens.colorNeutralForeground1,
     whiteSpace: 'nowrap',
-    ':hover:not(.categoryButtonActive)': {
+    ':hover': {
       backgroundColor: 'rgba(13, 110, 253, 0.1)',
     },
   },
   
   categoryButtonActive: {
-    fontFamily: tokens.fontFamilyBase,
-    backgroundColor: '#0d6efd',
-    color: '#ffffff',
-    boxShadow: `inset 0 0 0 1px #0d6efd, ${tokens.shadow4}`,
-    padding: '10px 16px',
+    backgroundColor: '#0d6efd !important',
+    color: '#ffffff !important',
+    boxShadow: `inset 0 0 0 1px #0d6efd, ${tokens.shadow4} !important`,
     ':hover': {
-      backgroundColor: '#0d6efd !important',
-      color: '#ffffff',
+      backgroundColor: '#0b5ed7 !important',
     },
   },
   
