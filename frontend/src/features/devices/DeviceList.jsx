@@ -1053,8 +1053,8 @@ export default function DeviceList({ searchValue = '' }) {
         {filteredDevices.map((device) => {
           // Nur Felder mit Werten anzeigen
           const allFields = [
-            { label: 'Asset-Tag', value: device.asset_tag },
             { label: 'Kategorie', value: device.device_type },
+            { label: 'Asset-Tag', value: device.asset_tag },
             { label: 'Marke', value: device.manufacturer },
             { label: 'Model', value: device.model },
             { label: 'CM-Nummer', value: device.inventory_number },
@@ -1069,7 +1069,7 @@ export default function DeviceList({ searchValue = '' }) {
           return (
             <AdminCard
               key={device.id}
-              title={device.asset_tag || device.device_type || 'Gerät'}
+              title={device.device_type || device.asset_tag || 'Gerät'}
               fields={fieldsWithValues}
               showInfo={true}
               detailData={device}
