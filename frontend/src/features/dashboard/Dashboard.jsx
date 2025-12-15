@@ -88,11 +88,11 @@ const useStyles = makeStyles({
   },
   
   availableButtonActive: {
-    backgroundColor: 'rgba(40, 167, 69, 0.15)',
-    color: '#1e7e34',
-    boxShadow: 'inset 0 0 0 1px rgba(40, 167, 69, 0.3)',
+    backgroundColor: '#0d6efd',
+    color: '#ffffff',
+    boxShadow: 'none',
     ':hover': {
-      backgroundColor: 'rgba(40, 167, 69, 0.15)',
+      backgroundColor: '#0d6efd',
     },
   },
   
@@ -106,11 +106,11 @@ const useStyles = makeStyles({
   },
   
   issuedButtonActive: {
-    backgroundColor: 'rgba(220, 53, 69, 0.15)',
-    color: '#bd2130',
-    boxShadow: 'inset 0 0 0 1px rgba(220, 53, 69, 0.3)',
+    backgroundColor: '#0d6efd',
+    color: '#ffffff',
+    boxShadow: 'none',
     ':hover': {
-      backgroundColor: 'rgba(220, 53, 69, 0.15)',
+      backgroundColor: '#0d6efd',
     },
   },
   
@@ -235,7 +235,7 @@ const useStyles = makeStyles({
     cursor: 'pointer',
     color: tokens.colorNeutralForeground1,
     whiteSpace: 'nowrap',
-    ':hover': {
+    ':hover:not(.categoryButtonActive)': {
       backgroundColor: 'rgba(13, 110, 253, 0.1)',
     },
   },
@@ -247,7 +247,7 @@ const useStyles = makeStyles({
     boxShadow: `inset 0 0 0 1px #0d6efd, ${tokens.shadow4}`,
     padding: '10px 16px',
     ':hover': {
-      backgroundColor: '#0d6efd',
+      backgroundColor: '#0d6efd !important',
       color: '#ffffff',
     },
   },
