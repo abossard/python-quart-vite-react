@@ -7,13 +7,12 @@ against sample data from the support-tickets MCP service.
 
 from datetime import datetime, timezone
 
-from tickets import (
+from reminder import (
     PRIORITY_SLA_MINUTES,
-    Ticket,
-    WorkLog,
     build_reminder_candidate,
     is_assigned_without_assignee,
 )
+from tickets import Ticket, WorkLog
 
 # Sample ticket data from MCP service (10 tickets with varying priorities/statuses)
 SAMPLE_TICKETS = [
