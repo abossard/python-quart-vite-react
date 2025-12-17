@@ -41,15 +41,12 @@ load_dotenv()
 
 # Local - Import operations registry for automatic tool discovery
 from api_decorators import get_langchain_tools
-
 # Third-party - FastMCP client for external MCP servers
 from fastmcp import Client as MCPClient
 from langchain_core.tools import StructuredTool
-
 # Third-party - LangChain and LangGraph
 from langchain_openai import AzureChatOpenAI
 from langgraph.prebuilt import create_react_agent
-
 # Third-party - Pydantic for validation
 from pydantic import BaseModel, Field, create_model, field_validator
 
@@ -143,8 +140,8 @@ AZURE_OPENAI_API_KEY = os.getenv("AZURE_API_KEY", "")
 AZURE_OPENAI_DEPLOYMENT = "gpt-5-mini"
 AZURE_OPENAI_API_VERSION = "2025-04-01-preview"
 
-# External MCP server URL (hardcoded)
-MCP_SERVER_URL = "https://yodrrscbpxqnslgugwow.supabase.co/functions/v1/mcp"
+# External MCP server URL for ticket management (hardcoded)
+TICKET_MCP_SERVER_URL = "https://yodrrscbpxqnslgugwow.supabase.co/functions/v1/mcp/a7f2b8c4-d3e9-4f1a-b5c6-e8d9f0123456"
 
 
 # ============================================================================
@@ -262,48 +259,48 @@ class AgentService:
         # These are the actual Python functions decorated with @tool
         self.tools = get_langchain_tools()
         
-        # MCP client state (lazy initialization)
-        self._mcp_client: Optional[MCPClient] = None
-        self._mcp_tools_loaded = False
+        # Ticket MCP client state (lazy initialization)
+        self._ticket_mcp_client: Optional[MCPClient] = None
+        self._ticket_mcp_tools_loaded = False
     
-    async def _ensure_mcp_connection(self):
+    async def _ensure_ticket_mcp_connection(self):
         """
-        Ensure MCP client is connected and tools are loaded.
+        Ensure ticket MCP client is connected and tools are loaded.
         
-        Opens a persistent connection to the external MCP server and
+        Opens a persistent connection to the external ticket MCP server and
         converts its tools to LangChain format. Called lazily on first
         agent run.
         """
-        if self._mcp_tools_loaded:
+        if self._ticket_mcp_tools_loaded:
             return
         
         try:
-            # Create and connect MCP client (keep connection open)
-            client = MCPClient(MCP_SERVER_URL)
+            # Create and connect ticket MCP client (keep connection open)
+            client = MCPClient(TICKET_MCP_SERVER_URL)
             await client.__aenter__()
-            self._mcp_client = client
+            self._ticket_mcp_client = client
             
-            # Fetch and convert MCP tools
+            # Fetch and convert ticket MCP tools
             mcp_tools = await client.list_tools()
             for tool in mcp_tools:
                 lc_tool = _mcp_tool_to_langchain(client, tool)
                 self.tools.append(lc_tool)
             
-            print(f"DEBUG: Loaded {len(mcp_tools)} tools from MCP server {MCP_SERVER_URL}")
-            self._mcp_tools_loaded = True
+            print(f"DEBUG: Loaded {len(mcp_tools)} ticket tools from MCP server {TICKET_MCP_SERVER_URL}")
+            self._ticket_mcp_tools_loaded = True
             
         except Exception as e:
-            print(f"WARNING: Failed to load MCP tools from {MCP_SERVER_URL}: {e}")
-            # Continue without MCP tools - local tools still work
+            print(f"WARNING: Failed to load ticket MCP tools from {TICKET_MCP_SERVER_URL}: {e}")
+            # Continue without ticket MCP tools - local tools still work
     
     async def close(self):
-        """Close the MCP client connection."""
-        if self._mcp_client:
+        """Close the ticket MCP client connection."""
+        if self._ticket_mcp_client:
             try:
-                await self._mcp_client.__aexit__(None, None, None)
+                await self._ticket_mcp_client.__aexit__(None, None, None)
             except Exception:
                 pass
-            self._mcp_client = None
+            self._ticket_mcp_client = None
     
     async def run_agent(self, request: AgentRequest) -> AgentResponse:
         """
@@ -329,8 +326,8 @@ class AgentService:
         Raises:
             ValueError: If agent execution fails
         """
-        # Ensure MCP tools are loaded (lazy initialization)
-        await self._ensure_mcp_connection()
+        # Ensure ticket MCP tools are loaded (lazy initialization)
+        await self._ensure_ticket_mcp_connection()
         
         try:
             # Create ReAct agent with LangGraph tools

@@ -29,14 +29,20 @@ load_dotenv()
 
 # Import unified operation system
 from api_decorators import operation
-from mcp import handle_mcp_request
-from ollama_service import ChatRequest, ChatResponse, ModelListResponse, OllamaService
+# FastMCP client for direct ticket MCP calls (no AI)
+from fastmcp import Client as MCPClient
+
+# Ticket MCP server URL (same as in agents.py)
+TICKET_MCP_SERVER_URL = "https://yodrrscbpxqnslgugwow.supabase.co/functions/v1/mcp/a7f2b8c4-d3e9-4f1a-b5c6-e8d9f0123456"
+from mcp_handler import handle_mcp_request
+from ollama_service import (ChatRequest, ChatResponse, ModelListResponse,
+                            OllamaService)
 from pydantic import ValidationError
 from quart import Quart, jsonify, request, send_from_directory
 from quart_cors import cors
-
 # Import Pydantic models and service
-from tasks import Task, TaskCreate, TaskFilter, TaskService, TaskStats, TaskUpdate
+from tasks import (Task, TaskCreate, TaskFilter, TaskService, TaskStats,
+                   TaskUpdate)
 
 # ============================================================================
 # APPLICATION SETUP
@@ -299,6 +305,130 @@ async def rest_list_ollama_models():
         return jsonify({"error": str(e)}), 500
 
 
+# ============================================================================
+# TICKET MCP EXAMPLE - Direct FastMCP client usage (no AI)
+# ============================================================================
+
+async def _call_ticket_mcp_tool(tool_name: str, args: dict | None = None) -> list[dict]:
+    """
+    Helper: Call a tool on the Ticket MCP server and extract results.
+    
+    This demonstrates using FastMCP client programmatically without any AI.
+    The connection is opened, tool is called, and connection is closed.
+    
+    Args:
+        tool_name: Name of the MCP tool to call (e.g., "list_tickets")
+        args: Optional dict of arguments for the tool
+        
+    Returns:
+        List of parsed JSON results from the tool response
+    """
+    args = args or {}
+    results = []
+    
+    async with MCPClient(TICKET_MCP_SERVER_URL) as client:
+        response = await client.call_tool(tool_name, args)
+        
+        # Extract text content from MCP response
+        if hasattr(response, 'content') and response.content:
+            for content_item in response.content:
+                # Only process TextContent items (use getattr for type safety)
+                text = getattr(content_item, 'text', None)
+                if text is not None and isinstance(text, str):
+                    try:
+                        # Parse JSON if possible
+                        results.append(json.loads(text))
+                    except json.JSONDecodeError:
+                        results.append({"text": text})
+    
+    return results
+    
+    return results
+
+
+@app.route("/api/tickets", methods=["GET"])
+async def rest_list_tickets():
+    """
+    List tickets from external Ticket MCP server.
+    
+    Example of calling MCP tools directly via FastMCP client.
+    No AI involved - just pure MCP protocol.
+    
+    Query params:
+        - status: Filter by status (new, assigned, in_progress, etc.)
+        - priority: Filter by priority (critical, high, medium, low)
+        - search: Full-text search in summary/description
+        - page: Page number (default: 1)
+        - page_size: Results per page (default: 20)
+    """
+    try:
+        # Build args from query params
+        args = {}
+        for param in ["status", "priority", "city", "service", "search"]:
+            if val := request.args.get(param):
+                args[param] = val
+        for param in ["page", "page_size"]:
+            if val := request.args.get(param):
+                args[param] = int(val)
+        
+        results = await _call_ticket_mcp_tool("list_tickets", args)
+        return jsonify(results[0] if len(results) == 1 else results), 200
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+@app.route("/api/tickets/<ticket_id>", methods=["GET"])
+async def rest_get_ticket(ticket_id: str):
+    """
+    Get a single ticket by ID from the Ticket MCP server.
+    
+    Demonstrates calling MCP tool with path parameter.
+    """
+    try:
+        results = await _call_ticket_mcp_tool("get_ticket", {"ticket_id": ticket_id})
+        if not results:
+            return jsonify({"error": "Ticket not found"}), 404
+        return jsonify(results[0]), 200
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+@app.route("/api/tickets/stats", methods=["GET"])
+async def rest_get_ticket_stats():
+    """
+    Get ticket statistics from the Ticket MCP server.
+    
+    Returns aggregated counts by status, priority, service, city.
+    """
+    try:
+        args = {}
+        if time_from := request.args.get("time_from"):
+            args["time_from"] = time_from
+        if time_to := request.args.get("time_to"):
+            args["time_to"] = time_to
+            
+        results = await _call_ticket_mcp_tool("get_ticket_stats", args)
+        return jsonify(results[0] if len(results) == 1 else results), 200
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+@app.route("/api/tickets/search", methods=["POST"])
+async def rest_search_tickets():
+    """
+    Advanced ticket search with multiple filters.
+    
+    Body JSON:
+        - query: Full-text search string
+        - filters: {status: [...], priority: [...], city: [...], service: [...]}
+        - limit: Max results
+    """
+    try:
+        data = await request.get_json() or {}
+        results = await _call_ticket_mcp_tool("search_tickets", data)
+        return jsonify(results[0] if len(results) == 1 else results), 200
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
 
 
 # ============================================================================
