@@ -32,17 +32,23 @@ Advanced StateGraph example (for learning):
 # Standard library
 import os
 from datetime import datetime
-from typing import Literal, Optional
+from typing import Any, Literal, Optional
+
+# Load environment variables before anything else
+from dotenv import load_dotenv
+
+load_dotenv()
 
 # Local - Import operations registry for automatic tool discovery
 from api_decorators import get_langchain_tools
-
+# Third-party - FastMCP client for external MCP servers
+from fastmcp import Client as MCPClient
+from langchain_core.tools import StructuredTool
 # Third-party - LangChain and LangGraph
-from langchain_openai import ChatOpenAI
+from langchain_openai import AzureChatOpenAI
 from langgraph.prebuilt import create_react_agent
-
 # Third-party - Pydantic for validation
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, Field, create_model, field_validator
 
 # ============================================================================
 # DATA MODELS - Pydantic for validation and schema generation
@@ -125,15 +131,84 @@ class AgentResponse(BaseModel):
 
 
 # ============================================================================
-# CONFIGURATION - Azure OpenAI settings from environment
+# CONFIGURATION - Azure OpenAI settings (hardcoded except API key)
 # ============================================================================
 
-# Azure OpenAI configuration
-# These should be set in .env file (see .env.example)
-AZURE_OPENAI_ENDPOINT = os.getenv("AZURE_OPENAI_ENDPOINT", "")
-AZURE_OPENAI_API_KEY = os.getenv("AZURE_OPENAI_API_KEY", "")
-AZURE_OPENAI_DEPLOYMENT = os.getenv("AZURE_OPENAI_DEPLOYMENT", "gpt-4")
-AZURE_OPENAI_API_VERSION = os.getenv("AZURE_OPENAI_API_VERSION", "2024-02-15-preview")
+# Azure OpenAI configuration - only API key from environment
+AZURE_OPENAI_ENDPOINT = "https://can-i-haz-houze-resource.cognitiveservices.azure.com"
+AZURE_OPENAI_API_KEY = os.getenv("AZURE_API_KEY", "")
+AZURE_OPENAI_DEPLOYMENT = "gpt-5-mini"
+AZURE_OPENAI_API_VERSION = "2025-04-01-preview"
+
+# External MCP server URL for ticket management (hardcoded)
+TICKET_MCP_SERVER_URL = "https://yodrrscbpxqnslgugwow.supabase.co/functions/v1/mcp/a7f2b8c4-d3e9-4f1a-b5c6-e8d9f0123456"
+
+
+# ============================================================================
+# MCP TOOL CONVERSION HELPERS
+# ============================================================================
+
+def _json_type_to_python(json_type: str) -> type:
+    """Map JSON schema type to Python type."""
+    mapping = {
+        "string": str,
+        "integer": int,
+        "number": float,
+        "boolean": bool,
+        "array": list,
+        "object": dict,
+    }
+    return mapping.get(json_type, str)
+
+
+def _schema_to_pydantic(name: str, schema: dict) -> type[BaseModel]:
+    """Convert JSON schema to Pydantic model for LangChain tool args."""
+    properties = schema.get("properties", {})
+    required = set(schema.get("required", []))
+    
+    fields: dict[str, Any] = {}
+    for field_name, field_schema in properties.items():
+        field_type = _json_type_to_python(field_schema.get("type", "string"))
+        field_desc = field_schema.get("description", f"{field_name} parameter")
+        
+        if field_name in required:
+            fields[field_name] = (field_type, Field(description=field_desc))
+        else:
+            default = field_schema.get("default")
+            fields[field_name] = (Optional[field_type], Field(default=default, description=field_desc))
+    
+    model_name = f"{name.title().replace('_', '').replace('-', '')}Args"
+    return create_model(model_name, **fields)
+
+
+def _mcp_tool_to_langchain(mcp_client: MCPClient, tool: Any) -> StructuredTool:
+    """
+    Convert MCP tool to LangChain StructuredTool.
+    
+    Creates a wrapper that calls the external MCP server via the persistent client.
+    """
+    tool_name = tool.name
+    tool_desc = tool.description or f"MCP tool: {tool_name}"
+    input_schema = tool.inputSchema if hasattr(tool, 'inputSchema') else {}
+    
+    # Create async wrapper that calls MCP server
+    async def call_mcp_tool(**kwargs) -> str:
+        result = await mcp_client.call_tool(tool_name, kwargs)
+        # Extract text from MCP response
+        if hasattr(result, 'content') and result.content:
+            texts = [c.text for c in result.content if hasattr(c, 'text')]
+            return "\n".join(texts) if texts else str(result)
+        return str(result)
+    
+    # Build Pydantic model from input schema
+    args_model = _schema_to_pydantic(tool_name, input_schema)
+    
+    return StructuredTool(
+        name=tool_name,
+        description=tool_desc,
+        coroutine=call_mcp_tool,
+        args_schema=args_model,
+    )
 
 
 # ============================================================================
@@ -147,6 +222,7 @@ class AgentService:
     Consolidated operations:
     - Agent initialization with Azure OpenAI
     - Tool discovery from @operation registry
+    - External MCP server tool integration (persistent connection)
     - ReAct agent execution with task tools
     - Response formatting and error handling
     
@@ -165,24 +241,66 @@ class AgentService:
             ValueError: If Azure OpenAI configuration is incomplete
         """
         # Validate configuration
-        if not AZURE_OPENAI_ENDPOINT or not AZURE_OPENAI_API_KEY:
+        if not AZURE_OPENAI_API_KEY:
             raise ValueError(
-                "Azure OpenAI configuration is incomplete. "
-                "Please set AZURE_OPENAI_ENDPOINT and AZURE_OPENAI_API_KEY "
-                "environment variables. See .env.example for template."
+                "Azure OpenAI API key not set. "
+                "Please set AZURE_API_KEY environment variable."
             )
         
-        # Initialize ChatOpenAI with Azure endpoint using base_url pattern
-        self.llm = ChatOpenAI(
-            base_url=AZURE_OPENAI_ENDPOINT,
+        # Initialize AzureChatOpenAI with hardcoded endpoint
+        self.llm = AzureChatOpenAI(
+            azure_endpoint=AZURE_OPENAI_ENDPOINT,
             api_key=AZURE_OPENAI_API_KEY,  # type: ignore
-            model=AZURE_OPENAI_DEPLOYMENT,
-            temperature=0.7,
+            azure_deployment=AZURE_OPENAI_DEPLOYMENT,
+            api_version=AZURE_OPENAI_API_VERSION,
         )
         
         # Load LangGraph tools from operation registry
         # These are the actual Python functions decorated with @tool
         self.tools = get_langchain_tools()
+        
+        # Ticket MCP client state (lazy initialization)
+        self._ticket_mcp_client: Optional[MCPClient] = None
+        self._ticket_mcp_tools_loaded = False
+    
+    async def _ensure_ticket_mcp_connection(self):
+        """
+        Ensure ticket MCP client is connected and tools are loaded.
+        
+        Opens a persistent connection to the external ticket MCP server and
+        converts its tools to LangChain format. Called lazily on first
+        agent run.
+        """
+        if self._ticket_mcp_tools_loaded:
+            return
+        
+        try:
+            # Create and connect ticket MCP client (keep connection open)
+            client = MCPClient(TICKET_MCP_SERVER_URL)
+            await client.__aenter__()
+            self._ticket_mcp_client = client
+            
+            # Fetch and convert ticket MCP tools
+            mcp_tools = await client.list_tools()
+            for tool in mcp_tools:
+                lc_tool = _mcp_tool_to_langchain(client, tool)
+                self.tools.append(lc_tool)
+            
+            print(f"DEBUG: Loaded {len(mcp_tools)} ticket tools from MCP server {TICKET_MCP_SERVER_URL}")
+            self._ticket_mcp_tools_loaded = True
+            
+        except Exception as e:
+            print(f"WARNING: Failed to load ticket MCP tools from {TICKET_MCP_SERVER_URL}: {e}")
+            # Continue without ticket MCP tools - local tools still work
+    
+    async def close(self):
+        """Close the ticket MCP client connection."""
+        if self._ticket_mcp_client:
+            try:
+                await self._ticket_mcp_client.__aexit__(None, None, None)
+            except Exception:
+                pass
+            self._ticket_mcp_client = None
     
     async def run_agent(self, request: AgentRequest) -> AgentResponse:
         """
@@ -197,6 +315,7 @@ class AgentService:
         
         All @operation decorated functions are automatically available as LangGraph tools.
         LangGraph calls the Python functions directly (not via MCP).
+        External MCP tools are loaded from the configured MCP server.
         
         Args:
             request: AgentRequest with prompt and agent type
@@ -207,6 +326,9 @@ class AgentService:
         Raises:
             ValueError: If agent execution fails
         """
+        # Ensure ticket MCP tools are loaded (lazy initialization)
+        await self._ensure_ticket_mcp_connection()
+        
         try:
             # Create ReAct agent with LangGraph tools
             # The tools are the actual Python functions with @tool decorator
