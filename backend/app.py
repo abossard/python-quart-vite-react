@@ -28,21 +28,33 @@ load_dotenv()
 
 
 # Import unified operation system
+
+# Agent service for Azure OpenAI LangGraph agents
+from agents import AgentRequest, AgentResponse, agent_service
 from api_decorators import operation
+
 # FastMCP client for direct ticket MCP calls (no AI)
 from fastmcp import Client as MCPClient
+from mcp_handler import handle_mcp_request
+from operations import (
+    op_create_task,
+    op_delete_task,
+    op_get_task,
+    op_get_task_stats,
+    op_list_tasks,
+    op_update_task,
+    task_service,
+)
 
 # Ticket MCP server URL (same as in agents.py)
 TICKET_MCP_SERVER_URL = "https://yodrrscbpxqnslgugwow.supabase.co/functions/v1/mcp/a7f2b8c4-d3e9-4f1a-b5c6-e8d9f0123456"
-from mcp_handler import handle_mcp_request
-from ollama_service import (ChatRequest, ChatResponse, ModelListResponse,
-                            OllamaService)
+
 from pydantic import ValidationError
 from quart import Quart, jsonify, request, send_from_directory
 from quart_cors import cors
+
 # Import Pydantic models and service
-from tasks import (Task, TaskCreate, TaskFilter, TaskService, TaskStats,
-                   TaskUpdate)
+from tasks import Task, TaskCreate, TaskFilter, TaskService, TaskStats, TaskUpdate
 
 # ============================================================================
 # APPLICATION SETUP
@@ -51,9 +63,7 @@ from tasks import (Task, TaskCreate, TaskFilter, TaskService, TaskStats,
 app = Quart(__name__)
 app = cors(app, allow_origin="*")
 
-# Service instances
-task_service = TaskService()
-ollama_service = OllamaService()
+# Service instances live in operations.py so every interface shares them
 
 
 # ============================================================================
@@ -65,144 +75,10 @@ def format_datetime(dt: datetime) -> str:
     return dt.isoformat()
 
 
-# ============================================================================
+# =========================================================================
 # UNIFIED OPERATIONS
-# Define once with Pydantic types, use for both REST and MCP!
-# ============================================================================
-
-@operation(
-    name="list_tasks",
-    description="List all tasks with optional filtering by completion status",
-    http_method="GET",
-    http_path="/api/tasks"
-)
-async def op_list_tasks(filter: TaskFilter = TaskFilter.ALL) -> list[Task]:
-    """
-    List tasks with optional filtering.
-
-    This operation serves BOTH:
-    - REST API: GET /api/tasks?filter=...
-    - MCP tool: list_tasks(filter=...)
-
-    Pydantic's TaskFilter enum automatically generates MCP schema!
-    """
-    return task_service.list_tasks(filter)
-
-
-@operation(
-    name="create_task",
-    description="Create a new task with validation",
-    http_method="POST",
-    http_path="/api/tasks"
-)
-async def op_create_task(data: TaskCreate) -> Task:
-    """
-    Create a new task.
-
-    Pydantic automatically:
-    - Validates title is not empty
-    - Trims whitespace
-    - Generates JSON schema for MCP
-
-    Returns the created Task model.
-    """
-    return task_service.create_task(data)
-
-
-@operation(
-    name="get_task",
-    description="Retrieve a specific task by its unique identifier",
-    http_method="GET",
-    http_path="/api/tasks/{task_id}"
-)
-async def op_get_task(task_id: str) -> Task | None:
-    """
-    Get task by ID.
-
-    Returns None if not found - caller handles 404.
-    """
-    return task_service.get_task(task_id)
-
-
-@operation(
-    name="update_task",
-    description="Update an existing task's properties",
-    http_method="PUT",
-    http_path="/api/tasks/{task_id}"
-)
-async def op_update_task(task_id: str, data: TaskUpdate) -> Task | None:
-    """
-    Update task with validation.
-
-    TaskUpdate has all optional fields - only provided fields are updated.
-    Pydantic validates any provided values automatically.
-
-    Returns None if task not found.
-    """
-    return task_service.update_task(task_id, data)
-
-
-@operation(
-    name="delete_task",
-    description="Delete a task permanently by its identifier",
-    http_method="DELETE",
-    http_path="/api/tasks/{task_id}"
-)
-async def op_delete_task(task_id: str) -> bool:
-    """
-    Delete task.
-
-    Returns True if deleted, False if not found.
-    """
-    return task_service.delete_task(task_id)
-
-
-@operation(
-    name="get_task_stats",
-    description="Get summary statistics for all tasks",
-    http_method="GET",
-    http_path="/api/tasks/stats"
-)
-async def op_get_task_stats() -> TaskStats:
-    """
-    Get task statistics.
-
-    Returns Pydantic TaskStats model with total, completed, pending counts.
-    """
-    return task_service.get_stats()
-
-
-@operation(
-    name="ollama_chat",
-    description="Generate a chat completion using local Ollama LLM",
-    http_method="POST",
-    http_path="/api/ollama/chat"
-)
-async def op_ollama_chat(request: ChatRequest) -> ChatResponse:
-    """
-    Chat with Ollama LLM.
-
-    Supports conversation history and configurable temperature.
-    Pydantic automatically validates message format and parameters.
-
-    Returns the generated response with metadata.
-    """
-    return await ollama_service.chat(request)
-
-
-@operation(
-    name="list_ollama_models",
-    description="List all available Ollama models on the local system",
-    http_method="GET",
-    http_path="/api/ollama/models"
-)
-async def op_list_ollama_models() -> ModelListResponse:
-    """
-    List available Ollama models.
-
-    Returns list of models with name, size, and modification time.
-    """
-    return await ollama_service.list_models()
+# Defined once in operations.py so REST, MCP, and agents share logic.
+# =========================================================================
 
 
 # ============================================================================
@@ -277,30 +153,23 @@ async def rest_get_stats():
     return jsonify(stats.model_dump())
 
 
-@app.route("/api/ollama/chat", methods=["POST"])
-async def rest_ollama_chat():
-    """REST wrapper: chat with Ollama LLM."""
+# ============================================================================
+# AGENT ENDPOINT - Azure OpenAI LangGraph Agent
+# ============================================================================
+
+@app.route("/api/agents/run", methods=["POST"])
+async def rest_run_agent():
+    """REST wrapper: run AI agent with Azure OpenAI.
+    
+    The agent has access to task tools and ticket MCP tools.
+    """
     try:
         data = await request.get_json()
-        chat_request = ChatRequest(**data)
-        response = await op_ollama_chat(chat_request)
+        agent_request = AgentRequest(**data)
+        response = await agent_service.run_agent(agent_request)
         return jsonify(response.model_dump()), 200
     except ValidationError as e:
         return jsonify({"error": str(e)}), 400
-    except ValueError as e:
-        return jsonify({"error": str(e)}), 503
-    except Exception as e:
-        return jsonify({"error": str(e)}), 500
-
-
-@app.route("/api/ollama/models", methods=["GET"])
-async def rest_list_ollama_models():
-    """REST wrapper: list available Ollama models."""
-    try:
-        models = await op_list_ollama_models()
-        return jsonify(models.model_dump()), 200
-    except ValueError as e:
-        return jsonify({"error": str(e)}), 503
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
@@ -432,6 +301,88 @@ async def rest_search_tickets():
 
 
 # ============================================================================
+# QA TICKETS ENDPOINT
+# ============================================================================
+
+
+def _map_mcp_ticket_to_frontend(mcp_ticket: dict) -> dict:
+    """
+    Pure function: Map MCP ticket schema to frontend expected format.
+    
+    MCP fields -> Frontend fields:
+      - summary -> title
+      - requester_name -> reporter
+      - created_at -> createdAt (camelCase)
+      - updated_at -> updatedAt
+      - priority (lowercase) -> Priority (capitalized)
+      - status (lowercase) -> status (capitalized)
+    """
+    priority_raw = mcp_ticket.get("priority", "medium")
+    priority = priority_raw.capitalize() if priority_raw else "Medium"
+    
+    status_raw = mcp_ticket.get("status", "new")
+    status = status_raw.replace("_", " ").title() if status_raw else "New"
+    
+    # Derive escalationNeeded from priority
+    escalation_needed = priority in ("Critical", "High")
+    
+    return {
+        "id": str(mcp_ticket.get("id", "")),
+        "title": mcp_ticket.get("summary", ""),
+        "description": mcp_ticket.get("description", ""),
+        "status": status,
+        "priority": priority,
+        "assignee": mcp_ticket.get("assignee"),
+        "reporter": mcp_ticket.get("requester_name", ""),
+        "createdAt": mcp_ticket.get("created_at", ""),
+        "updatedAt": mcp_ticket.get("updated_at", ""),
+        "escalationNeeded": escalation_needed,
+    }
+
+
+def _is_unassigned_ticket(ticket: dict) -> bool:
+    """Pure function: Check if ticket is assigned to group but has no individual assignee."""
+    has_group = ticket.get("assigned_group") is not None
+    no_assignee = ticket.get("assignee") is None
+    status = ticket.get("status", "")
+    is_open_status = status in ("new", "assigned")
+    return has_group and no_assignee and is_open_status
+
+
+@app.route("/api/qa-tickets", methods=["GET"])
+async def get_qa_tickets():
+    """
+    Get QA tickets that need escalation.
+    
+    Calls the external Ticket MCP server and maps results to frontend format.
+    Filters for unassigned tickets (assigned to group but no individual assignee).
+    """
+    try:
+        # Call MCP server to get all tickets
+        results = await _call_ticket_mcp_tool("list_tickets", {})
+        
+        # Extract tickets from MCP response
+        mcp_tickets = []
+        if results and len(results) > 0:
+            response_data = results[0]
+            if isinstance(response_data, dict) and "tickets" in response_data:
+                mcp_tickets = response_data["tickets"]
+            elif isinstance(response_data, list):
+                mcp_tickets = response_data
+        
+        # Filter for unassigned tickets and map to frontend format
+        frontend_tickets = [
+            _map_mcp_ticket_to_frontend(ticket)
+            for ticket in mcp_tickets
+            if _is_unassigned_ticket(ticket)
+        ]
+        
+        return jsonify({"tickets": frontend_tickets})
+    except Exception as e:
+        return jsonify({"error": str(e), "tickets": []}), 500
+
+
+# ============================================================================
 # NON-TASK ENDPOINTS
 # ============================================================================
 
@@ -534,6 +485,13 @@ if __name__ == "__main__":
     print("   • Zero duplication between interfaces")
     print()
     print("🌐 Available Interfaces:")
+    print("   REST API:     http://localhost:5001/api/*")
+    print("   MCP JSON-RPC: http://localhost:5001/mcp")
+    print()
+    print("💡 Port 5001 (macOS AirPlay uses 5000)")
+    print("=" * 70)
+
+    app.run(debug=True, host="0.0.0.0", port=5001)
     print("   REST API:     http://localhost:5001/api/*")
     print("   MCP JSON-RPC: http://localhost:5001/mcp")
     print()
