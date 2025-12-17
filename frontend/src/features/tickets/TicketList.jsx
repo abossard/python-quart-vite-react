@@ -11,32 +11,32 @@
  */
 
 import {
-  Badge,
-  Button,
-  DataGrid,
-  DataGridBody,
-  DataGridCell,
-  DataGridHeader,
-  DataGridHeaderCell,
-  DataGridRow,
-  Field,
-  Input,
-  MessageBar,
-  MessageBarBody,
-  Select,
-  Spinner,
-  TableCellLayout,
-  Text,
-  createTableColumn,
-  makeStyles,
-  tokens
+    Badge,
+    Button,
+    DataGrid,
+    DataGridBody,
+    DataGridCell,
+    DataGridHeader,
+    DataGridHeaderCell,
+    DataGridRow,
+    Field,
+    Input,
+    MessageBar,
+    MessageBarBody,
+    Select,
+    Spinner,
+    TableCellLayout,
+    Text,
+    createTableColumn,
+    makeStyles,
+    tokens
 } from '@fluentui/react-components'
 import {
-  AlertUrgent20Regular,
-  Checkmark24Regular,
-  PlayCircle24Regular,
-  Search20Regular,
-  Warning24Regular,
+    AlertUrgent20Regular,
+    Checkmark24Regular,
+    PlayCircle24Regular,
+    Search20Regular,
+    Warning24Regular,
 } from '@fluentui/react-icons'
 import { useState } from 'react'
 import { getQATickets } from '../../services/api'
@@ -401,11 +401,6 @@ export default function TicketList() {
                   <Badge appearance={getPriorityBadge(selectedTicket.priority)}>
                     {selectedTicket.priority}
                   </Badge>
-                </div>
-
-                <div className={styles.detailField}>
-                  <Text className={styles.detailLabel}>Kategorie</Text>
-                  <Text className={styles.detailValue}>{selectedTicket.category}</Text>
                 </div>
 
                 <div className={styles.detailField}>

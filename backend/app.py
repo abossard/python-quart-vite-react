@@ -30,15 +30,22 @@ load_dotenv()
 # Import unified operation system
 
 from api_decorators import operation
+
 # FastMCP client for direct ticket MCP calls (no AI)
 from fastmcp import Client as MCPClient
 from mcp_handler import handle_mcp_request
-from ollama_service import (ChatRequest, ChatResponse, ModelListResponse,
-                            OllamaService)
-from operations import (op_create_task, op_delete_task, op_get_task,
-                        op_get_task_stats, op_list_ollama_models,
-                        op_list_tasks, op_ollama_chat, op_update_task,
-                        task_service)
+from ollama_service import ChatRequest, ChatResponse, ModelListResponse, OllamaService
+from operations import (
+    op_create_task,
+    op_delete_task,
+    op_get_task,
+    op_get_task_stats,
+    op_list_ollama_models,
+    op_list_tasks,
+    op_ollama_chat,
+    op_update_task,
+    task_service,
+)
 
 # Ticket MCP server URL (same as in agents.py)
 TICKET_MCP_SERVER_URL = "https://yodrrscbpxqnslgugwow.supabase.co/functions/v1/mcp/a7f2b8c4-d3e9-4f1a-b5c6-e8d9f0123456"
@@ -46,9 +53,9 @@ TICKET_MCP_SERVER_URL = "https://yodrrscbpxqnslgugwow.supabase.co/functions/v1/m
 from pydantic import ValidationError
 from quart import Quart, jsonify, request, send_from_directory
 from quart_cors import cors
+
 # Import Pydantic models and service
-from tasks import (Task, TaskCreate, TaskFilter, TaskService, TaskStats,
-                   TaskUpdate)
+from tasks import Task, TaskCreate, TaskFilter, TaskService, TaskStats, TaskUpdate
 
 # ============================================================================
 # APPLICATION SETUP
@@ -305,78 +312,82 @@ async def rest_search_tickets():
 # QA TICKETS ENDPOINT
 # ============================================================================
 
+
+def _map_mcp_ticket_to_frontend(mcp_ticket: dict) -> dict:
+    """
+    Pure function: Map MCP ticket schema to frontend expected format.
+    
+    MCP fields -> Frontend fields:
+      - summary -> title
+      - requester_name -> reporter
+      - created_at -> createdAt (camelCase)
+      - updated_at -> updatedAt
+      - priority (lowercase) -> Priority (capitalized)
+      - status (lowercase) -> status (capitalized)
+    """
+    priority_raw = mcp_ticket.get("priority", "medium")
+    priority = priority_raw.capitalize() if priority_raw else "Medium"
+    
+    status_raw = mcp_ticket.get("status", "new")
+    status = status_raw.replace("_", " ").title() if status_raw else "New"
+    
+    # Derive escalationNeeded from priority
+    escalation_needed = priority in ("Critical", "High")
+    
+    return {
+        "id": str(mcp_ticket.get("id", "")),
+        "title": mcp_ticket.get("summary", ""),
+        "description": mcp_ticket.get("description", ""),
+        "status": status,
+        "priority": priority,
+        "assignee": mcp_ticket.get("assignee"),
+        "reporter": mcp_ticket.get("requester_name", ""),
+        "createdAt": mcp_ticket.get("created_at", ""),
+        "updatedAt": mcp_ticket.get("updated_at", ""),
+        "escalationNeeded": escalation_needed,
+    }
+
+
+def _is_unassigned_ticket(ticket: dict) -> bool:
+    """Pure function: Check if ticket is assigned to group but has no individual assignee."""
+    has_group = ticket.get("assigned_group") is not None
+    no_assignee = ticket.get("assignee") is None
+    status = ticket.get("status", "")
+    is_open_status = status in ("new", "assigned")
+    return has_group and no_assignee and is_open_status
+
+
 @app.route("/api/qa-tickets", methods=["GET"])
 async def get_qa_tickets():
-    """Get QA tickets that need escalation."""
-    # Mock data - will be replaced with real database later
-    tickets = [
-        {
-            "id": "INC-1001",
-            "title": "Login page nicht erreichbar",
-            "status": "Open",
-            "priority": "High",
-            "assignee": None,
-            "createdAt": "2025-12-09T08:30:00Z",
-            "updatedAt": "2025-12-09T08:30:00Z",
-            "escalationNeeded": True,
-            "description": "Benutzer können sich nicht anmelden. Die Login-Seite gibt einen 500-Fehler zurück. Betrifft alle Umgebungen.",
-            "category": "QA",
-            "reporter": "M. Schmidt",
-        },
-        {
-            "id": "INC-1002",
-            "title": "Performance-Problem im Dashboard",
-            "status": "Open",
-            "priority": "Medium",
-            "assignee": None,
-            "createdAt": "2025-12-09T10:15:00Z",
-            "updatedAt": "2025-12-09T10:15:00Z",
-            "escalationNeeded": True,
-            "description": "Dashboard lädt sehr langsam (>10 Sekunden). API-Aufrufe scheinen blockiert zu sein.",
-            "category": "QA",
-            "reporter": "A. Müller",
-        },
-        {
-            "id": "INC-1003",
-            "title": "Datenverlust beim Speichern",
-            "status": "Open",
-            "priority": "Critical",
-            "assignee": None,
-            "createdAt": "2025-12-09T14:45:00Z",
-            "updatedAt": "2025-12-09T14:45:00Z",
-            "escalationNeeded": True,
-            "description": "Formulardaten werden nicht gespeichert. Validierung schlägt fehl ohne Fehlermeldung.",
-            "category": "QA",
-            "reporter": "T. Weber",
-        },
-        {
-            "id": "INC-1004",
-            "title": "Export-Funktion fehlerhaft",
-            "status": "Open",
-            "priority": "Low",
-            "assignee": None,
-            "createdAt": "2025-12-10T09:00:00Z",
-            "updatedAt": "2025-12-10T09:00:00Z",
-            "escalationNeeded": True,
-            "description": "CSV-Export generiert leere Dateien. Excel-Export funktioniert korrekt.",
-            "category": "QA",
-            "reporter": "L. Fischer",
-        },
-        {
-            "id": "INC-1005",
-            "title": "Notification-Service offline",
-            "status": "Open",
-            "priority": "High",
-            "assignee": None,
-            "createdAt": "2025-12-10T11:30:00Z",
-            "updatedAt": "2025-12-10T11:30:00Z",
-            "escalationNeeded": True,
-            "description": "E-Mail-Benachrichtigungen werden nicht versendet. Queue läuft voll.",
-            "category": "QA",
-            "reporter": "K. Becker",
-        },
-    ]
-    return jsonify({"tickets": tickets})
+    """
+    Get QA tickets that need escalation.
+    
+    Calls the external Ticket MCP server and maps results to frontend format.
+    Filters for unassigned tickets (assigned to group but no individual assignee).
+    """
+    try:
+        # Call MCP server to get all tickets
+        results = await _call_ticket_mcp_tool("list_tickets", {})
+        
+        # Extract tickets from MCP response
+        mcp_tickets = []
+        if results and len(results) > 0:
+            response_data = results[0]
+            if isinstance(response_data, dict) and "tickets" in response_data:
+                mcp_tickets = response_data["tickets"]
+            elif isinstance(response_data, list):
+                mcp_tickets = response_data
+        
+        # Filter for unassigned tickets and map to frontend format
+        frontend_tickets = [
+            _map_mcp_ticket_to_frontend(ticket)
+            for ticket in mcp_tickets
+            if _is_unassigned_ticket(ticket)
+        ]
+        
+        return jsonify({"tickets": frontend_tickets})
+    except Exception as e:
+        return jsonify({"error": str(e), "tickets": []}), 500
 
 
 # ============================================================================
