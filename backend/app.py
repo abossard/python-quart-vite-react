@@ -260,6 +260,10 @@ async def mcp_json_rpc():
 # ============================================================================
 
 if __name__ == "__main__":
+    # Initialize databases
+    from reminder_outbox import init_outbox_db
+    init_outbox_db()
+    
     # Initialize sample data
     num_tasks = task_service.initialize_sample_data()
 
@@ -267,6 +271,7 @@ if __name__ == "__main__":
     print("🚀 Unified Quart Server with Pydantic")
     print("=" * 70)
     print(f"📝 {num_tasks} sample tasks loaded")
+    print("📬 Reminder outbox database initialized")
     print()
     print("✨ Key Features:")
     print("   • Single process serving REST API + MCP JSON-RPC")

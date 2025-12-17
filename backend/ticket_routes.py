@@ -17,6 +17,11 @@ from fastmcp import Client as MCPClient
 from pydantic import ValidationError
 from quart import Blueprint, jsonify, request
 from reminder import ReminderRequest, ReminderResult, build_reminder_candidate
+from reminder_outbox import (
+    get_entries_for_ticket,
+    get_outbox_entries,
+    save_sent_reminder,
+)
 from tickets import Ticket, WorkLog
 
 # ============================================================================
@@ -447,11 +452,13 @@ async def rest_send_reminders():
                     "reason": "SLA reminder - ticket assigned to group but has no individual assignee",
                 })
                 
-                # TODO: Save to outbox (Phase 5) - reminder_outbox.save_sent_reminder()
-                # - ticket_id: str(ticket_id)
-                # - recipient: assigned_group lead email (lookup needed)
-                # - markdown_content: reminder_message
-                # - sent_at: datetime.now(tz=timezone.utc)
+                # Save to outbox for audit trail
+                recipient = f"{assigned_group}@company.com"  # TODO: lookup actual group lead email
+                save_sent_reminder(
+                    ticket_id=ticket_id,
+                    recipient=recipient,
+                    markdown_content=reminder_message,
+                )
                 
                 # TODO: Actually send reminder email here (SMTP integration)
                 
@@ -472,3 +479,57 @@ async def rest_send_reminders():
         return jsonify({"error": str(e)}), 400
     except Exception as e:
         return jsonify({"error": str(e)}), 500
+
+
+# ============================================================================
+# REMINDER OUTBOX ENDPOINTS
+# ============================================================================
+
+
+@ticket_bp.route("/api/reminder/outbox", methods=["GET"])
+async def rest_get_outbox_entries():
+    """
+    Get recent sent reminders from the outbox.
+    
+    Query params:
+        - limit: Maximum entries to return (default: 50)
+    
+    Returns:
+        - entries: List of OutboxEntry objects
+        - total: Number of entries returned
+    """
+    try:
+        limit = int(request.args.get("limit", 50))
+        entries = get_outbox_entries(limit=limit)
+        
+        return jsonify({
+            "entries": [e.model_dump() for e in entries],
+            "total": len(entries),
+        })
+    except Exception as e:
+        return jsonify({"error": str(e), "entries": []}), 500
+
+
+@ticket_bp.route("/api/reminder/outbox/<ticket_id>", methods=["GET"])
+async def rest_get_outbox_for_ticket(ticket_id: str):
+    """
+    Get all sent reminders for a specific ticket.
+    
+    Returns:
+        - entries: List of OutboxEntry objects for this ticket
+        - total: Number of entries
+    """
+    try:
+        from uuid import UUID
+        
+        parsed_id = UUID(ticket_id)
+        entries = get_entries_for_ticket(parsed_id)
+        
+        return jsonify({
+            "entries": [e.model_dump() for e in entries],
+            "total": len(entries),
+        })
+    except ValueError:
+        return jsonify({"error": "Invalid ticket ID format"}), 400
+    except Exception as e:
+        return jsonify({"error": str(e), "entries": []}), 500

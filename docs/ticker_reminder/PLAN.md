@@ -57,22 +57,22 @@
 
 ## Phase 5: Backend - Reminder Outbox
 
-- [ ] 11. Create SQLite schema for reminder outbox
+- [x] 11. Create SQLite schema for reminder outbox ✅ DONE
   - Table: `reminder_outbox`
   - Location: `backend/data/reminder_outbox.db`
   - Columns: `id`, `ticket_id`, `recipient`, `markdown_content`, `sent_at`
 
-- [ ] 12. Create `reminder_outbox.py` module
+- [x] 12. Create `reminder_outbox.py` module ✅ DONE
   - `init_outbox_db()` - create table if not exists
   - `save_sent_reminder(ticket_id, recipient, markdown, sent_at) -> OutboxEntry`
   - `get_outbox_entries(limit=50) -> list[OutboxEntry]`
   - `get_entries_for_ticket(ticket_id) -> list[OutboxEntry]`
 
-- [ ] 13. Define Pydantic models for outbox
+- [x] 13. Define Pydantic models for outbox ✅ DONE
   - `OutboxEntry` (id, ticket_id, recipient, markdown_content, sent_at)
   - `OutboxCreate` (ticket_id, recipient, markdown_content)
 
-- [ ] 14. Create REST endpoints for outbox
+- [x] 14. Create REST endpoints for outbox ✅ DONE
   - `GET /api/reminder/outbox` → list sent reminders
   - `GET /api/reminder/outbox/{ticket_id}` → reminders for specific ticket
 
