@@ -399,6 +399,13 @@ async def get_qa_tickets():
 def _parse_mcp_ticket_to_model(mcp_ticket: dict) -> Ticket:
     """Pure function: Parse MCP ticket dict to Pydantic Ticket model."""
     from datetime import timezone
+    from uuid import UUID
+
+    # Parse ID as UUID (required field)
+    raw_id = mcp_ticket.get("id")
+    if raw_id is None:
+        raise ValueError("Ticket missing required 'id' field")
+    ticket_id = UUID(raw_id) if isinstance(raw_id, str) else raw_id
 
     # Parse timestamps - ensure timezone-aware
     created_at = mcp_ticket.get("created_at", "")
@@ -416,17 +423,42 @@ def _parse_mcp_ticket_to_model(mcp_ticket: dict) -> Ticket:
         updated_at = updated_at.replace(tzinfo=timezone.utc)
     
     return Ticket(
-        id=mcp_ticket.get("id"),
+        id=ticket_id,
         summary=mcp_ticket.get("summary", ""),
         description=mcp_ticket.get("description", ""),
         status=mcp_ticket.get("status", "new"),
         priority=mcp_ticket.get("priority", "medium"),
+        impact=mcp_ticket.get("impact"),
+        urgency=mcp_ticket.get("urgency"),
         assignee=mcp_ticket.get("assignee"),
         assigned_group=mcp_ticket.get("assigned_group"),
+        support_organization=mcp_ticket.get("support_organization"),
         requester_name=mcp_ticket.get("requester_name", "Unknown"),
         requester_email=mcp_ticket.get("requester_email", "unknown@example.com"),
+        requester_phone=mcp_ticket.get("requester_phone"),
+        requester_company=mcp_ticket.get("requester_company"),
+        requester_department=mcp_ticket.get("requester_department"),
         city=mcp_ticket.get("city"),
+        country=mcp_ticket.get("country"),
+        site=mcp_ticket.get("site"),
+        desk_location=mcp_ticket.get("desk_location"),
         service=mcp_ticket.get("service"),
+        incident_type=mcp_ticket.get("incident_type"),
+        reported_source=mcp_ticket.get("reported_source"),
+        product_name=mcp_ticket.get("product_name"),
+        manufacturer=mcp_ticket.get("manufacturer"),
+        model_version=mcp_ticket.get("model_version"),
+        ci_name=mcp_ticket.get("ci_name"),
+        operational_category_tier1=mcp_ticket.get("operational_category_tier1"),
+        operational_category_tier2=mcp_ticket.get("operational_category_tier2"),
+        operational_category_tier3=mcp_ticket.get("operational_category_tier3"),
+        product_category_tier1=mcp_ticket.get("product_category_tier1"),
+        product_category_tier2=mcp_ticket.get("product_category_tier2"),
+        product_category_tier3=mcp_ticket.get("product_category_tier3"),
+        resolution=mcp_ticket.get("resolution"),
+        notes=mcp_ticket.get("notes"),
+        event_id=mcp_ticket.get("event_id"),
+        correlation_key=mcp_ticket.get("correlation_key"),
         created_at=created_at,
         updated_at=updated_at,
     )
@@ -434,15 +466,21 @@ def _parse_mcp_ticket_to_model(mcp_ticket: dict) -> Ticket:
 
 def _parse_mcp_worklog_to_model(mcp_log: dict, ticket_id: str) -> WorkLog:
     """Pure function: Parse MCP worklog dict to Pydantic WorkLog model."""
-    from uuid import uuid4
+    from uuid import UUID, uuid4
+
+    # Parse IDs as UUIDs
+    log_id = mcp_log.get("id", uuid4())
+    if isinstance(log_id, str):
+        log_id = UUID(log_id)
+    parsed_ticket_id = UUID(ticket_id) if isinstance(ticket_id, str) else ticket_id
     
     created_at = mcp_log.get("created_at", "")
     if isinstance(created_at, str):
         created_at = datetime.fromisoformat(created_at.replace("Z", "+00:00"))
     
     return WorkLog(
-        id=mcp_log.get("id", uuid4()),
-        ticket_id=ticket_id,
+        id=log_id,
+        ticket_id=parsed_ticket_id,
         created_at=created_at,
         log_type=mcp_log.get("log_type", "note"),
         summary=mcp_log.get("summary", ""),
@@ -532,19 +570,13 @@ async def rest_send_reminders():
         data = await request.get_json()
         reminder_request = ReminderRequest(**data)
         
-        # For now, simulate sending reminders (actual email integration later)
-        # In real implementation, this would:
-        # 1. Look up Support Group Lead for each ticket's assigned_group
-        # 2. Send email via Remedy email system or SMTP
-        # 3. Add worklog entry of type "reminder" to ticket
-        
         successful = []
         failed = []
         errors = {}
         
         for ticket_id in reminder_request.ticket_ids:
             try:
-                # Verify ticket exists
+                # Verify ticket exists and get details
                 ticket_results = await _call_ticket_mcp_tool("get_ticket", {"ticket_id": str(ticket_id)})
                 
                 if not ticket_results:
@@ -552,8 +584,29 @@ async def rest_send_reminders():
                     errors[str(ticket_id)] = "Ticket not found"
                     continue
                 
-                # TODO: Actually send reminder email here
-                # TODO: Add worklog entry via MCP add_modification or similar
+                ticket_data = ticket_results[0] if ticket_results else {}
+                assigned_group = ticket_data.get("assigned_group", "Unknown Group")
+                
+                # Build reminder message
+                reminder_message = reminder_request.message or f"Reminder: Ticket still unassigned in group '{assigned_group}'"
+                
+                # Add worklog entry via MCP add_modification
+                # Using 'notes' field to record the reminder
+                await _call_ticket_mcp_tool("add_modification", {
+                    "ticket_id": str(ticket_id),
+                    "field_name": "notes",
+                    "proposed_value": f"[REMINDER] {reminder_message}",
+                    "requested_by": reminder_request.reminded_by,
+                    "reason": "SLA reminder - ticket assigned to group but has no individual assignee",
+                })
+                
+                # TODO: Save to outbox (Phase 5) - reminder_outbox.save_sent_reminder()
+                # - ticket_id: str(ticket_id)
+                # - recipient: assigned_group lead email (lookup needed)
+                # - markdown_content: reminder_message
+                # - sent_at: datetime.now(tz=timezone.utc)
+                
+                # TODO: Actually send reminder email here (SMTP integration)
                 
                 successful.append(ticket_id)
                 
