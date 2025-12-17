@@ -8,20 +8,20 @@
  */
 
 import {
-    makeStyles,
-    Subtitle1,
-    Tab,
-    TabList,
-    Text,
-    tokens,
+  makeStyles,
+  Subtitle1,
+  Tab,
+  TabList,
+  Text,
+  tokens,
 } from '@fluentui/react-components'
 import {
-    AlertUrgent24Regular,
-    Bot24Regular,
-    Home24Regular,
-    Info24Regular,
-    PersonQuestionMark24Regular,
-    TaskListLtr24Regular,
+  AlertUrgent24Regular,
+  Bot24Regular,
+  Home24Regular,
+  Info24Regular,
+  PersonQuestionMark24Regular,
+  TaskListLtr24Regular,
 } from '@fluentui/react-icons'
 import { Navigate, Route, Routes, useLocation, useNavigate } from 'react-router-dom'
 import About from './components/About'
@@ -68,7 +68,7 @@ export default function App() {
   const tabs = [
     { value: 'dashboard', label: 'Dashboard', icon: <Home24Regular />, path: '/dashboard', testId: 'tab-dashboard' },
     { value: 'tasks', label: 'Tasks', icon: <TaskListLtr24Regular />, path: '/tasks', testId: 'tab-tasks' },
-    { value: 'tickets', label: 'QA Tickets', icon: <AlertUrgent24Regular />, path: '/tickets', testId: 'tab-tickets' },
+    { value: 'tickets', label: 'Tickets', icon: <AlertUrgent24Regular />, path: '/tickets', testId: 'tab-tickets' },
     { value: 'unassigned', label: 'Unassigned', icon: <PersonQuestionMark24Regular />, path: '/unassigned', testId: 'tab-unassigned' },
     { value: 'ollama', label: 'AI Chat', icon: <Bot24Regular />, path: '/ollama', testId: 'tab-ollama' },
     { value: 'about', label: 'About', icon: <Info24Regular />, path: '/about', testId: 'tab-about' },

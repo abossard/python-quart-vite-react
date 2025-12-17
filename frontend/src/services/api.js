@@ -7,7 +7,7 @@
  * - Clear interface for backend communication
  */
 
-const API_BASE_URL = '/api'
+const API_BASE_URL = "/api";
 
 // ============================================================================
 // HTTP Helper Functions
@@ -17,17 +17,19 @@ async function fetchJSON(url, options = {}) {
   const response = await fetch(url, {
     ...options,
     headers: {
-      'Content-Type': 'application/json',
+      "Content-Type": "application/json",
       ...options.headers,
     },
-  })
+  });
 
   if (!response.ok) {
-    const error = await response.json().catch(() => ({ error: 'Request failed' }))
-    throw new Error(error.error || `HTTP ${response.status}`)
+    const error = await response
+      .json()
+      .catch(() => ({ error: "Request failed" }));
+    throw new Error(error.error || `HTTP ${response.status}`);
   }
 
-  return response.json()
+  return response.json();
 }
 
 // ============================================================================
@@ -35,11 +37,11 @@ async function fetchJSON(url, options = {}) {
 // ============================================================================
 
 export async function getHealth() {
-  return fetchJSON(`${API_BASE_URL}/health`)
+  return fetchJSON(`${API_BASE_URL}/health`);
 }
 
 export async function getCurrentDate() {
-  return fetchJSON(`${API_BASE_URL}/date`)
+  return fetchJSON(`${API_BASE_URL}/date`);
 }
 
 /**
@@ -49,59 +51,59 @@ export async function getCurrentDate() {
  * @returns {Function} Cleanup function to close the connection
  */
 export function connectToTimeStream(onMessage, onError) {
-  const eventSource = new EventSource(`${API_BASE_URL}/time-stream`)
+  const eventSource = new EventSource(`${API_BASE_URL}/time-stream`);
 
   eventSource.onmessage = (event) => {
     try {
-      const data = JSON.parse(event.data)
-      onMessage(data)
+      const data = JSON.parse(event.data);
+      onMessage(data);
     } catch (error) {
-      onError(error)
+      onError(error);
     }
-  }
+  };
 
   eventSource.onerror = (error) => {
-    onError(error)
-    eventSource.close()
-  }
+    onError(error);
+    eventSource.close();
+  };
 
   // Return cleanup function
   return () => {
-    eventSource.close()
-  }
+    eventSource.close();
+  };
 }
 
 // ============================================================================
 // Task CRUD APIs
 // ============================================================================
 
-export async function getTasks(filter = 'all') {
-  const params = filter !== 'all' ? `?filter=${filter}` : ''
-  return fetchJSON(`${API_BASE_URL}/tasks${params}`)
+export async function getTasks(filter = "all") {
+  const params = filter !== "all" ? `?filter=${filter}` : "";
+  return fetchJSON(`${API_BASE_URL}/tasks${params}`);
 }
 
 export async function getTask(taskId) {
-  return fetchJSON(`${API_BASE_URL}/tasks/${taskId}`)
+  return fetchJSON(`${API_BASE_URL}/tasks/${taskId}`);
 }
 
 export async function createTask(taskData) {
   return fetchJSON(`${API_BASE_URL}/tasks`, {
-    method: 'POST',
+    method: "POST",
     body: JSON.stringify(taskData),
-  })
+  });
 }
 
 export async function updateTask(taskId, updates) {
   return fetchJSON(`${API_BASE_URL}/tasks/${taskId}`, {
-    method: 'PUT',
+    method: "PUT",
     body: JSON.stringify(updates),
-  })
+  });
 }
 
 export async function deleteTask(taskId) {
   return fetchJSON(`${API_BASE_URL}/tasks/${taskId}`, {
-    method: 'DELETE',
-  })
+    method: "DELETE",
+  });
 }
 
 // ============================================================================
@@ -115,9 +117,9 @@ export async function deleteTask(taskId) {
  */
 export async function ollamaChat(chatRequest) {
   return fetchJSON(`${API_BASE_URL}/ollama/chat`, {
-    method: 'POST',
+    method: "POST",
     body: JSON.stringify(chatRequest),
-  })
+  });
 }
 
 /**
@@ -125,17 +127,17 @@ export async function ollamaChat(chatRequest) {
  * @returns {Promise<Object>} Response with models array
  */
 export async function listOllamaModels() {
-  return fetchJSON(`${API_BASE_URL}/ollama/models`)
+  return fetchJSON(`${API_BASE_URL}/ollama/models`);
 }
 
 // ============================================================================
-// QA Tickets APIs
+// Tickets APIs
 // ============================================================================
 
 /**
- * Fetch QA tickets that need escalation
+ * Fetch tickets that need escalation
  * @returns {Promise<Object>} Response with tickets array
  */
 export async function getQATickets() {
-  return fetchJSON(`${API_BASE_URL}/qa-tickets`)
+  return fetchJSON(`${API_BASE_URL}/qa-tickets`);
 }
