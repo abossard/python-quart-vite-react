@@ -29,22 +29,19 @@ load_dotenv()
 
 # Import unified operation system
 
-from mcp import handle_mcp_request
-from ollama_service import ChatRequest
+from api_decorators import operation
+# FastMCP client for direct ticket MCP calls (no AI)
+from fastmcp import Client as MCPClient
+from mcp_handler import handle_mcp_request
+from ollama_service import (ChatRequest, ChatResponse, ModelListResponse,
+                            OllamaService)
 from operations import (op_create_task, op_delete_task, op_get_task,
                         op_get_task_stats, op_list_ollama_models,
                         op_list_tasks, op_ollama_chat, op_update_task,
                         task_service)
 
-from api_decorators import operation
-# FastMCP client for direct ticket MCP calls (no AI)
-from fastmcp import Client as MCPClient
-
 # Ticket MCP server URL (same as in agents.py)
 TICKET_MCP_SERVER_URL = "https://yodrrscbpxqnslgugwow.supabase.co/functions/v1/mcp/a7f2b8c4-d3e9-4f1a-b5c6-e8d9f0123456"
-from mcp_handler import handle_mcp_request
-from ollama_service import (ChatRequest, ChatResponse, ModelListResponse,
-                            OllamaService)
 
 from pydantic import ValidationError
 from quart import Quart, jsonify, request, send_from_directory
@@ -485,6 +482,13 @@ if __name__ == "__main__":
     print("   • Zero duplication between interfaces")
     print()
     print("🌐 Available Interfaces:")
+    print("   REST API:     http://localhost:5001/api/*")
+    print("   MCP JSON-RPC: http://localhost:5001/mcp")
+    print()
+    print("💡 Port 5001 (macOS AirPlay uses 5000)")
+    print("=" * 70)
+
+    app.run(debug=True, host="0.0.0.0", port=5001)
     print("   REST API:     http://localhost:5001/api/*")
     print("   MCP JSON-RPC: http://localhost:5001/mcp")
     print()
