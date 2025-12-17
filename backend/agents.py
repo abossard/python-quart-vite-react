@@ -34,11 +34,16 @@ import os
 from datetime import datetime
 from typing import Literal, Optional
 
+# Load environment variables before anything else
+from dotenv import load_dotenv
+
+load_dotenv()
+
 # Local - Import operations registry for automatic tool discovery
 from api_decorators import get_langchain_tools
 
 # Third-party - LangChain and LangGraph
-from langchain_openai import ChatOpenAI
+from langchain_openai import AzureChatOpenAI
 from langgraph.prebuilt import create_react_agent
 
 # Third-party - Pydantic for validation
@@ -125,15 +130,14 @@ class AgentResponse(BaseModel):
 
 
 # ============================================================================
-# CONFIGURATION - Azure OpenAI settings from environment
+# CONFIGURATION - Azure OpenAI settings (hardcoded except API key)
 # ============================================================================
 
-# Azure OpenAI configuration
-# These should be set in .env file (see .env.example)
-AZURE_OPENAI_ENDPOINT = os.getenv("AZURE_OPENAI_ENDPOINT", "")
-AZURE_OPENAI_API_KEY = os.getenv("AZURE_OPENAI_API_KEY", "")
-AZURE_OPENAI_DEPLOYMENT = os.getenv("AZURE_OPENAI_DEPLOYMENT", "gpt-4")
-AZURE_OPENAI_API_VERSION = os.getenv("AZURE_OPENAI_API_VERSION", "2024-02-15-preview")
+# Azure OpenAI configuration - only API key from environment
+AZURE_OPENAI_ENDPOINT = "https://can-i-haz-houze-resource.cognitiveservices.azure.com"
+AZURE_OPENAI_API_KEY = os.getenv("AZURE_API_KEY", "")
+AZURE_OPENAI_DEPLOYMENT = "gpt-5-mini"
+AZURE_OPENAI_API_VERSION = "2025-04-01-preview"
 
 
 # ============================================================================
@@ -165,19 +169,18 @@ class AgentService:
             ValueError: If Azure OpenAI configuration is incomplete
         """
         # Validate configuration
-        if not AZURE_OPENAI_ENDPOINT or not AZURE_OPENAI_API_KEY:
+        if not AZURE_OPENAI_API_KEY:
             raise ValueError(
-                "Azure OpenAI configuration is incomplete. "
-                "Please set AZURE_OPENAI_ENDPOINT and AZURE_OPENAI_API_KEY "
-                "environment variables. See .env.example for template."
+                "Azure OpenAI API key not set. "
+                "Please set AZURE_API_KEY environment variable."
             )
         
-        # Initialize ChatOpenAI with Azure endpoint using base_url pattern
-        self.llm = ChatOpenAI(
-            base_url=AZURE_OPENAI_ENDPOINT,
+        # Initialize AzureChatOpenAI with hardcoded endpoint
+        self.llm = AzureChatOpenAI(
+            azure_endpoint=AZURE_OPENAI_ENDPOINT,
             api_key=AZURE_OPENAI_API_KEY,  # type: ignore
-            model=AZURE_OPENAI_DEPLOYMENT,
-            temperature=0.7,
+            azure_deployment=AZURE_OPENAI_DEPLOYMENT,
+            api_version=AZURE_OPENAI_API_VERSION,
         )
         
         # Load LangGraph tools from operation registry
