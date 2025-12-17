@@ -442,23 +442,25 @@ async def rest_send_reminders():
                 # Build reminder message
                 reminder_message = reminder_request.message or f"Reminder: Ticket still unassigned in group '{assigned_group}'"
                 
-                # Add worklog entry via MCP add_modification
-                # Using 'notes' field to record the reminder
-                await call_ticket_mcp_tool("add_modification", {
-                    "ticket_id": str(ticket_id),
-                    "field_name": "notes",
-                    "proposed_value": f"[REMINDER] {reminder_message}",
-                    "requested_by": reminder_request.reminded_by,
-                    "reason": "SLA reminder - ticket assigned to group but has no individual assignee",
-                })
-                
-                # Save to outbox for audit trail
+                # Save to outbox FIRST (audit trail even if MCP fails)
                 recipient = f"{assigned_group}@company.com"  # TODO: lookup actual group lead email
                 save_sent_reminder(
                     ticket_id=ticket_id,
                     recipient=recipient,
                     markdown_content=reminder_message,
                 )
+                
+                # Add worklog entry via MCP (non-blocking failure)
+                try:
+                    await call_ticket_mcp_tool("add_work_log", {
+                        "ticket_id": str(ticket_id),
+                        "log_type": "reminder",
+                        "summary": f"SLA reminder sent: {reminder_message}",
+                        "details": f"Ticket unassigned in group '{assigned_group}'. Reminder sent by {reminder_request.reminded_by}.",
+                        "author": reminder_request.reminded_by,
+                    })
+                except Exception:
+                    pass  # MCP failure shouldn't block reminder
                 
                 # TODO: Actually send reminder email here (SMTP integration)
                 
