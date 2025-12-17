@@ -22,6 +22,7 @@ import {
   Info24Regular,
   PersonQuestionMark24Regular,
   TaskListLtr24Regular,
+  GridDots24Regular,
 } from '@fluentui/react-icons'
 import { Navigate, Route, Routes, useLocation, useNavigate } from 'react-router-dom'
 import About from './components/About'
@@ -30,6 +31,7 @@ import Dashboard from './features/dashboard/Dashboard'
 import TaskList from './features/tasks/TaskList'
 import TicketList from './features/tickets/TicketList'
 import TicketsWithoutAnAssignee from './features/tickets/TicketsWithoutAnAssignee'
+import TicketOverview from './features/tickets/TicketOverview'
 
 const useStyles = makeStyles({
   app: {
@@ -69,6 +71,7 @@ export default function App() {
     { value: 'dashboard', label: 'Dashboard', icon: <Home24Regular />, path: '/dashboard', testId: 'tab-dashboard' },
     { value: 'tasks', label: 'Tasks', icon: <TaskListLtr24Regular />, path: '/tasks', testId: 'tab-tasks' },
     { value: 'tickets', label: 'Tickets', icon: <AlertUrgent24Regular />, path: '/tickets', testId: 'tab-tickets' },
+    { value: 'overview', label: 'Overview', icon: <GridDots24Regular />, path: '/overview', testId: 'tab-overview' },
     { value: 'unassigned', label: 'Unassigned', icon: <PersonQuestionMark24Regular />, path: '/unassigned', testId: 'tab-unassigned' },
     { value: 'agent', label: 'AI Agent', icon: <Bot24Regular />, path: '/agent', testId: 'tab-agent' },
     { value: 'about', label: 'About', icon: <Info24Regular />, path: '/about', testId: 'tab-about' },
@@ -109,6 +112,7 @@ export default function App() {
           <Route path="/dashboard" element={<Dashboard />} />
           <Route path="/tasks" element={<TaskList />} />
           <Route path="/tickets" element={<TicketList />} />
+          <Route path="/overview" element={<TicketOverview />} />
           <Route path="/unassigned" element={<TicketsWithoutAnAssignee />} />
           <Route path="/agent" element={<AgentChat />} />
           <Route path="/about" element={<About />} />

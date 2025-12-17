@@ -31,6 +31,7 @@ Advanced StateGraph example (for learning):
 
 # Standard library
 import os
+import re
 from datetime import datetime
 from typing import Any, Literal, Optional
 
@@ -237,6 +238,126 @@ def _mcp_tool_to_langchain(mcp_client: MCPClient, tool: Any) -> StructuredTool:
 
 
 # ============================================================================
+# TICKET ANALYSIS HELPERS - Pure calculations for ticket splitting logic
+# ============================================================================
+
+def _detect_multiple_issues(description: str) -> tuple[bool, list[str]]:
+    """
+    Detect if a ticket description contains multiple unrelated issues.
+    
+    Returns:
+        (should_split, list_of_identified_issues)
+    
+    Detection patterns:
+    - Multiple numbered or bulleted points
+    - Conjunction words separating distinct issues (and, also, und, auch)
+    - Multiple product/service mentions
+    - Different technical domains (VPN, printer, software, phone)
+    """
+    if not description or len(description.strip()) < 20:
+        return (False, [])
+    
+    issues = []
+    
+    # Pattern 1: Explicit separators like "und", "and", "auch", "also"
+    separator_pattern = r'(?:und|and|auch|also|außerdem|zusätzlich)\s+'
+    parts = re.split(separator_pattern, description, flags=re.IGNORECASE)
+    
+    # Pattern 2: Multiple technical keywords indicate different issues
+    technical_keywords = {
+        'vpn': ['vpn', 'verbindung', 'connection', 'netzwerk', 'network'],
+        'printer': ['drucker', 'printer', 'toner', 'drucken', 'print'],
+        'software': ['software', 'app', 'programm', 'center', 'installation'],
+        'phone': ['natel', 'phone', 'handy', 'mobile', 'akku', 'battery'],
+        'email': ['outlook', 'email', 'mail', 'postfach', 'mailbox'],
+        'password': ['passwort', 'password', 'kennwort', 'zugang', 'access'],
+        'hardware': ['maus', 'mouse', 'tastatur', 'keyboard', 'bildschirm', 'monitor', 'screen']
+    }
+    
+    found_categories = []
+    desc_lower = description.lower()
+    for category, keywords in technical_keywords.items():
+        if any(kw in desc_lower for kw in keywords):
+            found_categories.append(category)
+    
+    # If 2+ distinct technical categories found, likely multiple issues
+    if len(found_categories) >= 2:
+        # Try to extract individual issues
+        # Split on common separators and newlines
+        potential_issues = re.split(r'[.!?]\s+|\n+', description)
+        potential_issues = [iss.strip() for iss in potential_issues if len(iss.strip()) > 15]
+        
+        # Group by technical category
+        categorized_issues = {}
+        for issue in potential_issues:
+            issue_lower = issue.lower()
+            for category, keywords in technical_keywords.items():
+                if any(kw in issue_lower for kw in keywords):
+                    if category not in categorized_issues:
+                        categorized_issues[category] = []
+                    categorized_issues[category].append(issue)
+                    break
+        
+        # If we have multiple categories with distinct issues, recommend split
+        if len(categorized_issues) >= 2:
+            issues = ['. '.join(cat_issues) for cat_issues in categorized_issues.values()]
+            return (True, issues)
+    
+    # Pattern 3: Numbered/bulleted lists
+    numbered_pattern = r'^\s*\d+[\.)]\s+'
+    bullet_pattern = r'^\s*[-•*]\s+'
+    lines = description.split('\n')
+    numbered_items = [line for line in lines if re.match(numbered_pattern, line)]
+    bullet_items = [line for line in lines if re.match(bullet_pattern, line)]
+    
+    if len(numbered_items) >= 2 or len(bullet_items) >= 2:
+        items = numbered_items if numbered_items else bullet_items
+        issues = [re.sub(r'^\s*[\d\.)•*-]+\s*', '', item).strip() for item in items]
+        return (True, issues)
+    
+    return (False, [])
+
+
+def _generate_split_summary(original_summary: str, issues: list[str]) -> list[str]:
+    """
+    Generate individual ticket summaries from detected issues.
+    
+    Args:
+        original_summary: Original ticket summary
+        issues: List of detected issue descriptions
+    
+    Returns:
+        List of new ticket summaries
+    """
+    summaries = []
+    
+    # Extract key terms from each issue
+    for issue in issues:
+        # Try to identify the main subject
+        issue_lower = issue.lower()
+        
+        # Check for known technical terms
+        if any(term in issue_lower for term in ['vpn', 'verbindung', 'connection']):
+            summaries.append("VPN Connection Issue")
+        elif any(term in issue_lower for term in ['drucker', 'printer', 'toner']):
+            summaries.append("Printer Issue")
+        elif any(term in issue_lower for term in ['software', 'center', 'app', 'installation']):
+            summaries.append("Software Installation Issue")
+        elif any(term in issue_lower for term in ['natel', 'phone', 'handy', 'akku', 'battery']):
+            summaries.append("Mobile Device Issue")
+        elif any(term in issue_lower for term in ['outlook', 'email', 'mail']):
+            summaries.append("Email Issue")
+        elif any(term in issue_lower for term in ['passwort', 'password', 'zugang']):
+            summaries.append("Password/Access Issue")
+        else:
+            # Use first significant words from issue
+            words = issue.split()[:5]
+            summaries.append(' '.join(words))
+    
+    return summaries
+
+
+# ============================================================================
 # SERVICE LAYER - Business logic for agent operations
 # ============================================================================
 
@@ -332,6 +453,128 @@ class AgentService:
                 pass
             self._ticket_mcp_client = None
     
+    async def analyze_and_split_ticket(self, ticket_id: str, ticket_data: dict) -> dict:
+        """
+        Analyze a ticket and split it into multiple tickets if needed.
+        
+        This method:
+        1. Analyzes the ticket description for multiple issues
+        2. If multiple issues detected, creates separate tickets
+        3. Adds a modification request to the original ticket
+        4. Returns summary of actions taken
+        
+        Args:
+            ticket_id: The ID of the ticket to analyze
+            ticket_data: Full ticket data including description, requester, etc.
+        
+        Returns:
+            Dictionary with analysis results and actions taken
+        """
+        description = ticket_data.get('description', '')
+        summary = ticket_data.get('summary', '')
+        
+        # Detect multiple issues
+        should_split, issues = _detect_multiple_issues(description)
+        
+        if not should_split or len(issues) < 2:
+            return {
+                'should_split': False,
+                'reason': 'Single issue detected',
+                'original_ticket_id': ticket_id
+            }
+        
+        # Generate summaries for new tickets
+        new_summaries = _generate_split_summary(summary, issues)
+        
+        # Ensure ticket MCP connection
+        await self._ensure_ticket_mcp_connection()
+        
+        if not self._ticket_mcp_client:
+            return {
+                'should_split': True,
+                'error': 'Ticket MCP client not available',
+                'detected_issues': issues
+            }
+        
+        # Create new tickets for each issue
+        created_tickets = []
+        for i, (issue_desc, issue_summary) in enumerate(zip(issues, new_summaries), 1):
+            try:
+                # Extract requester info from original ticket
+                new_ticket_data = {
+                    'summary': issue_summary,
+                    'description': issue_desc,
+                    'city': ticket_data.get('city'),
+                    'requester_name': ticket_data.get('requester_name'),
+                    'requester_email': ticket_data.get('requester_email'),
+                    'requester_department': ticket_data.get('requester_department'),
+                    'priority': ticket_data.get('priority', 'medium'),
+                    'status': 'new',
+                }
+                
+                # Determine service based on issue content
+                issue_lower = issue_desc.lower()
+                if any(term in issue_lower for term in ['vpn', 'network', 'verbindung']):
+                    new_ticket_data['service'] = 'Network Services'
+                elif any(term in issue_lower for term in ['drucker', 'printer']):
+                    new_ticket_data['service'] = 'Infrastructure'
+                elif any(term in issue_lower for term in ['software', 'app', 'center']):
+                    new_ticket_data['service'] = 'Workplace'
+                elif any(term in issue_lower for term in ['natel', 'phone', 'handy']):
+                    new_ticket_data['service'] = 'Communication'
+                else:
+                    new_ticket_data['service'] = ticket_data.get('service', 'Workplace')
+                
+                # Call MCP tool to create ticket
+                result = await self._ticket_mcp_client.call_tool('create_ticket', new_ticket_data)
+                
+                # Extract ticket ID from result
+                if hasattr(result, 'content') and result.content:
+                    import json
+                    content_text = result.content[0].text if result.content else '{}'
+                    result_data = json.loads(content_text)
+                    new_ticket_id = result_data.get('ticket', {}).get('id', f'ticket_{i}')
+                    created_tickets.append({
+                        'id': new_ticket_id,
+                        'summary': issue_summary,
+                        'description': issue_desc[:100]
+                    })
+            except Exception as e:
+                print(f"Error creating ticket {i}: {e}")
+                created_tickets.append({
+                    'error': str(e),
+                    'summary': issue_summary
+                })
+        
+        # Add modification request to original ticket
+        try:
+            modification_notes = f"This ticket contained {len(issues)} separate issues that have been split:\n\n"
+            for i, ticket in enumerate(created_tickets, 1):
+                if 'id' in ticket:
+                    modification_notes += f"{i}. {ticket['summary']} (Ticket ID: {ticket['id']})\n"
+                else:
+                    modification_notes += f"{i}. {ticket['summary']} (Failed to create)\n"
+            
+            modification_notes += "\nOriginal ticket can be closed or used for coordination."
+            
+            await self._ticket_mcp_client.call_tool('add_modification', {
+                'ticket_id': ticket_id,
+                'field_name': 'notes',
+                'proposed_value': modification_notes,
+                'reason': f'Ticket split into {len(issues)} separate issues for proper tracking',
+                'requested_by': 'Automated Ticket Analyzer'
+            })
+        except Exception as e:
+            print(f"Error adding modification: {e}")
+        
+        return {
+            'should_split': True,
+            'original_ticket_id': ticket_id,
+            'detected_issues_count': len(issues),
+            'created_tickets': created_tickets,
+            'modification_added': True
+        }
+    
     async def run_agent(self, request: AgentRequest) -> AgentResponse:
         """
         Run a ReAct agent with the given request using LangGraph.
@@ -376,6 +619,14 @@ class AgentService:
                 "- Analyze ticket statistics and trends\n"
                 "- Request modifications to tickets (status, priority, assignee, etc.)\n"
                 "- Review and approve/reject modification requests\n"
+                "- **IMPORTANT**: Detect tickets with multiple unrelated issues and split them\n"
+                "\n"
+                "TICKET SPLITTING WORKFLOW:\n"
+                "When you encounter a ticket with multiple distinct issues (VPN + Printer, Software + Phone, etc.):\n"
+                "1. Identify each separate issue in the description\n"
+                "2. Use create_ticket to create individual tickets for each issue\n"
+                "3. Use add_modification to note the split on the original ticket\n"
+                "4. Inform the user about the split tickets created\n"
                 "\n"
                 "TASK CAPABILITIES:\n"
                 "- Create, update, delete, and list tasks\n"
@@ -523,4 +774,6 @@ __all__ = [
     'AgentResponse',
     'AgentService',
     'agent_service',
+    '_detect_multiple_issues',
+    '_generate_split_summary',
 ]
