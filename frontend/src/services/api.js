@@ -107,27 +107,25 @@ export async function deleteTask(taskId) {
 }
 
 // ============================================================================
-// Ollama LLM APIs
+// Agent Chat APIs (Azure OpenAI + LangGraph)
 // ============================================================================
 
 /**
- * Send a chat message to Ollama and get a response
- * @param {Object} chatRequest - Chat request with messages array, model, and temperature
- * @returns {Promise<Object>} Response with message, model, and metadata
+ * Run AI agent with the given prompt
+ * Agent has access to task tools and ticket MCP tools
+ * @param {string} prompt - User prompt for the agent
+ * @returns {Promise<Object>} Response with result, agent_type, tools_used
  */
-export async function ollamaChat(chatRequest) {
-  return fetchJSON(`${API_BASE_URL}/ollama/chat`, {
-    method: "POST",
-    body: JSON.stringify(chatRequest),
-  });
-}
-
-/**
- * List all available Ollama models
- * @returns {Promise<Object>} Response with models array
- */
-export async function listOllamaModels() {
-  return fetchJSON(`${API_BASE_URL}/ollama/models`);
+export async function agentChat(prompt) {
+  try {
+    return await fetchJSON(`${API_BASE_URL}/agents/run`, {
+      method: "POST",
+      body: JSON.stringify({ prompt, agent_type: "task_assistant" }),
+    });
+  } catch (error) {
+    // Provide helpful message for support channel
+    throw new Error("CHECK THE SUPPORT CHANNEL");
+  }
 }
 
 // ============================================================================

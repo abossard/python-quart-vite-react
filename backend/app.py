@@ -29,20 +29,19 @@ load_dotenv()
 
 # Import unified operation system
 
+# Agent service for Azure OpenAI LangGraph agents
+from agents import AgentRequest, AgentResponse, agent_service
 from api_decorators import operation
 
 # FastMCP client for direct ticket MCP calls (no AI)
 from fastmcp import Client as MCPClient
 from mcp_handler import handle_mcp_request
-from ollama_service import ChatRequest, ChatResponse, ModelListResponse, OllamaService
 from operations import (
     op_create_task,
     op_delete_task,
     op_get_task,
     op_get_task_stats,
-    op_list_ollama_models,
     op_list_tasks,
-    op_ollama_chat,
     op_update_task,
     task_service,
 )
@@ -154,30 +153,23 @@ async def rest_get_stats():
     return jsonify(stats.model_dump())
 
 
-@app.route("/api/ollama/chat", methods=["POST"])
-async def rest_ollama_chat():
-    """REST wrapper: chat with Ollama LLM."""
+# ============================================================================
+# AGENT ENDPOINT - Azure OpenAI LangGraph Agent
+# ============================================================================
+
+@app.route("/api/agents/run", methods=["POST"])
+async def rest_run_agent():
+    """REST wrapper: run AI agent with Azure OpenAI.
+    
+    The agent has access to task tools and ticket MCP tools.
+    """
     try:
         data = await request.get_json()
-        chat_request = ChatRequest(**data)
-        response = await op_ollama_chat(chat_request)
+        agent_request = AgentRequest(**data)
+        response = await agent_service.run_agent(agent_request)
         return jsonify(response.model_dump()), 200
     except ValidationError as e:
         return jsonify({"error": str(e)}), 400
-    except ValueError as e:
-        return jsonify({"error": str(e)}), 503
-    except Exception as e:
-        return jsonify({"error": str(e)}), 500
-
-
-@app.route("/api/ollama/models", methods=["GET"])
-async def rest_list_ollama_models():
-    """REST wrapper: list available Ollama models."""
-    try:
-        models = await op_list_ollama_models()
-        return jsonify(models.model_dump()), 200
-    except ValueError as e:
-        return jsonify({"error": str(e)}), 503
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 

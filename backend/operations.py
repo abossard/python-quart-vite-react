@@ -5,14 +5,10 @@ This module keeps all business operations in one place so every interface
 """
 
 from api_decorators import operation
-from ollama_service import (ChatRequest, ChatResponse, ModelListResponse,
-                            OllamaService)
-from tasks import (Task, TaskCreate, TaskFilter, TaskService, TaskStats,
-                   TaskUpdate)
+from tasks import Task, TaskCreate, TaskFilter, TaskService, TaskStats, TaskUpdate
 
 # Service instances shared across interfaces
 _task_service = TaskService()
-_ollama_service = OllamaService()
 
 
 @operation(
@@ -81,41 +77,15 @@ async def op_get_task_stats() -> TaskStats:
     return _task_service.get_stats()
 
 
-@operation(
-    name="ollama_chat",
-    description="Generate a chat completion using local Ollama LLM",
-    http_method="POST",
-    http_path="/api/ollama/chat",
-)
-async def op_ollama_chat(request: ChatRequest) -> ChatResponse:
-    """Chat with the local Ollama LLM."""
-    return await _ollama_service.chat(request)
-
-
-@operation(
-    name="list_ollama_models",
-    description="List all available Ollama models on the local system",
-    http_method="GET",
-    http_path="/api/ollama/models",
-)
-async def op_list_ollama_models() -> ModelListResponse:
-    """List available Ollama models."""
-    return await _ollama_service.list_models()
-
-
 # Export shared services for callers (REST app, CLI tools, etc.)
 task_service = _task_service
-ollama_service = _ollama_service
 
 __all__ = [
     "task_service",
-    "ollama_service",
     "op_list_tasks",
     "op_create_task",
     "op_get_task",
     "op_update_task",
     "op_delete_task",
     "op_get_task_stats",
-    "op_ollama_chat",
-    "op_list_ollama_models",
 ]
