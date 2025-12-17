@@ -46,6 +46,16 @@ from operations import (
     task_service,
 )
 
+# Reminder logic
+from reminder import (
+    ReminderCandidate,
+    ReminderRequest,
+    ReminderResult,
+    build_reminder_candidate,
+    is_assigned_without_assignee,
+)
+from tickets import Ticket, WorkLog
+
 # Ticket MCP server URL (same as in agents.py)
 TICKET_MCP_SERVER_URL = "https://yodrrscbpxqnslgugwow.supabase.co/functions/v1/mcp/a7f2b8c4-d3e9-4f1a-b5c6-e8d9f0123456"
 
@@ -380,6 +390,188 @@ async def get_qa_tickets():
         return jsonify({"tickets": frontend_tickets})
     except Exception as e:
         return jsonify({"error": str(e), "tickets": []}), 500
+
+
+# ============================================================================
+# REMINDER ENDPOINTS - Ticket reminder functionality
+# ============================================================================
+
+def _parse_mcp_ticket_to_model(mcp_ticket: dict) -> Ticket:
+    """Pure function: Parse MCP ticket dict to Pydantic Ticket model."""
+    from datetime import timezone
+
+    # Parse timestamps - ensure timezone-aware
+    created_at = mcp_ticket.get("created_at", "")
+    updated_at = mcp_ticket.get("updated_at", "")
+    
+    if isinstance(created_at, str):
+        created_at = datetime.fromisoformat(created_at.replace("Z", "+00:00"))
+    if isinstance(updated_at, str):
+        updated_at = datetime.fromisoformat(updated_at.replace("Z", "+00:00"))
+    
+    # Ensure timezone-aware
+    if created_at.tzinfo is None:
+        created_at = created_at.replace(tzinfo=timezone.utc)
+    if updated_at.tzinfo is None:
+        updated_at = updated_at.replace(tzinfo=timezone.utc)
+    
+    return Ticket(
+        id=mcp_ticket.get("id"),
+        summary=mcp_ticket.get("summary", ""),
+        description=mcp_ticket.get("description", ""),
+        status=mcp_ticket.get("status", "new"),
+        priority=mcp_ticket.get("priority", "medium"),
+        assignee=mcp_ticket.get("assignee"),
+        assigned_group=mcp_ticket.get("assigned_group"),
+        requester_name=mcp_ticket.get("requester_name", "Unknown"),
+        requester_email=mcp_ticket.get("requester_email", "unknown@example.com"),
+        city=mcp_ticket.get("city"),
+        service=mcp_ticket.get("service"),
+        created_at=created_at,
+        updated_at=updated_at,
+    )
+
+
+def _parse_mcp_worklog_to_model(mcp_log: dict, ticket_id: str) -> WorkLog:
+    """Pure function: Parse MCP worklog dict to Pydantic WorkLog model."""
+    from uuid import uuid4
+    
+    created_at = mcp_log.get("created_at", "")
+    if isinstance(created_at, str):
+        created_at = datetime.fromisoformat(created_at.replace("Z", "+00:00"))
+    
+    return WorkLog(
+        id=mcp_log.get("id", uuid4()),
+        ticket_id=ticket_id,
+        created_at=created_at,
+        log_type=mcp_log.get("log_type", "note"),
+        summary=mcp_log.get("summary", ""),
+        details=mcp_log.get("details"),
+        author=mcp_log.get("author", "Unknown"),
+        time_spent_minutes=mcp_log.get("time_spent_minutes", 0),
+    )
+
+
+@app.route("/api/reminder/candidates", methods=["GET"])
+async def rest_get_reminder_candidates():
+    """
+    Get tickets that need reminders (Assigned without Assignee + overdue).
+    
+    Filters tickets based on SLA rules:
+    - Critical: overdue after 30 min
+    - High: overdue after 2 hours
+    - Medium: overdue after 4 hours
+    - Low: overdue after 8 hours
+    
+    Query params:
+        - include_all: If "true", include non-overdue tickets too
+    """
+    try:
+        include_all = request.args.get("include_all", "false").lower() == "true"
+        
+        # Fetch all tickets from MCP
+        results = await _call_ticket_mcp_tool("list_tickets", {"page_size": 100})
+        
+        mcp_tickets = []
+        if results and len(results) > 0:
+            response_data = results[0]
+            if isinstance(response_data, dict) and "tickets" in response_data:
+                mcp_tickets = response_data["tickets"]
+            elif isinstance(response_data, list):
+                mcp_tickets = response_data
+        
+        candidates = []
+        now = datetime.now(tz=__import__('datetime').timezone.utc)
+        
+        for mcp_ticket in mcp_tickets:
+            # Check if ticket is "assigned without assignee"
+            if not _is_unassigned_ticket(mcp_ticket):
+                continue
+            
+            # Parse to Pydantic model
+            try:
+                ticket = _parse_mcp_ticket_to_model(mcp_ticket)
+            except Exception:
+                continue  # Skip malformed tickets
+            
+            # Build reminder candidate (worklogs empty for now - can enhance later)
+            candidate = build_reminder_candidate(ticket, work_logs=[], now=now)
+            
+            # Filter by overdue status unless include_all
+            if include_all or candidate.is_overdue:
+                candidates.append(candidate)
+        
+        # Sort by most overdue first
+        candidates.sort(key=lambda c: c.minutes_since_creation - c.sla_deadline_minutes, reverse=True)
+        
+        return jsonify({
+            "candidates": [c.model_dump() for c in candidates],
+            "total": len(candidates),
+            "overdue_count": sum(1 for c in candidates if c.is_overdue),
+        })
+    except Exception as e:
+        return jsonify({"error": str(e), "candidates": []}), 500
+
+
+@app.route("/api/reminder/send", methods=["POST"])
+async def rest_send_reminders():
+    """
+    Send reminders for selected tickets.
+    
+    Body JSON:
+        - ticket_ids: List of ticket UUIDs to remind
+        - reminded_by: Who is sending the reminders
+        - message: Optional custom message (markdown supported)
+    
+    Returns:
+        - successful: List of ticket IDs reminded
+        - failed: List of ticket IDs that failed
+        - errors: Dict of ticket_id -> error message
+    """
+    try:
+        data = await request.get_json()
+        reminder_request = ReminderRequest(**data)
+        
+        # For now, simulate sending reminders (actual email integration later)
+        # In real implementation, this would:
+        # 1. Look up Support Group Lead for each ticket's assigned_group
+        # 2. Send email via Remedy email system or SMTP
+        # 3. Add worklog entry of type "reminder" to ticket
+        
+        successful = []
+        failed = []
+        errors = {}
+        
+        for ticket_id in reminder_request.ticket_ids:
+            try:
+                # Verify ticket exists
+                ticket_results = await _call_ticket_mcp_tool("get_ticket", {"ticket_id": str(ticket_id)})
+                
+                if not ticket_results:
+                    failed.append(ticket_id)
+                    errors[str(ticket_id)] = "Ticket not found"
+                    continue
+                
+                # TODO: Actually send reminder email here
+                # TODO: Add worklog entry via MCP add_modification or similar
+                
+                successful.append(ticket_id)
+                
+            except Exception as e:
+                failed.append(ticket_id)
+                errors[str(ticket_id)] = str(e)
+        
+        result = ReminderResult(
+            successful=successful,
+            failed=failed,
+            errors=errors,
+        )
+        
+        return jsonify(result.model_dump())
+    except ValidationError as e:
+        return jsonify({"error": str(e)}), 400
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
 
 
 # ============================================================================

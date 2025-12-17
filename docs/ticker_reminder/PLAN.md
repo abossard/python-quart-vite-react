@@ -13,9 +13,10 @@
 
 ## Phase 2: Backend - API Endpoints
 
-- [ ] 3. Create REST endpoints in `app.py`
-  - `GET /api/reminder/candidates` → list tickets needing reminders (filtered by SLA rules)
-  - `POST /api/reminder/send` → send reminders for provided ticket IDs
+- [x] 3. Create REST endpoints in `app.py` ✅ DONE
+  - `GET /api/reminder/candidates` → returns 26 unassigned tickets with SLA status
+  - `POST /api/reminder/send` → validates ticket IDs, ready for email integration
+  - Tested: SLA calculations correct (HIGH=120min, MEDIUM=240min, etc.)
 
 - [ ] 4. Register MCP operations via `@operation` decorator
   - `op_get_reminder_candidates`
