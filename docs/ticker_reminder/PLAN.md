@@ -54,12 +54,45 @@
   - "Get Reminder Tickets" → refresh candidates
   - "Remind NOW" → send for selected, show toast, clear localStorage, refresh
 
-## Phase 5: Integration & Testing
+## Phase 5: Backend - Reminder Outbox
 
-- [ ] 11. Add E2E tests in `tests/e2e/reminder.spec.js`
+- [ ] 11. Create SQLite schema for reminder outbox
+  - Table: `reminder_outbox`
+  - Location: `backend/data/reminder_outbox.db`
+  - Columns: `id`, `ticket_id`, `recipient`, `markdown_content`, `sent_at`
+
+- [ ] 12. Create `reminder_outbox.py` module
+  - `init_outbox_db()` - create table if not exists
+  - `save_sent_reminder(ticket_id, recipient, markdown, sent_at) -> OutboxEntry`
+  - `get_outbox_entries(limit=50) -> list[OutboxEntry]`
+  - `get_entries_for_ticket(ticket_id) -> list[OutboxEntry]`
+
+- [ ] 13. Define Pydantic models for outbox
+  - `OutboxEntry` (id, ticket_id, recipient, markdown_content, sent_at)
+  - `OutboxCreate` (ticket_id, recipient, markdown_content)
+
+- [ ] 14. Create REST endpoints for outbox
+  - `GET /api/reminder/outbox` → list sent reminders
+  - `GET /api/reminder/outbox/{ticket_id}` → reminders for specific ticket
+
+## Phase 6: Frontend - Outbox UI
+
+- [ ] 15. Add outbox API functions in `services/api.js`
+  - `fetchOutboxEntries()`
+  - `fetchOutboxForTicket(ticketId)`
+
+- [ ] 16. Add outbox view to `TicketReminder.jsx`
+  - Tab or collapsible section showing sent reminders
+  - Table: Ticket ID, Recipient, Sent Date, Preview (truncated markdown)
+  - Click to expand full markdown content
+
+## Phase 7: Integration & Testing
+
+- [ ] 17. Add E2E tests in `tests/e2e/reminder.spec.js`
   - Load candidates, select tickets, send reminder, verify localStorage cleared
+  - Verify reminder appears in outbox after send
 
-- [ ] 12. Initialize sample reminder data
+- [ ] 18. Initialize sample reminder data
   - Extend `tickets.py` sample data with overdue tickets
 
 ---
@@ -70,6 +103,22 @@
 |--------|----------|---------|----------|
 | GET | `/api/reminder/candidates` | - | `{candidates: ReminderCandidate[]}` |
 | POST | `/api/reminder/send` | `{ticket_ids: []}` | `{sent: int, failed: []}` |
+| GET | `/api/reminder/outbox` | - | `{entries: OutboxEntry[]}` |
+| GET | `/api/reminder/outbox/{ticket_id}` | - | `{entries: OutboxEntry[]}` |
+
+## Outbox SQLite Schema
+
+```sql
+CREATE TABLE reminder_outbox (
+    id TEXT PRIMARY KEY,
+    ticket_id TEXT NOT NULL,
+    recipient TEXT NOT NULL,
+    markdown_content TEXT NOT NULL,
+    sent_at TEXT NOT NULL
+);
+CREATE INDEX idx_outbox_ticket ON reminder_outbox(ticket_id);
+CREATE INDEX idx_outbox_sent_at ON reminder_outbox(sent_at DESC);
+```
 
 ## localStorage Schema
 
