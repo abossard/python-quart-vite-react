@@ -19,10 +19,7 @@
       "request": "launch",
       "cwd": "${workspaceFolder}/frontend",
       "runtimeExecutable": "npm",
-      "runtimeArgs": [
-        "run",
-        "dev"
-      ],
+      "runtimeArgs": ["run", "dev"],
       "console": "integratedTerminal"
     },
     {
@@ -42,11 +39,7 @@
   "compounds": [
     {
       "name": "Full Stack: Backend + Frontend",
-      "configurations": [
-        "Python: Quart Backend",
-        "Frontend: Vite Dev Server",
-        "Frontend: Chromium"
-      ]
+      "configurations": ["Python: Quart Backend", "Frontend: Vite Dev Server"]
     }
   ]
 }

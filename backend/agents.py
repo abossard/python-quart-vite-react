@@ -39,14 +39,20 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
+# Ensure operations register before we request LangChain tools
+import operations  # noqa: F401
+
 # Local - Import operations registry for automatic tool discovery
 from api_decorators import get_langchain_tools
+
 # Third-party - FastMCP client for external MCP servers
 from fastmcp import Client as MCPClient
 from langchain_core.tools import StructuredTool
+
 # Third-party - LangChain and LangGraph
 from langchain_openai import AzureChatOpenAI
 from langgraph.prebuilt import create_react_agent
+
 # Third-party - Pydantic for validation
 from pydantic import BaseModel, Field, create_model, field_validator
 
@@ -193,12 +199,31 @@ def _mcp_tool_to_langchain(mcp_client: MCPClient, tool: Any) -> StructuredTool:
     
     # Create async wrapper that calls MCP server
     async def call_mcp_tool(**kwargs) -> str:
+        import json as _json
+        print(f"\n{'='*60}")
+        print(f"🔧 MCP TOOL CALL: {tool_name}")
+        print(f"{'='*60}")
+        print(f"📤 REQUEST:")
+        print(f"   Tool: {tool_name}")
+        print(f"   Args: {_json.dumps(kwargs, indent=6, default=str)}")
+        
         result = await mcp_client.call_tool(tool_name, kwargs)
+        
+        print(f"\n📥 RESPONSE:")
         # Extract text from MCP response
         if hasattr(result, 'content') and result.content:
             texts = [c.text for c in result.content if hasattr(c, 'text')]
-            return "\n".join(texts) if texts else str(result)
-        return str(result)
+            response_text = "\n".join(texts) if texts else str(result)
+            # Truncate for display if too long
+            display_text = response_text[:500] + "..." if len(response_text) > 500 else response_text
+            print(f"   Content items: {len(result.content)}")
+            print(f"   Text preview: {display_text}")
+        else:
+            response_text = str(result)
+            print(f"   Raw: {response_text[:500]}")
+        
+        print(f"{'='*60}\n")
+        return response_text
     
     # Build Pydantic model from input schema
     args_model = _schema_to_pydantic(tool_name, input_schema)
@@ -282,11 +307,16 @@ class AgentService:
             
             # Fetch and convert ticket MCP tools
             mcp_tools = await client.list_tools()
+            print(f"\n{'='*60}")
+            print(f"🎫 TICKET MCP SERVER CONNECTED")
+            print(f"{'='*60}")
+            print(f"   URL: {TICKET_MCP_SERVER_URL}")
+            print(f"   Tools available: {len(mcp_tools)}")
             for tool in mcp_tools:
                 lc_tool = _mcp_tool_to_langchain(client, tool)
                 self.tools.append(lc_tool)
-            
-            print(f"DEBUG: Loaded {len(mcp_tools)} ticket tools from MCP server {TICKET_MCP_SERVER_URL}")
+                print(f"   ✓ {tool.name}: {(tool.description or '')[:60]}...")
+            print(f"{'='*60}\n")
             self._ticket_mcp_tools_loaded = True
             
         except Exception as e:
@@ -336,28 +366,58 @@ class AgentService:
             
             # System message to guide the agent's behavior
             system_msg = (
-                "You are a helpful task management assistant. "
-                "You MUST use the available tools to perform all actions. "
-                "NEVER pretend or simulate creating, updating, or listing tasks - you MUST call the actual tools. "
-                "Available tools: create_task, update_task, delete_task, list_tasks, get_task, get_task_stats. "
-                "When asked to create tasks, call create_task for each one. "
-                "When asked to list tasks, call list_tasks. "
-                "Always use tools and confirm what you've done based on the tool results."
+                "You are a support ticket management assistant. "
+                "Your primary role is to help users manage, search, and evaluate support tickets. "
+                "You MUST use the available tools to perform all actions - NEVER simulate or pretend. "
+                "\n\n"
+                "TICKET CAPABILITIES:\n"
+                "- Search and list tickets by status, priority, city, service\n"
+                "- Get detailed ticket information and work logs\n"
+                "- Analyze ticket statistics and trends\n"
+                "- Request modifications to tickets (status, priority, assignee, etc.)\n"
+                "- Review and approve/reject modification requests\n"
+                "\n"
+                "TASK CAPABILITIES:\n"
+                "- Create, update, delete, and list tasks\n"
+                "- Get task statistics\n"
+                "\n"
+                "When users ask about tickets, use the ticket tools (list_tickets, get_ticket, search_tickets, etc.). "
+                "When users ask about tasks, use task tools (create_task, list_tasks, etc.). "
+                "Always confirm actions based on actual tool results."
             )
             
             # Execute agent with user prompt
-            print(f"DEBUG: Running agent with {len(self.tools)} tools")
-            print(f"DEBUG: Tools: {[t.name if hasattr(t, 'name') else str(t) for t in self.tools]}")
+            print(f"\n{'='*60}")
+            print(f"🤖 AGENT EXECUTION START")
+            print(f"{'='*60}")
+            print(f"   Prompt: {request.prompt[:100]}{'...' if len(request.prompt) > 100 else ''}")
+            print(f"   Agent type: {request.agent_type}")
+            print(f"   Available tools ({len(self.tools)}):")
+            for t in self.tools:
+                name = t.name if hasattr(t, 'name') else str(t)
+                print(f"      • {name}")
+            print(f"{'='*60}\n")
             
             result = await agent.ainvoke(
                 {"messages": [("system", system_msg), ("user", request.prompt)]}
             )
             
-            print(f"DEBUG: Agent result messages: {len(result['messages'])}")
+            print(f"\n{'='*60}")
+            print(f"📋 AGENT EXECUTION COMPLETE")
+            print(f"{'='*60}")
+            print(f"   Total messages: {len(result['messages'])}")
             for i, msg in enumerate(result["messages"]):
-                print(f"DEBUG: Message {i}: type={type(msg).__name__}, has_tool_calls={hasattr(msg, 'tool_calls')}")
-                if hasattr(msg, 'tool_calls') and msg.tool_calls:
-                    print(f"DEBUG:   Tool calls: {msg.tool_calls}")
+                msg_type = type(msg).__name__
+                has_tool_calls = hasattr(msg, 'tool_calls') and msg.tool_calls
+                content_preview = ""
+                if hasattr(msg, 'content') and msg.content:
+                    content_preview = str(msg.content)[:80] + "..." if len(str(msg.content)) > 80 else str(msg.content)
+                print(f"   [{i}] {msg_type}: {content_preview}")
+                if has_tool_calls:
+                    for tc in msg.tool_calls:
+                        tc_name = tc.get('name', tc) if isinstance(tc, dict) else str(tc)
+                        print(f"       🔧 Tool call: {tc_name}")
+            print(f"{'='*60}\n")
             
             # Extract the agent's final response
             final_message = result["messages"][-1]
