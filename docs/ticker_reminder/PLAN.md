@@ -18,9 +18,9 @@
   - `POST /api/reminder/send` → validates ticket IDs, ready for email integration
   - Tested: SLA calculations correct (HIGH=120min, MEDIUM=240min, etc.)
 
-- [ ] 4. Register MCP operations via `@operation` decorator
-  - `op_get_reminder_candidates`
-  - `op_send_reminders`
+- [x] 4. Register MCP operations via `@operation` decorator ✅ DONE
+  - `op_get_reminder_candidates` - returns overdue tickets
+  - `op_send_reminders` - sends reminders + saves to outbox
 
 ## Phase 3: Frontend - State & API
 

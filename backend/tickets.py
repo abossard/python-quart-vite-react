@@ -209,6 +209,120 @@ class Ticket(BaseModel):
     class Config:
         from_attributes = True
 
+    # ========================================================================
+    # INSTANCE METHODS
+    # ========================================================================
+
+    def is_unassigned(self) -> bool:
+        """Check if ticket is assigned to group but has no individual assignee."""
+        return (
+            self.assigned_group is not None
+            and self.assignee is None
+            and self.status in (TicketStatus.NEW, TicketStatus.ASSIGNED)
+        )
+
+    def to_frontend_dict(self) -> dict:
+        """Convert to frontend expected format (camelCase, capitalized values)."""
+        priority = self.priority.value.capitalize()
+        status = self.status.value.replace("_", " ").title()
+        escalation_needed = self.priority in (TicketPriority.CRITICAL, TicketPriority.HIGH)
+        
+        return {
+            "id": str(self.id),
+            "title": self.summary,
+            "description": self.description,
+            "status": status,
+            "priority": priority,
+            "assignee": self.assignee,
+            "reporter": self.requester_name,
+            "createdAt": self.created_at.isoformat(),
+            "updatedAt": self.updated_at.isoformat(),
+            "escalationNeeded": escalation_needed,
+        }
+
+    # ========================================================================
+    # CLASS METHODS
+    # ========================================================================
+
+    @classmethod
+    def from_mcp_dict(cls, mcp_ticket: dict) -> "Ticket":
+        """
+        Parse MCP ticket dict to Pydantic Ticket model.
+        
+        Handles timezone-naive timestamps by assuming UTC.
+        """
+        from datetime import timezone as tz
+        
+        raw_id = mcp_ticket.get("id")
+        if raw_id is None:
+            raise ValueError("Ticket missing required 'id' field")
+        ticket_id = UUID(raw_id) if isinstance(raw_id, str) else raw_id
+
+        # Parse timestamps
+        created_at = mcp_ticket.get("created_at", "")
+        updated_at = mcp_ticket.get("updated_at", "")
+        
+        if isinstance(created_at, str):
+            created_at = datetime.fromisoformat(created_at.replace("Z", "+00:00"))
+        if isinstance(updated_at, str):
+            updated_at = datetime.fromisoformat(updated_at.replace("Z", "+00:00"))
+        
+        # Ensure timezone-aware
+        if created_at.tzinfo is None:
+            created_at = created_at.replace(tzinfo=tz.utc)
+        if updated_at.tzinfo is None:
+            updated_at = updated_at.replace(tzinfo=tz.utc)
+        
+        return cls(
+            id=ticket_id,
+            summary=mcp_ticket.get("summary", ""),
+            description=mcp_ticket.get("description", ""),
+            status=mcp_ticket.get("status", "new"),
+            priority=mcp_ticket.get("priority", "medium"),
+            impact=mcp_ticket.get("impact"),
+            urgency=mcp_ticket.get("urgency"),
+            assignee=mcp_ticket.get("assignee"),
+            assigned_group=mcp_ticket.get("assigned_group"),
+            support_organization=mcp_ticket.get("support_organization"),
+            requester_name=mcp_ticket.get("requester_name", "Unknown"),
+            requester_email=mcp_ticket.get("requester_email", "unknown@example.com"),
+            requester_phone=mcp_ticket.get("requester_phone"),
+            requester_company=mcp_ticket.get("requester_company"),
+            requester_department=mcp_ticket.get("requester_department"),
+            city=mcp_ticket.get("city"),
+            country=mcp_ticket.get("country"),
+            site=mcp_ticket.get("site"),
+            desk_location=mcp_ticket.get("desk_location"),
+            service=mcp_ticket.get("service"),
+            incident_type=mcp_ticket.get("incident_type"),
+            reported_source=mcp_ticket.get("reported_source"),
+            product_name=mcp_ticket.get("product_name"),
+            manufacturer=mcp_ticket.get("manufacturer"),
+            model_version=mcp_ticket.get("model_version"),
+            ci_name=mcp_ticket.get("ci_name"),
+            operational_category_tier1=mcp_ticket.get("operational_category_tier1"),
+            operational_category_tier2=mcp_ticket.get("operational_category_tier2"),
+            operational_category_tier3=mcp_ticket.get("operational_category_tier3"),
+            product_category_tier1=mcp_ticket.get("product_category_tier1"),
+            product_category_tier2=mcp_ticket.get("product_category_tier2"),
+            product_category_tier3=mcp_ticket.get("product_category_tier3"),
+            resolution=mcp_ticket.get("resolution"),
+            notes=mcp_ticket.get("notes"),
+            event_id=mcp_ticket.get("event_id"),
+            correlation_key=mcp_ticket.get("correlation_key"),
+            created_at=created_at,
+            updated_at=updated_at,
+        )
+
+    @staticmethod
+    def is_unassigned_dict(ticket_dict: dict) -> bool:
+        """Check if a ticket dict (not model) is unassigned. For filtering raw MCP data."""
+        has_group = ticket_dict.get("assigned_group") is not None
+        no_assignee = ticket_dict.get("assignee") is None
+        status = ticket_dict.get("status", "")
+        is_open_status = status in ("new", "assigned")
+        return has_group and no_assignee and is_open_status
+
 
 class TicketWithDetails(Ticket):
     """Ticket with work logs and modifications included."""

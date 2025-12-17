@@ -14,7 +14,7 @@ from typing import Optional
 from uuid import UUID
 
 from pydantic import BaseModel, Field
-from tickets import Ticket, TicketPriority, TicketStatus, WorkLog, WorkLogType
+from tickets import Ticket, TicketPriority, WorkLog, WorkLogType
 
 # ============================================================================
 # PRIORITY SLA DEADLINES (in minutes)
@@ -81,12 +81,8 @@ def is_ticket_overdue(ticket: Ticket, now: Optional[datetime] = None) -> bool:
 
 
 def is_assigned_without_assignee(ticket: Ticket) -> bool:
-    """Check if ticket is assigned to group but has no individual assignee."""
-    return (
-        ticket.assigned_group is not None
-        and ticket.assignee is None
-        and ticket.status in (TicketStatus.NEW, TicketStatus.ASSIGNED)
-    )
+    """DEPRECATED: Use ticket.is_unassigned() instead. Kept for backwards compatibility."""
+    return ticket.is_unassigned()
 
 
 def count_reminders_in_worklogs(work_logs: list[WorkLog]) -> int:

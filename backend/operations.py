@@ -4,8 +4,20 @@ This module keeps all business operations in one place so every interface
 (REST, MCP, LangGraph agents) relies on the same validated logic.
 """
 
+from datetime import datetime, timezone
+
 from api_decorators import operation
+from reminder import (
+    ReminderCandidate,
+    ReminderRequest,
+    ReminderResult,
+    build_reminder_candidate,
+)
+from reminder_outbox import save_sent_reminder
 from tasks import Task, TaskCreate, TaskFilter, TaskService, TaskStats, TaskUpdate
+from ticket_service import add_work_log as svc_add_work_log
+from ticket_service import get_ticket, list_tickets
+from tickets import Ticket
 
 # Service instances shared across interfaces
 _task_service = TaskService()
@@ -77,6 +89,161 @@ async def op_get_task_stats() -> TaskStats:
     return _task_service.get_stats()
 
 
+# ============================================================================
+# REMINDER OPERATIONS
+# ============================================================================
+
+
+@operation(
+    name="get_reminder_candidates",
+    description="Get tickets that need reminders (assigned to group but no individual assignee, optionally filtered by SLA overdue status)",
+    http_method="GET",
+    http_path="/api/reminder/candidates",
+)
+async def op_get_reminder_candidates(include_all: bool = False) -> list[ReminderCandidate]:
+    """
+    Get tickets that are candidates for SLA reminders.
+    
+    Args:
+        include_all: If True, include non-overdue tickets. Default: only overdue.
+    
+    Returns:
+        List of ReminderCandidate objects sorted by most overdue first.
+    """
+    mcp_tickets = await list_tickets(page_size=100)
+    
+    candidates = []
+    now = datetime.now(tz=timezone.utc)
+    
+    for mcp_ticket in mcp_tickets:
+        if not Ticket.is_unassigned_dict(mcp_ticket):
+            continue
+        
+        try:
+            ticket = Ticket.from_mcp_dict(mcp_ticket)
+        except Exception:
+            continue
+        
+        candidate = build_reminder_candidate(ticket, work_logs=[], now=now)
+        
+        if include_all or candidate.is_overdue:
+            candidates.append(candidate)
+    
+    candidates.sort(key=lambda c: c.minutes_since_creation - c.sla_deadline_minutes, reverse=True)
+    return candidates
+
+
+@operation(
+    name="send_reminders",
+    description="Send SLA reminders for selected tickets and record in outbox",
+    http_method="POST",
+    http_path="/api/reminder/send",
+)
+async def op_send_reminders(data: ReminderRequest) -> ReminderResult:
+    """
+    Send reminders for selected tickets.
+    
+    For each ticket:
+    1. Saves reminder to local outbox (audit trail)
+    2. Adds worklog entry to external ticket system
+    
+    Args:
+        data: ReminderRequest with ticket_ids, reminded_by, optional message
+    
+    Returns:
+        ReminderResult with successful, failed, and error details.
+    """
+    successful = []
+    failed = []
+    errors = {}
+    
+    for ticket_id in data.ticket_ids:
+        try:
+            # Get ticket details
+            ticket_data = await get_ticket(str(ticket_id))
+            
+            if not ticket_data:
+                failed.append(ticket_id)
+                errors[str(ticket_id)] = "Ticket not found"
+                continue
+            
+            assigned_group = ticket_data.get("assigned_group", "Unknown Group")
+            
+            # Build message
+            reminder_message = data.message or f"Reminder: Ticket still unassigned in group '{assigned_group}'"
+            
+            # Save to outbox first
+            recipient = f"{assigned_group}@company.com"
+            save_sent_reminder(
+                ticket_id=ticket_id,
+                recipient=recipient,
+                markdown_content=reminder_message,
+            )
+            
+            # Add worklog (non-blocking)
+            try:
+                await op_add_work_log(
+                    ticket_id=str(ticket_id),
+                    log_type="reminder",
+                    summary=f"SLA reminder sent: {reminder_message}",
+                    details=f"Ticket unassigned in group '{assigned_group}'. Reminder sent by {data.reminded_by}.",
+                    author=data.reminded_by,
+                )
+            except Exception:
+                pass
+            
+            successful.append(ticket_id)
+            
+        except Exception as e:
+            failed.append(ticket_id)
+            errors[str(ticket_id)] = str(e)
+    
+    return ReminderResult(successful=successful, failed=failed, errors=errors)
+
+
+# ============================================================================
+# WORKLOG OPERATIONS
+# ============================================================================
+
+
+@operation(
+    name="add_work_log",
+    description="Add a worklog entry to a ticket for tracking work, notes, or reminders",
+    http_method="POST",
+    http_path="/api/tickets/{ticket_id}/worklogs",
+)
+async def op_add_work_log(
+    ticket_id: str,
+    log_type: str,
+    summary: str,
+    author: str,
+    details: str | None = None,
+    time_spent_minutes: int = 0,
+) -> dict:
+    """
+    Add a worklog entry to a ticket.
+    
+    Args:
+        ticket_id: The ticket UUID
+        log_type: Type of log (creation, update, reminder, note, resolution)
+        summary: Brief summary of the work done
+        author: Who is creating the log
+        details: Optional detailed description
+        time_spent_minutes: Time spent (default 0)
+    
+    Returns:
+        The created worklog entry from the ticket system.
+    """
+    return await svc_add_work_log(
+        ticket_id=ticket_id,
+        log_type=log_type,
+        summary=summary,
+        author=author,
+        details=details,
+        time_spent_minutes=time_spent_minutes,
+    )
+
+
 # Export shared services for callers (REST app, CLI tools, etc.)
 task_service = _task_service
 
@@ -88,4 +255,9 @@ __all__ = [
     "op_update_task",
     "op_delete_task",
     "op_get_task_stats",
+    # Reminder operations
+    "op_get_reminder_candidates",
+    "op_send_reminders",
+    # Worklog operations
+    "op_add_work_log",
 ]

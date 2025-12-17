@@ -9,11 +9,9 @@ Blueprint for all ticket-related endpoints:
 Extracted from app.py for better separation of concerns.
 """
 
-import json
 from datetime import datetime, timezone
 from uuid import UUID
 
-from fastmcp import Client as MCPClient
 from pydantic import ValidationError
 from quart import Blueprint, jsonify, request
 from reminder import ReminderRequest, ReminderResult, build_reminder_candidate
@@ -22,6 +20,7 @@ from reminder_outbox import (
     get_outbox_entries,
     save_sent_reminder,
 )
+from ticket_service import call_mcp_tool, extract_tickets_from_response
 from tickets import Ticket, WorkLog
 
 # ============================================================================
@@ -30,52 +29,16 @@ from tickets import Ticket, WorkLog
 
 ticket_bp = Blueprint("tickets", __name__)
 
-# Ticket MCP server URL
-TICKET_MCP_SERVER_URL = "https://yodrrscbpxqnslgugwow.supabase.co/functions/v1/mcp/a7f2b8c4-d3e9-4f1a-b5c6-e8d9f0123456"
-
 
 # ============================================================================
-# MCP CLIENT HELPER
+# LEGACY COMPATIBILITY - Aliases for backwards compatibility
 # ============================================================================
 
-async def call_ticket_mcp_tool(tool_name: str, args: dict | None = None) -> list[dict]:
-    """
-    Helper: Call a tool on the Ticket MCP server and extract results.
-    
-    This demonstrates using FastMCP client programmatically without any AI.
-    The connection is opened, tool is called, and connection is closed.
-    
-    Args:
-        tool_name: Name of the MCP tool to call (e.g., "list_tickets")
-        args: Optional dict of arguments for the tool
-        
-    Returns:
-        List of parsed JSON results from the tool response
-    """
-    args = args or {}
-    results = []
-    
-    async with MCPClient(TICKET_MCP_SERVER_URL) as client:
-        response = await client.call_tool(tool_name, args)
-        
-        # Extract text content from MCP response
-        if hasattr(response, 'content') and response.content:
-            for content_item in response.content:
-                # Only process TextContent items (use getattr for type safety)
-                text = getattr(content_item, 'text', None)
-                if text is not None and isinstance(text, str):
-                    try:
-                        # Parse JSON if possible
-                        results.append(json.loads(text))
-                    except json.JSONDecodeError:
-                        results.append({"text": text})
-    
-    return results
+call_ticket_mcp_tool = call_mcp_tool
+extract_tickets_from_mcp_response = extract_tickets_from_response
+is_unassigned_ticket = Ticket.is_unassigned_dict
+parse_mcp_ticket_to_model = Ticket.from_mcp_dict
 
-
-# ============================================================================
-# PURE FUNCTIONS - Calculations and Mappings
-# ============================================================================
 
 def map_mcp_ticket_to_frontend(mcp_ticket: dict) -> dict:
     """
@@ -112,78 +75,8 @@ def map_mcp_ticket_to_frontend(mcp_ticket: dict) -> dict:
     }
 
 
-def is_unassigned_ticket(ticket: dict) -> bool:
-    """Pure function: Check if ticket is assigned to group but has no individual assignee."""
-    has_group = ticket.get("assigned_group") is not None
-    no_assignee = ticket.get("assignee") is None
-    status = ticket.get("status", "")
-    is_open_status = status in ("new", "assigned")
-    return has_group and no_assignee and is_open_status
-
-
-def parse_mcp_ticket_to_model(mcp_ticket: dict) -> Ticket:
-    """Pure function: Parse MCP ticket dict to Pydantic Ticket model."""
-    # Parse ID as UUID (required field)
-    raw_id = mcp_ticket.get("id")
-    if raw_id is None:
-        raise ValueError("Ticket missing required 'id' field")
-    ticket_id = UUID(raw_id) if isinstance(raw_id, str) else raw_id
-
-    # Parse timestamps - ensure timezone-aware
-    created_at = mcp_ticket.get("created_at", "")
-    updated_at = mcp_ticket.get("updated_at", "")
-    
-    if isinstance(created_at, str):
-        created_at = datetime.fromisoformat(created_at.replace("Z", "+00:00"))
-    if isinstance(updated_at, str):
-        updated_at = datetime.fromisoformat(updated_at.replace("Z", "+00:00"))
-    
-    # Ensure timezone-aware
-    if created_at.tzinfo is None:
-        created_at = created_at.replace(tzinfo=timezone.utc)
-    if updated_at.tzinfo is None:
-        updated_at = updated_at.replace(tzinfo=timezone.utc)
-    
-    return Ticket(
-        id=ticket_id,
-        summary=mcp_ticket.get("summary", ""),
-        description=mcp_ticket.get("description", ""),
-        status=mcp_ticket.get("status", "new"),
-        priority=mcp_ticket.get("priority", "medium"),
-        impact=mcp_ticket.get("impact"),
-        urgency=mcp_ticket.get("urgency"),
-        assignee=mcp_ticket.get("assignee"),
-        assigned_group=mcp_ticket.get("assigned_group"),
-        support_organization=mcp_ticket.get("support_organization"),
-        requester_name=mcp_ticket.get("requester_name", "Unknown"),
-        requester_email=mcp_ticket.get("requester_email", "unknown@example.com"),
-        requester_phone=mcp_ticket.get("requester_phone"),
-        requester_company=mcp_ticket.get("requester_company"),
-        requester_department=mcp_ticket.get("requester_department"),
-        city=mcp_ticket.get("city"),
-        country=mcp_ticket.get("country"),
-        site=mcp_ticket.get("site"),
-        desk_location=mcp_ticket.get("desk_location"),
-        service=mcp_ticket.get("service"),
-        incident_type=mcp_ticket.get("incident_type"),
-        reported_source=mcp_ticket.get("reported_source"),
-        product_name=mcp_ticket.get("product_name"),
-        manufacturer=mcp_ticket.get("manufacturer"),
-        model_version=mcp_ticket.get("model_version"),
-        ci_name=mcp_ticket.get("ci_name"),
-        operational_category_tier1=mcp_ticket.get("operational_category_tier1"),
-        operational_category_tier2=mcp_ticket.get("operational_category_tier2"),
-        operational_category_tier3=mcp_ticket.get("operational_category_tier3"),
-        product_category_tier1=mcp_ticket.get("product_category_tier1"),
-        product_category_tier2=mcp_ticket.get("product_category_tier2"),
-        product_category_tier3=mcp_ticket.get("product_category_tier3"),
-        resolution=mcp_ticket.get("resolution"),
-        notes=mcp_ticket.get("notes"),
-        event_id=mcp_ticket.get("event_id"),
-        correlation_key=mcp_ticket.get("correlation_key"),
-        created_at=created_at,
-        updated_at=updated_at,
-    )
+## REMOVED: is_unassigned_ticket - now aliased to Ticket.is_unassigned_dict
+# REMOVED: parse_mcp_ticket_to_model - now aliased to Ticket.from_mcp_dict
 
 
 def parse_mcp_worklog_to_model(mcp_log: dict, ticket_id: str) -> WorkLog:
@@ -212,16 +105,7 @@ def parse_mcp_worklog_to_model(mcp_log: dict, ticket_id: str) -> WorkLog:
     )
 
 
-def extract_tickets_from_mcp_response(results: list[dict]) -> list[dict]:
-    """Pure function: Extract ticket list from MCP response structure."""
-    mcp_tickets = []
-    if results and len(results) > 0:
-        response_data = results[0]
-        if isinstance(response_data, dict) and "tickets" in response_data:
-            mcp_tickets = response_data["tickets"]
-        elif isinstance(response_data, list):
-            mcp_tickets = response_data
-    return mcp_tickets
+# REMOVED: extract_tickets_from_mcp_response - now aliased to ticket_service.extract_tickets_from_response
 
 
 # ============================================================================
