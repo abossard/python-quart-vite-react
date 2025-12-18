@@ -1,35 +1,34 @@
-import { useState, useEffect } from 'react';
 import {
-  makeStyles,
-  shorthands,
-  tokens,
-  Button,
-  Checkbox,
-  Dropdown,
-  Option,
-  Switch,
-  Label,
-  FluentProvider,
-  webLightTheme,
-  webDarkTheme,
-  Dialog,
-  DialogTrigger,
-  DialogSurface,
-  DialogTitle,
-  DialogBody,
-  DialogActions,
-  DialogContent,
-  Field,
-  Textarea,
+    Button,
+    Checkbox,
+    Dialog,
+    DialogActions,
+    DialogBody,
+    DialogContent,
+    DialogSurface,
+    DialogTitle,
+    Dropdown,
+    Field,
+    FluentProvider,
+    Label,
+    makeStyles,
+    Option,
+    shorthands,
+    Switch,
+    Textarea,
+    tokens,
+    webDarkTheme,
+    webLightTheme
 } from '@fluentui/react-components';
 import {
-  ChevronDown20Regular,
-  ChevronRight20Regular,
-  Checkmark20Regular,
-  SplitVertical20Regular,
-  WeatherSunny20Regular,
-  WeatherMoon20Regular,
+    Checkmark20Regular,
+    ChevronDown20Regular,
+    ChevronRight20Regular,
+    SplitVertical20Regular,
+    WeatherMoon20Regular,
+    WeatherSunny20Regular,
 } from '@fluentui/react-icons';
+import { useEffect, useState } from 'react';
 
 const useStyles = makeStyles({
   container: {
@@ -110,7 +109,7 @@ const useStyles = makeStyles({
   // Ticket Row
   ticketRow: {
     display: 'grid',
-    gridTemplateColumns: '40px 120px 1fr auto',
+    gridTemplateColumns: '40px 120px 1fr 1.5fr auto',
     alignItems: 'center',
     ...shorthands.padding('12px', '24px'),
     ...shorthands.borderTop('1px', 'solid', tokens.colorNeutralStroke2),
@@ -119,7 +118,7 @@ const useStyles = makeStyles({
     },
   },
   ticketRowSimple: {
-    gridTemplateColumns: '40px 120px 1fr',
+    gridTemplateColumns: '40px 120px 1fr 1.5fr',
   },
   ticketId: {
     fontSize: tokens.fontSizeBase300,
@@ -131,9 +130,17 @@ const useStyles = makeStyles({
       textDecoration: 'underline',
     },
   },
-  ticketDescription: {
+  ticketSummary: {
     fontSize: tokens.fontSizeBase300,
+    fontWeight: tokens.fontWeightSemibold,
     color: tokens.colorNeutralForeground1,
+    whiteSpace: 'nowrap',
+    ...shorthands.overflow('hidden'),
+    textOverflow: 'ellipsis',
+  },
+  ticketDescription: {
+    fontSize: tokens.fontSizeBase200,
+    color: tokens.colorNeutralForeground3,
     whiteSpace: 'nowrap',
     ...shorthands.overflow('hidden'),
     textOverflow: 'ellipsis',
@@ -590,6 +597,9 @@ export default function TicketOverview({ isDarkMode: externalDarkMode, onThemeCh
                     >
                       {ticket.id}
                     </span>
+                    <span className={styles.ticketSummary}>
+                      {ticket.title}
+                    </span>
                     <span className={styles.ticketDescription}>
                       {ticket.description}
                     </span>
@@ -655,6 +665,9 @@ export default function TicketOverview({ isDarkMode: externalDarkMode, onThemeCh
                       onClick={() => handleCheck(ticket.id)}
                     >
                       {ticket.id}
+                    </span>
+                    <span className={styles.ticketSummary}>
+                      {ticket.title}
                     </span>
                     <span className={styles.ticketDescription}>
                       {ticket.description}
