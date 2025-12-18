@@ -320,7 +320,7 @@ class Ticket(BaseModel):
         has_group = ticket_dict.get("assigned_group") is not None
         no_assignee = ticket_dict.get("assignee") is None
         status = ticket_dict.get("status", "")
-        is_open_status = status in ("new", "assigned")
+        is_open_status = status.lower() in ("new", "assigned")
         return has_group and no_assignee and is_open_status
 
 

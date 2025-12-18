@@ -15,6 +15,7 @@ from fastmcp import Client as MCPClient
 # ============================================================================
 
 TICKET_MCP_SERVER_URL = "https://yodrrscbpxqnslgugwow.supabase.co/functions/v1/mcp/a7f2b8c4-d3e9-4f1a-b5c6-e8d9f0123456"
+MCP_TIMEOUT_SECONDS = 60  # External MCP server can be slow with large responses
 
 
 # ============================================================================
@@ -35,7 +36,7 @@ async def call_mcp_tool(tool_name: str, args: dict[str, Any] | None = None) -> l
     args = args or {}
     results = []
     
-    async with MCPClient(TICKET_MCP_SERVER_URL) as client:
+    async with MCPClient(TICKET_MCP_SERVER_URL, timeout=MCP_TIMEOUT_SECONDS) as client:
         response = await client.call_tool(tool_name, args)
         
         if hasattr(response, 'content') and response.content:

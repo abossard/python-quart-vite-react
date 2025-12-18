@@ -335,3 +335,71 @@ def main():
 
 if __name__ == "__main__":
     main()
+
+
+# ============================================================================
+# PYTEST TESTS
+# ============================================================================
+
+import pytest
+
+
+class TestIsUnassignedDict:
+    """Tests for Ticket.is_unassigned_dict static method."""
+    
+    def test_lowercase_assigned_status_matches(self):
+        """Lowercase 'assigned' status should be detected as unassigned ticket."""
+        ticket = {
+            "assigned_group": "DBA Team",
+            "assignee": None,
+            "status": "assigned",
+        }
+        assert Ticket.is_unassigned_dict(ticket) is True
+    
+    def test_capitalized_assigned_status_should_match(self):
+        """BUG TEST: Capitalized 'Assigned' status should also match (case insensitive)."""
+        ticket = {
+            "assigned_group": "DBA Team",
+            "assignee": None,
+            "status": "Assigned",  # MCP may return capitalized
+        }
+        # This currently FAILS due to case-sensitivity bug
+        assert Ticket.is_unassigned_dict(ticket) is True, \
+            "is_unassigned_dict should be case-insensitive for status"
+    
+    def test_uppercase_new_status_should_match(self):
+        """BUG TEST: Uppercase 'NEW' status should also match."""
+        ticket = {
+            "assigned_group": "Service Desk",
+            "assignee": None,
+            "status": "NEW",
+        }
+        assert Ticket.is_unassigned_dict(ticket) is True, \
+            "is_unassigned_dict should be case-insensitive for status"
+    
+    def test_with_assignee_returns_false(self):
+        """Ticket with assignee should NOT match."""
+        ticket = {
+            "assigned_group": "DBA Team",
+            "assignee": "Agent Smith",
+            "status": "assigned",
+        }
+        assert Ticket.is_unassigned_dict(ticket) is False
+    
+    def test_without_group_returns_false(self):
+        """Ticket without assigned_group should NOT match."""
+        ticket = {
+            "assigned_group": None,
+            "assignee": None,
+            "status": "new",
+        }
+        assert Ticket.is_unassigned_dict(ticket) is False
+    
+    def test_resolved_status_returns_false(self):
+        """Resolved ticket should NOT match even if no assignee."""
+        ticket = {
+            "assigned_group": "DBA Team",
+            "assignee": None,
+            "status": "resolved",
+        }
+        assert Ticket.is_unassigned_dict(ticket) is False
