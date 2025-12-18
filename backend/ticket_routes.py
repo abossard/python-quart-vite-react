@@ -15,11 +15,8 @@ from uuid import UUID
 from pydantic import ValidationError
 from quart import Blueprint, jsonify, request
 from reminder import ReminderRequest, ReminderResult
-from reminder_outbox import (
-    get_entries_for_ticket,
-    get_outbox_entries,
-    save_sent_reminder,
-)
+from reminder_outbox import (get_entries_for_ticket, get_outbox_entries,
+                             save_sent_reminder)
 from ticket_service import call_mcp_tool, extract_tickets_from_response
 from tickets import Ticket, WorkLog
 
@@ -255,9 +252,6 @@ async def rest_get_reminder_candidates():
     Query params:
         - include_all: If "true", include non-overdue tickets too
     """
-    import logging
-    logger = logging.getLogger(__name__)
-    
     try:
         include_all = request.args.get("include_all", "false").lower() == "true"
         
@@ -267,19 +261,20 @@ async def rest_get_reminder_candidates():
         candidates = []
         now = datetime.now(tz=timezone.utc)
         
-        logger.info(f"[REMINDER] Evaluating {len(mcp_tickets)} tickets, include_all={include_all}")
+        print(f"[REMINDER] Evaluating {len(mcp_tickets)} tickets, include_all={include_all}")
         
         for t in mcp_tickets:
             ticket_id = t.get("id", "?")[:8]
             assigned_group = t.get("assigned_group")
             assignee = t.get("assignee")
+            priority = (t.get("priority") or "low").lower()
             
             # Rule: "Assigned without Assignee" = assigned_group exists, assignee is null
             if not assigned_group:
-                logger.debug(f"[REMINDER] {ticket_id}: SKIP - no assigned_group")
+                print(f"[REMINDER] {ticket_id}: SKIP - no assigned_group (priority={priority})")
                 continue
             if assignee:
-                logger.debug(f"[REMINDER] {ticket_id}: SKIP - has assignee '{assignee}'")
+                print(f"[REMINDER] {ticket_id}: SKIP - has assignee '{assignee}' (priority={priority})")
                 continue
             
             # Parse created_at
@@ -287,12 +282,11 @@ async def rest_get_reminder_candidates():
             try:
                 created_at = datetime.fromisoformat(created_str.replace("Z", "+00:00"))
             except Exception:
-                logger.warning(f"[REMINDER] {ticket_id}: SKIP - invalid created_at '{created_str}'")
+                print(f"[REMINDER] {ticket_id}: SKIP - invalid created_at '{created_str}'")
                 continue
             
             # Calculate SLA status
             elapsed = int((now - created_at).total_seconds() / 60)
-            priority = (t.get("priority") or "low").lower()
             sla_deadline = SLA_MINUTES.get(priority, 480)
             is_overdue = elapsed > sla_deadline
             overdue_by = elapsed - sla_deadline
@@ -302,13 +296,13 @@ async def rest_get_reminder_candidates():
             reminder_count = sum(1 for log in work_logs if log.get("log_type") == "reminder")
             
             if is_overdue:
-                logger.info(
+                print(
                     f"[REMINDER] {ticket_id}: CANDIDATE - {priority} priority, "
                     f"{elapsed}m elapsed > {sla_deadline}m SLA, overdue by {overdue_by}m, "
                     f"reminded {reminder_count}x before"
                 )
             else:
-                logger.info(
+                print(
                     f"[REMINDER] {ticket_id}: NOT OVERDUE - {priority} priority, "
                     f"{elapsed}m elapsed < {sla_deadline}m SLA, {sla_deadline - elapsed}m remaining"
                 )
@@ -327,7 +321,7 @@ async def rest_get_reminder_candidates():
         # Sort by most overdue first
         candidates.sort(key=lambda c: c["minutes_since_creation"] - c["sla_deadline_minutes"], reverse=True)
         
-        logger.info(f"[REMINDER] Result: {len(candidates)} candidates, {sum(1 for c in candidates if c['is_overdue'])} overdue")
+        print(f"[REMINDER] Result: {len(candidates)} candidates, {sum(1 for c in candidates if c['is_overdue'])} overdue")
         
         return jsonify({
             "candidates": candidates,
