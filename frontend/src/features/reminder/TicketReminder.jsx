@@ -377,6 +377,23 @@ export default function TicketReminder() {
 
   const renderDetailPanel = () => {
     if (!selectedTicket) return null
+
+    const FieldRow = ({ label, value, isDescription = false }) => (
+      <div style={{
+        display: 'grid',
+        gridTemplateColumns: '120px 1fr',
+        gap: tokens.spacingHorizontalL,
+        padding: `${tokens.spacingVerticalM} 0`,
+        borderBottom: `1px solid ${tokens.colorNeutralStroke2}`,
+        alignItems: isDescription ? 'start' : 'center',
+      }}>
+        <Text weight="semibold" size={300} style={{ color: tokens.colorNeutralForeground2 }}>
+          {label}
+        </Text>
+        <div>{value}</div>
+      </div>
+    )
+
     return (
       <>
         {/* Backdrop */}
@@ -396,7 +413,7 @@ export default function TicketReminder() {
           right: 0,
           top: 0,
           bottom: 0,
-          width: '400px',
+          width: '480px',
           backgroundColor: tokens.colorNeutralBackground1,
           boxShadow: `0 0 20px rgba(0, 0, 0, 0.2)`,
           overflowY: 'auto',
@@ -414,8 +431,9 @@ export default function TicketReminder() {
             justifyContent: 'space-between',
             alignItems: 'center',
             padding: tokens.spacingVerticalL,
-            borderBottom: `1px solid ${tokens.colorNeutralStroke1}`,
+            borderBottom: `2px solid ${tokens.colorNeutralStroke1}`,
             flexShrink: 0,
+            backgroundColor: tokens.colorNeutralBackground2,
           }}>
             <Text weight="bold" size={500}>Ticket Details</Text>
             <Button appearance="subtle" onClick={() => setSelectedTicket(null)}>✕</Button>
@@ -425,44 +443,20 @@ export default function TicketReminder() {
             overflowY: 'auto',
             flex: 1,
           }}>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: tokens.spacingVerticalL }}>
-              <div>
-                <Text weight="semibold" size={300}>ID</Text>
-                <Text>{formatTicketId(selectedTicket.id)}</Text>
-              </div>
-              <div>
-                <Text weight="semibold" size={300}>Summary</Text>
-                <Text>{selectedTicket.summary}</Text>
-              </div>
-              <div>
-                <Text weight="semibold" size={300}>Priority</Text>
-                <Badge appearance={getPriorityAppearance(selectedTicket.priority)}>{selectedTicket.priority}</Badge>
-              </div>
-              <div>
-                <Text weight="semibold" size={300}>Status</Text>
-                <Text>{selectedTicket.status}</Text>
-              </div>
-              <div>
-                <Text weight="semibold" size={300}>Assigned Group</Text>
-                <Text>{selectedTicket.assigned_group || '-'}</Text>
-              </div>
-              <div>
-                <Text weight="semibold" size={300}>Assignee</Text>
-                <Text>{selectedTicket.assignee || 'Unassigned'}</Text>
-              </div>
-              <div>
-                <Text weight="semibold" size={300}>Requester</Text>
-                <Text>{selectedTicket.requester_name}</Text>
-              </div>
-              <div>
-                <Text weight="semibold" size={300}>Email</Text>
-                <Text>{selectedTicket.requester_email}</Text>
-              </div>
-              <div>
-                <Text weight="semibold" size={300}>Description</Text>
-                <Text style={{ whiteSpace: 'pre-wrap', marginTop: tokens.spacingVerticalS }}>{selectedTicket.description}</Text>
-              </div>
-            </div>
+            <FieldRow label="ID" value={<Text weight="semibold">{formatTicketId(selectedTicket.id)}</Text>} />
+            <FieldRow label="Summary" value={<Text>{selectedTicket.summary}</Text>} />
+            <FieldRow label="Priority" value={<Badge appearance={getPriorityAppearance(selectedTicket.priority)}>{selectedTicket.priority}</Badge>} />
+            <FieldRow label="Status" value={<Text>{selectedTicket.status}</Text>} />
+            <FieldRow label="Group" value={<Text>{selectedTicket.assigned_group || '-'}</Text>} />
+            <FieldRow label="Assignee" value={<Text>{selectedTicket.assignee || <em>Unassigned</em>}</Text>} />
+            <FieldRow label="Requester" value={<Text>{selectedTicket.requester_name}</Text>} />
+            <FieldRow label="Email" value={<Text size={300} style={{ color: tokens.colorBrandForeground1 }}>{selectedTicket.requester_email}</Text>} />
+            <FieldRow 
+              label="Description" 
+              value={<Text style={{ whiteSpace: 'pre-wrap', lineHeight: '1.5' }}>{selectedTicket.description}</Text>}
+              isDescription={true}
+            />
+            <FieldRow label="Created" value={<Text size={300}>{formatDate(selectedTicket.created_at)}</Text>} />
           </div>
         </div>
       </>
