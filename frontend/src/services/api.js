@@ -144,9 +144,9 @@ export async function getQATickets() {
 // Reminder APIs
 // ============================================================================
 
-export async function fetchReminderCandidates(overdueOnly = false) {
+export async function fetchReminderCandidates(includeAll = false) {
   // Backend uses include_all param (inverted logic from overdueOnly)
-  const params = overdueOnly ? "" : "?include_all=true";
+  const params = includeAll ? "?include_all=true" : "";
   return fetchJSON(`${API_BASE_URL}/reminder/candidates${params}`);
 }
 
