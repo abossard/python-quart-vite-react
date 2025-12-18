@@ -127,3 +127,29 @@ export async function ollamaChat(chatRequest) {
 export async function listOllamaModels() {
   return fetchJSON(`${API_BASE_URL}/ollama/models`)
 }
+
+// ============================================================================
+// Ticket APIs
+// ============================================================================
+
+/**
+ * Search for a ticket by ticket ID
+ * @param {string} ticketId - The ticket ID to search for (UUID format)
+ * @returns {Promise<Object|null>} Ticket object if found, {ticket: null} if not found
+ */
+export async function searchTickets(ticketId) {
+  const params = ticketId ? `?ticket_id=${encodeURIComponent(ticketId)}` : ''
+  return fetchJSON(`${API_BASE_URL}/tickets/search${params}`)
+}
+
+/**
+ * Generate a Knowledge Base Article from a ticket
+ * @param {Object} ticket - The ticket object to generate KBA from
+ * @returns {Promise<Object>} Generated KBA with title, question, answer
+ */
+export async function generateKBA(ticket) {
+  return fetchJSON(`${API_BASE_URL}/kba/generate`, {
+    method: 'POST',
+    body: JSON.stringify(ticket),
+  })
+}

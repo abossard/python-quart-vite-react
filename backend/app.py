@@ -30,13 +30,14 @@ load_dotenv()
 # Import unified operation system
 from api_decorators import operation
 from mcp import handle_mcp_request
-from ollama_service import ChatRequest, ChatResponse, ModelListResponse, OllamaService
+from ollama_service import ChatRequest, ChatResponse, ChatMessage, ModelListResponse, OllamaService
 from pydantic import ValidationError
 from quart import Quart, jsonify, request, send_from_directory
 from quart_cors import cors
 
 # Import Pydantic models and service
 from tasks import Task, TaskCreate, TaskFilter, TaskService, TaskStats, TaskUpdate
+from tickets import Ticket, TicketService, KBAArticle
 
 # ============================================================================
 # APPLICATION SETUP
@@ -48,6 +49,7 @@ app = cors(app, allow_origin="*")
 # Service instances
 task_service = TaskService()
 ollama_service = OllamaService()
+ticket_service = TicketService()
 
 
 # ============================================================================
@@ -199,6 +201,60 @@ async def op_list_ollama_models() -> ModelListResponse:
     return await ollama_service.list_models()
 
 
+@operation(
+    name="search_tickets",
+    description="Search for a ticket by ticket ID",
+    http_method="GET",
+    http_path="/api/tickets/search"
+)
+async def op_search_tickets(ticket_id: str) -> Ticket | None:
+    """
+    Search for a ticket by ticket ID.
+    
+    Queries the external Supabase API and returns the matching ticket.
+    Returns None if no ticket is found.
+    
+    Args:
+        ticket_id: The ticket ID to search for (UUID format)
+    
+    Returns:
+        Ticket object if found, None otherwise
+    """
+    return await ticket_service.search_ticket(ticket_id)
+
+
+@operation(
+    name="generate_kba",
+    description="Generate a Knowledge Base Article from a ticket using Azure OpenAI",
+    http_method="POST",
+    http_path="/api/kba/generate"
+)
+async def op_generate_kba(ticket: Ticket) -> KBAArticle:
+    """
+    Generate a KBA article from a ticket.
+    
+    Uses Azure OpenAI to generate a structured Knowledge Base Article
+    with Title, Question, and Answer based on the ticket information.
+    
+    Args:
+        ticket: The ticket to generate KBA from
+    
+    Returns:
+        Generated KBA article
+    """
+    # Call Azure OpenAI to generate KBA
+    kba_data = await ollama_service.generate_kba_azure(
+        ticket_summary=ticket.summary,
+        ticket_description=ticket.description,
+        ticket_resolution=ticket.resolution,
+        ticket_status=ticket.status,
+        ticket_priority=ticket.priority,
+        ticket_id=ticket.id
+    )
+    
+    return KBAArticle(**kba_data)
+
+
 # ============================================================================
 # REST API WRAPPERS
 # These handle HTTP concerns and call the operations
@@ -299,6 +355,42 @@ async def rest_list_ollama_models():
         return jsonify({"error": str(e)}), 500
 
 
+@app.route("/api/tickets/search", methods=["GET"])
+async def rest_search_tickets():
+    """REST wrapper: search for a ticket by ticket ID."""
+    try:
+        ticket_id = request.args.get("ticket_id", "")
+        
+        if not ticket_id:
+            return jsonify({"error": "ticket_id parameter is required"}), 400
+        
+        ticket = await op_search_tickets(ticket_id)
+        
+        if ticket is None:
+            return jsonify({"ticket": None}), 200
+        
+        return jsonify(ticket.model_dump()), 200
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+@app.route("/api/kba/generate", methods=["POST"])
+async def rest_generate_kba():
+    """REST wrapper: generate KBA from ticket."""
+    try:
+        data = await request.get_json()
+        ticket = Ticket(**data)
+        
+        kba = await op_generate_kba(ticket)
+        
+        return jsonify(kba.model_dump()), 200
+    except ValidationError as e:
+        return jsonify({"error": str(e)}), 400
+    except ValueError as e:
+        # Ollama connection error
+        return jsonify({"error": str(e)}), 503
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
 
 
 # ============================================================================
