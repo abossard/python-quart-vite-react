@@ -170,32 +170,31 @@ const SLA_MINUTES = {
 }
 
 /**
- * Calculate SLA tier based on deadline and current time
- * @returns {object} { tier: 'green'|'yellow'|'orange'|'red', percentUsed, minutesRemaining }
+ * Calculate SLA tier based on minutes elapsed vs deadline
+ * @param {number} slaDeadlineMinutes - SLA deadline in minutes (30/120/240/480)
+ * @param {number} minutesSinceCreation - Minutes elapsed since ticket creation
+ * @param {boolean} isOverdue - Whether ticket is past SLA
+ * @returns {object} { tier: 'green'|'yellow'|'orange'|'red', minutesRemaining }
  */
-function calculateSlaTier(slaDeadline, isOverdue) {
-  if (!slaDeadline) return { tier: 'green', percentUsed: 0, minutesRemaining: 0 }
+function calculateSlaTier(slaDeadlineMinutes, minutesSinceCreation, isOverdue) {
+  const minutesRemaining = slaDeadlineMinutes - minutesSinceCreation
   
-  const now = new Date()
-  const deadline = new Date(slaDeadline)
-  const diffMs = deadline - now
-  const minutesRemaining = Math.floor(diffMs / 60000)
-  
-  if (isOverdue || minutesRemaining < 0) {
-    return { tier: 'red', percentUsed: 100, minutesRemaining }
+  // If overdue or no time remaining
+  if (isOverdue || minutesRemaining <= 0) {
+    return { tier: 'red', minutesRemaining }
   }
   
-  // Estimate total SLA window to get percentage
-  // We'll use a simplified approach: thresholds at absolute time remaining
-  // Red: overdue, Orange: <20% remaining, Yellow: <50% remaining, Green: >=50%
-  // For simplicity with different SLAs, use absolute minute thresholds
-  if (minutesRemaining <= 10) {
-    return { tier: 'orange', percentUsed: 90, minutesRemaining }
+  // Calculate percentage of SLA used
+  const percentUsed = (minutesSinceCreation / slaDeadlineMinutes) * 100
+  
+  // Thresholds: >80% used = orange, >50% used = yellow, else green
+  if (percentUsed >= 80) {
+    return { tier: 'orange', minutesRemaining }
   }
-  if (minutesRemaining <= 30) {
-    return { tier: 'yellow', percentUsed: 70, minutesRemaining }
+  if (percentUsed >= 50) {
+    return { tier: 'yellow', minutesRemaining }
   }
-  return { tier: 'green', percentUsed: 30, minutesRemaining }
+  return { tier: 'green', minutesRemaining }
 }
 
 /**
@@ -446,7 +445,7 @@ export default function TicketReminder() {
       columnId: 'is_overdue',
       renderHeaderCell: () => 'SLA Status',
       renderCell: (item) => {
-        const slaInfo = calculateSlaTier(item.sla_deadline, item.is_overdue)
+        const slaInfo = calculateSlaTier(item.sla_deadline_minutes, item.minutes_since_creation, item.is_overdue)
         const timeText = formatSlaTime(slaInfo.minutesRemaining)
         return (
           <TableCellLayout>
@@ -703,7 +702,7 @@ export default function TicketReminder() {
             </DataGridHeader>
             <DataGridBody>
               {({ item, rowId }) => {
-                const slaInfo = calculateSlaTier(item.sla_deadline, item.is_overdue)
+                const slaInfo = calculateSlaTier(item.sla_deadline_minutes, item.minutes_since_creation, item.is_overdue)
                 const slaRowStyle = {
                   green: styles.slaGreen,
                   yellow: styles.slaYellow,
