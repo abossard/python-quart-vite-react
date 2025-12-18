@@ -189,12 +189,12 @@ const useStyles = makeStyles({
   },
 });
 
-export default function TicketOverview() {
+export default function TicketOverview({ isDarkMode: externalDarkMode, onThemeChange }) {
   const styles = useStyles();
   const [ticketScope, setTicketScope] = useState('my-tickets');
   const [selectedGroups, setSelectedGroups] = useState(['OFC']);
   const [assignedTo, setAssignedTo] = useState('noah-huber');
-  const [isDarkMode, setIsDarkMode] = useState(false);
+  const [isDarkMode, setIsDarkMode] = useState(externalDarkMode || false);
   const [expandedSections, setExpandedSections] = useState({
     multiIssue: true,
     oneIssue: true,
@@ -545,7 +545,10 @@ export default function TicketOverview() {
           )}
           <Switch
             checked={isDarkMode}
-            onChange={(_, data) => setIsDarkMode(data.checked)}
+            onChange={(_, data) => {
+              setIsDarkMode(data.checked);
+              if (onThemeChange) onThemeChange(data.checked);
+            }}
             label={isDarkMode ? <WeatherMoon20Regular /> : <WeatherSunny20Regular />}
           />
         </div>
