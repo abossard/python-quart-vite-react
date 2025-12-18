@@ -300,9 +300,75 @@ async def rest_search_tickets():
         return jsonify({"error": str(e)}), 500
 
 
+@app.route("/api/tickets/<ticket_id>/split", methods=["POST"])
+async def rest_split_ticket(ticket_id: str):
+    """
+    Split a multi-issue ticket into separate tickets.
+    
+    This endpoint:
+    1. Fetches the full ticket data from MCP server
+    2. Analyzes the description for multiple issues
+    3. Creates separate tickets for each detected issue
+    4. Adds a modification note to the original ticket
+    
+    Returns:
+        JSON with split results including created ticket IDs
+    """
+    try:
+        # Get full ticket data from MCP
+        ticket_results = await _call_ticket_mcp_tool("get_ticket", {"ticket_id": ticket_id})
+        
+        if not ticket_results or len(ticket_results) == 0:
+            return jsonify({"error": "Ticket not found"}), 404
+        
+        # Extract ticket data from MCP response
+        ticket_data = ticket_results[0].get("ticket", {})
+        if not ticket_data:
+            return jsonify({"error": "Invalid ticket data"}), 400
+        
+        # Call the analyze_and_split method directly (no AI needed)
+        result = await agent_service.analyze_and_split_ticket(ticket_id, ticket_data)
+        
+        return jsonify(result), 200
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
 # ============================================================================
 # QA TICKETS ENDPOINT
 # ============================================================================
+
+
+def _map_worklogs(work_logs: list) -> list[dict]:
+    """
+    Pure function: Map MCP WorkLog format to frontend format.
+    
+    MCP WorkLog fields -> Frontend fields:
+      - created_at -> timestamp (formatted string)
+      - author -> user
+      - summary -> entry
+    """
+    mapped_logs = []
+    for log in work_logs:
+        if isinstance(log, dict):
+            # Parse datetime if it's a string
+            created_at = log.get("created_at", "")
+            if isinstance(created_at, str):
+                try:
+                    from datetime import datetime as dt
+                    parsed = dt.fromisoformat(created_at.replace('Z', '+00:00'))
+                    timestamp = parsed.strftime("%Y-%m-%d %H:%M")
+                except Exception:
+                    timestamp = created_at
+            else:
+                timestamp = str(created_at)
+            
+            mapped_logs.append({
+                "timestamp": timestamp,
+                "user": log.get("author", "System"),
+                "entry": log.get("summary", ""),
+            })
+    return mapped_logs
 
 
 def _map_mcp_ticket_to_frontend(mcp_ticket: dict) -> dict:
@@ -340,6 +406,33 @@ def _map_mcp_ticket_to_frontend(mcp_ticket: dict) -> dict:
     }
 
 
+def _map_ticket_with_analysis(mcp_ticket: dict, work_logs: list = None) -> dict:
+    """
+    Pure function: Map MCP ticket with multi-issue analysis.
+    
+    Extends basic mapping with:
+      - issueCount: Number of detected issues (calculated via _detect_multiple_issues)
+      - worklog: Mapped worklog entries
+      - service: Service field for categorization
+    """
+    # Import the detection function from agents module
+    from agents import _detect_multiple_issues
+    
+    # Start with basic mapping
+    mapped = _map_mcp_ticket_to_frontend(mcp_ticket)
+    
+    # Detect multiple issues
+    description = mcp_ticket.get("description", "")
+    should_split, issues = _detect_multiple_issues(description)
+    
+    # Add frontend-specific fields
+    mapped["issueCount"] = len(issues) if should_split else 1
+    mapped["service"] = mcp_ticket.get("service", "")
+    mapped["worklog"] = _map_worklogs(work_logs or [])
+    
+    return mapped
+
+
 def _is_unassigned_ticket(ticket: dict) -> bool:
     """Pure function: Check if ticket is assigned to group but has no individual assignee."""
     has_group = ticket.get("assigned_group") is not None
@@ -347,6 +440,83 @@ def _is_unassigned_ticket(ticket: dict) -> bool:
     status = ticket.get("status", "")
     is_open_status = status in ("new", "assigned")
     return has_group and no_assignee and is_open_status
+
+
+@app.route("/api/tickets/overview", methods=["GET"])
+async def rest_get_tickets_overview():
+    """
+    Get all tickets categorized by issue count.
+    
+    This endpoint:
+    1. Fetches all tickets from the MCP server
+    2. Runs multi-issue detection on each ticket
+    3. Categorizes tickets into multiIssue (2+ issues) and oneIssue (1 issue)
+    4. Maps to frontend format with issueCount field
+    
+    Query params (optional):
+        - status: Filter by status
+        - priority: Filter by priority
+        - city: Filter by city
+        - service: Filter by service
+    
+    Returns:
+        JSON with {multiIssue: [...], oneIssue: [...]}
+    """
+    try:
+        # Build filter args from query params
+        args = {}
+        for param in ["status", "priority", "city", "service"]:
+            if request.args.get(param):
+                args[param] = request.args.get(param)
+        
+        # Call MCP server to get tickets
+        results = await _call_ticket_mcp_tool("list_tickets", args)
+        
+        # Extract tickets from MCP response
+        mcp_tickets = []
+        if results and len(results) > 0:
+            response_data = results[0]
+            if isinstance(response_data, dict) and "tickets" in response_data:
+                mcp_tickets = response_data["tickets"]
+            elif isinstance(response_data, list):
+                mcp_tickets = response_data
+        
+        # Map tickets with analysis and categorize
+        multi_issue_tickets = []
+        one_issue_tickets = []
+        
+        for ticket in mcp_tickets:
+            # DEBUG: Check what data we're getting from MCP
+            ticket_id = ticket.get("id", "unknown")
+            has_desc = bool(ticket.get("description"))
+            desc_len = len(ticket.get("description", ""))
+            has_summary = bool(ticket.get("summary"))
+            print(f"🔍 DEBUG Ticket {ticket_id}: has_description={has_desc}, desc_len={desc_len}, has_summary={has_summary}")
+            if has_desc and desc_len > 0:
+                print(f"   Description preview: {ticket.get('description', '')[:100]}...")
+            
+            # Get work logs if available (for now empty, can be enhanced later)
+            work_logs = ticket.get("work_logs", [])
+            
+            # Map with analysis
+            mapped_ticket = _map_ticket_with_analysis(ticket, work_logs)
+            
+            # Categorize by issue count
+            if mapped_ticket["issueCount"] >= 2:
+                multi_issue_tickets.append(mapped_ticket)
+            else:
+                one_issue_tickets.append(mapped_ticket)
+        
+        return jsonify({
+            "multiIssue": multi_issue_tickets,
+            "oneIssue": one_issue_tickets
+        }), 200
+    except Exception as e:
+        return jsonify({
+            "error": str(e),
+            "multiIssue": [],
+            "oneIssue": []
+        }), 500
 
 
 @app.route("/api/qa-tickets", methods=["GET"])

@@ -139,3 +139,23 @@ export async function agentChat(prompt) {
 export async function getQATickets() {
   return fetchJSON(`${API_BASE_URL}/qa-tickets`);
 }
+
+/**
+ * Fetch all tickets categorized by issue count
+ * @returns {Promise<Object>} Response with {multiIssue: [...], oneIssue: [...]}
+ */
+export async function getTicketsOverview() {
+  return fetchJSON(`${API_BASE_URL}/tickets/overview`);
+}
+
+/**
+ * Split a multi-issue ticket into separate tickets
+ * @param {string} ticketId - ID of the ticket to split
+ * @returns {Promise<Object>} Split results with created ticket IDs
+ */
+export async function splitTicket(ticketId) {
+  return fetchJSON(`${API_BASE_URL}/tickets/${ticketId}/split`, {
+    method: "POST",
+  });
+}
+

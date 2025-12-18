@@ -30,6 +30,7 @@ import {
   WeatherSunny20Regular,
   WeatherMoon20Regular,
 } from '@fluentui/react-icons';
+import { splitTicket, getTicketsOverview } from '../../services/api';
 
 const useStyles = makeStyles({
   container: {
@@ -213,89 +214,23 @@ export default function TicketOverview() {
   }, [ticketScope, selectedGroups, assignedTo]);
 
   const loadTickets = async () => {
-    // TODO: Replace with actual API call
-    // Mock data for demonstration
-    setTickets({
-      multiIssue: [
-        {
-          id: 'INC0001',
-          title: 'Multiple IT Issues - Urgent',
-          description: 'VPN geht nicht, Drucker kaputt, SW-Center leer, Natel spinnt',
-          issueCount: 4,
-          service: 'IT Support',
-          worklog: [
-            { timestamp: '2025-12-17 09:15', user: 'Noah Huber', entry: 'Ticket created by user' },
-            { timestamp: '2025-12-17 09:30', user: 'Sarah Müller', entry: 'Ticket assigned to IT Support team' },
-            { timestamp: '2025-12-17 10:00', user: 'Thomas Schmidt', entry: 'Investigation started - checking VPN logs' },
-          ],
-        },
-        {
-          id: 'INC0002',
-          title: 'Problèmes multiples informatiques',
-          description: 'Problèmes multiples : Edge, VPN, écran, souris',
-          issueCount: 4,
-          service: 'IT Support',
-          worklog: [
-            { timestamp: '2025-12-17 08:45', user: 'Anna Weber', entry: 'Reported via phone' },
-            { timestamp: '2025-12-17 09:00', user: 'Michael Fischer', entry: 'Assigned to desktop support' },
-          ],
-        },
-        {
-          id: 'INC0003',
-          title: 'SAP and Printer Issues',
-          description: 'SAP GUI, Drucker, Natel geht nicht',
-          issueCount: 3,
-          service: 'Application Support',
-          worklog: [
-            { timestamp: '2025-12-17 10:30', user: 'Noah Huber', entry: 'User reported multiple issues' },
-            { timestamp: '2025-12-17 11:00', user: 'Sarah Müller', entry: 'SAP team notified' },
-          ],
-        },
-      ],
-      oneIssue: [
-        {
-          id: 'INC0101',
-          title: 'VPN Connection Failed',
-          description: 'VPN Connection Error 720',
-          service: 'Network Services',
-          worklog: [
-            { timestamp: '2025-12-17 08:00', user: 'Noah Huber', entry: 'User unable to connect to VPN' },
-            { timestamp: '2025-12-17 08:15', user: 'Thomas Schmidt', entry: 'Checking network credentials' },
-            { timestamp: '2025-12-17 08:30', user: 'Thomas Schmidt', entry: 'Reset VPN profile - testing in progress' },
-          ],
-        },
-        {
-          id: 'INC0102',
-          title: 'Printer Toner Error',
-          description: 'Printer Toner Error - HP LaserJet 400 M401dn Office 3.01',
-          service: 'Facilities',
-          worklog: [
-            { timestamp: '2025-12-17 09:00', user: 'Anna Weber', entry: 'Printer showing toner error' },
-            { timestamp: '2025-12-17 09:20', user: 'Michael Fischer', entry: 'Ordered replacement toner cartridge' },
-          ],
-        },
-        {
-          id: 'INC0103',
-          title: 'Software Center Empty',
-          description: 'Software Center Not Showing Applications',
-          service: 'IT Support',
-          worklog: [
-            { timestamp: '2025-12-17 10:00', user: 'Sarah Müller', entry: 'Software Center appears empty' },
-            { timestamp: '2025-12-17 10:15', user: 'Noah Huber', entry: 'Resyncing SCCM catalog' },
-          ],
-        },
-        {
-          id: 'INC0104',
-          title: 'Mobile Phone Battery Issue',
-          description: 'Mobile Phone Battery Draining Quickly',
-          service: 'Mobile Support',
-          worklog: [
-            { timestamp: '2025-12-17 11:00', user: 'Thomas Schmidt', entry: 'Battery draining within 2 hours' },
-            { timestamp: '2025-12-17 11:20', user: 'Anna Weber', entry: 'Checking background app activity' },
-          ],
-        },
-      ],
-    });
+    try {
+      // Call the real API to get tickets categorized by issue count
+      const data = await getTicketsOverview();
+      
+      // API returns {multiIssue: [...], oneIssue: [...]}
+      setTickets({
+        multiIssue: data.multiIssue || [],
+        oneIssue: data.oneIssue || [],
+      });
+    } catch (error) {
+      console.error('Failed to load tickets:', error);
+      // Set empty arrays on error
+      setTickets({
+        multiIssue: [],
+        oneIssue: [],
+      });
+    }
   };
 
   const toggleSection = (section) => {
@@ -327,9 +262,26 @@ export default function TicketOverview() {
     }
   };
 
-  const handleSplit = (ticketId) => {
+  const handleSplit = async (ticketId) => {
     console.log('Split ticket:', ticketId);
-    // TODO: Implement ticket splitting
+    try {
+      const result = await splitTicket(ticketId);
+      console.log('Split result:', result);
+      
+      // Show success feedback
+      if (result.should_split && result.created_tickets) {
+        alert(`Ticket successfully split into ${result.created_tickets.length} separate tickets!`);
+        // Reload tickets to reflect changes
+        loadTickets();
+      } else if (!result.should_split) {
+        alert(`Ticket was not split: ${result.reason || 'Single issue detected'}`);
+      } else if (result.error) {
+        alert(`Error splitting ticket: ${result.error}`);
+      }
+    } catch (error) {
+      console.error('Failed to split ticket:', error);
+      alert(`Failed to split ticket: ${error.message}`);
+    }
   };
 
   const handleApplyFilters = () => {
