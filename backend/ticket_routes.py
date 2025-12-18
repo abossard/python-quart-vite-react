@@ -256,12 +256,13 @@ async def rest_get_reminder_candidates():
         include_all = request.args.get("include_all", "false").lower() == "true"
         
         results = await call_ticket_mcp_tool("list_tickets", {"page_size": 10000})
+        print(f"[REMINDER] Raw MCP response: {len(results)} result objects")
         mcp_tickets = extract_tickets_from_mcp_response(results)
         
         candidates = []
         now = datetime.now(tz=timezone.utc)
         
-        print(f"[REMINDER] Evaluating {len(mcp_tickets)} tickets, include_all={include_all}")
+        print(f"[REMINDER] Evaluating {len(mcp_tickets)} tickets after extraction, include_all={include_all}")
         
         for t in mcp_tickets:
             ticket_id = t.get("id", "?")[:8]
@@ -295,16 +296,20 @@ async def rest_get_reminder_candidates():
             work_logs = t.get("work_logs") or []
             reminder_count = sum(1 for log in work_logs if log.get("log_type") == "reminder")
             
+            # Human-readable creation time
+            created_readable = created_at.strftime("%d.%m.%Y %H:%M")
+            
             if is_overdue:
                 print(
                     f"[REMINDER] {ticket_id}: CANDIDATE - {priority} priority, "
-                    f"{elapsed}m elapsed > {sla_deadline}m SLA, overdue by {overdue_by}m, "
-                    f"reminded {reminder_count}x before"
+                    f"created {created_readable}, {elapsed}m elapsed > {sla_deadline}m SLA, "
+                    f"overdue by {overdue_by}m, reminded {reminder_count}x before"
                 )
             else:
                 print(
                     f"[REMINDER] {ticket_id}: NOT OVERDUE - {priority} priority, "
-                    f"{elapsed}m elapsed < {sla_deadline}m SLA, {sla_deadline - elapsed}m remaining"
+                    f"created {created_readable}, {elapsed}m elapsed < {sla_deadline}m SLA, "
+                    f"{sla_deadline - elapsed}m remaining"
                 )
                 if not include_all:
                     continue
