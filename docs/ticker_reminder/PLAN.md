@@ -34,7 +34,7 @@
   - `clearSelections() -> void`
   - Key: `reminder_selected_tickets`
 
-- [ ] 7. Create `TicketReminder.jsx` component
+- [x] 7. Create `TicketReminder.jsx` component ✅ DONE
   - Local state: `candidates`, `selections` (from localStorage), `selectedTicket`
   - On mount: fetch candidates + load selections from localStorage
   - Checkbox click → update localStorage immediately
