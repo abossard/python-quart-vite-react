@@ -163,9 +163,6 @@ export default function TicketReminder() {
   const [candidatesError, setCandidatesError] = useState(null)
   const [successMessage, setSuccessMessage] = useState(null)
 
-  // Ref to prevent duplicate fetches (React 18 strict mode)
-  const loadingRef = useRef(false)
-
   // ============================================================================
   // ACTIONS - Event handlers
   // ============================================================================
@@ -229,18 +226,12 @@ export default function TicketReminder() {
     }
   }
 
-  // Load on mount when outbox tab is active
+  // Load on tab change
   useEffect(() => {
-    // Guard against double-fetch in React 18 strict mode
-    if (loadingRef.current) return
-    loadingRef.current = true
-
     if (activeTab === 'outbox') {
-      loadOutboxEntries().finally(() => { loadingRef.current = false })
+      loadOutboxEntries()
     } else if (activeTab === 'candidates') {
-      loadCandidates().finally(() => { loadingRef.current = false })
-    } else {
-      loadingRef.current = false
+      loadCandidates()
     }
   }, [activeTab])
 
