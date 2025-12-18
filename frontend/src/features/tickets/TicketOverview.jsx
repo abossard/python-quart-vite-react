@@ -1,36 +1,35 @@
-import { useState, useEffect } from 'react';
 import {
-  makeStyles,
-  shorthands,
-  tokens,
   Button,
   Checkbox,
-  Dropdown,
-  Option,
-  Switch,
-  Label,
-  FluentProvider,
-  webLightTheme,
-  webDarkTheme,
   Dialog,
-  DialogTrigger,
+  DialogActions,
+  DialogBody,
+  DialogContent,
   DialogSurface,
   DialogTitle,
-  DialogBody,
-  DialogActions,
-  DialogContent,
+  Dropdown,
   Field,
+  FluentProvider,
+  Label,
+  makeStyles,
+  Option,
+  shorthands,
+  Switch,
   Textarea,
+  tokens,
+  webDarkTheme,
+  webLightTheme
 } from '@fluentui/react-components';
 import {
+  Checkmark20Regular,
   ChevronDown20Regular,
   ChevronRight20Regular,
-  Checkmark20Regular,
   SplitVertical20Regular,
-  WeatherSunny20Regular,
   WeatherMoon20Regular,
+  WeatherSunny20Regular,
 } from '@fluentui/react-icons';
-import { splitTicket, getTicketsOverview } from '../../services/api';
+import { useEffect, useState } from 'react';
+import { getTicketsOverview, splitTicket } from '../../services/api';
 
 const useStyles = makeStyles({
   container: {
@@ -416,10 +415,10 @@ export default function TicketOverview() {
                       className={styles.ticketId}
                       onClick={() => handleCheck(ticket.id)}
                     >
-                      {ticket.id}
+                      INC-{ticket.id}
                     </span>
                     <span className={styles.ticketDescription}>
-                      {ticket.description}
+                      {ticket.title}
                     </span>
                     <div className={styles.ticketActions}>
                       <Button
@@ -485,7 +484,7 @@ export default function TicketOverview() {
                       {ticket.id}
                     </span>
                     <span className={styles.ticketDescription}>
-                      {ticket.description}
+                      {ticket.title}
                     </span>
                   </div>
                 ))

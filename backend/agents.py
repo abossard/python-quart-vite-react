@@ -133,6 +133,49 @@ class AgentResponse(BaseModel):
     }
 
 
+class DetectedIssue(BaseModel):
+    """A single issue detected in a multi-issue ticket."""
+    description: str = Field(
+        ...,
+        description="Full description of this specific issue"
+    )
+    suggested_summary: str = Field(
+        ...,
+        description="Short title for a new ticket (max 100 chars)"
+    )
+    suggested_service: str = Field(
+        default="Workplace",
+        description="Suggested service category: Network Services, Infrastructure, Workplace, Communication"
+    )
+
+
+class TicketSplitAnalysis(BaseModel):
+    """
+    AI analysis result for ticket splitting.
+    
+    Used with LLM structured output to get typed responses
+    about whether a ticket should be split.
+    """
+    should_split: bool = Field(
+        ...,
+        description="True if ticket contains multiple unrelated issues that should be separate tickets"
+    )
+    reasoning: str = Field(
+        ...,
+        description="Brief explanation of why the ticket should or should not be split"
+    )
+    detected_issues: list[DetectedIssue] = Field(
+        default_factory=list,
+        description="List of detected issues if should_split is True"
+    )
+    confidence: float = Field(
+        default=0.8,
+        ge=0.0,
+        le=1.0,
+        description="Confidence score 0.0-1.0"
+    )
+
+
 # ============================================================================
 # CONFIGURATION - Azure OpenAI settings (hardcoded except API key)
 # ============================================================================
@@ -449,12 +492,94 @@ class AgentService:
                 pass
             self._ticket_mcp_client = None
     
+    async def detect_multiple_issues_ai(self, ticket_data: dict) -> TicketSplitAnalysis:
+        """
+        Use AI to detect if a ticket contains multiple unrelated issues.
+        
+        Args:
+            ticket_data: Ticket dict with 'summary' and 'description' fields
+            
+        Returns:
+            TicketSplitAnalysis with detection results and suggested splits
+        """
+        summary = ticket_data.get('summary', '')
+        description = ticket_data.get('description', '')
+        
+        # Skip trivial descriptions
+        if not description or len(description.strip()) < 20:
+            return TicketSplitAnalysis(
+                should_split=False,
+                reasoning="Description too short to analyze",
+                detected_issues=[],
+                confidence=1.0
+            )
+        
+        # Build prompt for AI analysis
+        system_prompt = """You are a support ticket analyzer. Your job is to detect if a ticket contains multiple UNRELATED issues that should be tracked as separate tickets.
+
+SPLIT when issues are:
+- Different technical domains (VPN + Printer, Software + Phone)
+- Unrelated problems bundled together
+- Distinct requests that need different teams
+
+DO NOT SPLIT when:
+- Issues are related (e.g., "VPN not working, can't access shared drive" - both are network/access)
+- It's a single problem with multiple symptoms
+- User is providing context for one main issue
+
+For each detected issue, provide:
+1. A clear description of that specific issue
+2. A short summary title (max 100 chars)
+3. Suggested service: Network Services, Infrastructure, Workplace, or Communication
+
+The ticket may be in German or English - handle both languages."""
+
+        user_prompt = f"""Analyze this support ticket:
+
+SUMMARY: {summary}
+
+DESCRIPTION:
+{description}
+
+Does this ticket contain multiple unrelated issues that should be split into separate tickets?"""
+
+        try:
+            # Use structured output for typed response
+            structured_llm = self.llm.with_structured_output(TicketSplitAnalysis)
+            result: TicketSplitAnalysis = await structured_llm.ainvoke([
+                ("system", system_prompt),
+                ("user", user_prompt)
+            ])  # type: ignore[assignment]
+            
+            print(f"\n{'='*60}")
+            print("🔍 AI TICKET ANALYSIS")
+            print(f"{'='*60}")
+            print(f"   Should split: {result.should_split}")
+            print(f"   Confidence: {result.confidence:.0%}")
+            print(f"   Reasoning: {result.reasoning[:100]}...")
+            if result.detected_issues:
+                print(f"   Detected issues: {len(result.detected_issues)}")
+                for i, issue in enumerate(result.detected_issues, 1):
+                    print(f"      {i}. {issue.suggested_summary}")
+            print(f"{'='*60}\n")
+            
+            return result
+            
+        except Exception as e:
+            print(f"AI detection failed: {e}, returning no-split")
+            return TicketSplitAnalysis(
+                should_split=False,
+                reasoning=f"AI analysis failed: {str(e)}",
+                detected_issues=[],
+                confidence=0.0
+            )
+    
     async def analyze_and_split_ticket(self, ticket_id: str, ticket_data: dict) -> dict:
         """
         Analyze a ticket and split it into multiple tickets if needed.
         
         This method:
-        1. Analyzes the ticket description for multiple issues
+        1. Uses AI to analyze the ticket description for multiple issues
         2. If multiple issues detected, creates separate tickets
         3. Adds a modification request to the original ticket
         4. Returns summary of actions taken
@@ -466,21 +591,16 @@ class AgentService:
         Returns:
             Dictionary with analysis results and actions taken
         """
-        description = ticket_data.get('description', '')
-        summary = ticket_data.get('summary', '')
+        # Use AI to detect multiple issues
+        analysis = await self.detect_multiple_issues_ai(ticket_data)
         
-        # Detect multiple issues
-        should_split, issues = _detect_multiple_issues(description)
-        
-        if not should_split or len(issues) < 2:
+        if not analysis.should_split or len(analysis.detected_issues) < 2:
             return {
                 'should_split': False,
-                'reason': 'Single issue detected',
-                'original_ticket_id': ticket_id
+                'reason': analysis.reasoning,
+                'original_ticket_id': ticket_id,
+                'confidence': analysis.confidence
             }
-        
-        # Generate summaries for new tickets
-        new_summaries = _generate_split_summary(summary, issues)
         
         # Ensure ticket MCP connection
         await self._ensure_ticket_mcp_connection()
@@ -489,37 +609,24 @@ class AgentService:
             return {
                 'should_split': True,
                 'error': 'Ticket MCP client not available',
-                'detected_issues': issues
+                'detected_issues': [iss.suggested_summary for iss in analysis.detected_issues]
             }
         
-        # Create new tickets for each issue
+        # Create new tickets for each detected issue
         created_tickets = []
-        for i, (issue_desc, issue_summary) in enumerate(zip(issues, new_summaries), 1):
+        for i, issue in enumerate(analysis.detected_issues, 1):
             try:
-                # Extract requester info from original ticket
                 new_ticket_data = {
-                    'summary': issue_summary,
-                    'description': issue_desc,
+                    'summary': issue.suggested_summary,
+                    'description': issue.description,
                     'city': ticket_data.get('city'),
                     'requester_name': ticket_data.get('requester_name'),
                     'requester_email': ticket_data.get('requester_email'),
                     'requester_department': ticket_data.get('requester_department'),
                     'priority': ticket_data.get('priority', 'medium'),
                     'status': 'new',
+                    'service': issue.suggested_service,
                 }
-                
-                # Determine service based on issue content
-                issue_lower = issue_desc.lower()
-                if any(term in issue_lower for term in ['vpn', 'network', 'verbindung']):
-                    new_ticket_data['service'] = 'Network Services'
-                elif any(term in issue_lower for term in ['drucker', 'printer']):
-                    new_ticket_data['service'] = 'Infrastructure'
-                elif any(term in issue_lower for term in ['software', 'app', 'center']):
-                    new_ticket_data['service'] = 'Workplace'
-                elif any(term in issue_lower for term in ['natel', 'phone', 'handy']):
-                    new_ticket_data['service'] = 'Communication'
-                else:
-                    new_ticket_data['service'] = ticket_data.get('service', 'Workplace')
                 
                 # Call MCP tool to create ticket
                 result = await self._ticket_mcp_client.call_tool('create_ticket', new_ticket_data)
@@ -527,24 +634,25 @@ class AgentService:
                 # Extract ticket ID from result
                 if hasattr(result, 'content') and result.content:
                     import json
-                    content_text = result.content[0].text if result.content else '{}'
+                    content_text = result.content[0].text if result.content else '{}'  # type: ignore
                     result_data = json.loads(content_text)
                     new_ticket_id = result_data.get('ticket', {}).get('id', f'ticket_{i}')
                     created_tickets.append({
                         'id': new_ticket_id,
-                        'summary': issue_summary,
-                        'description': issue_desc[:100]
+                        'summary': issue.suggested_summary,
+                        'description': issue.description[:100]
                     })
             except Exception as e:
                 print(f"Error creating ticket {i}: {e}")
                 created_tickets.append({
                     'error': str(e),
-                    'summary': issue_summary
+                    'summary': issue.suggested_summary
                 })
         
         # Add modification request to original ticket
+        num_issues = len(analysis.detected_issues)
         try:
-            modification_notes = f"This ticket contained {len(issues)} separate issues that have been split:\n\n"
+            modification_notes = f"This ticket contained {num_issues} separate issues that have been split:\n\n"
             for i, ticket in enumerate(created_tickets, 1):
                 if 'id' in ticket:
                     modification_notes += f"{i}. {ticket['summary']} (Ticket ID: {ticket['id']})\n"
@@ -557,7 +665,7 @@ class AgentService:
                 'ticket_id': ticket_id,
                 'field_name': 'notes',
                 'proposed_value': modification_notes,
-                'reason': f'Ticket split into {len(issues)} separate issues for proper tracking',
+                'reason': f'Ticket split into {num_issues} separate issues for proper tracking',
                 'requested_by': 'Automated Ticket Analyzer'
             })
         except Exception as e:
@@ -566,9 +674,11 @@ class AgentService:
         return {
             'should_split': True,
             'original_ticket_id': ticket_id,
-            'detected_issues_count': len(issues),
+            'detected_issues_count': num_issues,
             'created_tickets': created_tickets,
-            'modification_added': True
+            'modification_added': True,
+            'ai_reasoning': analysis.reasoning,
+            'confidence': analysis.confidence
         }
     
     async def run_agent(self, request: AgentRequest) -> AgentResponse:
@@ -770,6 +880,6 @@ __all__ = [
     'AgentResponse',
     'AgentService',
     'agent_service',
-    '_detect_multiple_issues',
-    '_generate_split_summary',
+    'DetectedIssue',
+    'TicketSplitAnalysis',
 ]
