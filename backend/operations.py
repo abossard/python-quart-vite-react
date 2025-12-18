@@ -115,7 +115,7 @@ async def op_get_reminder_candidates(include_all: bool = False) -> list[Reminder
     Returns:
         List of ReminderCandidate objects sorted by most overdue first.
     """
-    mcp_tickets = await list_tickets(page_size=100)
+    mcp_tickets = await list_tickets(page_size=500)
     
     candidates = []
     now = datetime.now(tz=timezone.utc)
