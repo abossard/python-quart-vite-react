@@ -14,7 +14,7 @@ from uuid import UUID
 
 from pydantic import ValidationError
 from quart import Blueprint, jsonify, request
-from reminder import ReminderRequest, ReminderResult, build_reminder_candidate
+from reminder import ReminderRequest, ReminderResult
 from reminder_outbox import (
     get_entries_for_ticket,
     get_outbox_entries,
@@ -232,56 +232,107 @@ async def get_qa_tickets():
 # REMINDER ENDPOINTS
 # ============================================================================
 
+# SLA deadlines in minutes (from RULES_EN.md)
+SLA_MINUTES = {
+    "critical": 30,
+    "high": 120,
+    "medium": 240,
+    "low": 480,
+}
+
+
 @ticket_bp.route("/api/reminder/candidates", methods=["GET"])
 async def rest_get_reminder_candidates():
     """
     Get tickets that need reminders (Assigned without Assignee + overdue).
     
-    Filters tickets based on SLA rules:
+    Rules (RULES_EN.md):
     - Critical: overdue after 30 min
-    - High: overdue after 2 hours
+    - High: overdue after 2 hours  
     - Medium: overdue after 4 hours
-    - Low: overdue after 8 hours
+    - Low/Standard: overdue after 8 hours
     
     Query params:
         - include_all: If "true", include non-overdue tickets too
     """
+    import logging
+    logger = logging.getLogger(__name__)
+    
     try:
         include_all = request.args.get("include_all", "false").lower() == "true"
         
-        # Fetch all tickets from MCP
-        results = await call_ticket_mcp_tool("list_tickets", {"page_size": 100})
-        
+        results = await call_ticket_mcp_tool("list_tickets", {"page_size": 10000})
         mcp_tickets = extract_tickets_from_mcp_response(results)
         
         candidates = []
         now = datetime.now(tz=timezone.utc)
         
-        for mcp_ticket in mcp_tickets:
-            # Check if ticket is "assigned without assignee"
-            if not is_unassigned_ticket(mcp_ticket):
+        logger.info(f"[REMINDER] Evaluating {len(mcp_tickets)} tickets, include_all={include_all}")
+        
+        for t in mcp_tickets:
+            ticket_id = t.get("id", "?")[:8]
+            assigned_group = t.get("assigned_group")
+            assignee = t.get("assignee")
+            
+            # Rule: "Assigned without Assignee" = assigned_group exists, assignee is null
+            if not assigned_group:
+                logger.debug(f"[REMINDER] {ticket_id}: SKIP - no assigned_group")
+                continue
+            if assignee:
+                logger.debug(f"[REMINDER] {ticket_id}: SKIP - has assignee '{assignee}'")
                 continue
             
-            # Parse to Pydantic model
+            # Parse created_at
+            created_str = t.get("created_at", "")
             try:
-                ticket = parse_mcp_ticket_to_model(mcp_ticket)
+                created_at = datetime.fromisoformat(created_str.replace("Z", "+00:00"))
             except Exception:
-                continue  # Skip malformed tickets
+                logger.warning(f"[REMINDER] {ticket_id}: SKIP - invalid created_at '{created_str}'")
+                continue
             
-            # Build reminder candidate (worklogs empty for now - can enhance later)
-            candidate = build_reminder_candidate(ticket, work_logs=[], now=now)
+            # Calculate SLA status
+            elapsed = int((now - created_at).total_seconds() / 60)
+            priority = (t.get("priority") or "low").lower()
+            sla_deadline = SLA_MINUTES.get(priority, 480)
+            is_overdue = elapsed > sla_deadline
+            overdue_by = elapsed - sla_deadline
             
-            # Filter by overdue status unless include_all
-            if include_all or candidate.is_overdue:
-                candidates.append(candidate)
+            # Check reminder history
+            work_logs = t.get("work_logs") or []
+            reminder_count = sum(1 for log in work_logs if log.get("log_type") == "reminder")
+            
+            if is_overdue:
+                logger.info(
+                    f"[REMINDER] {ticket_id}: CANDIDATE - {priority} priority, "
+                    f"{elapsed}m elapsed > {sla_deadline}m SLA, overdue by {overdue_by}m, "
+                    f"reminded {reminder_count}x before"
+                )
+            else:
+                logger.info(
+                    f"[REMINDER] {ticket_id}: NOT OVERDUE - {priority} priority, "
+                    f"{elapsed}m elapsed < {sla_deadline}m SLA, {sla_deadline - elapsed}m remaining"
+                )
+                if not include_all:
+                    continue
+            
+            candidates.append({
+                "ticket": t,
+                "minutes_since_creation": elapsed,
+                "sla_deadline_minutes": sla_deadline,
+                "is_overdue": is_overdue,
+                "was_reminded_before": reminder_count > 0,
+                "reminder_count": reminder_count,
+            })
         
         # Sort by most overdue first
-        candidates.sort(key=lambda c: c.minutes_since_creation - c.sla_deadline_minutes, reverse=True)
+        candidates.sort(key=lambda c: c["minutes_since_creation"] - c["sla_deadline_minutes"], reverse=True)
+        
+        logger.info(f"[REMINDER] Result: {len(candidates)} candidates, {sum(1 for c in candidates if c['is_overdue'])} overdue")
         
         return jsonify({
-            "candidates": [c.model_dump() for c in candidates],
+            "candidates": candidates,
             "total": len(candidates),
-            "overdue_count": sum(1 for c in candidates if c.is_overdue),
+            "overdue_count": sum(1 for c in candidates if c["is_overdue"]),
         })
     except Exception as e:
         return jsonify({"error": str(e), "candidates": []}), 500
