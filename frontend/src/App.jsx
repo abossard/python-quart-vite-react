@@ -8,28 +8,28 @@
  */
 
 import {
-  makeStyles,
-  Subtitle1,
-  Tab,
-  TabList,
-  Text,
-  tokens,
+    makeStyles,
+    Subtitle1,
+    Tab,
+    TabList,
+    Text,
+    tokens,
 } from '@fluentui/react-components'
 import {
-  AlertUrgent24Regular,
-  Bot24Regular,
-  Home24Regular,
-  Info24Regular,
-  PersonQuestionMark24Regular,
-  TaskListLtr24Regular,
+    AlertUrgent24Regular,
+    Bot24Regular,
+    Home24Regular,
+    Info24Regular,
+    Mail24Regular,
+    TaskListLtr24Regular,
 } from '@fluentui/react-icons'
 import { Navigate, Route, Routes, useLocation, useNavigate } from 'react-router-dom'
 import About from './components/About'
 import AgentChat from './features/agent/AgentChat'
 import Dashboard from './features/dashboard/Dashboard'
+import TicketReminder from './features/reminder/TicketReminder'
 import TaskList from './features/tasks/TaskList'
 import TicketList from './features/tickets/TicketList'
-import TicketsWithoutAnAssignee from './features/tickets/TicketsWithoutAnAssignee'
 
 const useStyles = makeStyles({
   app: {
@@ -69,7 +69,7 @@ export default function App() {
     { value: 'dashboard', label: 'Dashboard', icon: <Home24Regular />, path: '/dashboard', testId: 'tab-dashboard' },
     { value: 'tasks', label: 'Tasks', icon: <TaskListLtr24Regular />, path: '/tasks', testId: 'tab-tasks' },
     { value: 'tickets', label: 'Tickets', icon: <AlertUrgent24Regular />, path: '/tickets', testId: 'tab-tickets' },
-    { value: 'unassigned', label: 'Unassigned', icon: <PersonQuestionMark24Regular />, path: '/unassigned', testId: 'tab-unassigned' },
+    { value: 'reminders', label: 'Reminders', icon: <Mail24Regular />, path: '/reminders', testId: 'tab-reminders' },
     { value: 'agent', label: 'AI Agent', icon: <Bot24Regular />, path: '/agent', testId: 'tab-agent' },
     { value: 'about', label: 'About', icon: <Info24Regular />, path: '/about', testId: 'tab-about' },
   ]
@@ -109,7 +109,7 @@ export default function App() {
           <Route path="/dashboard" element={<Dashboard />} />
           <Route path="/tasks" element={<TaskList />} />
           <Route path="/tickets" element={<TicketList />} />
-          <Route path="/unassigned" element={<TicketsWithoutAnAssignee />} />
+          <Route path="/reminders" element={<TicketReminder />} />
           <Route path="/agent" element={<AgentChat />} />
           <Route path="/about" element={<About />} />
           <Route path="*" element={<Navigate to="/dashboard" replace />} />
