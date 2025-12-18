@@ -24,11 +24,11 @@
 
 ## Phase 3: Frontend - State & API
 
-- [ ] 5. Add API functions in `services/api.js`
+- [x] 5. Add API functions in `services/api.js` ✅ DONE
   - `fetchReminderCandidates()`
   - `sendReminders(ticketIds)`
 
-- [ ] 6. Create localStorage helpers in `services/reminderStorage.js`
+- [x] 6. Create localStorage helpers in `services/reminderStorage.js` ✅ DONE
   - `getSelectedTickets() -> string[]`
   - `toggleTicketSelection(ticketId) -> void`
   - `clearSelections() -> void`
