@@ -139,3 +139,27 @@ export async function agentChat(prompt) {
 export async function getQATickets() {
   return fetchJSON(`${API_BASE_URL}/qa-tickets`);
 }
+
+// ============================================================================
+// Reminder APIs
+// ============================================================================
+
+export async function fetchReminderCandidates(overdueOnly = false) {
+  const params = overdueOnly ? "?overdue_only=true" : "";
+  return fetchJSON(`${API_BASE_URL}/reminder/candidates${params}`);
+}
+
+export async function sendReminders(ticketIds) {
+  return fetchJSON(`${API_BASE_URL}/reminder/send`, {
+    method: "POST",
+    body: JSON.stringify({ ticket_ids: ticketIds }),
+  });
+}
+
+export async function fetchOutboxEntries(limit = 50) {
+  return fetchJSON(`${API_BASE_URL}/reminder/outbox?limit=${limit}`);
+}
+
+export async function fetchOutboxForTicket(ticketId) {
+  return fetchJSON(`${API_BASE_URL}/reminder/outbox/${ticketId}`);
+}

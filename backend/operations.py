@@ -13,7 +13,12 @@ from reminder import (
     ReminderResult,
     build_reminder_candidate,
 )
-from reminder_outbox import save_sent_reminder
+from reminder_outbox import (
+    OutboxEntry,
+    get_entries_for_ticket,
+    get_outbox_entries,
+    save_sent_reminder,
+)
 from tasks import Task, TaskCreate, TaskFilter, TaskService, TaskStats, TaskUpdate
 from ticket_service import add_work_log as svc_add_work_log
 from ticket_service import get_ticket, list_tickets
@@ -244,6 +249,50 @@ async def op_add_work_log(
     )
 
 
+# ============================================================================
+# REMINDER OUTBOX OPERATIONS
+# ============================================================================
+
+
+@operation(
+    name="get_outbox_entries",
+    description="Get recent sent reminders from the outbox (audit trail)",
+    http_method="GET",
+    http_path="/api/reminder/outbox",
+)
+async def op_get_outbox_entries(limit: int = 50) -> list[OutboxEntry]:
+    """
+    Get recent outbox entries ordered by sent_at descending.
+    
+    Args:
+        limit: Maximum entries to return (default 50)
+    
+    Returns:
+        List of OutboxEntry objects with id, ticket_id, recipient, markdown_content, sent_at
+    """
+    return get_outbox_entries(limit=limit)
+
+
+@operation(
+    name="get_outbox_for_ticket",
+    description="Get all sent reminders for a specific ticket",
+    http_method="GET",
+    http_path="/api/reminder/outbox/{ticket_id}",
+)
+async def op_get_outbox_for_ticket(ticket_id: str) -> list[OutboxEntry]:
+    """
+    Get all outbox entries for a specific ticket.
+    
+    Args:
+        ticket_id: The ticket UUID to get reminders for
+    
+    Returns:
+        List of OutboxEntry objects for this ticket
+    """
+    from uuid import UUID
+    return get_entries_for_ticket(UUID(ticket_id))
+
+
 # Export shared services for callers (REST app, CLI tools, etc.)
 task_service = _task_service
 
@@ -258,6 +307,9 @@ __all__ = [
     # Reminder operations
     "op_get_reminder_candidates",
     "op_send_reminders",
+    # Outbox operations
+    "op_get_outbox_entries",
+    "op_get_outbox_for_ticket",
     # Worklog operations
     "op_add_work_log",
 ]
