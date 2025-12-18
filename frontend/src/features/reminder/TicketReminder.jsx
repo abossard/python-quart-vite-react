@@ -131,6 +131,11 @@ function truncateText(text, maxLength = 50) {
   return text.substring(0, maxLength) + '...'
 }
 
+function formatTicketId(id) {
+  if (!id) return '-'
+  return 'INC-' + id.substring(0, 7).toUpperCase()
+}
+
 function getPriorityAppearance(priority) {
   const map = {
     Critical: 'important',
@@ -162,6 +167,7 @@ export default function TicketReminder() {
   const [candidatesLoading, setCandidatesLoading] = useState(false)
   const [candidatesError, setCandidatesError] = useState(null)
   const [successMessage, setSuccessMessage] = useState(null)
+  const [selectedTicket, setSelectedTicket] = useState(null)
 
   // ============================================================================
   // ACTIONS - Event handlers
@@ -207,6 +213,10 @@ export default function TicketReminder() {
   const handleCheckboxChange = (ticketId) => {
     toggleTicketSelection(ticketId)
     setSelections(getSelectedTickets())
+  }
+
+  const handleTicketIdClick = (ticket) => {
+    setSelectedTicket(selectedTicket?.id === ticket.id ? null : ticket)
   }
 
   const handleSendReminders = async () => {
@@ -299,50 +309,52 @@ export default function TicketReminder() {
       renderCell: (item) => (
         <TableCellLayout>
           <Checkbox
-            checked={isTicketSelected(item.ticket_id)}
-            onChange={() => handleCheckboxChange(item.ticket_id)}
-            data-testid={`select-${item.ticket_id}`}
+            checked={isTicketSelected(item.ticket.id)}
+            onChange={() => handleCheckboxChange(item.ticket.id)}
+            data-testid={`select-${item.ticket.id}`}
           />
         </TableCellLayout>
       ),
     }),
     createTableColumn({
       columnId: 'ticket_id',
-      compare: (a, b) => a.ticket_id.localeCompare(b.ticket_id),
+      compare: (a, b) => (a.ticket.id || '').localeCompare(b.ticket.id || ''),
       renderHeaderCell: () => 'Ticket ID',
       renderCell: (item) => (
         <TableCellLayout>
-          <Text weight="semibold">{item.ticket_id}</Text>
+          <Text weight="semibold" onClick={() => handleTicketIdClick(item.ticket)} style={{ cursor: 'pointer', color: tokens.colorBrandForeground1 }}>
+            {formatTicketId(item.ticket.id)}
+          </Text>
         </TableCellLayout>
       ),
     }),
     createTableColumn({
       columnId: 'priority',
-      compare: (a, b) => a.priority.localeCompare(b.priority),
+      compare: (a, b) => (a.ticket.priority || '').localeCompare(b.ticket.priority || ''),
       renderHeaderCell: () => 'Priority',
       renderCell: (item) => (
         <TableCellLayout>
-          <Badge appearance={getPriorityAppearance(item.priority)}>{item.priority}</Badge>
+          <Badge appearance={getPriorityAppearance(item.ticket.priority)}>{item.ticket.priority}</Badge>
         </TableCellLayout>
       ),
     }),
     createTableColumn({
       columnId: 'group_name',
-      compare: (a, b) => (a.group_name || '').localeCompare(b.group_name || ''),
+      compare: (a, b) => (a.ticket.assigned_group || '').localeCompare(b.ticket.assigned_group || ''),
       renderHeaderCell: () => 'Group',
       renderCell: (item) => (
         <TableCellLayout>
-          <Text>{item.group_name || '-'}</Text>
+          <Text>{item.ticket.assigned_group || '-'}</Text>
         </TableCellLayout>
       ),
     }),
     createTableColumn({
       columnId: 'created_at',
-      compare: (a, b) => new Date(a.created_at) - new Date(b.created_at),
+      compare: (a, b) => new Date(a.ticket.created_at) - new Date(b.ticket.created_at),
       renderHeaderCell: () => 'Created',
       renderCell: (item) => (
         <TableCellLayout>
-          <Text>{formatDate(item.created_at)}</Text>
+          <Text>{formatDate(item.ticket.created_at)}</Text>
         </TableCellLayout>
       ),
     }),
@@ -358,6 +370,104 @@ export default function TicketReminder() {
       ),
     }),
   ]
+
+  // ============================================================================
+  // DETAIL PANEL
+  // ============================================================================
+
+  const renderDetailPanel = () => {
+    if (!selectedTicket) return null
+    return (
+      <>
+        {/* Backdrop */}
+        <div style={{
+          position: 'fixed',
+          top: 0,
+          left: 0,
+          right: 0,
+          bottom: 0,
+          backgroundColor: 'rgba(0, 0, 0, 0.3)',
+          zIndex: 999,
+          onClick: () => setSelectedTicket(null),
+        }} />
+        {/* Overlay Panel */}
+        <div style={{
+          position: 'fixed',
+          right: 0,
+          top: 0,
+          bottom: 0,
+          width: '400px',
+          backgroundColor: tokens.colorNeutralBackground1,
+          boxShadow: `0 0 20px rgba(0, 0, 0, 0.2)`,
+          overflowY: 'auto',
+          zIndex: 1000,
+          display: 'flex',
+          flexDirection: 'column',
+          animation: 'slideIn 0.3s ease-out',
+          "@keyframes slideIn": {
+            from: { transform: 'translateX(100%)' },
+            to: { transform: 'translateX(0)' },
+          },
+        }}>
+          <div style={{
+            display: 'flex',
+            justifyContent: 'space-between',
+            alignItems: 'center',
+            padding: tokens.spacingVerticalL,
+            borderBottom: `1px solid ${tokens.colorNeutralStroke1}`,
+            flexShrink: 0,
+          }}>
+            <Text weight="bold" size={500}>Ticket Details</Text>
+            <Button appearance="subtle" onClick={() => setSelectedTicket(null)}>✕</Button>
+          </div>
+          <div style={{
+            padding: tokens.spacingVerticalL,
+            overflowY: 'auto',
+            flex: 1,
+          }}>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: tokens.spacingVerticalL }}>
+              <div>
+                <Text weight="semibold" size={300}>ID</Text>
+                <Text>{formatTicketId(selectedTicket.id)}</Text>
+              </div>
+              <div>
+                <Text weight="semibold" size={300}>Summary</Text>
+                <Text>{selectedTicket.summary}</Text>
+              </div>
+              <div>
+                <Text weight="semibold" size={300}>Priority</Text>
+                <Badge appearance={getPriorityAppearance(selectedTicket.priority)}>{selectedTicket.priority}</Badge>
+              </div>
+              <div>
+                <Text weight="semibold" size={300}>Status</Text>
+                <Text>{selectedTicket.status}</Text>
+              </div>
+              <div>
+                <Text weight="semibold" size={300}>Assigned Group</Text>
+                <Text>{selectedTicket.assigned_group || '-'}</Text>
+              </div>
+              <div>
+                <Text weight="semibold" size={300}>Assignee</Text>
+                <Text>{selectedTicket.assignee || 'Unassigned'}</Text>
+              </div>
+              <div>
+                <Text weight="semibold" size={300}>Requester</Text>
+                <Text>{selectedTicket.requester_name}</Text>
+              </div>
+              <div>
+                <Text weight="semibold" size={300}>Email</Text>
+                <Text>{selectedTicket.requester_email}</Text>
+              </div>
+              <div>
+                <Text weight="semibold" size={300}>Description</Text>
+                <Text style={{ whiteSpace: 'pre-wrap', marginTop: tokens.spacingVerticalS }}>{selectedTicket.description}</Text>
+              </div>
+            </div>
+          </div>
+        </div>
+      </>
+    )
+  }
 
   // ============================================================================
   // RENDER
@@ -490,7 +600,7 @@ export default function TicketReminder() {
             items={candidates}
             columns={candidatesColumns}
             sortable
-            getRowId={(item) => item.ticket_id}
+            getRowId={(item) => item.ticket.id}
             data-testid="candidates-grid"
           >
             <DataGridHeader>
@@ -505,7 +615,7 @@ export default function TicketReminder() {
                 <DataGridRow
                   key={rowId}
                   className={item.was_reminded_before ? styles.remindedRow : ''}
-                  data-testid={`candidate-row-${item.ticket_id}`}
+                  data-testid={`candidate-row-${item.ticket.id}`}
                 >
                   {({ renderCell }) => <DataGridCell>{renderCell(item)}</DataGridCell>}
                 </DataGridRow>
@@ -514,6 +624,7 @@ export default function TicketReminder() {
           </DataGrid>
         </div>
       )}
+      {renderDetailPanel()}
     </div>
   )
 
