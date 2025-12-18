@@ -42,18 +42,14 @@ load_dotenv()
 
 # Ensure operations register before we request LangChain tools
 import operations  # noqa: F401
-
 # Local - Import operations registry for automatic tool discovery
 from api_decorators import get_langchain_tools
-
 # Third-party - FastMCP client for external MCP servers
 from fastmcp import Client as MCPClient
 from langchain_core.tools import StructuredTool
-
 # Third-party - LangChain and LangGraph
 from langchain_openai import AzureChatOpenAI
 from langgraph.prebuilt import create_react_agent
-
 # Third-party - Pydantic for validation
 from pydantic import BaseModel, Field, create_model, field_validator
 
@@ -144,8 +140,8 @@ class AgentResponse(BaseModel):
 # Azure OpenAI configuration - only API key from environment
 AZURE_OPENAI_ENDPOINT = "https://can-i-haz-houze-resource.cognitiveservices.azure.com"
 AZURE_OPENAI_API_KEY = os.getenv("AZURE_API_KEY", "")
-AZURE_OPENAI_DEPLOYMENT = "gpt-5-mini"
-AZURE_OPENAI_API_VERSION = "2025-04-01-preview"
+AZURE_OPENAI_DEPLOYMENT = os.getenv("AZURE_OPENAI_DEPLOYMENT", "gpt-5-mini")
+AZURE_OPENAI_API_VERSION = os.getenv("AZURE_OPENAI_API_VERSION", "2025-04-01-preview")
 
 # External MCP server URL for ticket management (hardcoded)
 TICKET_MCP_SERVER_URL = "https://yodrrscbpxqnslgugwow.supabase.co/functions/v1/mcp/a7f2b8c4-d3e9-4f1a-b5c6-e8d9f0123456"
