@@ -96,6 +96,9 @@
 - [ ] 18. Initialize sample reminder data
   - Extend `tickets.py` sample data with overdue tickets
 
+
+## Phase 8: More Infos
+- [ ] 19. Show overdue time and SLA with colors in the http://localhost:3001/reminders page
 ---
 
 ## API Contract Summary

@@ -107,6 +107,19 @@ const useStyles = makeStyles({
   remindedRow: {
     backgroundColor: tokens.colorPaletteGreenBackground1,
   },
+  // SLA tier row backgrounds
+  slaGreen: {
+    backgroundColor: tokens.colorPaletteGreenBackground1,
+  },
+  slaYellow: {
+    backgroundColor: tokens.colorPaletteYellowBackground1,
+  },
+  slaOrange: {
+    backgroundColor: tokens.colorPaletteDarkOrangeBackground1,
+  },
+  slaRed: {
+    backgroundColor: tokens.colorPaletteRedBackground1,
+  },
   selectionCount: {
     marginLeft: tokens.spacingHorizontalM,
     color: tokens.colorNeutralForeground2,
@@ -145,6 +158,77 @@ function getPriorityAppearance(priority) {
     Standard: 'subtle',
   }
   return map[priority] || 'subtle'
+}
+
+// SLA thresholds in minutes per priority (from RULES_EN.md)
+const SLA_MINUTES = {
+  Critical: 30,
+  High: 120,
+  Medium: 240,
+  Low: 480,
+  Standard: 480,
+}
+
+/**
+ * Calculate SLA tier based on deadline and current time
+ * @returns {object} { tier: 'green'|'yellow'|'orange'|'red', percentUsed, minutesRemaining }
+ */
+function calculateSlaTier(slaDeadline, isOverdue) {
+  if (!slaDeadline) return { tier: 'green', percentUsed: 0, minutesRemaining: 0 }
+  
+  const now = new Date()
+  const deadline = new Date(slaDeadline)
+  const diffMs = deadline - now
+  const minutesRemaining = Math.floor(diffMs / 60000)
+  
+  if (isOverdue || minutesRemaining < 0) {
+    return { tier: 'red', percentUsed: 100, minutesRemaining }
+  }
+  
+  // Estimate total SLA window to get percentage
+  // We'll use a simplified approach: thresholds at absolute time remaining
+  // Red: overdue, Orange: <20% remaining, Yellow: <50% remaining, Green: >=50%
+  // For simplicity with different SLAs, use absolute minute thresholds
+  if (minutesRemaining <= 10) {
+    return { tier: 'orange', percentUsed: 90, minutesRemaining }
+  }
+  if (minutesRemaining <= 30) {
+    return { tier: 'yellow', percentUsed: 70, minutesRemaining }
+  }
+  return { tier: 'green', percentUsed: 30, minutesRemaining }
+}
+
+/**
+ * Format time remaining or overdue as exact string
+ * @param {number} minutesRemaining - positive = remaining, negative = overdue
+ * @returns {string} e.g., "2h 15m left" or "45m overdue"
+ */
+function formatSlaTime(minutesRemaining) {
+  const absMinutes = Math.abs(minutesRemaining)
+  const hours = Math.floor(absMinutes / 60)
+  const mins = absMinutes % 60
+  
+  let timeStr = ''
+  if (hours > 0) {
+    timeStr = `${hours}h ${mins}m`
+  } else {
+    timeStr = `${mins}m`
+  }
+  
+  return minutesRemaining >= 0 ? `${timeStr} left` : `${timeStr} overdue`
+}
+
+/**
+ * Get Badge appearance based on SLA tier
+ */
+function getSlaBadgeAppearance(tier) {
+  const map = {
+    green: 'success',
+    yellow: 'warning',
+    orange: 'important',
+    red: 'important',
+  }
+  return map[tier] || 'subtle'
 }
 
 // ============================================================================
@@ -361,13 +445,26 @@ export default function TicketReminder() {
     createTableColumn({
       columnId: 'is_overdue',
       renderHeaderCell: () => 'SLA Status',
-      renderCell: (item) => (
-        <TableCellLayout>
-          <Badge appearance={item.is_overdue ? 'important' : 'subtle'}>
-            {item.is_overdue ? 'Overdue' : 'OK'}
-          </Badge>
-        </TableCellLayout>
-      ),
+      renderCell: (item) => {
+        const slaInfo = calculateSlaTier(item.sla_deadline, item.is_overdue)
+        const timeText = formatSlaTime(slaInfo.minutesRemaining)
+        return (
+          <TableCellLayout>
+            <Badge 
+              appearance={getSlaBadgeAppearance(slaInfo.tier)}
+              style={{
+                backgroundColor: slaInfo.tier === 'red' ? tokens.colorPaletteRedBackground3 :
+                                 slaInfo.tier === 'orange' ? tokens.colorPaletteDarkOrangeBackground3 :
+                                 slaInfo.tier === 'yellow' ? tokens.colorPaletteYellowBackground3 :
+                                 tokens.colorPaletteGreenBackground3,
+                color: slaInfo.tier === 'yellow' ? tokens.colorNeutralForeground1 : undefined,
+              }}
+            >
+              {timeText}
+            </Badge>
+          </TableCellLayout>
+        )
+      },
     }),
   ]
 
@@ -605,15 +702,30 @@ export default function TicketReminder() {
               </DataGridRow>
             </DataGridHeader>
             <DataGridBody>
-              {({ item, rowId }) => (
-                <DataGridRow
-                  key={rowId}
-                  className={item.was_reminded_before ? styles.remindedRow : ''}
-                  data-testid={`candidate-row-${item.ticket.id}`}
-                >
-                  {({ renderCell }) => <DataGridCell>{renderCell(item)}</DataGridCell>}
-                </DataGridRow>
-              )}
+              {({ item, rowId }) => {
+                const slaInfo = calculateSlaTier(item.sla_deadline, item.is_overdue)
+                const slaRowStyle = {
+                  green: styles.slaGreen,
+                  yellow: styles.slaYellow,
+                  orange: styles.slaOrange,
+                  red: styles.slaRed,
+                }[slaInfo.tier] || ''
+                
+                // Combine: reminded row gets green, otherwise use SLA tier color
+                const rowClassName = item.was_reminded_before 
+                  ? styles.remindedRow 
+                  : slaRowStyle
+                  
+                return (
+                  <DataGridRow
+                    key={rowId}
+                    className={rowClassName}
+                    data-testid={`candidate-row-${item.ticket.id}`}
+                  >
+                    {({ renderCell }) => <DataGridCell>{renderCell(item)}</DataGridCell>}
+                  </DataGridRow>
+                )
+              }}
             </DataGridBody>
           </DataGrid>
         </div>

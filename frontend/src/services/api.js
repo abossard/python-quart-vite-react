@@ -153,7 +153,10 @@ export async function fetchReminderCandidates(overdueOnly = false) {
 export async function sendReminders(ticketIds) {
   return fetchJSON(`${API_BASE_URL}/reminder/send`, {
     method: "POST",
-    body: JSON.stringify({ ticket_ids: ticketIds }),
+    body: JSON.stringify({
+      ticket_ids: ticketIds,
+      reminded_by: "User", // Default: using "User"; can be enhanced with actual username
+    }),
   });
 }
 
