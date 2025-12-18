@@ -2,39 +2,49 @@
 
 ## Architecture
 
-- `backend/app.py` hosts both REST (`/api/*`) and MCP JSON-RPC (`/mcp`) on port 5001; every new capability should be exposed via the shared `@operation` decorator so both interfaces stay in sync.
-- Business logic lives in `backend/tasks.py` (`TaskService` plus Pydantic models) backed by an in-memory `_tasks_db`; keep it the single source of truth and seed demo data via `TaskService.initialize_sample_data()`.
-- The React side is feature-first: `frontend/src/App.jsx` just switches tabs while each folder under `frontend/src/features` owns its state, calculations, and FluentUI layout; `frontend/src/services/api.js` is the only place that should issue network calls.
+- `backend/app.py` hosts REST (`/api/*`), MCP JSON-RPC (`/mcp`), and LangGraph agent (`/api/agents/run`) on port 5001; new capabilities should use the `@operation` decorator in `backend/operations.py` so all interfaces stay in sync.
+- Business logic lives in service modules: `tasks.py` (TaskService), `tickets.py` (ticket models + SLA calculations); keep services as the single source of truth.
+- The React side is feature-first: `frontend/src/App.jsx` switches tabs via React Router; each folder under `frontend/src/features` owns its state, calculations, and FluentUI layout.
+- All network calls go through `frontend/src/services/api.js`; localStorage helpers live in separate modules like `reminderStorage.js`.
 
 ## Backend Patterns
 
-- Define operations with `@operation` (see `op_create_task`, `op_get_task`): annotate parameters with Pydantic models or enums so MCP schemas and REST validation are generated automatically, then build thin Quart wrappers that only handle HTTP concerns.
-- Keep methods like `TaskService.create_task` and `TaskService.update_task` “deep”: they already validate, mutate `_tasks_db`, and return `Task` models, so avoid splitting them into tiny helpers or duplicating validation elsewhere.
-- Use the provided Pydantic models (`TaskCreate`, `TaskUpdate`, `TaskStats`, `TaskFilter`) for all inputs/outputs; MCP tooling and REST serializers expect `.model_dump()` objects with these exact field names (`created_at`, `completed`, etc.).
-- The SSE endpoint `time_stream` streams `{"time","date","timestamp"}` JSON strings; if you change its shape, also update `connectToTimeStream` consumers and the Dashboard expectations.
+- **Operations**: Define with `@operation` decorator (see `backend/operations.py`). Annotate parameters with Pydantic models so MCP schemas, REST validation, and LangGraph tools are generated automatically.
+- **Deep modules**: Keep service methods like `TaskService.create_task` deep—they validate, mutate state, and return models. Avoid scattering validation across routes.
+- **Pydantic everywhere**: Use models for all inputs/outputs (`TaskCreate`, `TaskUpdate`, `TaskFilter`). MCP tooling and REST serializers expect `.model_dump()` with exact field names.
+- **Agents**: `backend/agents.py` provides `AgentService` using Azure OpenAI + LangGraph. All `@operation` functions auto-become agent tools. Configure via `.env` (see `docs/AGENTS.md`).
+- **Tickets**: `backend/tickets.py` has Pydantic models for external ticket MCP service; SLA deadlines are defined in `PRIORITY_SLA_MINUTES` dict.
 
 ## Frontend Patterns
 
-- Feature components isolate **calculations** (pure helpers like `getTaskStats`), **actions** (API calls, event handlers), and **data** (React state) in that order; preserve that structure when extending `TaskList` or `Dashboard`.
-- Stick to FluentUI v9 primitives with `makeStyles`/`tokens`; prefer adjusting the `useStyles` definitions over inline styles to maintain theming consistency.
-- Always go through `frontend/src/services/api.js` (`fetchJSON`, `createTask`, `updateTask`, etc.); components expect rejected promises to carry friendly `Error.message`, so don’t bypass these helpers.
-- Task UI and tests rely on deterministic `data-testid` attributes (`task-menu-${id}`, `filter-completed`, etc.); keep them stable or update the Playwright suite alongside UI changes.
-- Real-time widgets follow the `connectToTimeStream` contract (subscribe in `useEffect`, capture cleanup function, surface errors via component state); reuse that approach for any new SSE sources.
+- **Feature structure**: Each component under `frontend/src/features/` isolates:
+  1. **Calculations** (pure helpers like `formatDate`, `truncateText`)
+  2. **Actions** (API calls, event handlers)
+  3. **Data** (React state)
+- **FluentUI v9**: Use `makeStyles`/`tokens` for styling; avoid inline styles. Components: `DataGrid`, `TabList`, `Badge`, `MessageBar`, `Spinner`.
+- **API layer**: Always use `frontend/src/services/api.js` (`fetchJSON`, `createTask`, etc.); rejected promises carry `Error.message`.
+- **localStorage**: For persistence across sessions, create dedicated modules (e.g., `reminderStorage.js` for reminder ticket selections).
+- **Test IDs**: Use stable `data-testid` attributes (`task-menu-${id}`, `filter-completed`, `candidates-grid`); update Playwright tests if IDs change.
+- **SSE**: Follow `connectToTimeStream` pattern—subscribe in `useEffect`, capture cleanup function, surface errors via state.
 
 ## Workflows
 
-- One-time setup: run `./setup.sh` from the repo root to create the repo-level `.venv`, install frontend deps, and provision Playwright browsers.
-- Dev loop: `source .venv/bin/activate && cd backend && python app.py` (serves on 5001) plus `cd frontend && npm run dev`; `./start-dev.sh` or the VS Code “Full Stack: Backend + Frontend” launch config will start both for you.
-- MCP testing uses JSON-RPC POSTs to `http://localhost:5001/mcp` (`tools/list`, `tools/call`); no extra process is required because the Quart server already exposes it.
+- **Setup**: `./setup.sh` creates `.venv`, installs frontend deps, provisions Playwright browsers.
+- **Dev loop**: 
+  - Backend: `source .venv/bin/activate && cd backend && python app.py` (port 5001)
+  - Frontend: `cd frontend && npm run dev` (port 3001)
+  - Or use `./start-dev.sh` or VS Code "Full Stack: Backend + Frontend" launch config.
+- **MCP testing**: POST to `http://localhost:5001/mcp` with JSON-RPC (`tools/list`, `tools/call`).
+- **Agent testing**: `POST /api/agents/run` with `{"prompt": "...", "agent_type": "task_assistant"}`.
 
 ## Testing
 
-- E2E coverage lives in `tests/e2e/app.spec.js`; from the repo root run `npm run test:e2e` (`:ui` for interactive, `:report` to inspect results). Start both servers first to avoid cold-start delays.
-- The suite assumes sample tasks exist (created by `TaskService.initialize_sample_data()`), tabs are labeled via `data-testid`, and SSE data matches the backend format; keep those invariants or update the tests deliberately.
-- For deterministic assertions, prefer editing helpers like `waitForAppToLoad` or the shared selector strings instead of scattering hard-coded waits.
+- E2E tests: `tests/e2e/app.spec.js`; run with `npm run test:e2e` (`:ui` for interactive).
+- Tests assume sample data exists (seeded by `TaskService.initialize_sample_data()`).
+- Use shared helpers like `waitForAppToLoad` for deterministic assertions.
 
 ## Conventions
 
-- Follow “Grokking Simplicity”: keep actions (I/O) in services or event handlers, calculations pure (formatting, stats), and data as plain objects/React state; this is enforced heavily in docs and existing code.
-- Follow “A Philosophy of Software Design”: favor deep modules (e.g., extend `TaskService` instead of sprinkling logic across routes/components) and hide complexity behind simple interfaces.
-- When you touch the architecture (operation decorators, unified REST/MCP flow, feature structure), update `README.md` and `UNIFIED_ARCHITECTURE.md` so future agents inherit the correct mental model.
+- **Grokking Simplicity**: Actions (I/O) in services/handlers, calculations pure (formatting, stats), data as plain objects/state.
+- **A Philosophy of Software Design**: Favor deep modules. Extend `TaskService` rather than sprinkling logic across routes.
+- **Doc updates**: When changing architecture (operation decorators, REST/MCP flow, feature structure), update `README.md` and `docs/UNIFIED_ARCHITECTURE.md`.
