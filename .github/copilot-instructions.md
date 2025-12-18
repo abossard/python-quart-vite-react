@@ -2,9 +2,10 @@
 
 ## Architecture
 
-- `backend/app.py` hosts both REST (`/api/*`) and MCP JSON-RPC (`/mcp`) on port 5001; every new capability should be exposed via the shared `@operation` decorator so both interfaces stay in sync.
-- Business logic lives in `backend/tasks.py` (`TaskService` plus Pydantic models) backed by an in-memory `_tasks_db`; keep it the single source of truth and seed demo data via `TaskService.initialize_sample_data()`.
-- The React side is feature-first: `frontend/src/App.jsx` just switches tabs while each folder under `frontend/src/features` owns its state, calculations, and FluentUI layout; `frontend/src/services/api.js` is the only place that should issue network calls.
+- `backend/app.py` hosts REST (`/api/*`), MCP JSON-RPC (`/mcp`), and LangGraph agent (`/api/agents/run`) on port 5001; new capabilities should use the `@operation` decorator in `backend/operations.py` so all interfaces stay in sync.
+- Business logic lives in service modules: `tasks.py` (TaskService), `tickets.py` (ticket models + SLA calculations); keep services as the single source of truth.
+- The React side is feature-first: `frontend/src/App.jsx` switches tabs via React Router; each folder under `frontend/src/features` owns its state, calculations, and FluentUI layout.
+- All network calls go through `frontend/src/services/api.js`; localStorage helpers live in separate modules like `reminderStorage.js`.
 
 ## Backend Patterns
 
