@@ -20,6 +20,7 @@ import {
   makeStyles,
   tokens,
   Spinner,
+  shorthands,
 } from '@fluentui/react-components'
 import { Search24Regular, DocumentBulletList24Regular } from '@fluentui/react-icons'
 import { searchTickets, generateKBA } from '../../services/api'
@@ -42,29 +43,77 @@ function formatStatus(status) {
 
 const useStyles = makeStyles({
   container: {
-    padding: tokens.spacingVerticalXL,
-    maxWidth: '1400px',
+    maxWidth: '900px',
     margin: '0 auto',
+    padding: tokens.spacingVerticalXXXL,
+    display: 'flex',
+    flexDirection: 'column',
+    alignItems: 'center',
+    textAlign: 'center',
+  },
+  welcomeSection: {
+    marginBottom: tokens.spacingVerticalXXXL,
+  },
+  avatar: {
+    width: '180px',
+    height: '180px',
+    ...shorthands.borderRadius('50%'),
+    backgroundColor: '#5B8FD8',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    margin: '0 auto',
+    marginBottom: tokens.spacingVerticalXL,
+    fontSize: '90px',
+  },
+  greeting: {
+    fontSize: '32px',
+    fontWeight: 400,
+    color: '#444444',
+    marginBottom: tokens.spacingVerticalM,
+  },
+  subtitle: {
+    fontSize: '16px',
+    color: '#666666',
+    lineHeight: '1.6',
+    marginBottom: tokens.spacingVerticalL,
+    maxWidth: '700px',
+  },
+  instruction: {
+    fontSize: '14px',
+    color: '#888888',
+    lineHeight: '1.6',
+    marginBottom: tokens.spacingVerticalXXL,
+    maxWidth: '700px',
   },
   searchSection: {
+    width: '100%',
+    maxWidth: '800px',
     display: 'flex',
     gap: tokens.spacingHorizontalM,
-    marginBottom: tokens.spacingVerticalXL,
+    marginBottom: tokens.spacingVerticalXXL,
   },
   searchInput: {
     flexGrow: 1,
   },
   resultsContainer: {
+    width: '100%',
     display: 'grid',
     gridTemplateColumns: '1fr 1fr',
     gap: tokens.spacingHorizontalL,
-    marginTop: tokens.spacingVerticalL,
+    marginTop: tokens.spacingVerticalXL,
   },
   resultCard: {
     height: 'fit-content',
+    borderRadius: '8px',
+    boxShadow: '0 1px 4px rgba(0, 0, 0, 0.1)',
+    textAlign: 'left',
   },
   kbaCard: {
     height: 'fit-content',
+    borderRadius: '8px',
+    boxShadow: '0 1px 4px rgba(0, 0, 0, 0.1)',
+    textAlign: 'left',
   },
   fieldRow: {
     marginBottom: tokens.spacingVerticalL,
@@ -189,33 +238,44 @@ export default function TicketSearch() {
 
   return (
     <div className={styles.container}>
-      <Card>
-        <CardHeader
-          header={<Text weight="semibold" size={500}>Ticket Search</Text>}
-          description={<Text>Search for support tickets by ticket ID or keywords</Text>}
-        />
-
-        <div className={styles.searchSection}>
-          <Input
-            className={styles.searchInput}
-            placeholder="Enter ticket ID or search term (e.g., ebc7c089, SCCM, Password)..."
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            onKeyDown={handleKeyDown}
-            disabled={loading}
-            data-testid="ticket-search-input"
-          />
-          <Button
-            appearance="primary"
-            icon={<Search24Regular />}
-            onClick={handleSearch}
-            disabled={loading || !searchQuery.trim()}
-            data-testid="ticket-search-button"
-          >
-            Search
-          </Button>
+      {/* Welcome Section */}
+      {!searched && (
+        <div className={styles.welcomeSection}>
+          <div className={styles.avatar}>🤖</div>
+          <h1 className={styles.greeting}>Guten Tag</h1>
+          <p className={styles.subtitle}>
+            Schön, dich hier zu sehen. Ich bin KBA Coach, dein digitaler Assistent.
+          </p>
+          <p className={styles.instruction}>
+            Anstatt hier einfach Suchbegriffe einzutippen, gib mir eine Ticket-ID - 
+            dann kann ich dir einen passenden Knowledge Base Artikel generieren!
+          </p>
         </div>
-      </Card>
+      )}
+
+      {/* Search Section */}
+      <div className={styles.searchSection}>
+        <Input
+          className={styles.searchInput}
+          placeholder="Stelle deine Frage oder gib eine Ticket-ID ein..."
+          value={searchQuery}
+          onChange={(e) => setSearchQuery(e.target.value)}
+          onKeyDown={handleKeyDown}
+          disabled={loading}
+          data-testid="ticket-search-input"
+          size="large"
+        />
+        <Button
+          appearance="primary"
+          icon={<Search24Regular />}
+          onClick={handleSearch}
+          disabled={loading || !searchQuery.trim()}
+          data-testid="ticket-search-button"
+          size="large"
+        >
+          Suchen
+        </Button>
+      </div>
 
       {/* Loading State */}
       {loading && (

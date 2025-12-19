@@ -9,53 +9,66 @@
 
 import {
   makeStyles,
-  Subtitle1,
+  Title2,
   Tab,
   TabList,
-  Text,
   tokens,
+  shorthands,
 } from '@fluentui/react-components'
 import {
-  Home24Regular,
-  Info24Regular,
-  TaskListLtr24Regular,
-  Bot24Regular,
   DocumentSearch24Regular,
 } from '@fluentui/react-icons'
 import { Navigate, Route, Routes, useLocation, useNavigate } from 'react-router-dom'
-import About from './components/About'
-import Dashboard from './features/dashboard/Dashboard'
-import TaskList from './features/tasks/TaskList'
-import OllamaChat from './features/ollama/OllamaChat'
 import TicketSearch from './features/tickets/TicketSearch'
 
 const useStyles = makeStyles({
   app: {
     minHeight: '100vh',
-    backgroundColor: tokens.colorNeutralBackground3,
+    backgroundColor: '#f7f7f7',
+    display: 'flex',
+    flexDirection: 'column',
   },
   header: {
-    backgroundColor: tokens.colorBrandBackground,
-    color: tokens.colorNeutralForegroundOnBrand,
-    padding: `${tokens.spacingVerticalL} ${tokens.spacingHorizontalXL}`,
-    boxShadow: tokens.shadow4,
+    backgroundColor: '#ffffff',
+    ...shorthands.borderBottom('1px', 'solid', '#e5e5e5'),
+    ...shorthands.padding(tokens.spacingVerticalM, tokens.spacingHorizontalXXL),
+  },
+  headerContent: {
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  leftSection: {
+    display: 'flex',
+    alignItems: 'center',
+    ...shorthands.gap(tokens.spacingHorizontalM),
+  },
+  logo: {
+    width: '48px',
+    height: '48px',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    fontSize: '32px',
   },
   title: {
-    color: tokens.colorNeutralForegroundOnBrand,
+    color: '#444444',
+    fontWeight: 400,
+    fontSize: '22px',
+    margin: 0,
+    letterSpacing: '0.5px',
   },
-  subtitle: {
-    color: tokens.colorNeutralForegroundOnBrand,
-    opacity: 0.9,
-    marginTop: tokens.spacingVerticalXS,
-  },
-  nav: {
-    backgroundColor: tokens.colorNeutralBackground1,
-    borderBottom: `1px solid ${tokens.colorNeutralStroke1}`,
-    padding: `0 ${tokens.spacingHorizontalXL}`,
+  rightSection: {
+    display: 'flex',
+    alignItems: 'center',
+    ...shorthands.gap(tokens.spacingHorizontalM),
   },
   content: {
-    maxWidth: '1400px',
-    margin: '0 auto',
+    flex: 1,
+    width: '100%',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
   },
 })
 
@@ -64,51 +77,26 @@ export default function App() {
   const location = useLocation()
   const navigate = useNavigate()
   const tabs = [
-    { value: 'dashboard', label: 'Dashboard', icon: <Home24Regular />, path: '/dashboard', testId: 'tab-dashboard' },
-    { value: 'tasks', label: 'Tasks', icon: <TaskListLtr24Regular />, path: '/tasks', testId: 'tab-tasks' },
     { value: 'tickets', label: 'Tickets', icon: <DocumentSearch24Regular />, path: '/tickets', testId: 'tab-tickets' },
-    { value: 'ollama', label: 'AI Chat', icon: <Bot24Regular />, path: '/ollama', testId: 'tab-ollama' },
-    { value: 'about', label: 'About', icon: <Info24Regular />, path: '/about', testId: 'tab-about' },
   ]
-  const activeTab = tabs.find((tab) => location.pathname.startsWith(tab.path))?.value ?? 'dashboard'
+  const activeTab = tabs.find((tab) => location.pathname.startsWith(tab.path))?.value ?? 'tickets'
 
   return (
     <div className={styles.app}>
       <header className={styles.header}>
-        <Subtitle1 className={styles.title}>Quart + React Demo Application</Subtitle1>
-        <Text className={styles.subtitle} size={300}>
-          A modern full-stack example with Python Quart backend and React + FluentUI frontend
-        </Text>
+        <div className={styles.headerContent}>
+          <div className={styles.leftSection}>
+            <div className={styles.logo}>🇨🇭</div>
+            <h1 className={styles.title}>KBA Coach</h1>
+          </div>
+        </div>
       </header>
-
-      <nav className={styles.nav}>
-        <TabList
-          selectedValue={activeTab}
-          onTabSelect={(_, data) => {
-            const selected = tabs.find((tab) => tab.value === data.value)
-            if (selected) {
-              navigate(selected.path)
-            }
-          }}
-          size="large"
-        >
-          {tabs.map((tab) => (
-            <Tab key={tab.value} value={tab.value} icon={tab.icon} data-testid={tab.testId}>
-              {tab.label}
-            </Tab>
-          ))}
-        </TabList>
-      </nav>
 
       <main className={styles.content}>
         <Routes>
-          <Route path="/" element={<Navigate to="/dashboard" replace />} />
-          <Route path="/dashboard" element={<Dashboard />} />
-          <Route path="/tasks" element={<TaskList />} />
+          <Route path="/" element={<Navigate to="/tickets" replace />} />
           <Route path="/tickets" element={<TicketSearch />} />
-          <Route path="/ollama" element={<OllamaChat />} />
-          <Route path="/about" element={<About />} />
-          <Route path="*" element={<Navigate to="/dashboard" replace />} />
+          <Route path="*" element={<Navigate to="/tickets" replace />} />
         </Routes>
       </main>
     </div>
