@@ -7,7 +7,7 @@
  * - Clear interfaces: Props and state flow is explicit
  */
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import {
   Button,
   Dropdown,
@@ -174,12 +174,25 @@ export default function App() {
   const navigate = useNavigate()
   const [selectedDate, setSelectedDate] = useState('')
   const [selectedSlot, setSelectedSlot] = useState(null)
+  const [bookingType, setBookingType] = useState('')
   const [formData, setFormData] = useState({
     name: '',
     vorname: '',
     email: '',
     hardware: '',
+    userEmail: '',
   })
+  
+  // Reset form data when slot or bookingType changes
+  useEffect(() => {
+    setFormData({
+      name: '',
+      vorname: '',
+      email: '',
+      hardware: '',
+      userEmail: '',
+    })
+  }, [selectedSlot, bookingType])
   
   const formatDateSwiss = (dateString) => {
     if (!dateString) return ''
@@ -272,49 +285,87 @@ export default function App() {
               </Text>
               
               <div className={styles.formField}>
-                <Label required>Name</Label>
-                <Input
-                  value={formData.name}
-                  onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                  placeholder="Nachname eingeben"
-                />
-              </div>
-              
-              <div className={styles.formField}>
-                <Label required>Vorname</Label>
-                <Input
-                  value={formData.vorname}
-                  onChange={(e) => setFormData({ ...formData, vorname: e.target.value })}
-                  placeholder="Vorname eingeben"
-                />
-              </div>
-              
-              <div className={styles.formField}>
-                <Label required>E-Mail-Adresse</Label>
-                <Input
-                  type="email"
-                  value={formData.email}
-                  onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-                  placeholder="email@beispiel.ch"
-                />
-              </div>
-              
-              <div className={styles.formField}>
-                <Label required>Hardware</Label>
+                <Label required>Terminbuchung</Label>
                 <Dropdown
                   placeholder="Bitte auswählen"
-                  value={formData.hardware}
-                  onOptionSelect={(e, data) => setFormData({ ...formData, hardware: data.optionText })}
+                  value={bookingType}
+                  onOptionSelect={(e, data) => setBookingType(data.optionValue)}
                 >
-                  <Option value="ja">Ja</Option>
-                  <Option value="nein">Nein</Option>
+                  <Option value="für mich">Für mich</Option>
+                  <Option value="für jemand anders">Für jemand anders</Option>
                 </Dropdown>
               </div>
               
-              <div style={{ display: 'flex', gap: tokens.spacingHorizontalS }}>
-                <Button appearance="primary">Termin buchen</Button>
-                <Button onClick={() => setSelectedSlot(null)}>Abbrechen</Button>
-              </div>
+              {bookingType === 'für jemand anders' && (
+                <div className={styles.formField}>
+                  <Label required>Ihre E-Mail-Adresse</Label>
+                  <Input
+                    type="email"
+                    value={formData.userEmail}
+                    onChange={(e) => setFormData({ ...formData, userEmail: e.target.value })}
+                    placeholder="ihre.email@beispiel.ch"
+                  />
+                </div>
+              )}
+              
+              {bookingType && (
+                <>
+                  <div className={styles.formField}>
+                    <Label required>{bookingType === 'für jemand anders' ? 'Name des neuen User*' : 'Name'}</Label>
+                    <Input
+                      value={formData.name}
+                      onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                      placeholder="Nachname eingeben"
+                    />
+                  </div>
+                  
+                  <div className={styles.formField}>
+                    <Label required>{bookingType === 'für jemand anders' ? 'Vorname des neuen User*' : 'Vorname'}</Label>
+                    <Input
+                      value={formData.vorname}
+                      onChange={(e) => setFormData({ ...formData, vorname: e.target.value })}
+                      placeholder="Vorname eingeben"
+                    />
+                  </div>
+                  
+                  <div className={styles.formField}>
+                    <Label required>{bookingType === 'für jemand anders' ? 'Email des neuen User*' : 'E-Mail-Adresse'}</Label>
+                    <Input
+                      type="email"
+                      value={formData.email}
+                      onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+                      placeholder="email@beispiel.ch"
+                    />
+                  </div>
+                  
+                  <div className={styles.formField}>
+                    <Label required>Hardware</Label>
+                    <Dropdown
+                      placeholder="Bitte auswählen"
+                      value={formData.hardware}
+                      onOptionSelect={(e, data) => setFormData({ ...formData, hardware: data.optionText })}
+                    >
+                      <Option value="ja">Ja</Option>
+                      <Option value="nein">Nein</Option>
+                    </Dropdown>
+                  </div>
+                  
+                  <div style={{ display: 'flex', gap: tokens.spacingHorizontalS }}>
+                    <Button appearance="primary">Termin buchen</Button>
+                    <Button onClick={() => { 
+                      setSelectedSlot(null); 
+                      setBookingType(''); 
+                      setFormData({
+                        name: '',
+                        vorname: '',
+                        email: '',
+                        hardware: '',
+                        userEmail: '',
+                      });
+                    }}>Abbrechen</Button>
+                  </div>
+                </>
+              )}
             </div>
           )}
         </div>
