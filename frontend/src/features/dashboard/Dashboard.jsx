@@ -20,32 +20,32 @@ import { connectToTimeStream, getCurrentDate } from '../../services/api'
 const useStyles = makeStyles({
   dashboard: {
     display: 'grid',
-    gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))',
-    gap: tokens.spacingVerticalL,
-    padding: tokens.spacingVerticalL,
+    gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))',
+    gap: tokens.spacingVerticalM,
+    padding: tokens.spacingVerticalM,
   },
   card: {
-    padding: tokens.spacingVerticalL,
+    padding: tokens.spacingVerticalM,
   },
   timeDisplay: {
-    fontSize: '48px',
+    fontSize: '28px',
     fontWeight: 'bold',
     color: tokens.colorBrandForeground1,
     fontVariantNumeric: 'tabular-nums',
   },
   dateDisplay: {
-    fontSize: '24px',
+    fontSize: '16px',
     color: tokens.colorNeutralForeground2,
   },
   label: {
-    fontSize: '14px',
+    fontSize: '12px',
     color: tokens.colorNeutralForeground3,
-    marginBottom: tokens.spacingVerticalS,
+    marginBottom: tokens.spacingVerticalXS,
   },
   content: {
     display: 'flex',
     flexDirection: 'column',
-    gap: tokens.spacingVerticalM,
+    gap: tokens.spacingVerticalS,
   },
 })
 
@@ -108,46 +108,6 @@ export default function Dashboard() {
             </>
           ) : (
             <Spinner label="Connecting to server..." />
-          )}
-        </div>
-      </Card>
-
-      <Card className={styles.card}>
-        <CardHeader
-          header={
-            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-              <CalendarLtr24Regular />
-              <Text weight="semibold">Server Date</Text>
-            </div>
-          }
-          description={<Text size={200}>Current date from API</Text>}
-        />
-        <div className={styles.content}>
-          {serverDate ? (
-            <>
-              <div>
-                <div className={styles.label}>Date</div>
-                <div className={styles.dateDisplay} data-testid="server-date">
-                  {serverDate.date}
-                </div>
-              </div>
-              <div>
-                <div className={styles.label}>Time</div>
-                <div className={styles.dateDisplay} data-testid="server-time">
-                  {serverDate.time}
-                </div>
-              </div>
-              <div>
-                <div className={styles.label}>ISO 8601</div>
-                <Text size={200} font="monospace">
-                  {serverDate.datetime}
-                </Text>
-              </div>
-            </>
-          ) : error ? (
-            <Text>Error: {error}</Text>
-          ) : (
-            <Spinner label="Loading..." />
           )}
         </div>
       </Card>

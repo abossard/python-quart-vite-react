@@ -374,9 +374,9 @@ export default function App() {
       <div className={styles.spacer}></div>
       <div className={styles.contentWrapper}>
         <header className={styles.header}>
-          <Subtitle1 className={styles.title}>Quart + React Demo Application</Subtitle1>
+          <Subtitle1 className={styles.title}>Task Manager</Subtitle1>
           <Text className={styles.subtitle} size={300}>
-            A modern full-stack example with Python Quart backend and React + FluentUI frontend
+            Quart + React Demo
           </Text>
         </header>
 
