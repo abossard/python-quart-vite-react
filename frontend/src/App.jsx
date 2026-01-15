@@ -10,7 +10,11 @@
 import { useState } from 'react'
 import {
   Button,
+  Dropdown,
+  Input,
+  Label,
   makeStyles,
+  Option,
   Subtitle1,
   Tab,
   TabList,
@@ -116,6 +120,20 @@ const useStyles = makeStyles({
   slotButton: {
     minWidth: '100px',
   },
+  bookingFormContainer: {
+    width: '100%',
+    padding: tokens.spacingHorizontalM,
+    backgroundColor: tokens.colorNeutralBackground1,
+    border: `2px solid ${tokens.colorBrandBackground}`,
+    borderRadius: tokens.borderRadiusMedium,
+    marginTop: tokens.spacingVerticalM,
+  },
+  formField: {
+    display: 'flex',
+    flexDirection: 'column',
+    gap: tokens.spacingVerticalXS,
+    marginBottom: tokens.spacingVerticalM,
+  },
   spacer: {
     flexGrow: 1,
   },
@@ -155,6 +173,13 @@ export default function App() {
   const location = useLocation()
   const navigate = useNavigate()
   const [selectedDate, setSelectedDate] = useState('')
+  const [selectedSlot, setSelectedSlot] = useState(null)
+  const [formData, setFormData] = useState({
+    name: '',
+    vorname: '',
+    email: '',
+    hardware: '',
+  })
   
   const formatDateSwiss = (dateString) => {
     if (!dateString) return ''
@@ -230,14 +255,68 @@ export default function App() {
             {generateTimeSlots().map((slot) => (
               <Button
                 key={slot}
-                appearance="outline"
+                appearance={selectedSlot === slot ? "primary" : "outline"}
                 size="small"
                 className={styles.slotButton}
+                onClick={slot === '08:00' ? () => setSelectedSlot(slot) : undefined}
               >
                 {slot}
               </Button>
             ))}
           </div>
+          
+          {selectedSlot === '08:00' && (
+            <div className={styles.bookingFormContainer}>
+              <Text size={500} weight="semibold" style={{ marginBottom: tokens.spacingVerticalM }}>
+                Termin buchen: {formatDateSwiss(selectedDate)} um {selectedSlot}
+              </Text>
+              
+              <div className={styles.formField}>
+                <Label required>Name</Label>
+                <Input
+                  value={formData.name}
+                  onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                  placeholder="Nachname eingeben"
+                />
+              </div>
+              
+              <div className={styles.formField}>
+                <Label required>Vorname</Label>
+                <Input
+                  value={formData.vorname}
+                  onChange={(e) => setFormData({ ...formData, vorname: e.target.value })}
+                  placeholder="Vorname eingeben"
+                />
+              </div>
+              
+              <div className={styles.formField}>
+                <Label required>E-Mail-Adresse</Label>
+                <Input
+                  type="email"
+                  value={formData.email}
+                  onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+                  placeholder="email@beispiel.ch"
+                />
+              </div>
+              
+              <div className={styles.formField}>
+                <Label required>Hardware</Label>
+                <Dropdown
+                  placeholder="Bitte auswählen"
+                  value={formData.hardware}
+                  onOptionSelect={(e, data) => setFormData({ ...formData, hardware: data.optionText })}
+                >
+                  <Option value="ja">Ja</Option>
+                  <Option value="nein">Nein</Option>
+                </Dropdown>
+              </div>
+              
+              <div style={{ display: 'flex', gap: tokens.spacingHorizontalS }}>
+                <Button appearance="primary">Termin buchen</Button>
+                <Button onClick={() => setSelectedSlot(null)}>Abbrechen</Button>
+              </div>
+            </div>
+          )}
         </div>
       )}
       
