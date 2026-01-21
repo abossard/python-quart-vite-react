@@ -140,6 +140,27 @@ export async function getQATickets() {
   return fetchJSON(`${API_BASE_URL}/qa-tickets`);
 }
 
+<<<<<<< HEAD
+/**
+ * Fetch all tickets categorized by issue count
+ * @returns {Promise<Object>} Response with {multiIssue: [...], oneIssue: [...]}
+ */
+export async function getTicketsOverview() {
+  return fetchJSON(`${API_BASE_URL}/tickets/overview`);
+}
+
+/**
+ * Split a multi-issue ticket into separate tickets
+ * @param {string} ticketId - ID of the ticket to split
+ * @returns {Promise<Object>} Split results with created ticket IDs
+ */
+export async function splitTicket(ticketId) {
+  return fetchJSON(`${API_BASE_URL}/tickets/${ticketId}/split`, {
+    method: "POST",
+  });
+}
+
+=======
 // ============================================================================
 // CSV Tickets APIs
 // ============================================================================
@@ -208,29 +229,4 @@ export async function getCSVTickets(options = {}) {
 export async function getCSVTicketStats() {
   return fetchJSON(`${API_BASE_URL}/csv-tickets/stats`);
 }
-
-// ============================================================================
-// Ticket APIs
-// ============================================================================
-
-/**
- * Search for a ticket by ticket ID
- * @param {string} ticketId - The ticket ID to search for (UUID format)
- * @returns {Promise<Object|null>} Ticket object if found, {ticket: null} if not found
- */
-export async function searchTickets(ticketId) {
-  const params = ticketId ? `?ticket_id=${encodeURIComponent(ticketId)}` : ''
-  return fetchJSON(`${API_BASE_URL}/tickets/search${params}`)
-}
-
-/**
- * Generate a Knowledge Base Article from a ticket
- * @param {Object} ticket - The ticket object to generate KBA from
- * @returns {Promise<Object>} Generated KBA with title, question, answer
- */
-export async function generateKBA(ticket) {
-  return fetchJSON(`${API_BASE_URL}/kba/generate`, {
-    method: 'POST',
-    body: JSON.stringify(ticket),
-  })
-}
+>>>>>>> main
