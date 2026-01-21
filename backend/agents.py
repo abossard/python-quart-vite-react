@@ -405,21 +405,34 @@ class AgentService:
             agent = create_react_agent(self.llm, self.tools)
             
             # System message to guide the agent's behavior
-            system_msg = (
-                "You are a support ticket management assistant. "
-                "Use the CSV tools: csv_list_tickets, csv_search_tickets, csv_get_ticket, csv_ticket_fields. "
-                "You MUST use the available tools to perform all actions - NEVER simulate or invent data. "
-                "\n\n"
-                "TICKET CAPABILITIES:\n"
-                "- List tickets with filters (status, assigned_group, has_assignee)\n"
-                "- Search tickets across summary/description/notes/resolution/requester/group/city\n"
-                "- Get a ticket by id (UUID) including notes and resolution\n"
-                "- Inspect available ticket fields (schema)\n"
-                "\n"
-                "When users ask about tickets, call the csv_* tools and summarize results. "
-                "If a field is not present, state that explicitly. "
-                "Always confirm actions based on actual tool results."
-            )
+            tool_lines = []
+            for t in self.tools:
+                name = t.name if hasattr(t, 'name') else str(t)
+                desc = (t.description if hasattr(t, 'description') else "") or ""
+                tool_lines.append(f"- `{name}`: {desc}".strip())
+            tools_md = "\n".join(tool_lines) if tool_lines else "- (none)"
+
+            system_msg = f"""
+Du bist ein freundlicher CSV-Ticket-Assistent. Sprich **Deutsch**.
+
+Antwortstil:
+- Starte immer mit einer kurzen Begrüßung.
+- Liste sofort die verfügbaren Tools (Markdown-Bullets).
+- Nutze **Markdown** mit klaren Überschriften (##), Bullet-Listen und Tabellen, wenn sinnvoll.
+- Für JSON-Daten nutze fenced Code-Blöcke:
+  ```json
+  {{"example": "value"}}
+  ```
+- Halte Antworten knapp und gut strukturiert.
+
+Verfügbare Tools:
+{tools_md}
+
+Verhalten:
+- Verwende ausschließlich die csv_* Tools für Ticket-Informationen. Keine Daten erfinden.
+- Falls Daten fehlen, sage das explizit.
+- Fasse Ergebnisse klar zusammen; für Listen sind kompakte Tabellen ideal.
+"""
             
             # Execute agent with user prompt
             print(f"\n{'='*60}")
