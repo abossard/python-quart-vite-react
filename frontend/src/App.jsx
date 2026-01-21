@@ -16,10 +16,14 @@ import {
     tokens,
 } from '@fluentui/react-components'
 import {
+    DataHistogram24Regular,
+    Info24Regular,
     Table24Regular,
 } from '@fluentui/react-icons'
 import { Navigate, Route, Routes, useLocation, useNavigate } from 'react-router-dom'
 import CSVTicketTable from './features/csvtickets/CSVTicketTable'
+import FieldsDocs from './features/fields/FieldsDocs'
+import KitchenSink from './features/kitchensink/KitchenSink'
 
 const useStyles = makeStyles({
   app: {
@@ -57,6 +61,8 @@ export default function App() {
   const navigate = useNavigate()
   const tabs = [
     { value: 'csvtickets', label: 'Tickets', icon: <Table24Regular />, path: '/csvtickets', testId: 'tab-csvtickets' },
+    { value: 'kitchensink', label: 'Kitchen Sink', icon: <DataHistogram24Regular />, path: '/kitchensink', testId: 'tab-kitchensink' },
+    { value: 'fields', label: 'Fields', icon: <Info24Regular />, path: '/fields', testId: 'tab-fields' },
   ]
   const activeTab = tabs.find((tab) => location.pathname.startsWith(tab.path))?.value ?? 'csvtickets'
 
@@ -92,6 +98,8 @@ export default function App() {
         <Routes>
           <Route path="/" element={<Navigate to="/csvtickets" replace />} />
           <Route path="/csvtickets" element={<CSVTicketTable />} />
+          <Route path="/kitchensink" element={<KitchenSink />} />
+          <Route path="/fields" element={<FieldsDocs />} />
           <Route path="*" element={<Navigate to="/csvtickets" replace />} />
         </Routes>
       </main>
