@@ -1,14 +1,12 @@
 """
-Ticket search service for querying external Supabase ticket API.
+Ticket search service using real ticket data from CSV file.
 Follows the unified REST/MCP architecture pattern.
 """
 
-from typing import Optional
+from typing import Optional, List, Dict
 from pydantic import BaseModel, Field
-import httpx
-
-# External API base URL
-TICKET_API_BASE_URL = "https://yodrrscbpxqnslgugwow.supabase.co/functions/v1/api/a7f2b8c4-d3e9-4f1a-b5c6-e8d9f0123456"
+import csv
+import os
 
 
 # Pydantic Models
@@ -36,65 +34,80 @@ class KBAArticle(BaseModel):
 
 
 class TicketService:
-    """Service for searching tickets via external Supabase API."""
+    """Service for searching tickets from CSV data."""
     
     def __init__(self):
-        self.base_url = TICKET_API_BASE_URL
-        self.timeout = 10.0  # 10 second timeout
+        self._tickets: Dict[str, Ticket] = {}
+        self._load_tickets()
+    
+    def _load_tickets(self):
+        """Load tickets from CSV file into memory."""
+        # Get path to CSV file (relative to this file)
+        csv_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), "csv", "data.csv")
+        
+        if not os.path.exists(csv_path):
+            print(f"Warning: Ticket CSV file not found at {csv_path}")
+            return
+        
+        try:
+            with open(csv_path, 'r', encoding='utf-8') as file:
+                reader = csv.DictReader(file)
+                for row in reader:
+                    # Extract relevant fields from CSV
+                    # Use Entry ID (the INC number) as the primary identifier
+                    ticket_id = row.get("Entry ID", "").strip()
+                    if not ticket_id:
+                        continue
+                    
+                    ticket = Ticket(
+                        id=ticket_id,
+                        assignee=row.get("Assignee+", "").strip() or None,
+                        summary=row.get("Summary*", "").strip(),
+                        description=row.get("Notes", "").strip() or row.get("Additional Information", "").strip(),
+                        resolution=row.get("Resolution", "").strip() or None,
+                        status=row.get("Status*", "").strip(),
+                        priority=row.get("Priority*", "").strip() or None,
+                        service=row.get("Service*+", "").strip() or None,
+                        city=row.get("City", "").strip() or None,
+                        created_at=row.get("Submit Date", "").strip() or None,
+                        updated_at=row.get("Last Modified Date", "").strip() or None
+                    )
+                    
+                    self._tickets[ticket_id] = ticket
+            
+            print(f"Loaded {len(self._tickets)} tickets from CSV")
+        
+        except Exception as e:
+            print(f"Error loading tickets from CSV: {e}")
     
     async def search_ticket(self, ticket_id: str) -> Optional[Ticket]:
         """
         Search for a ticket by ticket ID or partial ID.
         
         Args:
-            ticket_id: The ticket ID to search for (full UUID or partial string)
+            ticket_id: The ticket ID to search for (full or partial string)
             
         Returns:
             Ticket object if found, None otherwise
-            
-        Raises:
-            httpx.HTTPError: If the API request fails
         """
         if not ticket_id or not ticket_id.strip():
             return None
         
-        search_term = ticket_id.strip()
+        search_term = ticket_id.strip().upper()
         
-        async with httpx.AsyncClient(timeout=self.timeout) as client:
-            try:
-                # Try direct ID lookup first (if it looks like a full UUID)
-                if len(search_term) == 36 and search_term.count('-') == 4:
-                    response = await client.get(
-                        f"{self.base_url}/tickets/{search_term}"
-                    )
-                    if response.status_code == 200:
-                        data = response.json()
-                        if data:
-                            return Ticket(**data)
-                
-                # Fall back to full-text search for partial IDs or non-UUID strings
-                response = await client.get(
-                    f"{self.base_url}/tickets",
-                    params={"full_text": search_term, "page": 1, "page_size": 1}
-                )
-                response.raise_for_status()
-                
-                data = response.json()
-                
-                # API returns {"data": [...], "total": N}
-                if data and isinstance(data, dict) and "data" in data:
-                    tickets = data["data"]
-                    if tickets and len(tickets) > 0:
-                        return Ticket(**tickets[0])
-                
-                return None
-                
-            except httpx.HTTPStatusError as e:
-                # Log error but return None for 404s (not found is valid state)
-                if e.response.status_code == 404:
-                    return None
-                raise Exception(f"Ticket API error: {e.response.status_code}")
-            except httpx.RequestError as e:
-                raise Exception(f"Failed to connect to ticket API: {str(e)}")
-            except Exception as e:
-                raise Exception(f"Error searching tickets: {str(e)}")
+        # Try exact match first
+        if search_term in self._tickets:
+            return self._tickets[search_term]
+        
+        # Try partial match
+        for ticket_id_key, ticket in self._tickets.items():
+            if search_term in ticket_id_key:
+                return ticket
+        
+        # Try case-insensitive search in summary and description
+        for ticket in self._tickets.values():
+            if (search_term.lower() in ticket.summary.lower() or 
+                search_term.lower() in ticket.description.lower()):
+                return ticket
+        
+        return None
