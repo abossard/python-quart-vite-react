@@ -13,9 +13,19 @@
   "dependencies": {
     "@fluentui/react-components": "^9.47.0",
     "@fluentui/react-icons": "^2.0.239",
+    "@nivo/axes": "^0.99.0",
+    "@nivo/bar": "^0.99.0",
+    "@nivo/core": "^0.99.0",
+    "@nivo/legends": "^0.99.0",
+    "@nivo/line": "^0.99.0",
+    "@nivo/pie": "^0.99.0",
+    "@nivo/sankey": "^0.99.0",
+    "@nivo/stream": "^0.99.0",
     "react": "^18.2.0",
     "react-dom": "^18.2.0",
-    "react-router-dom": "^7.9.6"
+    "react-markdown": "^10.1.0",
+    "react-router-dom": "^7.9.6",
+    "remark-gfm": "^4.0.1"
   },
   "devDependencies": {
     "@playwright/test": "^1.42.1",

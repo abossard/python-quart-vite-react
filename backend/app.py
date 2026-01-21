@@ -28,9 +28,32 @@ load_dotenv()
 
 
 # Import unified operation system
+
+# Agent service for OpenAI LangGraph agents
+from agents import AgentRequest, AgentResponse, agent_service
 from api_decorators import operation
 from mcp import handle_mcp_request
 from ollama_service import ChatRequest, ChatResponse, ChatMessage, ModelListResponse, OllamaService
+
+# CSV ticket service
+from csv_data import Ticket, get_csv_ticket_service
+
+# FastMCP client for direct ticket MCP calls (no AI)
+from fastmcp import Client as MCPClient
+from mcp_handler import handle_mcp_request
+from operations import (
+    op_create_task,
+    op_delete_task,
+    op_get_task,
+    op_get_task_stats,
+    op_list_tasks,
+    op_update_task,
+    task_service,
+)
+
+# Ticket MCP server URL (same as in agents.py)
+TICKET_MCP_SERVER_URL = "https://yodrrscbpxqnslgugwow.supabase.co/functions/v1/mcp/a7f2b8c4-d3e9-4f1a-b5c6-e8d9f0123456"
+
 from pydantic import ValidationError
 from quart import Quart, jsonify, request, send_from_directory
 from quart_cors import cors
@@ -61,144 +84,10 @@ def format_datetime(dt: datetime) -> str:
     return dt.isoformat()
 
 
-# ============================================================================
+# =========================================================================
 # UNIFIED OPERATIONS
-# Define once with Pydantic types, use for both REST and MCP!
-# ============================================================================
-
-@operation(
-    name="list_tasks",
-    description="List all tasks with optional filtering by completion status",
-    http_method="GET",
-    http_path="/api/tasks"
-)
-async def op_list_tasks(filter: TaskFilter = TaskFilter.ALL) -> list[Task]:
-    """
-    List tasks with optional filtering.
-
-    This operation serves BOTH:
-    - REST API: GET /api/tasks?filter=...
-    - MCP tool: list_tasks(filter=...)
-
-    Pydantic's TaskFilter enum automatically generates MCP schema!
-    """
-    return task_service.list_tasks(filter)
-
-
-@operation(
-    name="create_task",
-    description="Create a new task with validation",
-    http_method="POST",
-    http_path="/api/tasks"
-)
-async def op_create_task(data: TaskCreate) -> Task:
-    """
-    Create a new task.
-
-    Pydantic automatically:
-    - Validates title is not empty
-    - Trims whitespace
-    - Generates JSON schema for MCP
-
-    Returns the created Task model.
-    """
-    return task_service.create_task(data)
-
-
-@operation(
-    name="get_task",
-    description="Retrieve a specific task by its unique identifier",
-    http_method="GET",
-    http_path="/api/tasks/{task_id}"
-)
-async def op_get_task(task_id: str) -> Task | None:
-    """
-    Get task by ID.
-
-    Returns None if not found - caller handles 404.
-    """
-    return task_service.get_task(task_id)
-
-
-@operation(
-    name="update_task",
-    description="Update an existing task's properties",
-    http_method="PUT",
-    http_path="/api/tasks/{task_id}"
-)
-async def op_update_task(task_id: str, data: TaskUpdate) -> Task | None:
-    """
-    Update task with validation.
-
-    TaskUpdate has all optional fields - only provided fields are updated.
-    Pydantic validates any provided values automatically.
-
-    Returns None if task not found.
-    """
-    return task_service.update_task(task_id, data)
-
-
-@operation(
-    name="delete_task",
-    description="Delete a task permanently by its identifier",
-    http_method="DELETE",
-    http_path="/api/tasks/{task_id}"
-)
-async def op_delete_task(task_id: str) -> bool:
-    """
-    Delete task.
-
-    Returns True if deleted, False if not found.
-    """
-    return task_service.delete_task(task_id)
-
-
-@operation(
-    name="get_task_stats",
-    description="Get summary statistics for all tasks",
-    http_method="GET",
-    http_path="/api/tasks/stats"
-)
-async def op_get_task_stats() -> TaskStats:
-    """
-    Get task statistics.
-
-    Returns Pydantic TaskStats model with total, completed, pending counts.
-    """
-    return task_service.get_stats()
-
-
-@operation(
-    name="ollama_chat",
-    description="Generate a chat completion using local Ollama LLM",
-    http_method="POST",
-    http_path="/api/ollama/chat"
-)
-async def op_ollama_chat(request: ChatRequest) -> ChatResponse:
-    """
-    Chat with Ollama LLM.
-
-    Supports conversation history and configurable temperature.
-    Pydantic automatically validates message format and parameters.
-
-    Returns the generated response with metadata.
-    """
-    return await ollama_service.chat(request)
-
-
-@operation(
-    name="list_ollama_models",
-    description="List all available Ollama models on the local system",
-    http_method="GET",
-    http_path="/api/ollama/models"
-)
-async def op_list_ollama_models() -> ModelListResponse:
-    """
-    List available Ollama models.
-
-    Returns list of models with name, size, and modification time.
-    """
-    return await ollama_service.list_models()
+# Defined once in operations.py so REST, MCP, and agents share logic.
+# =========================================================================
 
 
 @operation(
@@ -327,30 +216,95 @@ async def rest_get_stats():
     return jsonify(stats.model_dump())
 
 
-@app.route("/api/ollama/chat", methods=["POST"])
-async def rest_ollama_chat():
-    """REST wrapper: chat with Ollama LLM."""
+# ============================================================================
+# AGENT ENDPOINT - OpenAI LangGraph Agent
+# ============================================================================
+
+@app.route("/api/agents/run", methods=["POST"])
+async def rest_run_agent():
+    """REST wrapper: run AI agent with OpenAI.
+    
+    The agent has access to task tools and ticket MCP tools.
+    """
     try:
         data = await request.get_json()
-        chat_request = ChatRequest(**data)
-        response = await op_ollama_chat(chat_request)
+        agent_request = AgentRequest(**data)
+        response = await agent_service.run_agent(agent_request)
         return jsonify(response.model_dump()), 200
     except ValidationError as e:
         return jsonify({"error": str(e)}), 400
-    except ValueError as e:
-        return jsonify({"error": str(e)}), 503
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
 
-@app.route("/api/ollama/models", methods=["GET"])
-async def rest_list_ollama_models():
-    """REST wrapper: list available Ollama models."""
+# ============================================================================
+# TICKET MCP EXAMPLE - Direct FastMCP client usage (no AI)
+# ============================================================================
+
+async def _call_ticket_mcp_tool(tool_name: str, args: dict | None = None) -> list[dict]:
+    """
+    Helper: Call a tool on the Ticket MCP server and extract results.
+    
+    This demonstrates using FastMCP client programmatically without any AI.
+    The connection is opened, tool is called, and connection is closed.
+    
+    Args:
+        tool_name: Name of the MCP tool to call (e.g., "list_tickets")
+        args: Optional dict of arguments for the tool
+        
+    Returns:
+        List of parsed JSON results from the tool response
+    """
+    args = args or {}
+    results = []
+    
+    async with MCPClient(TICKET_MCP_SERVER_URL) as client:
+        response = await client.call_tool(tool_name, args)
+        
+        # Extract text content from MCP response
+        if hasattr(response, 'content') and response.content:
+            for content_item in response.content:
+                # Only process TextContent items (use getattr for type safety)
+                text = getattr(content_item, 'text', None)
+                if text is not None and isinstance(text, str):
+                    try:
+                        # Parse JSON if possible
+                        results.append(json.loads(text))
+                    except json.JSONDecodeError:
+                        results.append({"text": text})
+    
+    return results
+    
+    return results
+
+
+@app.route("/api/tickets", methods=["GET"])
+async def rest_list_tickets():
+    """
+    List tickets from external Ticket MCP server.
+    
+    Example of calling MCP tools directly via FastMCP client.
+    No AI involved - just pure MCP protocol.
+    
+    Query params:
+        - status: Filter by status (new, assigned, in_progress, etc.)
+        - priority: Filter by priority (critical, high, medium, low)
+        - search: Full-text search in summary/description
+        - page: Page number (default: 1)
+        - page_size: Results per page (default: 20)
+    """
     try:
-        models = await op_list_ollama_models()
-        return jsonify(models.model_dump()), 200
-    except ValueError as e:
-        return jsonify({"error": str(e)}), 503
+        # Build args from query params
+        args = {}
+        for param in ["status", "priority", "city", "service", "search"]:
+            if val := request.args.get(param):
+                args[param] = val
+        for param in ["page", "page_size"]:
+            if val := request.args.get(param):
+                args[param] = int(val)
+        
+        results = await _call_ticket_mcp_tool("list_tickets", args)
+        return jsonify(results[0] if len(results) == 1 else results), 200
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
@@ -373,6 +327,59 @@ async def rest_search_tickets():
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
+@app.route("/api/tickets/<ticket_id>", methods=["GET"])
+async def rest_get_ticket(ticket_id: str):
+    """
+    Get a single ticket by ID from the Ticket MCP server.
+    
+    Demonstrates calling MCP tool with path parameter.
+    """
+    try:
+        results = await _call_ticket_mcp_tool("get_ticket", {"ticket_id": ticket_id})
+        if not results:
+            return jsonify({"error": "Ticket not found"}), 404
+        return jsonify(results[0]), 200
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+@app.route("/api/tickets/stats", methods=["GET"])
+async def rest_get_ticket_stats():
+    """
+    Get ticket statistics from the Ticket MCP server.
+    
+    Returns aggregated counts by status, priority, service, city.
+    """
+    try:
+        args = {}
+        if time_from := request.args.get("time_from"):
+            args["time_from"] = time_from
+        if time_to := request.args.get("time_to"):
+            args["time_to"] = time_to
+            
+        results = await _call_ticket_mcp_tool("get_ticket_stats", args)
+        return jsonify(results[0] if len(results) == 1 else results), 200
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+@app.route("/api/tickets/search", methods=["POST"])
+async def rest_search_tickets():
+    """
+    Advanced ticket search with multiple filters.
+    
+    Body JSON:
+        - query: Full-text search string
+        - filters: {status: [...], priority: [...], city: [...], service: [...]}
+        - limit: Max results
+    """
+    try:
+        data = await request.get_json() or {}
+        results = await _call_ticket_mcp_tool("search_tickets", data)
+        return jsonify(results[0] if len(results) == 1 else results), 200
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
 
 @app.route("/api/kba/generate", methods=["POST"])
 async def rest_generate_kba():
@@ -391,11 +398,265 @@ async def rest_generate_kba():
         return jsonify({"error": str(e)}), 503
     except Exception as e:
         return jsonify({"error": str(e)}), 500
+# ============================================================================
+# QA TICKETS ENDPOINT
+# ============================================================================
+
+
+def _map_mcp_ticket_to_frontend(mcp_ticket: dict) -> dict:
+    """
+    Pure function: Map MCP ticket schema to frontend expected format.
+    
+    MCP fields -> Frontend fields:
+      - summary -> title
+      - requester_name -> reporter
+      - created_at -> createdAt (camelCase)
+      - updated_at -> updatedAt
+      - priority (lowercase) -> Priority (capitalized)
+      - status (lowercase) -> status (capitalized)
+    """
+    priority_raw = mcp_ticket.get("priority", "medium")
+    priority = priority_raw.capitalize() if priority_raw else "Medium"
+    
+    status_raw = mcp_ticket.get("status", "new")
+    status = status_raw.replace("_", " ").title() if status_raw else "New"
+    
+    # Derive escalationNeeded from priority
+    escalation_needed = priority in ("Critical", "High")
+    
+    return {
+        "id": str(mcp_ticket.get("id", "")),
+        "title": mcp_ticket.get("summary", ""),
+        "description": mcp_ticket.get("description", ""),
+        "status": status,
+        "priority": priority,
+        "assignee": mcp_ticket.get("assignee"),
+        "reporter": mcp_ticket.get("requester_name", ""),
+        "createdAt": mcp_ticket.get("created_at", ""),
+        "updatedAt": mcp_ticket.get("updated_at", ""),
+        "escalationNeeded": escalation_needed,
+    }
+
+
+def _is_unassigned_ticket(ticket: dict) -> bool:
+    """Pure function: Check if ticket is assigned to group but has no individual assignee."""
+    has_group = ticket.get("assigned_group") is not None
+    no_assignee = ticket.get("assignee") is None
+    status = ticket.get("status", "")
+    is_open_status = status in ("new", "assigned")
+    return has_group and no_assignee and is_open_status
+
+
+@app.route("/api/qa-tickets", methods=["GET"])
+async def get_qa_tickets():
+    """
+    Get QA tickets that need escalation.
+    
+    Calls the external Ticket MCP server and maps results to frontend format.
+    Filters for unassigned tickets (assigned to group but no individual assignee).
+    """
+    try:
+        # Call MCP server to get all tickets
+        results = await _call_ticket_mcp_tool("list_tickets", {})
+        
+        # Extract tickets from MCP response
+        mcp_tickets = []
+        if results and len(results) > 0:
+            response_data = results[0]
+            if isinstance(response_data, dict) and "tickets" in response_data:
+                mcp_tickets = response_data["tickets"]
+            elif isinstance(response_data, list):
+                mcp_tickets = response_data
+        
+        # Filter for unassigned tickets and map to frontend format
+        frontend_tickets = [
+            _map_mcp_ticket_to_frontend(ticket)
+            for ticket in mcp_tickets
+            if _is_unassigned_ticket(ticket)
+        ]
+        
+        return jsonify({"tickets": frontend_tickets})
+    except Exception as e:
+        return jsonify({"error": str(e), "tickets": []}), 500
 
 
 # ============================================================================
 # NON-TASK ENDPOINTS
 # ============================================================================
+
+# ============================================================================
+# CSV TICKET ENDPOINTS
+# ============================================================================
+
+# Initialize CSV ticket service
+_csv_ticket_service = get_csv_ticket_service()
+
+# Load CSV data on startup (using relative path from backend folder)
+_csv_data_path = Path(__file__).parent.parent / "csv" / "data.csv"
+if _csv_data_path.exists():
+    _csv_loaded = _csv_ticket_service.load_csv(_csv_data_path)
+    print(f"📊 Loaded {_csv_loaded} tickets from CSV")
+
+
+# Define which fields are available for display
+CSV_TICKET_FIELDS = [
+    {"name": "id", "label": "ID", "type": "uuid"},
+    {"name": "summary", "label": "Summary", "type": "string"},
+    {"name": "status", "label": "Status", "type": "enum"},
+    {"name": "priority", "label": "Priority", "type": "enum"},
+    {"name": "assignee", "label": "Assignee", "type": "string"},
+    {"name": "assigned_group", "label": "Assigned Group", "type": "string"},
+    {"name": "requester_name", "label": "Requester", "type": "string"},
+    {"name": "requester_email", "label": "Email", "type": "string"},
+    {"name": "city", "label": "City", "type": "string"},
+    {"name": "country", "label": "Country", "type": "string"},
+    {"name": "service", "label": "Service", "type": "string"},
+    {"name": "incident_type", "label": "Incident Type", "type": "string"},
+    {"name": "product_name", "label": "Product", "type": "string"},
+    {"name": "manufacturer", "label": "Manufacturer", "type": "string"},
+    {"name": "created_at", "label": "Created", "type": "datetime"},
+    {"name": "updated_at", "label": "Updated", "type": "datetime"},
+    {"name": "urgency", "label": "Urgency", "type": "string"},
+    {"name": "impact", "label": "Impact", "type": "string"},
+    {"name": "resolution", "label": "Resolution", "type": "string"},
+    {"name": "notes", "label": "Notes", "type": "string"},
+]
+
+
+@app.route("/api/csv-tickets/fields", methods=["GET"])
+async def get_csv_ticket_fields():
+    """Get metadata about available CSV ticket fields."""
+    return jsonify({
+        "fields": CSV_TICKET_FIELDS,
+        "total_tickets": _csv_ticket_service.total_count,
+    })
+
+
+@app.route("/api/csv-tickets", methods=["GET"])
+async def get_csv_tickets():
+    """
+    Get CSV tickets with optional filtering, sorting, and field selection.
+    
+    Query params:
+    - fields: comma-separated list of field names to include
+    - status: filter by status (new, assigned, in_progress, pending, resolved, closed)
+    - has_assignee: filter by assignee presence (true/false)
+    - assigned_group: filter by group name
+    - sort: field name to sort by
+    - sort_dir: asc or desc (default: asc)
+    - limit: max number of results
+    - offset: number of results to skip
+    """
+    from tickets import TicketStatus
+
+    # Parse query params
+    fields_param = request.args.get("fields", "")
+    status_param = request.args.get("status")
+    has_assignee_param = request.args.get("has_assignee")
+    assigned_group_param = request.args.get("assigned_group")
+    sort_param = request.args.get("sort", "created_at")
+    sort_dir = request.args.get("sort_dir", "desc")
+    limit = request.args.get("limit", type=int)
+    offset = request.args.get("offset", 0, type=int)
+    
+    # Determine which fields to include
+    if fields_param:
+        selected_fields = [f.strip() for f in fields_param.split(",")]
+    else:
+        # Default fields for table display
+        selected_fields = ["summary", "status", "priority", "assignee", "assigned_group", "requester_name", "city", "created_at"]
+    
+    # Parse filters
+    status_filter = None
+    if status_param:
+        try:
+            status_filter = TicketStatus(status_param)
+        except ValueError:
+            pass
+    
+    has_assignee_filter = None
+    if has_assignee_param is not None:
+        has_assignee_filter = has_assignee_param.lower() == "true"
+    
+    # Get tickets with filters
+    tickets = _csv_ticket_service.list_tickets(
+        status=status_filter,
+        assigned_group=assigned_group_param,
+        has_assignee=has_assignee_filter,
+    )
+    
+    # Sort tickets
+    def get_sort_key(ticket: Ticket):
+        val = getattr(ticket, sort_param, None)
+        if val is None:
+            return ""
+        if hasattr(val, "value"):  # Enum
+            return val.value
+        return val
+    
+    try:
+        tickets = sorted(tickets, key=get_sort_key, reverse=(sort_dir == "desc"))
+    except TypeError:
+        pass  # Skip sorting if types are incompatible
+    
+    total_count = len(tickets)
+    
+    # Apply pagination
+    if limit:
+        tickets = tickets[offset:offset + limit]
+    elif offset:
+        tickets = tickets[offset:]
+    
+    # Build response with selected fields only
+    result = []
+    for ticket in tickets:
+        row = {}
+        for field in selected_fields:
+            val = getattr(ticket, field, None)
+            if val is None:
+                row[field] = None
+            elif hasattr(val, "value"):  # Enum
+                row[field] = val.value
+            elif hasattr(val, "isoformat"):  # datetime
+                row[field] = val.isoformat()
+            elif hasattr(val, "hex"):  # UUID
+                row[field] = str(val)
+            else:
+                row[field] = val
+        result.append(row)
+    
+    return jsonify({
+        "tickets": result,
+        "total": total_count,
+        "offset": offset,
+        "limit": limit,
+        "fields": selected_fields,
+    })
+
+
+@app.route("/api/csv-tickets/stats", methods=["GET"])
+async def get_csv_ticket_stats():
+    """Get statistics about CSV tickets."""
+    from collections import Counter
+    
+    tickets = _csv_ticket_service.list_tickets()
+    
+    statuses = Counter(t.status.value for t in tickets)
+    priorities = Counter(t.priority.value for t in tickets)
+    groups = Counter(t.assigned_group for t in tickets if t.assigned_group)
+    cities = Counter(t.city for t in tickets if t.city)
+    
+    unassigned_count = sum(1 for t in tickets if t.assignee is None and t.assigned_group is not None)
+    
+    return jsonify({
+        "total": len(tickets),
+        "unassigned": unassigned_count,
+        "by_status": dict(statuses),
+        "by_priority": dict(priorities),
+        "by_group": dict(groups.most_common(10)),
+        "by_city": dict(cities.most_common(10)),
+    })
+
 
 @app.route("/api/health", methods=["GET"])
 async def health_check():
@@ -496,6 +757,13 @@ if __name__ == "__main__":
     print("   • Zero duplication between interfaces")
     print()
     print("🌐 Available Interfaces:")
+    print("   REST API:     http://localhost:5001/api/*")
+    print("   MCP JSON-RPC: http://localhost:5001/mcp")
+    print()
+    print("💡 Port 5001 (macOS AirPlay uses 5000)")
+    print("=" * 70)
+
+    app.run(debug=True, host="0.0.0.0", port=5001)
     print("   REST API:     http://localhost:5001/api/*")
     print("   MCP JSON-RPC: http://localhost:5001/mcp")
     print()

@@ -1,8 +1,8 @@
 /**
- * OllamaChat Component
+ * AgentChat Component
  *
- * Chat interface for local LLM powered by Ollama
- * Demonstrates FluentUI messaging components and state management
+ * Chat interface for OpenAI LangGraph Agent
+ * Agent has access to CSV ticket tools
  *
  * Following principles:
  * - Pure functions for message formatting (calculations)
@@ -10,28 +10,30 @@
  * - Clear separation of concerns
  */
 
-import { useState, useEffect, useRef } from 'react'
 import {
-  Card,
-  CardHeader,
-  Text,
-  Button,
-  Textarea,
-  makeStyles,
-  tokens,
-  Spinner,
-  Badge,
-  Field,
-  Dropdown,
-  Option,
+    Badge,
+    Button,
+    Card,
+    CardHeader,
+    Field,
+    Spinner,
+    Tag,
+    Text,
+    Textarea,
+    makeStyles,
+    tokens,
 } from '@fluentui/react-components'
 import {
-  Send24Regular,
-  Bot24Regular,
-  Person24Regular,
-  Delete24Regular,
+    Bot24Regular,
+    Delete24Regular,
+    Person24Regular,
+    Send24Regular,
+    Wrench20Regular,
 } from '@fluentui/react-icons'
-import { ollamaChat, listOllamaModels } from '../../services/api'
+import { useEffect, useRef, useState } from 'react'
+import ReactMarkdown from 'react-markdown'
+import remarkGfm from 'remark-gfm'
+import { agentChat } from '../../services/api'
 
 const useStyles = makeStyles({
   container: {
@@ -105,11 +107,57 @@ const useStyles = makeStyles({
     wordBreak: 'break-word',
     whiteSpace: 'pre-wrap',
   },
+  messageContentMarkdown: {
+    whiteSpace: 'normal',
+    lineHeight: 1.5,
+  },
+  markdown: {
+    '& h1, & h2, & h3': {
+      margin: `${tokens.spacingVerticalS} 0 ${tokens.spacingVerticalXS}`,
+      fontWeight: tokens.fontWeightSemibold,
+    },
+    '& ul, & ol': {
+      paddingLeft: tokens.spacingHorizontalL,
+      margin: `${tokens.spacingVerticalXS} 0`,
+    },
+    '& table': {
+      width: '100%',
+      borderCollapse: 'collapse',
+      marginTop: tokens.spacingVerticalXS,
+    },
+    '& th, & td': {
+      border: `1px solid ${tokens.colorNeutralStroke1}`,
+      padding: tokens.spacingHorizontalXS,
+      textAlign: 'left',
+    },
+    '& pre': {
+      backgroundColor: tokens.colorNeutralBackground3,
+      padding: tokens.spacingHorizontalM,
+      borderRadius: tokens.borderRadiusSmall,
+      overflowX: 'auto',
+    },
+    '& code': {
+      fontFamily: 'monospace',
+      backgroundColor: tokens.colorNeutralBackground3,
+      padding: '0 4px',
+      borderRadius: tokens.borderRadiusSmall,
+    },
+    '& a': {
+      color: tokens.colorBrandForegroundLink,
+      textDecoration: 'underline',
+    },
+  },
   userContent: {
     backgroundColor: tokens.colorBrandBackground2,
   },
   assistantContent: {
     backgroundColor: tokens.colorNeutralBackground2,
+  },
+  toolsUsed: {
+    display: 'flex',
+    flexWrap: 'wrap',
+    gap: tokens.spacingHorizontalXS,
+    marginTop: tokens.spacingVerticalS,
   },
   inputArea: {
     padding: tokens.spacingVerticalL,
@@ -126,42 +174,26 @@ const useStyles = makeStyles({
     padding: tokens.spacingVerticalXXXL,
     color: tokens.colorNeutralForeground3,
   },
-  modelSelector: {
-    minWidth: '200px',
+  errorCard: {
+    backgroundColor: tokens.colorPaletteRedBackground1,
+    padding: tokens.spacingVerticalM,
   },
-  statusBadge: {
-    marginLeft: tokens.spacingHorizontalS,
+  errorDetails: {
+    marginTop: tokens.spacingVerticalS,
+    padding: tokens.spacingVerticalS,
+    backgroundColor: tokens.colorPaletteRedBackground1,
+    borderRadius: tokens.borderRadiusSmall,
+    display: 'flex',
+    flexDirection: 'column',
+    gap: tokens.spacingVerticalXS,
   },
 })
-
-// ============================================================================
-// CALCULATIONS - Pure functions
-// ============================================================================
-
-function formatMessageForDisplay(message) {
-  return {
-    role: message.role,
-    content: message.content,
-    timestamp: new Date().toLocaleTimeString(),
-  }
-}
-
-function buildChatRequest(messages, model, temperature = 0.7) {
-  return {
-    messages: messages.map(msg => ({
-      role: msg.role,
-      content: msg.content,
-    })),
-    model,
-    temperature,
-  }
-}
 
 // ============================================================================
 // MAIN COMPONENT
 // ============================================================================
 
-export default function OllamaChat() {
+export default function AgentChat() {
   const styles = useStyles()
   const messagesEndRef = useRef(null)
 
@@ -170,46 +202,15 @@ export default function OllamaChat() {
   const [inputText, setInputText] = useState('')
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState(null)
-  const [models, setModels] = useState([])
-  const [selectedModel, setSelectedModel] = useState('llama3.2:1b')
-  const [isOllamaAvailable, setIsOllamaAvailable] = useState(true)
 
   // Scroll to bottom when messages change
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
   }, [messages])
 
-  // Load available models on mount
-  useEffect(() => {
-    loadModels()
-  }, [])
-
   // ============================================================================
   // ACTIONS - Side effects
   // ============================================================================
-
-  async function loadModels() {
-    try {
-      const response = await listOllamaModels()
-      setModels(response.models || [])
-      setIsOllamaAvailable(true)
-      setError(null)
-      
-      // Set default model if available
-      if (response.models && response.models.length > 0) {
-        const defaultModel = response.models.find(m => m.name.includes('llama3.2:1b'))
-        if (defaultModel) {
-          setSelectedModel(defaultModel.name)
-        } else {
-          setSelectedModel(response.models[0].name)
-        }
-      }
-    } catch (err) {
-      console.error('Failed to load models:', err)
-      setIsOllamaAvailable(false)
-      setError('Ollama not available. Make sure it\'s running: ollama serve')
-    }
-  }
 
   async function handleSendMessage() {
     if (!inputText.trim() || isLoading) return
@@ -226,19 +227,19 @@ export default function OllamaChat() {
     setError(null)
 
     try {
-      // Build request with conversation history
-      const request = buildChatRequest([...messages, userMessage], selectedModel)
+      // Call Agent API
+      const response = await agentChat(userMessage.content)
       
-      // Call Ollama API
-      const response = await ollamaChat(request)
-      
-      // Add assistant response to chat
-      setMessages(prev => [...prev, response.message])
-      setIsOllamaAvailable(true)
+      // Add assistant response to chat with tools used and error if present
+      setMessages(prev => [...prev, {
+        role: 'assistant',
+        content: response.result,
+        toolsUsed: response.tools_used || [],
+        error: response.error || null,
+      }])
     } catch (err) {
-      console.error('Chat error:', err)
-      setError(err.message || 'Failed to get response from Ollama')
-      setIsOllamaAvailable(false)
+      console.error('Agent error:', err)
+      setError(err.message || 'Failed to get response from agent')
     } finally {
       setIsLoading(false)
     }
@@ -269,28 +270,12 @@ export default function OllamaChat() {
               <div style={{ display: 'flex', alignItems: 'center', gap: tokens.spacingHorizontalS }}>
                 <Bot24Regular />
                 <Text weight="semibold" size={500}>
-                  Ollama Chat
+                  AI Agent
                 </Text>
-                {isOllamaAvailable ? (
-                  <Badge color="success" appearance="filled">Connected</Badge>
-                ) : (
-                  <Badge color="danger" appearance="filled">Offline</Badge>
-                )}
+                <Badge color="informative" appearance="filled">OpenAI</Badge>
               </div>
               <div className={styles.headerControls}>
-                <Field label="Model" className={styles.modelSelector}>
-                  <Dropdown
-                    value={selectedModel}
-                    onOptionSelect={(_, data) => setSelectedModel(data.optionValue)}
-                    disabled={models.length === 0}
-                  >
-                    {models.map(model => (
-                      <Option key={model.name} value={model.name}>
-                        {model.name}
-                      </Option>
-                    ))}
-                  </Dropdown>
-                </Field>
+                <Text size={200}>Powered by LangGraph + GPT</Text>
                 <Button
                   icon={<Delete24Regular />}
                   appearance="subtle"
@@ -309,41 +294,19 @@ export default function OllamaChat() {
           {messages.length === 0 && !error && (
             <div className={styles.emptyState}>
               <Bot24Regular style={{ fontSize: '48px', marginBottom: tokens.spacingVerticalM }} />
-              <Text size={400}>Start a conversation with Ollama</Text>
-              <Text size={300} style={{ marginTop: tokens.spacingVerticalS }}>
-                Ask questions, get help with code, or just chat!
+              <Text size={400}>Starte eine Unterhaltung mit dem AI Agenten</Text>
+              <Text size={300} style={{ marginTop: tokens.spacingVerticalS, display: 'block' }}>
+                Der Agent kann Tickets durchsuchen und Details anzeigen.
+              </Text>
+              <Text size={200} style={{ marginTop: tokens.spacingVerticalM, display: 'block' }}>
+                Versuche: "Suche Tickets mit 'VPN'" oder "Zeige Ticket [Ticket-ID]"
               </Text>
             </div>
           )}
 
-          {error && !isOllamaAvailable && (
-            <Card
-              appearance="filled"
-              style={{
-                backgroundColor: tokens.colorPaletteRedBackground1,
-                padding: tokens.spacingVerticalM,
-              }}
-            >
-              <Text weight="semibold">⚠️ Ollama Not Available</Text>
-              <Text size={300} style={{ display: 'block', marginTop: tokens.spacingVerticalS }}>
-                {error}
-              </Text>
-              <Text size={300} style={{ display: 'block', marginTop: tokens.spacingVerticalS }}>
-                Install: <code>curl -fsSL https://ollama.com/install.sh | sh</code>
-              </Text>
-              <Text size={300} style={{ display: 'block' }}>
-                Start: <code>ollama serve</code>
-              </Text>
-              <Text size={300} style={{ display: 'block' }}>
-                Pull model: <code>ollama pull llama3.2:1b</code>
-              </Text>
-              <Button
-                appearance="primary"
-                onClick={loadModels}
-                style={{ marginTop: tokens.spacingVerticalM }}
-              >
-                Retry Connection
-              </Button>
+          {error && (
+            <Card appearance="filled" className={styles.errorCard}>
+              <Text weight="semibold">⚠️ {error}</Text>
             </Card>
           )}
 
@@ -364,9 +327,33 @@ export default function OllamaChat() {
               <div
                 className={`${styles.messageContent} ${
                   message.role === 'user' ? styles.userContent : styles.assistantContent
-                }`}
+                } ${message.role !== 'user' ? styles.messageContentMarkdown : ''}`}
               >
-                <Text>{message.content}</Text>
+                {message.role === 'user' ? (
+                  <Text style={{ whiteSpace: 'pre-wrap' }}>{message.content}</Text>
+                ) : (
+                  <div className={styles.markdown}>
+                    <ReactMarkdown remarkPlugins={[remarkGfm]}>{message.content}</ReactMarkdown>
+                  </div>
+                )}
+                {message.error && (
+                  <div className={styles.errorDetails}>
+                    <Text weight="semibold" size={200} style={{ color: tokens.colorPaletteRedForeground1 }}>
+                      ⚠️ Error Details:
+                    </Text>
+                    <Text size={200} style={{ color: tokens.colorPaletteRedForeground1, whiteSpace: 'pre-wrap' }}>
+                      {message.error}
+                    </Text>
+                  </div>
+                )}
+                {message.toolsUsed && message.toolsUsed.length > 0 && (
+                  <div className={styles.toolsUsed}>
+                    <Wrench20Regular style={{ marginRight: tokens.spacingHorizontalXS }} />
+                    {message.toolsUsed.map((tool, i) => (
+                      <Tag key={i} size="small" appearance="outline">{tool}</Tag>
+                    ))}
+                  </div>
+                )}
               </div>
             </div>
           ))}
@@ -392,19 +379,18 @@ export default function OllamaChat() {
               value={inputText}
               onChange={(e) => setInputText(e.target.value)}
               onKeyDown={handleKeyPress}
-              placeholder="Type your message... (Shift+Enter for new line)"
+              placeholder="Ask the agent to manage tasks or tickets... (Shift+Enter for new line)"
               resize="vertical"
               rows={2}
-              disabled={!isOllamaAvailable}
-              data-testid="ollama-input"
+              data-testid="agent-input"
             />
           </Field>
           <Button
             appearance="primary"
             icon={<Send24Regular />}
             onClick={handleSendMessage}
-            disabled={!inputText.trim() || isLoading || !isOllamaAvailable}
-            data-testid="ollama-send"
+            disabled={!inputText.trim() || isLoading}
+            data-testid="agent-send"
           >
             Send
           </Button>

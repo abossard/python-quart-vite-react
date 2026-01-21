@@ -1,10 +1,10 @@
 """
-Agent Management Module with Azure OpenAI and LangGraph
+Agent Management Module with OpenAI and LangGraph
 
 Provides LangGraph-based agents for task automation:
 - Type-safe data models with Pydantic
 - Self-documenting schemas for REST and MCP
-- Azure OpenAI integration via langchain-openai
+- OpenAI integration via langchain-openai
 - ReAct agent pattern with automatic tool discovery
 
 Following "Grokking Simplicity" and "A Philosophy of Software Design":
@@ -32,17 +32,35 @@ Advanced StateGraph example (for learning):
 # Standard library
 import os
 from datetime import datetime
-from typing import Literal, Optional
+from typing import Any, Literal, Optional
+
+# Load environment variables before anything else
+from dotenv import load_dotenv
+
+load_dotenv()
+
+from uuid import UUID
+
+# Ensure operations register before we request LangChain tools
+import operations  # noqa: F401
 
 # Local - Import operations registry for automatic tool discovery
 from api_decorators import get_langchain_tools
+
+# Local CSV service
+from csv_data import get_csv_ticket_service
+
+# Third-party - FastMCP client for external MCP servers
+from fastmcp import Client as MCPClient
+from langchain_core.tools import StructuredTool
 
 # Third-party - LangChain and LangGraph
 from langchain_openai import ChatOpenAI
 from langgraph.prebuilt import create_react_agent
 
 # Third-party - Pydantic for validation
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, Field, create_model, field_validator
+from tickets import TicketStatus
 
 # ============================================================================
 # DATA MODELS - Pydantic for validation and schema generation
@@ -125,15 +143,101 @@ class AgentResponse(BaseModel):
 
 
 # ============================================================================
-# CONFIGURATION - Azure OpenAI settings from environment
+# CONFIGURATION - OpenAI settings
 # ============================================================================
 
-# Azure OpenAI configuration
-# These should be set in .env file (see .env.example)
-AZURE_OPENAI_ENDPOINT = os.getenv("AZURE_OPENAI_ENDPOINT", "")
-AZURE_OPENAI_API_KEY = os.getenv("AZURE_OPENAI_API_KEY", "")
-AZURE_OPENAI_DEPLOYMENT = os.getenv("AZURE_OPENAI_DEPLOYMENT", "gpt-4")
-AZURE_OPENAI_API_VERSION = os.getenv("AZURE_OPENAI_API_VERSION", "2024-02-15-preview")
+OPENAI_API_KEY = os.getenv("OPENAI_API_KEY", "")
+OPENAI_MODEL = os.getenv("OPENAI_MODEL", "gpt-4o-mini")
+OPENAI_BASE_URL = os.getenv("OPENAI_BASE_URL", "")  # optional override
+
+# External MCP server URL for ticket management (hardcoded)
+TICKET_MCP_SERVER_URL = "https://yodrrscbpxqnslgugwow.supabase.co/functions/v1/mcp/a7f2b8c4-d3e9-4f1a-b5c6-e8d9f0123456"
+
+
+# ============================================================================
+# MCP TOOL CONVERSION HELPERS
+# ============================================================================
+
+def _json_type_to_python(json_type: str) -> type:
+    """Map JSON schema type to Python type."""
+    mapping = {
+        "string": str,
+        "integer": int,
+        "number": float,
+        "boolean": bool,
+        "array": list,
+        "object": dict,
+    }
+    return mapping.get(json_type, str)
+
+
+def _schema_to_pydantic(name: str, schema: dict) -> type[BaseModel]:
+    """Convert JSON schema to Pydantic model for LangChain tool args."""
+    properties = schema.get("properties", {})
+    required = set(schema.get("required", []))
+    
+    fields: dict[str, Any] = {}
+    for field_name, field_schema in properties.items():
+        field_type = _json_type_to_python(field_schema.get("type", "string"))
+        field_desc = field_schema.get("description", f"{field_name} parameter")
+        
+        if field_name in required:
+            fields[field_name] = (field_type, Field(description=field_desc))
+        else:
+            default = field_schema.get("default")
+            fields[field_name] = (Optional[field_type], Field(default=default, description=field_desc))
+    
+    model_name = f"{name.title().replace('_', '').replace('-', '')}Args"
+    return create_model(model_name, **fields)
+
+
+def _mcp_tool_to_langchain(mcp_client: MCPClient, tool: Any) -> StructuredTool:
+    """
+    Convert MCP tool to LangChain StructuredTool.
+    
+    Creates a wrapper that calls the external MCP server via the persistent client.
+    """
+    tool_name = tool.name
+    tool_desc = tool.description or f"MCP tool: {tool_name}"
+    input_schema = tool.inputSchema if hasattr(tool, 'inputSchema') else {}
+    
+    # Create async wrapper that calls MCP server
+    async def call_mcp_tool(**kwargs) -> str:
+        import json as _json
+        print(f"\n{'='*60}")
+        print(f"🔧 MCP TOOL CALL: {tool_name}")
+        print(f"{'='*60}")
+        print(f"📤 REQUEST:")
+        print(f"   Tool: {tool_name}")
+        print(f"   Args: {_json.dumps(kwargs, indent=6, default=str)}")
+        
+        result = await mcp_client.call_tool(tool_name, kwargs)
+        
+        print(f"\n📥 RESPONSE:")
+        # Extract text from MCP response
+        if hasattr(result, 'content') and result.content:
+            texts = [c.text for c in result.content if hasattr(c, 'text')]
+            response_text = "\n".join(texts) if texts else str(result)
+            # Truncate for display if too long
+            display_text = response_text[:500] + "..." if len(response_text) > 500 else response_text
+            print(f"   Content items: {len(result.content)}")
+            print(f"   Text preview: {display_text}")
+        else:
+            response_text = str(result)
+            print(f"   Raw: {response_text[:500]}")
+        
+        print(f"{'='*60}\n")
+        return response_text
+    
+    # Build Pydantic model from input schema
+    args_model = _schema_to_pydantic(tool_name, input_schema)
+    
+    return StructuredTool(
+        name=tool_name,
+        description=tool_desc,
+        coroutine=call_mcp_tool,
+        args_schema=args_model,
+    )
 
 
 # ============================================================================
@@ -145,8 +249,9 @@ class AgentService:
     Agent service handling all LLM agent operations.
     
     Consolidated operations:
-    - Agent initialization with Azure OpenAI
+    - Agent initialization with OpenAI
     - Tool discovery from @operation registry
+    - External MCP server tool integration (persistent connection)
     - ReAct agent execution with task tools
     - Response formatting and error handling
     
@@ -156,34 +261,120 @@ class AgentService:
     
     def __init__(self):
         """
-        Initialize the agent service with Azure OpenAI.
+        Initialize the agent service with OpenAI.
         
         Validates that required environment variables are set and creates
         the LLM client for agent execution.
         
         Raises:
-            ValueError: If Azure OpenAI configuration is incomplete
+            ValueError: If OpenAI configuration is incomplete
         """
         # Validate configuration
-        if not AZURE_OPENAI_ENDPOINT or not AZURE_OPENAI_API_KEY:
+        if not OPENAI_API_KEY:
             raise ValueError(
-                "Azure OpenAI configuration is incomplete. "
-                "Please set AZURE_OPENAI_ENDPOINT and AZURE_OPENAI_API_KEY "
-                "environment variables. See .env.example for template."
+                "OpenAI API key not set. "
+                "Please set OPENAI_API_KEY environment variable."
             )
         
-        # Initialize ChatOpenAI with Azure endpoint using base_url pattern
+        # Initialize ChatOpenAI
         self.llm = ChatOpenAI(
-            base_url=AZURE_OPENAI_ENDPOINT,
-            api_key=AZURE_OPENAI_API_KEY,  # type: ignore
-            model=AZURE_OPENAI_DEPLOYMENT,
-            temperature=0.7,
+            model=OPENAI_MODEL,
+            api_key=OPENAI_API_KEY,
+            base_url=OPENAI_BASE_URL or None,
+            temperature=0.0,
         )
         
-        # Load LangGraph tools from operation registry
-        # These are the actual Python functions decorated with @tool
-        self.tools = get_langchain_tools()
+        # CSV tools only (do not expose operations or external MCP)
+        self.tools = self._build_csv_tools()
+
+        # Ticket MCP client state (unused)
+        self._ticket_mcp_client: Optional[MCPClient] = None
+        self._ticket_mcp_tools_loaded = False
     
+    async def _ensure_ticket_mcp_connection(self):
+        """No-op: external MCP tools not exposed."""
+        return
+    
+    async def close(self):
+        """Close the ticket MCP client connection."""
+        if self._ticket_mcp_client:
+            try:
+                await self._ticket_mcp_client.__aexit__(None, None, None)
+            except Exception:
+                pass
+            self._ticket_mcp_client = None
+
+    def _build_csv_tools(self) -> list[StructuredTool]:
+        """Build LangChain tools backed by CSVTicketService."""
+        import json
+        service = get_csv_ticket_service()
+
+        def _csv_list_tickets(status: str | None = None, assigned_group: str | None = None, has_assignee: bool | None = None) -> str:
+            try:
+                status_enum = TicketStatus(status.lower()) if status else None
+            except Exception:
+                status_enum = None
+            tickets = service.list_tickets(status=status_enum, assigned_group=assigned_group, has_assignee=has_assignee)
+            return json.dumps([t.model_dump() for t in tickets[:200]], default=str)
+
+        def _csv_get_ticket(ticket_id: str) -> str:
+            try:
+                tid = UUID(ticket_id)
+            except Exception:
+                return json.dumps({"error": "invalid ticket id"})
+            ticket = service.get_ticket(tid)
+            if not ticket:
+                return json.dumps({"error": "not found"})
+            return json.dumps(ticket.model_dump(), default=str)
+
+        def _csv_search_tickets(query: str, limit: int = 50) -> str:
+            q = query.lower()
+            tickets = service.list_tickets()
+            matched = []
+            for t in tickets:
+                text = " ".join([
+                    t.summary or "",
+                    t.description or "",
+                    t.notes or "",
+                    t.resolution or "",
+                    t.requester_name or "",
+                    t.assigned_group or "",
+                    t.city or "",
+                ]).lower()
+                if q in text:
+                    matched.append(t.model_dump())
+                    if len(matched) >= limit:
+                        break
+            return json.dumps(matched, default=str)
+
+        def _csv_ticket_fields() -> str:
+            # Use Ticket model fields as schema
+            from tickets import Ticket
+            return json.dumps(list(Ticket.model_fields.keys()))
+
+        return [
+            StructuredTool.from_function(
+                func=_csv_list_tickets,
+                name="csv_list_tickets",
+                description="List tickets from CSV with optional filters: status (new, assigned, in_progress, pending, resolved, closed, cancelled), assigned_group, has_assignee (true/false). Returns JSON array.",
+            ),
+            StructuredTool.from_function(
+                func=_csv_get_ticket,
+                name="csv_get_ticket",
+                description="Get a ticket by UUID (id). Returns JSON object including notes/resolution.",
+            ),
+            StructuredTool.from_function(
+                func=_csv_search_tickets,
+                name="csv_search_tickets",
+                description="Search tickets by text across summary, description, notes, resolution, requester, group, city. Returns JSON array.",
+            ),
+            StructuredTool.from_function(
+                func=_csv_ticket_fields,
+                name="csv_ticket_fields",
+                description="List available ticket fields (schema) as JSON array of field names.",
+            ),
+        ]
+
     async def run_agent(self, request: AgentRequest) -> AgentResponse:
         """
         Run a ReAct agent with the given request using LangGraph.
@@ -197,6 +388,7 @@ class AgentService:
         
         All @operation decorated functions are automatically available as LangGraph tools.
         LangGraph calls the Python functions directly (not via MCP).
+        External MCP tools are loaded from the configured MCP server.
         
         Args:
             request: AgentRequest with prompt and agent type
@@ -213,29 +405,67 @@ class AgentService:
             agent = create_react_agent(self.llm, self.tools)
             
             # System message to guide the agent's behavior
-            system_msg = (
-                "You are a helpful task management assistant. "
-                "You MUST use the available tools to perform all actions. "
-                "NEVER pretend or simulate creating, updating, or listing tasks - you MUST call the actual tools. "
-                "Available tools: create_task, update_task, delete_task, list_tasks, get_task, get_task_stats. "
-                "When asked to create tasks, call create_task for each one. "
-                "When asked to list tasks, call list_tasks. "
-                "Always use tools and confirm what you've done based on the tool results."
-            )
+            tool_lines = []
+            for t in self.tools:
+                name = t.name if hasattr(t, 'name') else str(t)
+                desc = (t.description if hasattr(t, 'description') else "") or ""
+                tool_lines.append(f"- `{name}`: {desc}".strip())
+            tools_md = "\n".join(tool_lines) if tool_lines else "- (none)"
+
+            system_msg = f"""
+Du bist ein freundlicher CSV-Ticket-Assistent. Sprich **Deutsch**.
+
+Antwortstil:
+- Starte immer mit einer kurzen Begrüßung.
+- Liste sofort die verfügbaren Tools (Markdown-Bullets).
+- Nutze **Markdown** mit klaren Überschriften (##), Bullet-Listen und Tabellen, wenn sinnvoll.
+- Für JSON-Daten nutze fenced Code-Blöcke:
+  ```json
+  {{"example": "value"}}
+  ```
+- Halte Antworten knapp und gut strukturiert.
+
+Verfügbare Tools:
+{tools_md}
+
+Verhalten:
+- Verwende ausschließlich die csv_* Tools für Ticket-Informationen. Keine Daten erfinden.
+- Falls Daten fehlen, sage das explizit.
+- Fasse Ergebnisse klar zusammen; für Listen sind kompakte Tabellen ideal.
+"""
             
             # Execute agent with user prompt
-            print(f"DEBUG: Running agent with {len(self.tools)} tools")
-            print(f"DEBUG: Tools: {[t.name if hasattr(t, 'name') else str(t) for t in self.tools]}")
+            print(f"\n{'='*60}")
+            print(f"🤖 AGENT EXECUTION START")
+            print(f"{'='*60}")
+            print(f"   Prompt: {request.prompt[:100]}{'...' if len(request.prompt) > 100 else ''}")
+            print(f"   Agent type: {request.agent_type}")
+            print(f"   Available tools ({len(self.tools)}):")
+            for t in self.tools:
+                name = t.name if hasattr(t, 'name') else str(t)
+                print(f"      • {name}")
+            print(f"{'='*60}\n")
             
             result = await agent.ainvoke(
                 {"messages": [("system", system_msg), ("user", request.prompt)]}
             )
             
-            print(f"DEBUG: Agent result messages: {len(result['messages'])}")
+            print(f"\n{'='*60}")
+            print(f"📋 AGENT EXECUTION COMPLETE")
+            print(f"{'='*60}")
+            print(f"   Total messages: {len(result['messages'])}")
             for i, msg in enumerate(result["messages"]):
-                print(f"DEBUG: Message {i}: type={type(msg).__name__}, has_tool_calls={hasattr(msg, 'tool_calls')}")
-                if hasattr(msg, 'tool_calls') and msg.tool_calls:
-                    print(f"DEBUG:   Tool calls: {msg.tool_calls}")
+                msg_type = type(msg).__name__
+                has_tool_calls = hasattr(msg, 'tool_calls') and msg.tool_calls
+                content_preview = ""
+                if hasattr(msg, 'content') and msg.content:
+                    content_preview = str(msg.content)[:80] + "..." if len(str(msg.content)) > 80 else str(msg.content)
+                print(f"   [{i}] {msg_type}: {content_preview}")
+                if has_tool_calls:
+                    for tc in msg.tool_calls:
+                        tc_name = tc.get('name', tc) if isinstance(tc, dict) else str(tc)
+                        print(f"       🔧 Tool call: {tc_name}")
+            print(f"{'='*60}\n")
             
             # Extract the agent's final response
             final_message = result["messages"][-1]
