@@ -10,24 +10,24 @@
  */
 
 import {
-    Badge,
-    Button,
-    Caption1,
-    Card,
-    CardHeader,
-    Dropdown,
-    makeStyles,
-    Option,
-    Spinner,
-    Subtitle1,
-    Text,
-    tokens,
+  Badge,
+  Button,
+  Caption1,
+  Card,
+  CardHeader,
+  Dropdown,
+  makeStyles,
+  Option,
+  Spinner,
+  Subtitle1,
+  Text,
+  tokens,
 } from '@fluentui/react-components'
 import {
-    ArrowDown24Regular,
-    ArrowSync24Regular,
-    ArrowUp24Regular,
-    Filter24Regular,
+  ArrowDown24Regular,
+  ArrowSync24Regular,
+  ArrowUp24Regular,
+  Filter24Regular,
 } from '@fluentui/react-icons'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { getCSVTicketFields, getCSVTickets, getCSVTicketStats } from '../../services/api'
@@ -184,7 +184,7 @@ function formatCellValue(value, fieldName) {
 
 function getStatusBadge(status) {
   const color = STATUS_COLORS[status] || 'subtle'
-  return <Badge appearance="filled" color={color}>{status?.replace('_', ' ') || '—'}</Badge>
+  return <Badge appearance="filled" color={color}>{status?.replace(/_/g, ' ') || '—'}</Badge>
 }
 
 function getPriorityBadge(priority) {

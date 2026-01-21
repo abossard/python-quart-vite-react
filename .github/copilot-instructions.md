@@ -1,41 +1,53 @@
 # Copilot Instructions
 
-## Architecture
+## Purpose
 
-- `backend/app.py` hosts REST (`/api/*`), MCP JSON-RPC (`/mcp`), and LangGraph agent (`/api/agents/run`) on port 5001; new capabilities should use the `@operation` decorator in `backend/operations.py` so all interfaces stay in sync.
-- Business logic lives in service modules: `tasks.py` (TaskService), `tickets.py` (ticket models + SLA calculations); keep services as the single source of truth.
-- The React side is feature-first: `frontend/src/App.jsx` switches tabs via React Router; each folder under `frontend/src/features` owns its state, calculations, and FluentUI layout.
-- All network calls go through `frontend/src/services/api.js`; localStorage helpers live in separate modules like `reminderStorage.js`.
+This repository is a **learning environment** for processing and visualizing CSV ticket data using Copilot.
 
-## Backend Patterns
+## Scope Boundaries
 
-- Define operations with `@operation` (see `op_create_task`, `op_get_task`): annotate parameters with Pydantic models or enums so MCP schemas and REST validation are generated automatically, then build thin Quart wrappers that only handle HTTP concerns.
-- Keep methods like `TaskService.create_task` and `TaskService.update_task` “deep”: they already validate, mutate `_tasks_db`, and return `Task` models, so avoid splitting them into tiny helpers or duplicating validation elsewhere.
-- Use the provided Pydantic models (`TaskCreate`, `TaskUpdate`, `TaskStats`, `TaskFilter`) for all inputs/outputs; MCP tooling and REST serializers expect `.model_dump()` objects with these exact field names (`created_at`, `completed`, etc.).
-- The SSE endpoint `time_stream` streams `{"time","date","timestamp"}` JSON strings; if you change its shape, also update `connectToTimeStream` consumers and the Dashboard expectations.
+**Do:**
 
-## Frontend Patterns
+- Work with `csv/data.csv` and related parsing logic (`backend/csv_data.py`)
+- Write/adjust small, focused Python scripts or notebooks for data exploration (pandas, matplotlib, seaborn, plotly)
+- Compute summaries, statistics, filters, aggregations on ticket data
+- Propose visualizations and queries to understand ticket patterns
+- Help interpret CSV schema and column mappings
 
-- Feature components isolate **calculations** (pure helpers like `getTaskStats`), **actions** (API calls, event handlers), and **data** (React state) in that order; preserve that structure when extending `TaskList` or `Dashboard`.
-- Stick to FluentUI v9 primitives with `makeStyles`/`tokens`; prefer adjusting the `useStyles` definitions over inline styles to maintain theming consistency.
-- Always go through `frontend/src/services/api.js` (`fetchJSON`, `createTask`, `updateTask`, etc.); components expect rejected promises to carry friendly `Error.message`, so don’t bypass these helpers.
-- Task UI and tests rely on deterministic `data-testid` attributes (`task-menu-${id}`, `filter-completed`, etc.); keep them stable or update the Playwright suite alongside UI changes.
-- Real-time widgets follow the `connectToTimeStream` contract (subscribe in `useEffect`, capture cleanup function, surface errors via component state); reuse that approach for any new SSE sources.
+**Do NOT:**
 
-## Workflows
+- Change backend architecture (`backend/app.py`, `operations.py`, decorators)
+- Modify Pydantic models (`tickets.py`, `tasks.py`) or core services
+- Alter REST/MCP endpoints, React frontend structure, or tests
+- Touch `UNIFIED_ARCHITECTURE.md`, `README.md`, or Playwright tests
 
-- One-time setup: run `./setup.sh` from the repo root to create the repo-level `.venv`, install frontend deps, and provision Playwright browsers.
-- Dev loop: `source .venv/bin/activate && cd backend && python app.py` (serves on 5001) plus `cd frontend && npm run dev`; `./start-dev.sh` or the VS Code “Full Stack: Backend + Frontend” launch config will start both for you.
-- MCP testing uses JSON-RPC POSTs to `http://localhost:5001/mcp` (`tools/list`, `tools/call`); no extra process is required because the Quart server already exposes it.
+## CSV Data Structure
 
-## Testing
+Primary source: `csv/data.csv` (BMC Remedy/ITSM export).
+Key columns:
 
-- E2E coverage lives in `tests/e2e/app.spec.js`; from the repo root run `npm run test:e2e` (`:ui` for interactive, `:report` to inspect results). Start both servers first to avoid cold-start delays.
-- The suite assumes sample tasks exist (created by `TaskService.initialize_sample_data()`), tabs are labeled via `data-testid`, and SSE data matches the backend format; keep those invariants or update the tests deliberately.
-- For deterministic assertions, prefer editing helpers like `waitForAppToLoad` or the shared selector strings instead of scattering hard-coded waits.
+- Identifiers: `Entry ID`, `Incident ID*+`, `Corporate ID`
+- Summary: `Summary*`, `Notes`, `Resolution`
+- Status/Priority: `Status*`, `Priority*`, `Urgency*`, `Impact*`
+- Assignment: `Assignee+`, `Assigned Group*+`, `Owner Group+`
+- Requester: `Full Name`, `First Name+`, `Last Name+`, `Internet E-mail`
+- Location: `City`, `Country`, `Site ID`, `Company`
+- Timestamps: `Reported Date+`, `Last Modified Date`, `Closed Date`
+- Categories: `Operational Categorization Tier 1+/2/3`, `Product Categorization Tier 1/2/3`
+
+Reference implementation: `backend/csv_data.py` (column mapping, status/priority mapping, date parsing).
+
+## Working with the Data
+
+- Load: `pd.read_csv("csv/data.csv", encoding="latin-1")`
+- Dates: parse `DD.MM.YYYY HH:MM:SS` (e.g., `22.10.2025 11:53:33`)
+- Status mapping: New, Assigned, In Progress, Pending, Resolved, Closed, Cancelled
+- Priority mapping: 1-Critical, 2-High, 3-Medium, 4-Low
+- Prefer notebooks for exploration; keep scripts small and focused
 
 ## Conventions
 
-- Follow “Grokking Simplicity”: keep actions (I/O) in services or event handlers, calculations pure (formatting, stats), and data as plain objects/React state; this is enforced heavily in docs and existing code.
-- Follow “A Philosophy of Software Design”: favor deep modules (e.g., extend `TaskService` instead of sprinkling logic across routes/components) and hide complexity behind simple interfaces.
-- When you touch the architecture (operation decorators, unified REST/MCP flow, feature structure), update `README.md` and `UNIFIED_ARCHITECTURE.md` so future agents inherit the correct mental model.
+- Follow “Grokking Simplicity”: separate data (CSV), calculations (pure), actions (I/O)
+- Keep changes minimal, targeted, and reversible
+- No broad refactors; prioritize clarity for learners
+- Document findings inline (markdown cells/comments)
