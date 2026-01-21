@@ -136,6 +136,15 @@ const useStyles = makeStyles({
     backgroundColor: tokens.colorPaletteRedBackground1,
     padding: tokens.spacingVerticalM,
   },
+  errorDetails: {
+    marginTop: tokens.spacingVerticalS,
+    padding: tokens.spacingVerticalS,
+    backgroundColor: tokens.colorPaletteRedBackground1,
+    borderRadius: tokens.borderRadiusSmall,
+    display: 'flex',
+    flexDirection: 'column',
+    gap: tokens.spacingVerticalXS,
+  },
 })
 
 // ============================================================================
@@ -179,11 +188,12 @@ export default function AgentChat() {
       // Call Agent API
       const response = await agentChat(userMessage.content)
       
-      // Add assistant response to chat with tools used
+      // Add assistant response to chat with tools used and error if present
       setMessages(prev => [...prev, {
         role: 'assistant',
         content: response.result,
         toolsUsed: response.tools_used || [],
+        error: response.error || null,
       }])
     } catch (err) {
       console.error('Agent error:', err)
@@ -278,6 +288,16 @@ export default function AgentChat() {
                 }`}
               >
                 <Text>{message.content}</Text>
+                {message.error && (
+                  <div className={styles.errorDetails}>
+                    <Text weight="semibold" size={200} style={{ color: tokens.colorPaletteRedForeground1 }}>
+                      ⚠️ Error Details:
+                    </Text>
+                    <Text size={200} style={{ color: tokens.colorPaletteRedForeground1, whiteSpace: 'pre-wrap' }}>
+                      {message.error}
+                    </Text>
+                  </div>
+                )}
                 {message.toolsUsed && message.toolsUsed.length > 0 && (
                   <div className={styles.toolsUsed}>
                     <Wrench20Regular style={{ marginRight: tokens.spacingHorizontalXS }} />

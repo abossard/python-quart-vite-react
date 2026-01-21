@@ -8,28 +8,18 @@
  */
 
 import {
-  makeStyles,
-  Subtitle1,
-  Tab,
-  TabList,
-  Text,
-  tokens,
+    makeStyles,
+    Subtitle1,
+    Tab,
+    TabList,
+    Text,
+    tokens,
 } from '@fluentui/react-components'
 import {
-  AlertUrgent24Regular,
-  Bot24Regular,
-  Home24Regular,
-  Info24Regular,
-  PersonQuestionMark24Regular,
-  TaskListLtr24Regular,
+    Table24Regular,
 } from '@fluentui/react-icons'
 import { Navigate, Route, Routes, useLocation, useNavigate } from 'react-router-dom'
-import About from './components/About'
-import AgentChat from './features/agent/AgentChat'
-import Dashboard from './features/dashboard/Dashboard'
-import TaskList from './features/tasks/TaskList'
-import TicketList from './features/tickets/TicketList'
-import TicketsWithoutAnAssignee from './features/tickets/TicketsWithoutAnAssignee'
+import CSVTicketTable from './features/csvtickets/CSVTicketTable'
 
 const useStyles = makeStyles({
   app: {
@@ -66,21 +56,16 @@ export default function App() {
   const location = useLocation()
   const navigate = useNavigate()
   const tabs = [
-    { value: 'dashboard', label: 'Dashboard', icon: <Home24Regular />, path: '/dashboard', testId: 'tab-dashboard' },
-    { value: 'tasks', label: 'Tasks', icon: <TaskListLtr24Regular />, path: '/tasks', testId: 'tab-tasks' },
-    { value: 'tickets', label: 'Tickets', icon: <AlertUrgent24Regular />, path: '/tickets', testId: 'tab-tickets' },
-    { value: 'unassigned', label: 'Unassigned', icon: <PersonQuestionMark24Regular />, path: '/unassigned', testId: 'tab-unassigned' },
-    { value: 'agent', label: 'AI Agent', icon: <Bot24Regular />, path: '/agent', testId: 'tab-agent' },
-    { value: 'about', label: 'About', icon: <Info24Regular />, path: '/about', testId: 'tab-about' },
+    { value: 'csvtickets', label: 'Tickets', icon: <Table24Regular />, path: '/csvtickets', testId: 'tab-csvtickets' },
   ]
-  const activeTab = tabs.find((tab) => location.pathname.startsWith(tab.path))?.value ?? 'dashboard'
+  const activeTab = tabs.find((tab) => location.pathname.startsWith(tab.path))?.value ?? 'csvtickets'
 
   return (
     <div className={styles.app}>
       <header className={styles.header}>
-        <Subtitle1 className={styles.title}>Quart + React Demo Application</Subtitle1>
+        <Subtitle1 className={styles.title}>CSV Ticket Viewer</Subtitle1>
         <Text className={styles.subtitle} size={300}>
-          A modern full-stack example with Python Quart backend and React + FluentUI frontend
+          View and filter ticket data from CSV exports
         </Text>
       </header>
 
@@ -105,14 +90,9 @@ export default function App() {
 
       <main className={styles.content}>
         <Routes>
-          <Route path="/" element={<Navigate to="/dashboard" replace />} />
-          <Route path="/dashboard" element={<Dashboard />} />
-          <Route path="/tasks" element={<TaskList />} />
-          <Route path="/tickets" element={<TicketList />} />
-          <Route path="/unassigned" element={<TicketsWithoutAnAssignee />} />
-          <Route path="/agent" element={<AgentChat />} />
-          <Route path="/about" element={<About />} />
-          <Route path="*" element={<Navigate to="/dashboard" replace />} />
+          <Route path="/" element={<Navigate to="/csvtickets" replace />} />
+          <Route path="/csvtickets" element={<CSVTicketTable />} />
+          <Route path="*" element={<Navigate to="/csvtickets" replace />} />
         </Routes>
       </main>
     </div>
