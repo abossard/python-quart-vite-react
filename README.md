@@ -1,5 +1,7 @@
 # Quart + Vite + React Demo Application
 
+**Task:** Visualize the CSV tickets with richer panels (status, priority, timeline, geography, SLA). **How would you like to view the tickets?**
+
 > A teaching-oriented full-stack sample that pairs a Python Quart backend with a React + FluentUI frontend, real-time Server-Sent Events (SSE), and Playwright tests.
 
 ## Why this repo?

@@ -33,6 +33,9 @@ load_dotenv()
 from agents import AgentRequest, AgentResponse, agent_service
 from api_decorators import operation
 
+# CSV ticket service
+from csv_data import Ticket, get_csv_ticket_service
+
 # FastMCP client for direct ticket MCP calls (no AI)
 from fastmcp import Client as MCPClient
 from mcp_handler import handle_mcp_request
@@ -385,6 +388,180 @@ async def get_qa_tickets():
 # ============================================================================
 # NON-TASK ENDPOINTS
 # ============================================================================
+
+# ============================================================================
+# CSV TICKET ENDPOINTS
+# ============================================================================
+
+# Initialize CSV ticket service
+_csv_ticket_service = get_csv_ticket_service()
+
+# Load CSV data on startup (using relative path from backend folder)
+_csv_data_path = Path(__file__).parent.parent / "csv" / "data.csv"
+if _csv_data_path.exists():
+    _csv_loaded = _csv_ticket_service.load_csv(_csv_data_path)
+    print(f"📊 Loaded {_csv_loaded} tickets from CSV")
+
+
+# Define which fields are available for display
+CSV_TICKET_FIELDS = [
+    {"name": "id", "label": "ID", "type": "uuid"},
+    {"name": "summary", "label": "Summary", "type": "string"},
+    {"name": "status", "label": "Status", "type": "enum"},
+    {"name": "priority", "label": "Priority", "type": "enum"},
+    {"name": "assignee", "label": "Assignee", "type": "string"},
+    {"name": "assigned_group", "label": "Assigned Group", "type": "string"},
+    {"name": "requester_name", "label": "Requester", "type": "string"},
+    {"name": "requester_email", "label": "Email", "type": "string"},
+    {"name": "city", "label": "City", "type": "string"},
+    {"name": "country", "label": "Country", "type": "string"},
+    {"name": "service", "label": "Service", "type": "string"},
+    {"name": "incident_type", "label": "Incident Type", "type": "string"},
+    {"name": "product_name", "label": "Product", "type": "string"},
+    {"name": "manufacturer", "label": "Manufacturer", "type": "string"},
+    {"name": "created_at", "label": "Created", "type": "datetime"},
+    {"name": "updated_at", "label": "Updated", "type": "datetime"},
+    {"name": "urgency", "label": "Urgency", "type": "string"},
+    {"name": "impact", "label": "Impact", "type": "string"},
+    {"name": "resolution", "label": "Resolution", "type": "string"},
+    {"name": "notes", "label": "Notes", "type": "string"},
+]
+
+
+@app.route("/api/csv-tickets/fields", methods=["GET"])
+async def get_csv_ticket_fields():
+    """Get metadata about available CSV ticket fields."""
+    return jsonify({
+        "fields": CSV_TICKET_FIELDS,
+        "total_tickets": _csv_ticket_service.total_count,
+    })
+
+
+@app.route("/api/csv-tickets", methods=["GET"])
+async def get_csv_tickets():
+    """
+    Get CSV tickets with optional filtering, sorting, and field selection.
+    
+    Query params:
+    - fields: comma-separated list of field names to include
+    - status: filter by status (new, assigned, in_progress, pending, resolved, closed)
+    - has_assignee: filter by assignee presence (true/false)
+    - assigned_group: filter by group name
+    - sort: field name to sort by
+    - sort_dir: asc or desc (default: asc)
+    - limit: max number of results
+    - offset: number of results to skip
+    """
+    from tickets import TicketStatus
+
+    # Parse query params
+    fields_param = request.args.get("fields", "")
+    status_param = request.args.get("status")
+    has_assignee_param = request.args.get("has_assignee")
+    assigned_group_param = request.args.get("assigned_group")
+    sort_param = request.args.get("sort", "created_at")
+    sort_dir = request.args.get("sort_dir", "desc")
+    limit = request.args.get("limit", type=int)
+    offset = request.args.get("offset", 0, type=int)
+    
+    # Determine which fields to include
+    if fields_param:
+        selected_fields = [f.strip() for f in fields_param.split(",")]
+    else:
+        # Default fields for table display
+        selected_fields = ["summary", "status", "priority", "assignee", "assigned_group", "requester_name", "city", "created_at"]
+    
+    # Parse filters
+    status_filter = None
+    if status_param:
+        try:
+            status_filter = TicketStatus(status_param)
+        except ValueError:
+            pass
+    
+    has_assignee_filter = None
+    if has_assignee_param is not None:
+        has_assignee_filter = has_assignee_param.lower() == "true"
+    
+    # Get tickets with filters
+    tickets = _csv_ticket_service.list_tickets(
+        status=status_filter,
+        assigned_group=assigned_group_param,
+        has_assignee=has_assignee_filter,
+    )
+    
+    # Sort tickets
+    def get_sort_key(ticket: Ticket):
+        val = getattr(ticket, sort_param, None)
+        if val is None:
+            return ""
+        if hasattr(val, "value"):  # Enum
+            return val.value
+        return val
+    
+    try:
+        tickets = sorted(tickets, key=get_sort_key, reverse=(sort_dir == "desc"))
+    except TypeError:
+        pass  # Skip sorting if types are incompatible
+    
+    total_count = len(tickets)
+    
+    # Apply pagination
+    if limit:
+        tickets = tickets[offset:offset + limit]
+    elif offset:
+        tickets = tickets[offset:]
+    
+    # Build response with selected fields only
+    result = []
+    for ticket in tickets:
+        row = {}
+        for field in selected_fields:
+            val = getattr(ticket, field, None)
+            if val is None:
+                row[field] = None
+            elif hasattr(val, "value"):  # Enum
+                row[field] = val.value
+            elif hasattr(val, "isoformat"):  # datetime
+                row[field] = val.isoformat()
+            elif hasattr(val, "hex"):  # UUID
+                row[field] = str(val)
+            else:
+                row[field] = val
+        result.append(row)
+    
+    return jsonify({
+        "tickets": result,
+        "total": total_count,
+        "offset": offset,
+        "limit": limit,
+        "fields": selected_fields,
+    })
+
+
+@app.route("/api/csv-tickets/stats", methods=["GET"])
+async def get_csv_ticket_stats():
+    """Get statistics about CSV tickets."""
+    from collections import Counter
+    
+    tickets = _csv_ticket_service.list_tickets()
+    
+    statuses = Counter(t.status.value for t in tickets)
+    priorities = Counter(t.priority.value for t in tickets)
+    groups = Counter(t.assigned_group for t in tickets if t.assigned_group)
+    cities = Counter(t.city for t in tickets if t.city)
+    
+    unassigned_count = sum(1 for t in tickets if t.assignee is None and t.assigned_group is not None)
+    
+    return jsonify({
+        "total": len(tickets),
+        "unassigned": unassigned_count,
+        "by_status": dict(statuses),
+        "by_priority": dict(priorities),
+        "by_group": dict(groups.most_common(10)),
+        "by_city": dict(cities.most_common(10)),
+    })
+
 
 @app.route("/api/health", methods=["GET"])
 async def health_check():
