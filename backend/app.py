@@ -32,7 +32,7 @@ load_dotenv()
 # Agent service for OpenAI LangGraph agents
 from agents import AgentRequest, AgentResponse, agent_service
 from api_decorators import operation
-from mcp import handle_mcp_request
+from mcp_handler import handle_mcp_request
 from ollama_service import ChatRequest, ChatResponse, ChatMessage, ModelListResponse, OllamaService
 
 # CSV ticket service
@@ -309,6 +309,23 @@ async def rest_list_tickets():
         return jsonify({"error": str(e)}), 500
 
 
+@app.route("/api/tickets/search", methods=["POST"])
+async def rest_search_tickets_post():
+    """
+    Advanced ticket search with multiple filters.
+    
+    Body JSON:
+        - query: Full-text search string
+        - filters: {status: [...], priority: [...], city: [...], service: [...]}
+        - limit: Max results
+    """
+    try:
+        data = await request.get_json() or {}
+        results = await _call_ticket_mcp_tool("search_tickets", data)
+        return jsonify(results[0] if len(results) == 1 else results), 200
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
 @app.route("/api/tickets/search", methods=["GET"])
 async def rest_search_tickets():
     """REST wrapper: search for a ticket by ticket ID."""
@@ -361,25 +378,6 @@ async def rest_get_ticket_stats():
         return jsonify(results[0] if len(results) == 1 else results), 200
     except Exception as e:
         return jsonify({"error": str(e)}), 500
-
-
-@app.route("/api/tickets/search", methods=["POST"])
-async def rest_search_tickets():
-    """
-    Advanced ticket search with multiple filters.
-    
-    Body JSON:
-        - query: Full-text search string
-        - filters: {status: [...], priority: [...], city: [...], service: [...]}
-        - limit: Max results
-    """
-    try:
-        data = await request.get_json() or {}
-        results = await _call_ticket_mcp_tool("search_tickets", data)
-        return jsonify(results[0] if len(results) == 1 else results), 200
-    except Exception as e:
-        return jsonify({"error": str(e)}), 500
-
 
 @app.route("/api/kba/generate", methods=["POST"])
 async def rest_generate_kba():

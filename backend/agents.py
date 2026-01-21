@@ -467,7 +467,6 @@ class AgentService:
             except Exception:
                 pass
             self._ticket_mcp_client = None
-<<<<<<< HEAD
     
     async def detect_multiple_issues_ai(self, ticket_data: dict) -> TicketSplitAnalysis:
         """
@@ -658,7 +657,6 @@ Does this ticket contain multiple unrelated issues that should be split into sep
             'confidence': analysis.confidence
         }
     
-=======
 
     def _build_csv_tools(self) -> list[StructuredTool]:
         """Build LangChain tools backed by CSVTicketService."""
@@ -731,7 +729,6 @@ Does this ticket contain multiple unrelated issues that should be split into sep
             ),
         ]
 
->>>>>>> main
     async def run_agent(self, request: AgentRequest) -> AgentResponse:
         """
         Run a ReAct agent with the given request using LangGraph.
@@ -762,7 +759,6 @@ Does this ticket contain multiple unrelated issues that should be split into sep
             agent = create_react_agent(self.llm, self.tools)
             
             # System message to guide the agent's behavior
-<<<<<<< HEAD
             system_msg = (
                 "You are a support ticket management assistant. "
                 "Your primary role is to help users manage, search, and evaluate support tickets. "
@@ -791,7 +787,6 @@ Does this ticket contain multiple unrelated issues that should be split into sep
                 "When users ask about tasks, use task tools (create_task, list_tasks, etc.). "
                 "Always confirm actions based on actual tool results."
             )
-=======
             tool_lines = []
             for t in self.tools:
                 name = t.name if hasattr(t, 'name') else str(t)
@@ -820,7 +815,6 @@ Verhalten:
 - Falls Daten fehlen, sage das explizit.
 - Fasse Ergebnisse klar zusammen; für Listen sind kompakte Tabellen ideal.
 """
->>>>>>> main
             
             # Execute agent with user prompt
             print(f"\n{'='*60}")
