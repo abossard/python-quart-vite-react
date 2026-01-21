@@ -140,7 +140,6 @@ export async function getQATickets() {
   return fetchJSON(`${API_BASE_URL}/qa-tickets`);
 }
 
-<<<<<<< HEAD
 /**
  * Fetch all tickets categorized by issue count
  * @returns {Promise<Object>} Response with {multiIssue: [...], oneIssue: [...]}
@@ -160,7 +159,27 @@ export async function splitTicket(ticketId) {
   });
 }
 
-=======
+/**
+ * Search for a ticket by ticket ID
+ * @param {string} ticketId - The ticket ID to search for
+ * @returns {Promise<Object>} Ticket object if found
+ */
+export async function searchTickets(ticketId) {
+  return fetchJSON(`${API_BASE_URL}/tickets/search?ticket_id=${encodeURIComponent(ticketId)}`);
+}
+
+/**
+ * Generate a Knowledge Base Article from a ticket using Azure OpenAI
+ * @param {Object} ticket - The ticket data to generate KBA from
+ * @returns {Promise<Object>} KBA with title, question, answer
+ */
+export async function generateKBA(ticket) {
+  return fetchJSON(`${API_BASE_URL}/kba/generate`, {
+    method: "POST",
+    body: JSON.stringify(ticket),
+  });
+}
+
 // ============================================================================
 // CSV Tickets APIs
 // ============================================================================
@@ -229,4 +248,3 @@ export async function getCSVTickets(options = {}) {
 export async function getCSVTicketStats() {
   return fetchJSON(`${API_BASE_URL}/csv-tickets/stats`);
 }
->>>>>>> main

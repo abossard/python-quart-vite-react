@@ -8,23 +8,23 @@
  */
 
 import {
-  makeStyles,
-  Subtitle1,
-  Tab,
-  TabList,
-  Text,
-  tokens,
+    makeStyles,
+    Subtitle1,
+    Tab,
+    TabList,
+    Text,
+    tokens,
 } from '@fluentui/react-components'
 import {
-  AlertUrgent24Regular,
-  Bot24Regular,
-  DataHistogram24Regular,
-  GridDots24Regular,
-  Home24Regular,
-  Info24Regular,
-  PersonQuestionMark24Regular,
-  Table24Regular,
-  TaskListLtr24Regular
+    AlertUrgent24Regular,
+    Bot24Regular,
+    DataHistogram24Regular,
+    GridDots24Regular,
+    Home24Regular,
+    Info24Regular,
+    PersonQuestionMark24Regular,
+    Table24Regular,
+    TaskListLtr24Regular
 } from '@fluentui/react-icons'
 import { Navigate, Route, Routes, useLocation, useNavigate } from 'react-router-dom'
 import AgentChat from './features/agent/AgentChat'
@@ -35,6 +35,7 @@ import KitchenSink from './features/kitchensink/KitchenSink'
 import TaskList from './features/tasks/TaskList'
 import TicketList from './features/tickets/TicketList'
 import TicketOverview from './features/tickets/TicketOverview'
+import TicketSearch from './features/tickets/TicketSearch'
 import TicketsWithoutAnAssignee from './features/tickets/TicketsWithoutAnAssignee'
 
 const useStyles = makeStyles({
@@ -75,6 +76,7 @@ export default function App() {
     { value: 'dashboard', label: 'Dashboard', icon: <Home24Regular />, path: '/dashboard', testId: 'tab-dashboard' },
     { value: 'tasks', label: 'Tasks', icon: <TaskListLtr24Regular />, path: '/tasks', testId: 'tab-tasks' },
     { value: 'tickets', label: 'Tickets', icon: <AlertUrgent24Regular />, path: '/tickets', testId: 'tab-tickets' },
+    { value: 'kba', label: 'KBA Coach', icon: <Bot24Regular />, path: '/kba', testId: 'tab-kba' },
     { value: 'overview', label: 'Overview', icon: <GridDots24Regular />, path: '/overview', testId: 'tab-overview' },
     { value: 'unassigned', label: 'Unassigned', icon: <PersonQuestionMark24Regular />, path: '/unassigned', testId: 'tab-unassigned' },
     { value: 'agent', label: 'AI Agent', icon: <Bot24Regular />, path: '/agent', testId: 'tab-agent' },
@@ -119,6 +121,7 @@ export default function App() {
           <Route path="/dashboard" element={<Dashboard />} />
           <Route path="/tasks" element={<TaskList />} />
           <Route path="/tickets" element={<TicketList />} />
+          <Route path="/kba" element={<TicketSearch />} />
           <Route path="/overview" element={<TicketOverview />} />
           <Route path="/unassigned" element={<TicketsWithoutAnAssignee />} />
           <Route path="/" element={<Navigate to="/csvtickets" replace />} />
