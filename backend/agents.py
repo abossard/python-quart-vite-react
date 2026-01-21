@@ -1,10 +1,10 @@
 """
-Agent Management Module with Azure OpenAI and LangGraph
+Agent Management Module with OpenAI and LangGraph
 
 Provides LangGraph-based agents for task automation:
 - Type-safe data models with Pydantic
 - Self-documenting schemas for REST and MCP
-- Azure OpenAI integration via langchain-openai
+- OpenAI integration via langchain-openai
 - ReAct agent pattern with automatic tool discovery
 
 Following "Grokking Simplicity" and "A Philosophy of Software Design":
@@ -39,18 +39,28 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
+from uuid import UUID
+
 # Ensure operations register before we request LangChain tools
 import operations  # noqa: F401
+
 # Local - Import operations registry for automatic tool discovery
 from api_decorators import get_langchain_tools
+
+# Local CSV service
+from csv_data import get_csv_ticket_service
+
 # Third-party - FastMCP client for external MCP servers
 from fastmcp import Client as MCPClient
 from langchain_core.tools import StructuredTool
+
 # Third-party - LangChain and LangGraph
-from langchain_openai import AzureChatOpenAI
+from langchain_openai import ChatOpenAI
 from langgraph.prebuilt import create_react_agent
+
 # Third-party - Pydantic for validation
 from pydantic import BaseModel, Field, create_model, field_validator
+from tickets import TicketStatus
 
 # ============================================================================
 # DATA MODELS - Pydantic for validation and schema generation
@@ -133,14 +143,12 @@ class AgentResponse(BaseModel):
 
 
 # ============================================================================
-# CONFIGURATION - Azure OpenAI settings (hardcoded except API key)
+# CONFIGURATION - OpenAI settings
 # ============================================================================
 
-# Azure OpenAI configuration - only API key from environment
-AZURE_OPENAI_ENDPOINT = "https://can-i-haz-houze-resource.cognitiveservices.azure.com"
-AZURE_OPENAI_API_KEY = os.getenv("AZURE_API_KEY", "")
-AZURE_OPENAI_DEPLOYMENT = os.getenv("AZURE_OPENAI_DEPLOYMENT", "gpt-5-mini")
-AZURE_OPENAI_API_VERSION = os.getenv("AZURE_OPENAI_API_VERSION", "2025-04-01-preview")
+OPENAI_API_KEY = os.getenv("OPENAI_API_KEY", "")
+OPENAI_MODEL = os.getenv("OPENAI_MODEL", "gpt-4o-mini")
+OPENAI_BASE_URL = os.getenv("OPENAI_BASE_URL", "")  # optional override
 
 # External MCP server URL for ticket management (hardcoded)
 TICKET_MCP_SERVER_URL = "https://yodrrscbpxqnslgugwow.supabase.co/functions/v1/mcp/a7f2b8c4-d3e9-4f1a-b5c6-e8d9f0123456"
@@ -241,7 +249,7 @@ class AgentService:
     Agent service handling all LLM agent operations.
     
     Consolidated operations:
-    - Agent initialization with Azure OpenAI
+    - Agent initialization with OpenAI
     - Tool discovery from @operation registry
     - External MCP server tool integration (persistent connection)
     - ReAct agent execution with task tools
@@ -253,71 +261,39 @@ class AgentService:
     
     def __init__(self):
         """
-        Initialize the agent service with Azure OpenAI.
+        Initialize the agent service with OpenAI.
         
         Validates that required environment variables are set and creates
         the LLM client for agent execution.
         
         Raises:
-            ValueError: If Azure OpenAI configuration is incomplete
+            ValueError: If OpenAI configuration is incomplete
         """
         # Validate configuration
-        if not AZURE_OPENAI_API_KEY:
+        if not OPENAI_API_KEY:
             raise ValueError(
-                "Azure OpenAI API key not set. "
-                "Please set AZURE_API_KEY environment variable."
+                "OpenAI API key not set. "
+                "Please set OPENAI_API_KEY environment variable."
             )
         
-        # Initialize AzureChatOpenAI with hardcoded endpoint
-        self.llm = AzureChatOpenAI(
-            azure_endpoint=AZURE_OPENAI_ENDPOINT,
-            api_key=AZURE_OPENAI_API_KEY,  # type: ignore
-            azure_deployment=AZURE_OPENAI_DEPLOYMENT,
-            api_version=AZURE_OPENAI_API_VERSION,
+        # Initialize ChatOpenAI
+        self.llm = ChatOpenAI(
+            model=OPENAI_MODEL,
+            api_key=OPENAI_API_KEY,
+            base_url=OPENAI_BASE_URL or None,
+            temperature=0.0,
         )
         
-        # Load LangGraph tools from operation registry
-        # These are the actual Python functions decorated with @tool
-        self.tools = get_langchain_tools()
-        
-        # Ticket MCP client state (lazy initialization)
+        # CSV tools only (do not expose operations or external MCP)
+        self.tools = self._build_csv_tools()
+
+        # Ticket MCP client state (unused)
         self._ticket_mcp_client: Optional[MCPClient] = None
         self._ticket_mcp_tools_loaded = False
     
     async def _ensure_ticket_mcp_connection(self):
-        """
-        Ensure ticket MCP client is connected and tools are loaded.
-        
-        Opens a persistent connection to the external ticket MCP server and
-        converts its tools to LangChain format. Called lazily on first
-        agent run.
-        """
-        if self._ticket_mcp_tools_loaded:
-            return
-        
-        try:
-            # Create and connect ticket MCP client (keep connection open)
-            client = MCPClient(TICKET_MCP_SERVER_URL)
-            await client.__aenter__()
-            self._ticket_mcp_client = client
-            
-            # Fetch and convert ticket MCP tools
-            mcp_tools = await client.list_tools()
-            print(f"\n{'='*60}")
-            print(f"🎫 TICKET MCP SERVER CONNECTED")
-            print(f"{'='*60}")
-            print(f"   URL: {TICKET_MCP_SERVER_URL}")
-            print(f"   Tools available: {len(mcp_tools)}")
-            for tool in mcp_tools:
-                lc_tool = _mcp_tool_to_langchain(client, tool)
-                self.tools.append(lc_tool)
-                print(f"   ✓ {tool.name}: {(tool.description or '')[:60]}...")
-            print(f"{'='*60}\n")
-            self._ticket_mcp_tools_loaded = True
-            
-        except Exception as e:
-            print(f"WARNING: Failed to load ticket MCP tools from {TICKET_MCP_SERVER_URL}: {e}")
-            # Continue without ticket MCP tools - local tools still work
+        """No-op: external MCP tools not exposed."""
+        return
     
     async def close(self):
         """Close the ticket MCP client connection."""
@@ -327,7 +303,78 @@ class AgentService:
             except Exception:
                 pass
             self._ticket_mcp_client = None
-    
+
+    def _build_csv_tools(self) -> list[StructuredTool]:
+        """Build LangChain tools backed by CSVTicketService."""
+        import json
+        service = get_csv_ticket_service()
+
+        def _csv_list_tickets(status: str | None = None, assigned_group: str | None = None, has_assignee: bool | None = None) -> str:
+            try:
+                status_enum = TicketStatus(status.lower()) if status else None
+            except Exception:
+                status_enum = None
+            tickets = service.list_tickets(status=status_enum, assigned_group=assigned_group, has_assignee=has_assignee)
+            return json.dumps([t.model_dump() for t in tickets[:200]], default=str)
+
+        def _csv_get_ticket(ticket_id: str) -> str:
+            try:
+                tid = UUID(ticket_id)
+            except Exception:
+                return json.dumps({"error": "invalid ticket id"})
+            ticket = service.get_ticket(tid)
+            if not ticket:
+                return json.dumps({"error": "not found"})
+            return json.dumps(ticket.model_dump(), default=str)
+
+        def _csv_search_tickets(query: str, limit: int = 50) -> str:
+            q = query.lower()
+            tickets = service.list_tickets()
+            matched = []
+            for t in tickets:
+                text = " ".join([
+                    t.summary or "",
+                    t.description or "",
+                    t.notes or "",
+                    t.resolution or "",
+                    t.requester_name or "",
+                    t.assigned_group or "",
+                    t.city or "",
+                ]).lower()
+                if q in text:
+                    matched.append(t.model_dump())
+                    if len(matched) >= limit:
+                        break
+            return json.dumps(matched, default=str)
+
+        def _csv_ticket_fields() -> str:
+            # Use Ticket model fields as schema
+            from tickets import Ticket
+            return json.dumps(list(Ticket.model_fields.keys()))
+
+        return [
+            StructuredTool.from_function(
+                func=_csv_list_tickets,
+                name="csv_list_tickets",
+                description="List tickets from CSV with optional filters: status (new, assigned, in_progress, pending, resolved, closed, cancelled), assigned_group, has_assignee (true/false). Returns JSON array.",
+            ),
+            StructuredTool.from_function(
+                func=_csv_get_ticket,
+                name="csv_get_ticket",
+                description="Get a ticket by UUID (id). Returns JSON object including notes/resolution.",
+            ),
+            StructuredTool.from_function(
+                func=_csv_search_tickets,
+                name="csv_search_tickets",
+                description="Search tickets by text across summary, description, notes, resolution, requester, group, city. Returns JSON array.",
+            ),
+            StructuredTool.from_function(
+                func=_csv_ticket_fields,
+                name="csv_ticket_fields",
+                description="List available ticket fields (schema) as JSON array of field names.",
+            ),
+        ]
+
     async def run_agent(self, request: AgentRequest) -> AgentResponse:
         """
         Run a ReAct agent with the given request using LangGraph.
@@ -352,9 +399,6 @@ class AgentService:
         Raises:
             ValueError: If agent execution fails
         """
-        # Ensure ticket MCP tools are loaded (lazy initialization)
-        await self._ensure_ticket_mcp_connection()
-        
         try:
             # Create ReAct agent with LangGraph tools
             # The tools are the actual Python functions with @tool decorator
@@ -363,22 +407,17 @@ class AgentService:
             # System message to guide the agent's behavior
             system_msg = (
                 "You are a support ticket management assistant. "
-                "Your primary role is to help users manage, search, and evaluate support tickets. "
-                "You MUST use the available tools to perform all actions - NEVER simulate or pretend. "
+                "Use the CSV tools: csv_list_tickets, csv_search_tickets, csv_get_ticket, csv_ticket_fields. "
+                "You MUST use the available tools to perform all actions - NEVER simulate or invent data. "
                 "\n\n"
                 "TICKET CAPABILITIES:\n"
-                "- Search and list tickets by status, priority, city, service\n"
-                "- Get detailed ticket information and work logs\n"
-                "- Analyze ticket statistics and trends\n"
-                "- Request modifications to tickets (status, priority, assignee, etc.)\n"
-                "- Review and approve/reject modification requests\n"
+                "- List tickets with filters (status, assigned_group, has_assignee)\n"
+                "- Search tickets across summary/description/notes/resolution/requester/group/city\n"
+                "- Get a ticket by id (UUID) including notes and resolution\n"
+                "- Inspect available ticket fields (schema)\n"
                 "\n"
-                "TASK CAPABILITIES:\n"
-                "- Create, update, delete, and list tasks\n"
-                "- Get task statistics\n"
-                "\n"
-                "When users ask about tickets, use the ticket tools (list_tickets, get_ticket, search_tickets, etc.). "
-                "When users ask about tasks, use task tools (create_task, list_tasks, etc.). "
+                "When users ask about tickets, call the csv_* tools and summarize results. "
+                "If a field is not present, state that explicitly. "
                 "Always confirm actions based on actual tool results."
             )
             
