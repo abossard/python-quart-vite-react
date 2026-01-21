@@ -1,8 +1,8 @@
 /**
  * AgentChat Component
  *
- * Chat interface for Azure OpenAI LangGraph Agent
- * Agent has access to task tools and ticket MCP tools
+ * Chat interface for OpenAI LangGraph Agent
+ * Agent has access to CSV ticket tools
  *
  * Following principles:
  * - Pure functions for message formatting (calculations)
@@ -31,6 +31,8 @@ import {
     Wrench20Regular,
 } from '@fluentui/react-icons'
 import { useEffect, useRef, useState } from 'react'
+import ReactMarkdown from 'react-markdown'
+import remarkGfm from 'remark-gfm'
 import { agentChat } from '../../services/api'
 
 const useStyles = makeStyles({
@@ -104,6 +106,46 @@ const useStyles = makeStyles({
     backgroundColor: tokens.colorNeutralBackground2,
     wordBreak: 'break-word',
     whiteSpace: 'pre-wrap',
+  },
+  messageContentMarkdown: {
+    whiteSpace: 'normal',
+    lineHeight: 1.5,
+  },
+  markdown: {
+    '& h1, & h2, & h3': {
+      margin: `${tokens.spacingVerticalS} 0 ${tokens.spacingVerticalXS}`,
+      fontWeight: tokens.fontWeightSemibold,
+    },
+    '& ul, & ol': {
+      paddingLeft: tokens.spacingHorizontalL,
+      margin: `${tokens.spacingVerticalXS} 0`,
+    },
+    '& table': {
+      width: '100%',
+      borderCollapse: 'collapse',
+      marginTop: tokens.spacingVerticalXS,
+    },
+    '& th, & td': {
+      border: `1px solid ${tokens.colorNeutralStroke1}`,
+      padding: tokens.spacingHorizontalXS,
+      textAlign: 'left',
+    },
+    '& pre': {
+      backgroundColor: tokens.colorNeutralBackground3,
+      padding: tokens.spacingHorizontalM,
+      borderRadius: tokens.borderRadiusSmall,
+      overflowX: 'auto',
+    },
+    '& code': {
+      fontFamily: 'monospace',
+      backgroundColor: tokens.colorNeutralBackground3,
+      padding: '0 4px',
+      borderRadius: tokens.borderRadiusSmall,
+    },
+    '& a': {
+      color: tokens.colorBrandForegroundLink,
+      textDecoration: 'underline',
+    },
   },
   userContent: {
     backgroundColor: tokens.colorBrandBackground2,
@@ -230,7 +272,7 @@ export default function AgentChat() {
                 <Text weight="semibold" size={500}>
                   AI Agent
                 </Text>
-                <Badge color="informative" appearance="filled">Azure OpenAI</Badge>
+                <Badge color="informative" appearance="filled">OpenAI</Badge>
               </div>
               <div className={styles.headerControls}>
                 <Text size={200}>Powered by LangGraph + GPT</Text>
@@ -252,12 +294,12 @@ export default function AgentChat() {
           {messages.length === 0 && !error && (
             <div className={styles.emptyState}>
               <Bot24Regular style={{ fontSize: '48px', marginBottom: tokens.spacingVerticalM }} />
-              <Text size={400}>Start a conversation with the AI Agent</Text>
+              <Text size={400}>Starte eine Unterhaltung mit dem AI Agenten</Text>
               <Text size={300} style={{ marginTop: tokens.spacingVerticalS, display: 'block' }}>
-                The agent can manage tasks and tickets for you!
+                Der Agent kann Tickets durchsuchen und Details anzeigen.
               </Text>
               <Text size={200} style={{ marginTop: tokens.spacingVerticalM, display: 'block' }}>
-                Try: "Create a task to review the documentation" or "List all tasks"
+                Versuche: "Suche Tickets mit 'VPN'" oder "Zeige Ticket [Ticket-ID]"
               </Text>
             </div>
           )}
@@ -285,9 +327,15 @@ export default function AgentChat() {
               <div
                 className={`${styles.messageContent} ${
                   message.role === 'user' ? styles.userContent : styles.assistantContent
-                }`}
+                } ${message.role !== 'user' ? styles.messageContentMarkdown : ''}`}
               >
-                <Text>{message.content}</Text>
+                {message.role === 'user' ? (
+                  <Text style={{ whiteSpace: 'pre-wrap' }}>{message.content}</Text>
+                ) : (
+                  <div className={styles.markdown}>
+                    <ReactMarkdown remarkPlugins={[remarkGfm]}>{message.content}</ReactMarkdown>
+                  </div>
+                )}
                 {message.error && (
                   <div className={styles.errorDetails}>
                     <Text weight="semibold" size={200} style={{ color: tokens.colorPaletteRedForeground1 }}>

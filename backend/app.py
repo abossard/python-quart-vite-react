@@ -29,7 +29,7 @@ load_dotenv()
 
 # Import unified operation system
 
-# Agent service for Azure OpenAI LangGraph agents
+# Agent service for OpenAI LangGraph agents
 from agents import AgentRequest, AgentResponse, agent_service
 from api_decorators import operation
 
@@ -157,12 +157,12 @@ async def rest_get_stats():
 
 
 # ============================================================================
-# AGENT ENDPOINT - Azure OpenAI LangGraph Agent
+# AGENT ENDPOINT - OpenAI LangGraph Agent
 # ============================================================================
 
 @app.route("/api/agents/run", methods=["POST"])
 async def rest_run_agent():
-    """REST wrapper: run AI agent with Azure OpenAI.
+    """REST wrapper: run AI agent with OpenAI.
     
     The agent has access to task tools and ticket MCP tools.
     """

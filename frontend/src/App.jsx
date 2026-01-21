@@ -16,11 +16,13 @@ import {
     tokens,
 } from '@fluentui/react-components'
 import {
+    Bot24Regular,
     DataHistogram24Regular,
     Info24Regular,
     Table24Regular,
 } from '@fluentui/react-icons'
 import { Navigate, Route, Routes, useLocation, useNavigate } from 'react-router-dom'
+import AgentChat from './features/agent/AgentChat'
 import CSVTicketTable from './features/csvtickets/CSVTicketTable'
 import FieldsDocs from './features/fields/FieldsDocs'
 import KitchenSink from './features/kitchensink/KitchenSink'
@@ -63,6 +65,7 @@ export default function App() {
     { value: 'csvtickets', label: 'Tickets', icon: <Table24Regular />, path: '/csvtickets', testId: 'tab-csvtickets' },
     { value: 'kitchensink', label: 'Kitchen Sink', icon: <DataHistogram24Regular />, path: '/kitchensink', testId: 'tab-kitchensink' },
     { value: 'fields', label: 'Fields', icon: <Info24Regular />, path: '/fields', testId: 'tab-fields' },
+    { value: 'agent', label: 'Agent', icon: <Bot24Regular />, path: '/agent', testId: 'tab-agent' },
   ]
   const activeTab = tabs.find((tab) => location.pathname.startsWith(tab.path))?.value ?? 'csvtickets'
 
@@ -100,6 +103,7 @@ export default function App() {
           <Route path="/csvtickets" element={<CSVTicketTable />} />
           <Route path="/kitchensink" element={<KitchenSink />} />
           <Route path="/fields" element={<FieldsDocs />} />
+          <Route path="/agent" element={<AgentChat />} />
           <Route path="*" element={<Navigate to="/csvtickets" replace />} />
         </Routes>
       </main>

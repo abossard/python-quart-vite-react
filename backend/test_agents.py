@@ -3,7 +3,7 @@
 Test script for LangGraph agent integration.
 
 This script tests:
-1. Agent service initialization (without Azure OpenAI)
+1. Agent service initialization (without OpenAI)
 2. Operation to LangChain tool conversion
 3. MCP tool schema generation
 
@@ -66,7 +66,7 @@ def test_agent_import():
         print()
     except ImportError as e:
         print(f"  ⚠ Could not import agents module: {e}")
-        print("  This is expected if Azure OpenAI dependencies are not configured")
+        print("  This is expected if OpenAI dependencies are not configured")
         print()
 
 def test_task_service():
@@ -103,7 +103,7 @@ def main():
         print()
         print("Next steps:")
         print("1. Copy .env.example to .env")
-        print("2. Configure Azure OpenAI credentials in .env")
+        print("2. Configure OPENAI_API_KEY in .env")
         print("3. Start the server: python app.py")
         print("4. Test agent: POST /api/agents/run with {\"prompt\": \"List all tasks\"}")
         print()
