@@ -139,3 +139,72 @@ export async function agentChat(prompt) {
 export async function getQATickets() {
   return fetchJSON(`${API_BASE_URL}/qa-tickets`);
 }
+
+// ============================================================================
+// CSV Tickets APIs
+// ============================================================================
+
+/**
+ * Get available fields metadata for CSV tickets
+ * @returns {Promise<Object>} Response with fields array and total count
+ */
+export async function getCSVTicketFields() {
+  return fetchJSON(`${API_BASE_URL}/csv-tickets/fields`);
+}
+
+/**
+ * Get CSV tickets with optional filtering, sorting, and field selection
+ * @param {Object} options - Query options
+ * @param {string[]} options.fields - Fields to include in response
+ * @param {string} options.status - Filter by status
+ * @param {boolean} options.hasAssignee - Filter by assignee presence
+ * @param {string} options.assignedGroup - Filter by group name
+ * @param {string} options.sort - Field to sort by
+ * @param {string} options.sortDir - Sort direction (asc/desc)
+ * @param {number} options.limit - Max results
+ * @param {number} options.offset - Results to skip
+ * @returns {Promise<Object>} Response with tickets array and metadata
+ */
+export async function getCSVTickets(options = {}) {
+  const params = new URLSearchParams();
+
+  if (options.fields?.length) {
+    params.set("fields", options.fields.join(","));
+  }
+  if (options.status) {
+    params.set("status", options.status);
+  }
+  if (options.hasAssignee !== undefined) {
+    params.set("has_assignee", options.hasAssignee.toString());
+  }
+  if (options.assignedGroup) {
+    params.set("assigned_group", options.assignedGroup);
+  }
+  if (options.sort) {
+    params.set("sort", options.sort);
+  }
+  if (options.sortDir) {
+    params.set("sort_dir", options.sortDir);
+  }
+  if (options.limit) {
+    params.set("limit", options.limit.toString());
+  }
+  if (options.offset) {
+    params.set("offset", options.offset.toString());
+  }
+
+  const queryString = params.toString();
+  const url = queryString
+    ? `${API_BASE_URL}/csv-tickets?${queryString}`
+    : `${API_BASE_URL}/csv-tickets`;
+
+  return fetchJSON(url);
+}
+
+/**
+ * Get statistics for CSV tickets
+ * @returns {Promise<Object>} Response with stats
+ */
+export async function getCSVTicketStats() {
+  return fetchJSON(`${API_BASE_URL}/csv-tickets/stats`);
+}
