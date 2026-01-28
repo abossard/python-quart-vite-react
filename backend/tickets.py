@@ -40,6 +40,8 @@ class TicketPriority(str, Enum):
     MEDIUM = "medium"      # 4 hours
     LOW = "low"            # 8 hours
 #Testcomment
+
+#Another comment
 class ModificationStatus(str, Enum):
     """Status of a modification request."""
     PENDING = "pending"
