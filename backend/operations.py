@@ -4,11 +4,87 @@ This module keeps all business operations in one place so every interface
 (REST, MCP, LangGraph agents) relies on the same validated logic.
 """
 
+from collections import Counter
+from pathlib import Path
+from typing import Any
+from uuid import UUID
+
 from api_decorators import operation
+from csv_data import get_csv_ticket_service
 from tasks import Task, TaskCreate, TaskFilter, TaskService, TaskStats, TaskUpdate
+from tickets import Ticket, TicketStatus
 
 # Service instances shared across interfaces
 _task_service = TaskService()
+_csv_service = get_csv_ticket_service()
+_csv_loaded = False
+
+
+CSV_TICKET_FIELDS = [
+    {"name": "id", "label": "ID", "type": "uuid"},
+    {"name": "summary", "label": "Summary", "type": "string"},
+    {"name": "status", "label": "Status", "type": "enum"},
+    {"name": "priority", "label": "Priority", "type": "enum"},
+    {"name": "assignee", "label": "Assignee", "type": "string"},
+    {"name": "assigned_group", "label": "Assigned Group", "type": "string"},
+    {"name": "requester_name", "label": "Requester", "type": "string"},
+    {"name": "requester_email", "label": "Email", "type": "string"},
+    {"name": "city", "label": "City", "type": "string"},
+    {"name": "country", "label": "Country", "type": "string"},
+    {"name": "service", "label": "Service", "type": "string"},
+    {"name": "incident_type", "label": "Incident Type", "type": "string"},
+    {"name": "product_name", "label": "Product", "type": "string"},
+    {"name": "manufacturer", "label": "Manufacturer", "type": "string"},
+    {"name": "created_at", "label": "Created", "type": "datetime"},
+    {"name": "updated_at", "label": "Updated", "type": "datetime"},
+    {"name": "urgency", "label": "Urgency", "type": "string"},
+    {"name": "impact", "label": "Impact", "type": "string"},
+    {"name": "resolution", "label": "Resolution", "type": "string"},
+    {"name": "notes", "label": "Notes", "type": "string"},
+]
+
+
+def _ensure_csv_loaded() -> None:
+    """Load the default CSV file once so MCP tools are immediately usable."""
+    global _csv_loaded
+    if _csv_loaded:
+        return
+
+    default_csv_path = Path(__file__).resolve().parents[1] / "csv" / "data.csv"
+    if default_csv_path.exists():
+        try:
+            _csv_service.load_csv(default_csv_path)
+        except Exception:
+            pass
+    _csv_loaded = True
+
+
+def _parse_status(status: str | None) -> TicketStatus | None:
+    """Convert status string to enum, returning None for unknown values."""
+    if not status:
+        return None
+    try:
+        return TicketStatus(status.lower())
+    except ValueError:
+        return None
+
+
+def _sorted_tickets(tickets: list[Ticket], sort: str, sort_dir: str) -> list[Ticket]:
+    """Sort tickets while handling nullable and enum fields."""
+    reverse = sort_dir.lower() == "desc"
+
+    def sort_key(ticket: Ticket):
+        value = getattr(ticket, sort, None)
+        if value is None:
+            return ""
+        if hasattr(value, "value"):
+            return value.value
+        return value
+
+    try:
+        return sorted(tickets, key=sort_key, reverse=reverse)
+    except TypeError:
+        return tickets
 
 
 @operation(
@@ -77,15 +153,141 @@ async def op_get_task_stats() -> TaskStats:
     return _task_service.get_stats()
 
 
+@operation(
+    name="csv_list_tickets",
+    description="List tickets loaded from CSV with optional filters and pagination",
+    http_method="GET",
+)
+async def op_csv_list_tickets(
+    status: str | None = None,
+    assigned_group: str | None = None,
+    has_assignee: bool | None = None,
+    limit: int = 100,
+    offset: int = 0,
+    sort: str = "created_at",
+    sort_dir: str = "desc",
+) -> list[Ticket]:
+    """List CSV tickets for MCP/agent consumers."""
+    _ensure_csv_loaded()
+    parsed_status = _parse_status(status)
+    tickets = _csv_service.list_tickets(
+        status=parsed_status,
+        assigned_group=assigned_group,
+        has_assignee=has_assignee,
+    )
+    tickets = _sorted_tickets(tickets, sort, sort_dir)
+
+    normalized_offset = max(offset, 0)
+    normalized_limit = min(max(limit, 1), 500)
+    return tickets[normalized_offset: normalized_offset + normalized_limit]
+
+
+@operation(
+    name="csv_get_ticket",
+    description="Get a single CSV ticket by UUID",
+    http_method="GET",
+)
+async def op_csv_get_ticket(ticket_id: str) -> Ticket | None:
+    """Get one CSV ticket."""
+    _ensure_csv_loaded()
+    try:
+        parsed_id = UUID(ticket_id)
+    except ValueError:
+        return None
+    return _csv_service.get_ticket(parsed_id)
+
+
+@operation(
+    name="csv_search_tickets",
+    description="Search CSV tickets by text across summary, description, notes, requester and location fields",
+    http_method="GET",
+)
+async def op_csv_search_tickets(query: str, limit: int = 50) -> list[Ticket]:
+    """Search CSV tickets with a simple case-insensitive contains check."""
+    _ensure_csv_loaded()
+    q = query.strip().lower()
+    if not q:
+        return []
+
+    normalized_limit = min(max(limit, 1), 500)
+    matches: list[Ticket] = []
+    for ticket in _csv_service.list_tickets():
+        haystack = " ".join(
+            [
+                ticket.summary or "",
+                ticket.description or "",
+                ticket.notes or "",
+                ticket.resolution or "",
+                ticket.requester_name or "",
+                ticket.requester_email or "",
+                ticket.assigned_group or "",
+                ticket.city or "",
+                ticket.service or "",
+            ]
+        ).lower()
+
+        if q in haystack:
+            matches.append(ticket)
+            if len(matches) >= normalized_limit:
+                break
+
+    return matches
+
+
+@operation(
+    name="csv_ticket_stats",
+    description="Get aggregated statistics for tickets loaded from CSV",
+    http_method="GET",
+)
+async def op_csv_ticket_stats() -> dict[str, Any]:
+    """Return counts by status, priority, group, and city."""
+    _ensure_csv_loaded()
+    tickets = _csv_service.list_tickets()
+
+    by_status = Counter(t.status.value for t in tickets)
+    by_priority = Counter(t.priority.value for t in tickets)
+    by_group = Counter(t.assigned_group for t in tickets if t.assigned_group)
+    by_city = Counter(t.city for t in tickets if t.city)
+    unassigned = sum(1 for t in tickets if t.assignee is None and t.assigned_group is not None)
+
+    return {
+        "total": len(tickets),
+        "unassigned": unassigned,
+        "by_status": dict(by_status),
+        "by_priority": dict(by_priority),
+        "by_group": dict(by_group.most_common(10)),
+        "by_city": dict(by_city.most_common(10)),
+    }
+
+
+@operation(
+    name="csv_ticket_fields",
+    description="List the curated CSV ticket fields exposed to UI and agent tools",
+    http_method="GET",
+)
+async def op_csv_ticket_fields() -> list[dict[str, str]]:
+    """Return field metadata for CSV ticket projections."""
+    _ensure_csv_loaded()
+    return CSV_TICKET_FIELDS
+
+
 # Export shared services for callers (REST app, CLI tools, etc.)
 task_service = _task_service
+csv_ticket_service = _csv_service
 
 __all__ = [
     "task_service",
+    "csv_ticket_service",
     "op_list_tasks",
     "op_create_task",
     "op_get_task",
     "op_update_task",
     "op_delete_task",
     "op_get_task_stats",
+    "op_csv_list_tickets",
+    "op_csv_get_ticket",
+    "op_csv_search_tickets",
+    "op_csv_ticket_stats",
+    "op_csv_ticket_fields",
+    "CSV_TICKET_FIELDS",
 ]

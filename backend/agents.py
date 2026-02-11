@@ -309,13 +309,19 @@ class AgentService:
         import json
         service = get_csv_ticket_service()
 
-        def _csv_list_tickets(status: str | None = None, assigned_group: str | None = None, has_assignee: bool | None = None) -> str:
+        def _csv_list_tickets(
+            status: str | None = None,
+            assigned_group: str | None = None,
+            has_assignee: bool | None = None,
+            limit: int = 50,
+        ) -> str:
             try:
                 status_enum = TicketStatus(status.lower()) if status else None
             except Exception:
                 status_enum = None
             tickets = service.list_tickets(status=status_enum, assigned_group=assigned_group, has_assignee=has_assignee)
-            return json.dumps([t.model_dump() for t in tickets[:200]], default=str)
+            bounded_limit = max(1, min(limit, 100))
+            return json.dumps([t.model_dump() for t in tickets[:bounded_limit]], default=str)
 
         def _csv_get_ticket(ticket_id: str) -> str:
             try:
@@ -327,7 +333,7 @@ class AgentService:
                 return json.dumps({"error": "not found"})
             return json.dumps(ticket.model_dump(), default=str)
 
-        def _csv_search_tickets(query: str, limit: int = 50) -> str:
+        def _csv_search_tickets(query: str, limit: int = 25) -> str:
             q = query.lower()
             tickets = service.list_tickets()
             matched = []
@@ -356,7 +362,12 @@ class AgentService:
             StructuredTool.from_function(
                 func=_csv_list_tickets,
                 name="csv_list_tickets",
-                description="List tickets from CSV with optional filters: status (new, assigned, in_progress, pending, resolved, closed, cancelled), assigned_group, has_assignee (true/false). Returns JSON array.",
+                description=(
+                    "List tickets from CSV with optional filters: status "
+                    "(new, assigned, in_progress, pending, resolved, closed, cancelled), "
+                    "assigned_group, has_assignee (true/false), and limit (default 50, max 100). "
+                    "Returns JSON array."
+                ),
             ),
             StructuredTool.from_function(
                 func=_csv_get_ticket,

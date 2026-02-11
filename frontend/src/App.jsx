@@ -25,6 +25,8 @@ import { Navigate, Route, Routes, useLocation, useNavigate } from 'react-router-
 import AgentChat from './features/agent/AgentChat'
 import CSVTicketTable from './features/csvtickets/CSVTicketTable'
 import FieldsDocs from './features/fields/FieldsDocs'
+import { USECASE_DEMO_DEFINITIONS } from './features/usecase-demo/demoDefinitions'
+import UsecaseDemoPage from './features/usecase-demo/UsecaseDemoPage'
 import KitchenSink from './features/kitchensink/KitchenSink'
 
 const useStyles = makeStyles({
@@ -61,8 +63,20 @@ export default function App() {
   const styles = useStyles()
   const location = useLocation()
   const navigate = useNavigate()
+
+  const usecaseTabs = USECASE_DEMO_DEFINITIONS.filter(
+    (definition) => definition.showInNav !== false
+  ).map((definition) => ({
+    value: definition.tabValue,
+    label: definition.tabLabel,
+    icon: <Bot24Regular />,
+    path: definition.route,
+    testId: definition.tabTestId,
+  }))
+
   const tabs = [
     { value: 'csvtickets', label: 'Tickets', icon: <Table24Regular />, path: '/csvtickets', testId: 'tab-csvtickets' },
+    ...usecaseTabs,
     { value: 'kitchensink', label: 'Kitchen Sink', icon: <DataHistogram24Regular />, path: '/kitchensink', testId: 'tab-kitchensink' },
     { value: 'fields', label: 'Fields', icon: <Info24Regular />, path: '/fields', testId: 'tab-fields' },
     { value: 'agent', label: 'Agent', icon: <Bot24Regular />, path: '/agent', testId: 'tab-agent' },
@@ -101,6 +115,13 @@ export default function App() {
         <Routes>
           <Route path="/" element={<Navigate to="/csvtickets" replace />} />
           <Route path="/csvtickets" element={<CSVTicketTable />} />
+          {USECASE_DEMO_DEFINITIONS.map((definition) => (
+            <Route
+              key={definition.id}
+              path={definition.route}
+              element={<UsecaseDemoPage definition={definition} />}
+            />
+          ))}
           <Route path="/kitchensink" element={<KitchenSink />} />
           <Route path="/fields" element={<FieldsDocs />} />
           <Route path="/agent" element={<AgentChat />} />

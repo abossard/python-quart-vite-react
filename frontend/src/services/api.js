@@ -208,3 +208,55 @@ export async function getCSVTickets(options = {}) {
 export async function getCSVTicketStats() {
   return fetchJSON(`${API_BASE_URL}/csv-tickets/stats`);
 }
+
+/**
+ * Get one CSV ticket by ID.
+ * @param {string} ticketId - Ticket UUID
+ * @param {string[]} fields - Optional field selection
+ * @returns {Promise<Object>} Ticket details
+ */
+export async function getCSVTicket(ticketId, fields = []) {
+  const params = new URLSearchParams();
+  if (fields.length) {
+    params.set("fields", fields.join(","));
+  }
+  const query = params.toString();
+  const url = query
+    ? `${API_BASE_URL}/csv-tickets/${ticketId}?${query}`
+    : `${API_BASE_URL}/csv-tickets/${ticketId}`;
+  return fetchJSON(url);
+}
+
+// ============================================================================
+// Usecase Demo Agent Run APIs
+// ============================================================================
+
+/**
+ * Create a background usecase-demo agent run.
+ * @param {string} prompt - Prompt to run with the CSV-aware agent
+ * @returns {Promise<Object>} Created run payload (status is initially queued)
+ */
+export async function createUsecaseDemoAgentRun(prompt) {
+  return fetchJSON(`${API_BASE_URL}/usecase-demo/agent-runs`, {
+    method: "POST",
+    body: JSON.stringify({ prompt }),
+  });
+}
+
+/**
+ * Fetch one usecase-demo agent run.
+ * @param {string} runId - Run ID
+ * @returns {Promise<Object>} Run status/result
+ */
+export async function getUsecaseDemoAgentRun(runId) {
+  return fetchJSON(`${API_BASE_URL}/usecase-demo/agent-runs/${runId}`);
+}
+
+/**
+ * List recent usecase-demo agent runs.
+ * @param {number} limit - Max number of runs to return
+ * @returns {Promise<Object>} Object with runs array
+ */
+export async function listUsecaseDemoAgentRuns(limit = 20) {
+  return fetchJSON(`${API_BASE_URL}/usecase-demo/agent-runs?limit=${limit}`);
+}
