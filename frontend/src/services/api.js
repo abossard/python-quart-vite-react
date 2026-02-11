@@ -260,3 +260,43 @@ export async function getUsecaseDemoAgentRun(runId) {
 export async function listUsecaseDemoAgentRuns(limit = 20) {
   return fetchJSON(`${API_BASE_URL}/usecase-demo/agent-runs?limit=${limit}`);
 }
+
+// ============================================================================
+// Ticket Splitter APIs
+// ============================================================================
+
+/**
+ * Analyze tickets for multiple problems using AI
+ * @param {Object} options - Analysis options
+ * @param {string[]} options.ticket_ids - Optional: specific ticket IDs to analyze
+ * @param {number} options.limit - Optional: limit number of tickets to analyze (default 20)
+ * @returns {Promise<Object>} Analysis results with detected problems
+ */
+export async function analyzeTicketsForSplitting(options = {}) {
+  return fetchJSON(`${API_BASE_URL}/ticket-splitter/analyze`, {
+    method: "POST",
+    body: JSON.stringify(options),
+  });
+}
+
+/**
+ * Create split tickets for secondary problems
+ * @param {string} ticketId - Original ticket UUID
+ * @param {Array} secondaryProblems - Array of secondary problem objects
+ * @returns {Promise<Object>} Result with created tickets
+ */
+export async function splitTicket(ticketId, secondaryProblems) {
+  return fetchJSON(`${API_BASE_URL}/ticket-splitter/split/${ticketId}`, {
+    method: "POST",
+    body: JSON.stringify({ secondary_problems: secondaryProblems }),
+  });
+}
+
+/**
+ * Get all split tickets created in this session
+ * @returns {Promise<Object>} Response with split tickets array
+ */
+export async function getSplitTickets() {
+  return fetchJSON(`${API_BASE_URL}/ticket-splitter/split-tickets`);
+}
+

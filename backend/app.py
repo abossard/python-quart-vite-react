@@ -38,6 +38,9 @@ from api_decorators import operation
 from csv_data import Ticket, get_csv_ticket_service
 from usecase_demo import UsecaseDemoRunCreate, usecase_demo_run_service
 
+# Ticket splitter service
+from ticket_splitter import TicketSplitterService, SplitAnalysis, SecondaryProblem
+
 # FastMCP client for direct ticket MCP calls (no AI)
 from fastmcp import Client as MCPClient
 from mcp_handler import handle_mcp_request
@@ -70,6 +73,10 @@ app = Quart(__name__)
 app = cors(app, allow_origin="*")
 
 # Service instances live in operations.py so every interface shares them
+
+# Initialize ticket splitter service (uses CSV service)
+_csv_ticket_service = get_csv_ticket_service()
+_ticket_splitter_service = TicketSplitterService(_csv_ticket_service)
 
 
 # ============================================================================
@@ -619,6 +626,134 @@ async def get_csv_ticket_stats():
         "by_priority": dict(priorities),
         "by_group": dict(groups.most_common(10)),
         "by_city": dict(cities.most_common(10)),
+    })
+
+
+# ============================================================================
+# TICKET SPLITTER API
+# ============================================================================
+
+@app.route("/api/ticket-splitter/analyze", methods=["POST"])
+async def analyze_tickets_for_splitting():
+    """
+    Analyze tickets for multiple problems using AI.
+    
+    Request body (optional):
+    {
+        "ticket_ids": ["uuid1", "uuid2"],  // Optional: specific tickets to analyze
+        "limit": 20  // Optional: limit number of tickets
+    }
+    
+    Returns:
+    {
+        "analyses": [...],
+        "total_analyzed": 20,
+        "multiple_problems_found": 5
+    }
+    """
+    try:
+        data = await request.get_json() or {}
+        ticket_ids = data.get("ticket_ids")
+        limit = data.get("limit", 20)  # Default to 20 tickets
+        
+        # If specific ticket IDs provided, analyze those
+        if ticket_ids:
+            analyses = []
+            for ticket_id_str in ticket_ids:
+                try:
+                    ticket_id = UUID(ticket_id_str)
+                    ticket = _csv_ticket_service.get_ticket(ticket_id)
+                    if ticket:
+                        analysis = await _ticket_splitter_service.analyze_ticket_with_agent(
+                            ticket, agent_service
+                        )
+                        analyses.append(analysis)
+                except ValueError:
+                    continue
+        else:
+            # Analyze all tickets (with limit)
+            analyses = await _ticket_splitter_service.analyze_all_tickets(
+                agent_service, limit=limit
+            )
+        
+        # Count how many have multiple problems
+        multiple_problems_count = sum(1 for a in analyses if a.has_multiple_problems)
+        
+        return jsonify({
+            "analyses": [a.model_dump(mode='json') for a in analyses],
+            "total_analyzed": len(analyses),
+            "multiple_problems_found": multiple_problems_count
+        })
+        
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+@app.route("/api/ticket-splitter/split/<ticket_id>", methods=["POST"])
+async def split_ticket(ticket_id: str):
+    """
+    Create split tickets for a specific original ticket.
+    
+    Request body:
+    {
+        "secondary_problems": [
+            {
+                "description": "...",
+                "severity": "medium",
+                "suggested_priority": "MEDIUM",
+                "reasoning": "..."
+            }
+        ]
+    }
+    
+    Returns:
+    {
+        "success": true,
+        "created_tickets": [...],
+        "message": "..."
+    }
+    """
+    try:
+        ticket_uuid = UUID(ticket_id)
+        ticket = _csv_ticket_service.get_ticket(ticket_uuid)
+        
+        if not ticket:
+            return jsonify({"error": "Ticket not found"}), 404
+        
+        data = await request.get_json()
+        secondary_problems_data = data.get("secondary_problems", [])
+        
+        # Convert to SecondaryProblem objects
+        secondary_problems = []
+        for prob_data in secondary_problems_data:
+            secondary_problems.append(SecondaryProblem(**prob_data))
+        
+        # Create split tickets
+        result = _ticket_splitter_service.create_split_tickets(
+            ticket, secondary_problems
+        )
+        
+        return jsonify({
+            "success": result.success,
+            "created_tickets": [t.model_dump(mode='json') for t in result.created_tickets],
+            "message": result.message
+        })
+        
+    except ValueError:
+        return jsonify({"error": "Invalid ticket ID"}), 400
+    except ValidationError as e:
+        return jsonify({"error": str(e)}), 400
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+@app.route("/api/ticket-splitter/split-tickets", methods=["GET"])
+async def get_split_tickets():
+    """Get all split tickets created in this session."""
+    split_tickets = _ticket_splitter_service.get_split_tickets()
+    return jsonify({
+        "tickets": [t.model_dump(mode='json') for t in split_tickets],
+        "count": len(split_tickets)
     })
 
 
