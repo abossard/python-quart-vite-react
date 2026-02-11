@@ -76,7 +76,7 @@ class AgentRequest(BaseModel):
     prompt: str = Field(
         ...,
         min_length=1,
-        max_length=2000,
+        max_length=5000,
         description="User prompt for the agent to process"
     )
     agent_type: Literal["task_assistant"] = Field(
@@ -313,6 +313,7 @@ class AgentService:
             status: str | None = None,
             assigned_group: str | None = None,
             has_assignee: bool | None = None,
+            fields: str | None = None,
             limit: int = 50,
         ) -> str:
             try:
@@ -321,7 +322,14 @@ class AgentService:
                 status_enum = None
             tickets = service.list_tickets(status=status_enum, assigned_group=assigned_group, has_assignee=has_assignee)
             bounded_limit = max(1, min(limit, 100))
-            return json.dumps([t.model_dump() for t in tickets[:bounded_limit]], default=str)
+            items = tickets[:bounded_limit]
+            if fields:
+                field_list = [f.strip() for f in fields.split(",")]
+                return json.dumps([
+                    {k: v for k, v in t.model_dump().items() if k in field_list}
+                    for t in items
+                ], default=str)
+            return json.dumps([t.model_dump() for t in items], default=str)
 
         def _csv_get_ticket(ticket_id: str) -> str:
             try:
@@ -333,7 +341,7 @@ class AgentService:
                 return json.dumps({"error": "not found"})
             return json.dumps(ticket.model_dump(), default=str)
 
-        def _csv_search_tickets(query: str, limit: int = 25) -> str:
+        def _csv_search_tickets(query: str, fields: str | None = None, limit: int = 25) -> str:
             q = query.lower()
             tickets = service.list_tickets()
             matched = []
@@ -348,7 +356,11 @@ class AgentService:
                     t.city or "",
                 ]).lower()
                 if q in text:
-                    matched.append(t.model_dump())
+                    dump = t.model_dump()
+                    if fields:
+                        field_list = [f.strip() for f in fields.split(",")]
+                        dump = {k: v for k, v in dump.items() if k in field_list}
+                    matched.append(dump)
                     if len(matched) >= limit:
                         break
             return json.dumps(matched, default=str)
@@ -365,7 +377,10 @@ class AgentService:
                 description=(
                     "List tickets from CSV with optional filters: status "
                     "(new, assigned, in_progress, pending, resolved, closed, cancelled), "
-                    "assigned_group, has_assignee (true/false), and limit (default 50, max 100). "
+                    "assigned_group, has_assignee (true/false), limit (default 50, max 100), "
+                    "and fields (comma-separated field names to return, e.g. "
+                    "'id,summary,priority,assignee,assigned_group,created_at' — "
+                    "omit to return all fields). Use fields to reduce response size and speed up queries. "
                     "Returns JSON array."
                 ),
             ),
@@ -377,7 +392,7 @@ class AgentService:
             StructuredTool.from_function(
                 func=_csv_search_tickets,
                 name="csv_search_tickets",
-                description="Search tickets by text across summary, description, notes, resolution, requester, group, city. Returns JSON array.",
+                description="Search tickets by text across summary, description, notes, resolution, requester, group, city. Optional fields param (comma-separated) to limit returned fields. Returns JSON array.",
             ),
             StructuredTool.from_function(
                 func=_csv_ticket_fields,

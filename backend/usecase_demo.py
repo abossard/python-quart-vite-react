@@ -23,7 +23,7 @@ from pydantic import BaseModel, Field, field_validator
 from agents import AgentRequest, agent_service
 
 USECASE_DEMO_AGENT_TIMEOUT_SECONDS = float(
-    os.getenv("USECASE_DEMO_AGENT_TIMEOUT_SECONDS", "120")
+    os.getenv("USECASE_DEMO_AGENT_TIMEOUT_SECONDS", "300")
 )
 
 
