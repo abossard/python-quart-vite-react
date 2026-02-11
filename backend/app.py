@@ -20,6 +20,7 @@ import json
 import os
 from datetime import datetime
 from pathlib import Path
+from uuid import UUID
 
 # Load environment variables from .env file
 from dotenv import load_dotenv
@@ -35,11 +36,13 @@ from api_decorators import operation
 
 # CSV ticket service
 from csv_data import Ticket, get_csv_ticket_service
+from usecase_demo import UsecaseDemoRunCreate, usecase_demo_run_service
 
 # FastMCP client for direct ticket MCP calls (no AI)
 from fastmcp import Client as MCPClient
 from mcp_handler import handle_mcp_request
 from operations import (
+    CSV_TICKET_FIELDS,
     op_create_task,
     op_delete_task,
     op_get_task,
@@ -173,6 +176,47 @@ async def rest_run_agent():
         return jsonify(response.model_dump()), 200
     except ValidationError as e:
         return jsonify({"error": str(e)}), 400
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+# ============================================================================
+# USECASE DEMO AGENT RUN ENDPOINTS
+# ============================================================================
+
+@app.route("/api/usecase-demo/agent-runs", methods=["POST"])
+async def create_usecase_demo_agent_run():
+    """Queue a background agent run using the provided prompt."""
+    try:
+        data = await request.get_json() or {}
+        payload = UsecaseDemoRunCreate(**data)
+        run = await usecase_demo_run_service.create_run(payload)
+        return jsonify(run.model_dump(mode="json")), 202
+    except ValidationError as e:
+        return jsonify({"error": str(e)}), 400
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+@app.route("/api/usecase-demo/agent-runs", methods=["GET"])
+async def list_usecase_demo_agent_runs():
+    """List recent background agent runs."""
+    try:
+        limit = request.args.get("limit", default=20, type=int)
+        runs = await usecase_demo_run_service.list_runs(limit=limit or 20)
+        return jsonify({"runs": [run.model_dump(mode="json") for run in runs]}), 200
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+@app.route("/api/usecase-demo/agent-runs/<run_id>", methods=["GET"])
+async def get_usecase_demo_agent_run(run_id: str):
+    """Fetch one background run by ID."""
+    try:
+        run = await usecase_demo_run_service.get_run(run_id)
+        if run is None:
+            return jsonify({"error": "Run not found"}), 404
+        return jsonify(run.model_dump(mode="json")), 200
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
@@ -403,31 +447,6 @@ if _csv_data_path.exists():
     print(f"📊 Loaded {_csv_loaded} tickets from CSV")
 
 
-# Define which fields are available for display
-CSV_TICKET_FIELDS = [
-    {"name": "id", "label": "ID", "type": "uuid"},
-    {"name": "summary", "label": "Summary", "type": "string"},
-    {"name": "status", "label": "Status", "type": "enum"},
-    {"name": "priority", "label": "Priority", "type": "enum"},
-    {"name": "assignee", "label": "Assignee", "type": "string"},
-    {"name": "assigned_group", "label": "Assigned Group", "type": "string"},
-    {"name": "requester_name", "label": "Requester", "type": "string"},
-    {"name": "requester_email", "label": "Email", "type": "string"},
-    {"name": "city", "label": "City", "type": "string"},
-    {"name": "country", "label": "Country", "type": "string"},
-    {"name": "service", "label": "Service", "type": "string"},
-    {"name": "incident_type", "label": "Incident Type", "type": "string"},
-    {"name": "product_name", "label": "Product", "type": "string"},
-    {"name": "manufacturer", "label": "Manufacturer", "type": "string"},
-    {"name": "created_at", "label": "Created", "type": "datetime"},
-    {"name": "updated_at", "label": "Updated", "type": "datetime"},
-    {"name": "urgency", "label": "Urgency", "type": "string"},
-    {"name": "impact", "label": "Impact", "type": "string"},
-    {"name": "resolution", "label": "Resolution", "type": "string"},
-    {"name": "notes", "label": "Notes", "type": "string"},
-]
-
-
 @app.route("/api/csv-tickets/fields", methods=["GET"])
 async def get_csv_ticket_fields():
     """Get metadata about available CSV ticket fields."""
@@ -537,6 +556,46 @@ async def get_csv_tickets():
         "limit": limit,
         "fields": selected_fields,
     })
+
+
+@app.route("/api/csv-tickets/<ticket_id>", methods=["GET"])
+async def get_csv_ticket(ticket_id: str):
+    """
+    Get one CSV ticket by ID.
+
+    Query params:
+    - fields: optional comma-separated list of fields to include
+    """
+    try:
+        parsed_id = UUID(ticket_id)
+    except ValueError:
+        return jsonify({"error": "Invalid ticket ID"}), 400
+
+    ticket = _csv_ticket_service.get_ticket(parsed_id)
+    if ticket is None:
+        return jsonify({"error": "Ticket not found"}), 404
+
+    fields_param = request.args.get("fields", "")
+    if fields_param:
+        selected_fields = [f.strip() for f in fields_param.split(",") if f.strip()]
+    else:
+        selected_fields = list(ticket.model_fields.keys())
+
+    result = {}
+    for field in selected_fields:
+        val = getattr(ticket, field, None)
+        if val is None:
+            result[field] = None
+        elif hasattr(val, "value"):
+            result[field] = val.value
+        elif hasattr(val, "isoformat"):
+            result[field] = val.isoformat()
+        elif hasattr(val, "hex"):
+            result[field] = str(val)
+        else:
+            result[field] = val
+
+    return jsonify(result), 200
 
 
 @app.route("/api/csv-tickets/stats", methods=["GET"])

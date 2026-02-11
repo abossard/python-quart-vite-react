@@ -1,106 +1,152 @@
-#!/bin/bash
+#!/usr/bin/env bash
 
 # Setup Script for Quart + React Demo Application
-# This script automates the initial setup process
+# This script automates the initial setup process and works on Ubuntu Linux.
 
-set -e
+set -euo pipefail
+
+ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+cd "${ROOT_DIR}"
+
+MIN_PYTHON="3.10"
+MIN_NODE_MAJOR=18
+
+info() {
+    echo "✅ $1"
+}
+
+warn() {
+    echo "⚠️  $1"
+}
+
+fail() {
+    echo "❌ $1"
+    exit 1
+}
+
+version_ge() {
+    # usage: version_ge "actual" "minimum"
+    [ "$(printf '%s\n' "$2" "$1" | sort -V | head -n1)" = "$2" ]
+}
 
 echo "🎯 Quart + React Demo - Automated Setup"
 echo "========================================"
 echo ""
 
-# Check Python
+[ -f "backend/requirements.txt" ] || fail "Run this script from the repository root."
+[ -f "frontend/package.json" ] || fail "Missing frontend/package.json. Repository checkout looks incomplete."
+
 echo "📝 Checking Python installation..."
-if ! command -v python3 &> /dev/null; then
-    echo "❌ Python 3 is not installed!"
-    echo "Please install Python 3.10+ first:"
-    echo "  sudo apt update"
-    echo "  sudo apt install python3 python3-pip python3-venv"
-    exit 1
+if ! command -v python3 >/dev/null 2>&1; then
+    fail "Python 3 is not installed.
+Install it first (Ubuntu): sudo apt update && sudo apt install -y python3 python3-pip python3-venv"
 fi
 
-PYTHON_VERSION=$(python3 --version | cut -d' ' -f2 | cut -d'.' -f1,2)
-echo "✅ Found Python $PYTHON_VERSION"
+PYTHON_VERSION="$(python3 --version | awk '{print $2}')"
+if ! version_ge "${PYTHON_VERSION}" "${MIN_PYTHON}"; then
+    fail "Python ${MIN_PYTHON}+ required, found ${PYTHON_VERSION}."
+fi
+info "Found Python ${PYTHON_VERSION}"
 
-# Check Node.js
 echo "📝 Checking Node.js installation..."
-if ! command -v node &> /dev/null; then
-    echo "❌ Node.js is not installed!"
-    echo "Please install Node.js 18+ first:"
-    echo "  curl -fsSL https://deb.nodesource.com/setup_20.x | sudo -E bash -"
-    echo "  sudo apt install -y nodejs"
-    exit 1
+if ! command -v node >/dev/null 2>&1; then
+    fail "Node.js is not installed.
+Install Node.js 18+ (Ubuntu):
+  curl -fsSL https://deb.nodesource.com/setup_20.x | sudo -E bash -
+  sudo apt install -y nodejs"
 fi
 
-NODE_VERSION=$(node --version)
-echo "✅ Found Node.js $NODE_VERSION"
+NODE_VERSION="$(node --version)"
+NODE_MAJOR="$(echo "${NODE_VERSION}" | sed 's/^v//' | cut -d'.' -f1)"
+if [ "${NODE_MAJOR}" -lt "${MIN_NODE_MAJOR}" ]; then
+    fail "Node.js ${MIN_NODE_MAJOR}+ required, found ${NODE_VERSION}."
+fi
+info "Found Node.js ${NODE_VERSION}"
 
 echo ""
 echo "🐍 Setting up Python backend..."
 
-# Create virtual environment at repo root
 if [ -d ".venv" ]; then
-    echo "⚠️  Virtual environment already exists at .venv, skipping..."
+    VENV_PY=".venv/bin/python"
+    if [ -x "${VENV_PY}" ] && "${VENV_PY}" -c "import sys; print(sys.version)" >/dev/null 2>&1; then
+        warn "Virtual environment already exists at .venv, reusing it."
+    else
+        warn "Existing .venv is incompatible with this OS/Python. Recreating it."
+        rm -rf .venv
+        echo "Creating virtual environment at .venv..."
+        python3 -m venv .venv
+    fi
 else
     echo "Creating virtual environment at .venv..."
     python3 -m venv .venv
 fi
 
-# Activate and install dependencies
-echo "Installing Python dependencies..."
-source .venv/bin/activate
-pip install --upgrade pip
-pip install -r backend/requirements.txt
-deactivate
+VENV_PY=".venv/bin/python"
+if [ ! -x "${VENV_PY}" ]; then
+    fail "Virtual environment Python not found at ${VENV_PY} after creation."
+fi
 
-echo "✅ Backend setup complete!"
+echo "Installing Python dependencies..."
+"${VENV_PY}" -m pip install --upgrade pip
+"${VENV_PY}" -m pip install -r backend/requirements.txt
+info "Backend setup complete"
 
 echo ""
 echo "⚛️  Setting up React frontend..."
 cd frontend
 
-# Install npm dependencies
-echo "Installing npm dependencies..."
-npm install
+echo "Installing frontend npm dependencies..."
+if [ -f "package-lock.json" ]; then
+    npm ci
+else
+    npm install
+fi
 
-echo "✅ Frontend setup complete!"
-
+info "Frontend setup complete"
 cd ..
 
 echo ""
 echo "🎭 Setting up Playwright..."
-npm install
-npx playwright install chromium
-
-echo ""
-echo "🤖 Checking Ollama installation..."
-if command -v ollama &> /dev/null; then
-    OLLAMA_VERSION=$(ollama --version 2>&1 | head -n 1)
-    echo "✅ Found $OLLAMA_VERSION"
-    
-    echo "Pulling llama3.2:1b model (this may take a few minutes)..."
-    if ollama pull llama3.2:1b; then
-        echo "✅ Model llama3.2:1b ready"
-    else
-        echo "⚠️  Failed to pull model - you can do this manually later:"
-        echo "   ollama pull llama3.2:1b"
-    fi
+if [ -f "package-lock.json" ]; then
+    npm ci
 else
-    echo "⚠️  Ollama is not installed"
-    echo ""
-    echo "Ollama provides local LLM inference for AI features."
-    echo "To install Ollama:"
-    echo ""
-    echo "  curl -fsSL https://ollama.com/install.sh | sh"
-    echo ""
-    echo "After installation, pull the model:"
-    echo "  ollama pull llama3.2:1b"
-    echo ""
-    echo "The app will work without Ollama, but LLM features will be unavailable."
+    npm install
+fi
+
+if [ "$(uname -s)" = "Linux" ] && command -v apt-get >/dev/null 2>&1 && [ "$(id -u)" -eq 0 ]; then
+    echo "Installing Playwright browser + Linux dependencies (root detected)..."
+    npx playwright install --with-deps chromium
+else
+    npx playwright install chromium
+    if [ "$(uname -s)" = "Linux" ]; then
+        warn "On Linux, browser runtime deps may still be missing. If tests fail, run: npx playwright install --with-deps chromium"
+    fi
 fi
 
 echo ""
-echo "✅ Setup complete!"
+echo "🤖 Checking Ollama installation..."
+if command -v ollama >/dev/null 2>&1; then
+    OLLAMA_VERSION="$(ollama --version 2>&1 | head -n 1)"
+    info "Found ${OLLAMA_VERSION}"
+
+    echo "Pulling llama3.2:1b model (this may take a few minutes)..."
+    if ollama pull llama3.2:1b; then
+        info "Model llama3.2:1b ready"
+    else
+        warn "Failed to pull model - you can do this manually later: ollama pull llama3.2:1b"
+    fi
+else
+    warn "Ollama is not installed."
+    echo ""
+    echo "Ollama provides local LLM inference for AI features."
+    echo "Install Ollama:"
+    echo "  curl -fsSL https://ollama.com/install.sh | sh"
+    echo "Then pull a model:"
+    echo "  ollama pull llama3.2:1b"
+fi
+
+echo ""
+info "Setup complete"
 echo ""
 echo "🚀 Next steps:"
 echo ""
@@ -110,12 +156,10 @@ echo ""
 echo "Option 2 - Run manually in separate terminals:"
 echo "  Terminal 1: source .venv/bin/activate && cd backend && python app.py"
 echo "  Terminal 2: cd frontend && npm run dev"
-if command -v ollama &> /dev/null; then
+if command -v ollama >/dev/null 2>&1; then
     echo "  Terminal 3: ollama serve  (if not already running)"
 fi
 echo ""
-echo "Option 3 - Use VSCode:"
-echo "  Open in VSCode, press F5, and select 'Full Stack: Backend + Frontend'"
-echo ""
-echo "Then open: http://localhost:3001"
+echo "Then open:"
+echo "  http://localhost:3001/usecase_demo_1"
 echo ""
