@@ -1,347 +1,287 @@
-/**
- * End-to-End Tests for Quart + React Demo App
- *
- * These tests are designed to be:
- * - Easy to understand and maintain
- * - Close to the UI (testing user interactions)
- * - Light-hearted and fun to read
- */
-
 import { expect, test } from "@playwright/test";
-
-function uniqueTitle(prefix) {
-  const suffix = `${Date.now()}-${Math.random().toString(36).slice(2, 6)}`;
-  return `${prefix} ${suffix}`;
-}
 
 const APP_URL = process.env.E2E_APP_URL || "http://localhost:3001";
 
 async function visit(page, path = "/") {
   const url = path === "/" ? APP_URL : `${APP_URL}${path}`;
   await page.goto(url, { waitUntil: "load" });
-  await waitForAppToLoad(page);
+  await expect(page.getByText("CSV Ticket Viewer")).toBeVisible();
+  await expect(page.getByTestId("tab-csvtickets")).toBeVisible();
 }
 
-// Helper function to wait for React app to load
-async function waitForAppToLoad(page) {
-  // Listen for console errors
-  page.on("console", (msg) => {
-    if (msg.type() === "error") {
-      console.log(`Browser console error: ${msg.text()}`);
+test.describe("App shell", () => {
+  test("loads csv tickets by default", async ({ page }) => {
+    await visit(page);
+
+    await expect(page.getByTestId("tab-csvtickets")).toHaveAttribute(
+      "aria-selected",
+      "true"
+    );
+    await expect(page.getByText("CSV Ticket Data")).toBeVisible();
+    await expect(page.getByText(/Showing \d+ of \d+ tickets/)).toBeVisible();
+  });
+
+  test("navigates across current tabs", async ({ page }) => {
+    await visit(page);
+
+    await page.getByTestId("tab-usecase-demo").click();
+    await expect(page.getByTestId("tab-usecase-demo")).toHaveAttribute(
+      "aria-selected",
+      "true"
+    );
+    await expect(page.getByText("Usecase Demo Description")).toBeVisible();
+
+    await page.getByTestId("tab-usecase-demo-ops").click();
+    await expect(page.getByTestId("tab-usecase-demo-ops")).toHaveAttribute(
+      "aria-selected",
+      "true"
+    );
+    await expect(page.getByText("Operations Usecase Demo")).toBeVisible();
+
+    await page.getByTestId("tab-fields").click();
+    await expect(page.getByTestId("tab-fields")).toHaveAttribute(
+      "aria-selected",
+      "true"
+    );
+    await expect(page.getByText("CSV Ticket Fields")).toBeVisible();
+
+    await page.getByTestId("tab-kitchensink").click();
+    await expect(page.getByTestId("tab-kitchensink")).toHaveAttribute(
+      "aria-selected",
+      "true"
+    );
+    await expect(page.getByText("Kitchen Sink Demo")).toBeVisible();
+
+    await page.getByTestId("tab-agent").click();
+    await expect(page.getByTestId("tab-agent")).toHaveAttribute(
+      "aria-selected",
+      "true"
+    );
+    await expect(page.getByTestId("agent-input")).toBeVisible();
+  });
+
+  test("supports direct URL navigation", async ({ page }) => {
+    await visit(page, "/fields");
+    await expect(page.getByTestId("tab-fields")).toHaveAttribute(
+      "aria-selected",
+      "true"
+    );
+
+    await visit(page, "/usecase_demo_1");
+    await expect(page.getByTestId("tab-usecase-demo")).toHaveAttribute(
+      "aria-selected",
+      "true"
+    );
+
+    await visit(page, "/usecase_demo_ops");
+    await expect(page.getByTestId("tab-usecase-demo-ops")).toHaveAttribute(
+      "aria-selected",
+      "true"
+    );
+
+    await visit(page, "/agent");
+    await expect(page.getByTestId("tab-agent")).toHaveAttribute(
+      "aria-selected",
+      "true"
+    );
+
+    await visit(page, "/csvtickets");
+    await expect(page.getByTestId("tab-csvtickets")).toHaveAttribute(
+      "aria-selected",
+      "true"
+    );
+  });
+});
+
+test.describe("CSV tickets", () => {
+  test("renders table and stats", async ({ page }) => {
+    await visit(page, "/csvtickets");
+
+    await expect(page.getByText("CSV Ticket Data")).toBeVisible();
+    await expect(page.getByText("Total Tickets")).toBeVisible();
+
+    const rows = page.locator("table tbody tr");
+    await expect(rows.first()).toBeVisible();
+  });
+
+  test("supports pagination controls", async ({ page }) => {
+    await visit(page, "/csvtickets");
+
+    const pageLabel = page.getByText(/Page \d+ of \d+/);
+    await expect(pageLabel).toBeVisible();
+
+    const nextButton = page.getByRole("button", { name: "Next" });
+    await expect(nextButton).toBeVisible();
+
+    if (await nextButton.isEnabled()) {
+      await nextButton.click();
+      await expect(page.getByText(/Page 2 of \d+/)).toBeVisible();
     }
   });
+});
 
-  // Wait for the React app to render by checking for the main app header
-  await page.waitForSelector("text=Quart + React Demo Application", {
-    timeout: 15000,
-  });
-}
+test.describe("Usecase demo page", () => {
+  test("allows editing prompt and toggles start button state", async ({ page }) => {
+    await visit(page, "/usecase_demo_1");
 
-// ============================================================================
-// DASHBOARD TESTS - Testing the fun real-time features!
-// ============================================================================
+    const prompt = page.getByTestId("usecase-demo-prompt");
+    const startButton = page.getByTestId("usecase-demo-start-agent");
 
-test.describe("Dashboard - Time is on our side", () => {
-  test("shows the live server time ticking away", async ({ page }) => {
-    await visit(page);
+    await expect(prompt).toBeVisible();
+    await expect(prompt).toContainText("VPN");
+    await expect(startButton).toBeEnabled();
 
-    // Check that we're on the dashboard
-    await expect(page.getByTestId("tab-dashboard")).toHaveAttribute(
-      "aria-selected",
-      "true"
-    );
+    await prompt.fill("");
+    await expect(startButton).toBeDisabled();
 
-    // Wait for the live time to appear (SSE magic!)
-    const liveTimeElement = page.getByTestId("live-time");
-    await expect(liveTimeElement).toBeVisible({ timeout: 10000 });
-
-    // Verify it shows a time-like format (HH:MM:SS)
-    const timeText = await liveTimeElement.textContent();
-    expect(timeText).toMatch(/\d{2}:\d{2}:\d{2}/);
+    await prompt.fill("Generate one ticket-backed usecase demo idea.");
+    await expect(startButton).toBeEnabled();
   });
 
-  test("displays server date from API", async ({ page }) => {
-    await visit(page);
+  test("starts a run and shows mocked result table", async ({ page }) => {
+    let statusCalls = 0;
 
-    // The server knows what day it is!
-    const dateElement = page.getByTestId("server-date");
-    await expect(dateElement).toBeVisible();
+    await page.route("**/api/usecase-demo/agent-runs?limit=25", async (route) => {
+      await route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify({ runs: [] }),
+      });
+    });
 
-    // Should look like a date (YYYY-MM-DD)
-    const dateText = await dateElement.textContent();
-    expect(dateText).toMatch(/\d{4}-\d{2}-\d{2}/);
+    await page.route("**/api/usecase-demo/agent-runs/run-1", async (route) => {
+      statusCalls += 1;
+      const completed = {
+        id: "run-1",
+        prompt: "mock prompt",
+        status: "completed",
+        created_at: "2026-02-11T10:00:00",
+        started_at: "2026-02-11T10:00:01",
+        completed_at: "2026-02-11T10:00:02",
+        tools_used: ["csv_ticket_stats", "csv_search_tickets"],
+        result_markdown:
+          "## Summary\\nProject generated.\\n\\n```json\\n{\"rows\":[{\"menu_point\":\"Smart Routing\",\"project_name\":\"Auto Assignment Optimizer\",\"ticket_ids\":\"ticket-1\"}]}\\n```",
+        result_rows: [
+          {
+            menu_point: "Smart Routing",
+            project_name: "Auto Assignment Optimizer",
+            ticket_ids: "ticket-1",
+          },
+        ],
+        result_columns: ["menu_point", "project_name", "ticket_ids"],
+        error: null,
+      };
 
-    // And it should have a time too
-    const timeElement = page.getByTestId("server-time");
-    await expect(timeElement).toBeVisible();
+      const queued = {
+        ...completed,
+        status: "running",
+        completed_at: null,
+        result_rows: [],
+        result_columns: [],
+      };
+
+      await route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify(statusCalls >= 2 ? completed : queued),
+      });
+    });
+
+    await page.route("**/api/usecase-demo/agent-runs", async (route) => {
+      if (route.request().method() === "POST") {
+        await route.fulfill({
+          status: 202,
+          contentType: "application/json",
+          body: JSON.stringify({
+            id: "run-1",
+            prompt: "mock prompt",
+            status: "queued",
+            created_at: "2026-02-11T10:00:00",
+            started_at: null,
+            completed_at: null,
+            tools_used: [],
+            result_markdown: null,
+            result_rows: [],
+            result_columns: [],
+            error: null,
+          }),
+        });
+        return;
+      }
+
+      await route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify({ runs: [] }),
+      });
+    });
+
+    await page.route("**/api/csv-tickets/ticket-1*", async (route) => {
+      await route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify({
+          id: "ticket-1",
+          summary: "VPN Failure on Remote Access",
+          status: "pending",
+          priority: "high",
+          assignee: null,
+          assigned_group: "Network Team",
+          requester_name: "Alex Doe",
+          city: "Geneva",
+          service: "Network",
+          description: "VPN clients cannot connect over LAN.",
+          notes: "Issue started after update.",
+          resolution: null,
+        }),
+      });
+    });
+
+    await visit(page, "/usecase_demo_1");
+
+    await page.getByTestId("usecase-demo-prompt").fill("mock prompt");
+    await page.getByTestId("usecase-demo-start-agent").click();
+
+    await expect(page.getByText("Run ID: run-1")).toBeVisible();
+    await expect(page.getByRole("cell", { name: "Auto Assignment Optimizer" })).toBeVisible({ timeout: 12000 });
+    await expect(page.getByText("Structured JSON Preview")).toHaveCount(0);
+    await expect(page.getByRole("button", { name: "Copy JSON" })).toHaveCount(0);
+    await expect(page.getByTestId("usecase-demo-ticket-open-ticket-1")).toBeVisible();
+    await page.getByTestId("usecase-demo-ticket-open-ticket-1").click();
+    await expect(page.getByTestId("usecase-demo-ticket-details")).toContainText("VPN Failure on Remote Access");
+    await expect(page.getByTestId("usecase-demo-ticket-details")).toContainText("Network Team");
   });
 });
 
-// ============================================================================
-// TASK MANAGEMENT TESTS - Let's get things done!
-// ============================================================================
+test.describe("Ops usecase demo page", () => {
+  test("uses config-specific prompt and markdown-only view", async ({ page }) => {
+    await visit(page, "/usecase_demo_ops");
 
-test.describe("Task Management - Getting stuff done", () => {
-  test.beforeEach(async ({ page }) => {
-    await visit(page, "/tasks");
-    await expect(page.getByTestId("tab-tasks")).toHaveAttribute(
-      "aria-selected",
-      "true"
-    );
-  });
+    const prompt = page.getByTestId("ops-demo-prompt");
+    const startButton = page.getByTestId("ops-demo-start-agent");
 
-  test("shows the task list with sample tasks", async ({ page }) => {
-    // We should see some sample tasks loaded
-    await expect(page.getByText("Task Management")).toBeVisible();
+    await expect(prompt).toBeVisible();
+    await expect(prompt).toContainText("Outlook");
+    await expect(startButton).toBeEnabled();
 
-    // The filter buttons should be there
-    await expect(page.getByTestId("filter-all")).toBeVisible();
-    await expect(page.getByTestId("filter-pending")).toBeVisible();
-    await expect(page.getByTestId("filter-completed")).toBeVisible();
-  });
-
-  test("creates a new task like a boss", async ({ page }) => {
-    // Click the "New Task" button
-    await page.getByTestId("create-task-button").click();
-
-    // Fill in the task details
-    const taskTitle = `Test task created at ${new Date().toLocaleTimeString()}`;
-    await page.getByTestId("task-title-input").fill(taskTitle);
-    await page
-      .getByTestId("task-description-input")
-      .fill("This task was created by our awesome E2E test!");
-
-    // Save it!
-    await page.getByTestId("save-button").click();
-
-    // Wait for dialog to close and task to appear
-    await expect(page.getByTestId("task-title-input")).not.toBeVisible();
-
-    // Verify our new task is in the list
-    await expect(page.getByText(taskTitle)).toBeVisible();
-  });
-
-  test("completes a task with satisfaction", async ({ page }) => {
-    // First, create a task to complete
-    await page.getByTestId("create-task-button").click();
-    const taskTitle = uniqueTitle("Task to complete");
-    await page.getByTestId("task-title-input").fill(taskTitle);
-    await page.getByTestId("save-button").click();
-
-    // Wait for the task to appear
-    await expect(page.getByText(taskTitle)).toBeVisible();
-
-    // Find the task row and get its ID from the title
-    const taskRow = page.locator('[data-testid^="task-title-"]', {
-      hasText: taskTitle,
-    });
-    const taskId = (await taskRow.getAttribute("data-testid")).replace(
-      "task-title-",
-      ""
-    );
-
-    // Click the complete button
-    await page.getByTestId(`toggle-task-${taskId}`).click();
-
-    // The task should now show as completed
-    // We can verify by filtering to completed tasks
-    await page.getByTestId("filter-completed").click();
-    await expect(page.getByText(taskTitle)).toBeVisible();
-  });
-
-  test("edits a task like a pro", async ({ page }) => {
-    // Create a task first
-    await page.getByTestId("create-task-button").click();
-    const originalTitle = uniqueTitle("Original task title");
-    await page.getByTestId("task-title-input").fill(originalTitle);
-    await page.getByTestId("save-button").click();
-
-    // Wait for task to appear
-    await expect(page.getByText(originalTitle)).toBeVisible();
-
-    // Find and edit the task
-    const taskRow = page.locator('[data-testid^="task-title-"]', {
-      hasText: originalTitle,
-    });
-    const taskId = (await taskRow.getAttribute("data-testid")).replace(
-      "task-title-",
-      ""
-    );
-
-    // Open the menu and click edit
-    await page.getByTestId(`task-menu-${taskId}`).click();
-    await page.getByTestId(`edit-task-${taskId}`).click();
-
-    // Update the title
-    const updatedTitle = uniqueTitle("Updated task title");
-    const titleInput = page.getByTestId("task-title-input");
-    await titleInput.clear();
-    await titleInput.fill(updatedTitle);
-    await page.getByTestId("save-button").click();
-
-    // Verify the update
-    await expect(page.getByText(updatedTitle)).toBeVisible();
-    await expect(page.getByText(originalTitle)).not.toBeVisible();
-  });
-
-  test("deletes a task when no longer needed", async ({ page }) => {
-    // Create a task to delete
-    await page.getByTestId("create-task-button").click();
-    const taskTitle = uniqueTitle("Task to be deleted");
-    await page.getByTestId("task-title-input").fill(taskTitle);
-    await page.getByTestId("save-button").click();
-
-    // Wait for task to appear
-    await expect(page.getByText(taskTitle)).toBeVisible();
-
-    // Find the task and delete it
-    const taskRow = page.locator('[data-testid^="task-title-"]', {
-      hasText: taskTitle,
-    });
-    const taskId = (await taskRow.getAttribute("data-testid")).replace(
-      "task-title-",
-      ""
-    );
-
-    // Open menu and delete
-    await page.getByTestId(`task-menu-${taskId}`).click();
-    await page.getByTestId(`delete-task-${taskId}`).click();
-
-    // Task should be gone
-    await expect(page.getByText(taskTitle)).not.toBeVisible();
-  });
-
-  test("filters tasks by status like a filtering ninja", async ({ page }) => {
-    // Create a completed task
-    await page.getByTestId("create-task-button").click();
-    const completedTitle = uniqueTitle("Completed task");
-    await page.getByTestId("task-title-input").fill(completedTitle);
-    await page.getByTestId("save-button").click();
-
-    const completedTaskRow = page.locator('[data-testid^="task-title-"]', {
-      hasText: completedTitle,
-    });
-    const completedId = (
-      await completedTaskRow.getAttribute("data-testid")
-    ).replace("task-title-", "");
-    await page.getByTestId(`toggle-task-${completedId}`).click();
-
-    // Create a pending task
-    await page.getByTestId("create-task-button").click();
-    const pendingTitle = uniqueTitle("Pending task");
-    await page.getByTestId("task-title-input").fill(pendingTitle);
-    await page.getByTestId("save-button").click();
-
-    // Filter to show only pending
-    await page.getByTestId("filter-pending").click();
-    await expect(page.getByText(pendingTitle)).toBeVisible();
-    await expect(page.getByText(completedTitle)).not.toBeVisible();
-
-    // Filter to show only completed
-    await page.getByTestId("filter-completed").click();
-    await expect(page.getByText(completedTitle)).toBeVisible();
-    await expect(page.getByText(pendingTitle)).not.toBeVisible();
-
-    // Show all again
-    await page.getByTestId("filter-all").click();
-    await expect(page.getByText(completedTitle)).toBeVisible();
-    await expect(page.getByText(pendingTitle)).toBeVisible();
+    await expect(page.getByText("Operations Result")).toBeVisible();
+    await expect(page.getByText("No result available yet.")).toBeVisible();
+    await expect(page.getByTestId("ops-demo-result-view-table")).toHaveCount(0);
+    await expect(page.getByText("Matching Tickets")).toHaveCount(0);
   });
 });
 
-// ============================================================================
-// NAVIGATION TESTS - Moving around with style
-// ============================================================================
+test.describe("Agent page", () => {
+  test("has input and send button state behavior", async ({ page }) => {
+    await visit(page, "/agent");
 
-test.describe("Navigation - Exploring the app", () => {
-  test("navigates between tabs smoothly", async ({ page }) => {
-    await visit(page);
+    const input = page.getByTestId("agent-input");
+    const send = page.getByTestId("agent-send");
 
-    // Start on Dashboard
-    await expect(page.getByTestId("tab-dashboard")).toHaveAttribute(
-      "aria-selected",
-      "true"
-    );
+    await expect(input).toBeVisible();
+    await expect(send).toBeDisabled();
 
-    // Go to Tasks
-    await page.getByTestId("tab-tasks").click();
-    await expect(page.getByTestId("tab-tasks")).toHaveAttribute(
-      "aria-selected",
-      "true"
-    );
-    await expect(page.getByText("Task Management")).toBeVisible();
-
-    // Go to About
-    await page.getByTestId("tab-about").click();
-    await expect(page.getByTestId("tab-about")).toHaveAttribute(
-      "aria-selected",
-      "true"
-    );
-    await expect(page.getByText("About This Project")).toBeVisible();
-
-    // Back to Dashboard
-    await page.getByTestId("tab-dashboard").click();
-    await expect(page.getByTestId("tab-dashboard")).toHaveAttribute(
-      "aria-selected",
-      "true"
-    );
-  });
-
-  test("shows the awesome project title", async ({ page }) => {
-    await visit(page);
-
-    // Our glorious header should be visible
-    await expect(
-      page.getByText("Quart + React Demo Application")
-    ).toBeVisible();
-  });
-
-  test("supports direct URL navigation for each tab", async ({ page }) => {
-    await visit(page, "/tasks");
-    await expect(page.getByTestId("tab-tasks")).toHaveAttribute(
-      "aria-selected",
-      "true"
-    );
-    await expect(page.getByText("Task Management")).toBeVisible();
-
-    await visit(page, "/about");
-    await expect(page.getByTestId("tab-about")).toHaveAttribute(
-      "aria-selected",
-      "true"
-    );
-    await expect(page.getByText("About This Project")).toBeVisible();
-
-    await visit(page, "/dashboard");
-    await expect(page.getByTestId("tab-dashboard")).toHaveAttribute(
-      "aria-selected",
-      "true"
-    );
-  });
-});
-
-// ============================================================================
-// ABOUT PAGE TESTS - Learning is fun!
-// ============================================================================
-
-test.describe("About Page - All the good info", () => {
-  test.beforeEach(async ({ page }) => {
-    await visit(page, "/about");
-  });
-
-  test("displays project information", async ({ page }) => {
-    await expect(page.getByText("About This Project")).toBeVisible();
-    await expect(
-      page.getByText(/This is a modern full-stack web application/)
-    ).toBeVisible();
-  });
-
-  test("shows all the cool technologies used", async ({ page }) => {
-    // Click to expand technologies accordion
-    await page.getByText("Technologies Used").click();
-
-    // Verify some key technologies are mentioned
-    await expect(page.getByText(/Python Quart/).first()).toBeVisible();
-    await expect(page.getByText(/React 18/).first()).toBeVisible();
-    await expect(page.getByText(/FluentUI/).first()).toBeVisible();
+    await input.fill("Show me ticket stats from CSV");
+    await expect(send).toBeEnabled();
   });
 });

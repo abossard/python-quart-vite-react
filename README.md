@@ -1,6 +1,10 @@
 # Quart + Vite + React Demo Application
 
-**Task:** Visualize the CSV tickets with richer panels (status, priority, timeline, geography, SLA). **How would you like to view the tickets?**
+**Current Task:** Document usecase demo ideas from the CSV-backed ticket dataset and build/iterate pages like `/usecase_demo_1` where each demo page has:
+- a short summary
+- editable agent prompt(s)
+- a button that launches the agent run in background
+- visible results (table/visualization)
 
 > A teaching-oriented full-stack sample that pairs a Python Quart backend with a React + FluentUI frontend, real-time Server-Sent Events (SSE), and Playwright tests.
 
@@ -27,6 +31,7 @@ All deep-dive guides now live under `docs/` for easier discovery:
 - [Pydantic Architecture](docs/PYDANTIC_ARCHITECTURE.md) – how models, validation, and operations fit together
 - [Unified Architecture](docs/UNIFIED_ARCHITECTURE.md) – REST + MCP integration details and extension ideas
 - [Troubleshooting](docs/TROUBLESHOOTING.md) – common issues and fixes for setup, dev, and tests
+- [CSV AI Guidance](docs/CSV_AI_GUIDANCE.md) – how AI agents should query and reason over CSV ticket data
 
 
 
@@ -38,7 +43,7 @@ All deep-dive guides now live under `docs/` for easier discovery:
 2. Run the automated bootstrap: `./setup.sh` (creates the repo-level `.venv`, installs frontend deps, installs Playwright, checks for Ollama)
 3. (Optional) Install Ollama for LLM features: `curl -fsSL https://ollama.com/install.sh | sh && ollama pull llama3.2:1b`
 4. Start all servers: `./start-dev.sh` *(or)* use the VS Code "Full Stack: Backend + Frontend" launch config
-5. Open `http://localhost:3001`, switch to the **Tasks** tab, and create a task—the backend and frontend are now synced
+5. Open `http://localhost:3001/usecase_demo_1` and start documenting your usecase demo idea on that page
 6. (Optional) Test Ollama integration: `curl -X POST http://localhost:5001/api/ollama/chat -H "Content-Type: application/json" -d '{"messages":[{"role":"user","content":"Say hello"}]}'`
 7. (Optional) Run the Playwright suite from the repo root: `npm run test:e2e`
 
@@ -95,9 +100,9 @@ Use the “Full Stack: Backend + Frontend” launch config to start backend + fr
 
 ### Smoke test checklist
 - Visit `http://localhost:3001`
-- Dashboard tab should show a ticking clock (SSE via `/api/time-stream`)
-- Tasks tab should show three sample tasks (seeded by `TaskService.initialize_sample_data()`)
-- Create a task, mark it complete, delete it—confirm state updates instantly
+- Tickets tab should render CSV ticket table + stats from `/api/csv-tickets*`
+- Usecase Demo tab (`/usecase_demo_1`) should show editable prompt + background run controls
+- Fields tab should list mapped CSV fields from `/api/csv-tickets/fields`
 
 ## Docker (one command delivery)
 
@@ -113,9 +118,10 @@ docker run --rm -p 5001:5001 quart-react-demo
 - Hot reloading is not part of the container flow—use the regular dev servers for iterative work and Docker for demos or deployment.
 
 ## Using the app
-- **Dashboard tab:** Streams `{"time","date","timestamp"}` via EventSource; connection errors show inline.
-- **Tasks tab:** Uses FluentUI `DataGrid` + dialogs; `frontend/src/features/tasks/TaskList.jsx` keeps calculations (`getTaskStats`) separate from actions (API calls).
-- **About tab:** Summarizes tech choices and linkable resources.
+- **Tickets tab (`/csvtickets`):** Shows CSV-backed ticket table, filtering, sorting, and pagination.
+- **Usecase Demo tab (`/usecase_demo_1`):** Main demo page for documenting usecase demo ideas with editable prompts and background agent runs.
+- **Fields tab (`/fields`):** Lists mapped CSV schema fields available to UI/MCP/agent flows.
+- **Agent tab (`/agent`):** Chat-style agent interface for CSV ticket analysis.
 - **Ollama API (backend only):**
   - `POST /api/ollama/chat` — Chat with local LLM (supports conversation history)
   - `GET /api/ollama/models` — List available models
