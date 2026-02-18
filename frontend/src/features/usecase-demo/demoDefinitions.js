@@ -15,20 +15,14 @@ Für schnelle Ausführung:
 Liefere nur eine kurze, handlungsorientierte Zusammenfassung mit Prioritäten und nächstem Schritt.
 Nutze ausschließlich CSV-Daten und nenne die verwendeten Ticket-IDs in Fließtext.`;
 
-const SLA_BREACH_DEFAULT_PROMPT = `Use the csv_sla_breach_tickets tool to retrieve all unassigned tickets at SLA risk.
+const SLA_BREACH_DEFAULT_PROMPT = `Call csv_sla_breach_tickets with default parameters (unassigned_only=true, include_ok=false).
 
-Call it with default parameters (unassigned_only=true, include_ok=false). The tool returns a pre-computed SlaBreachReport with:
-- reference_timestamp: the anchor date used for age calculations (max date in the dataset)
-- total_breached / total_at_risk: summary counts
-- tickets: list of TicketSlaInfo objects already grouped (breached → at_risk) and sorted by age_hours descending
+Using the returned report, write ONLY a short markdown summary (max 200 words):
+1. State the reference_timestamp used
+2. Group ticket counts by breach_status and assigned_group
+3. Recommend actions for the most critical breaches
 
-Output the tickets array as a JSON block with these fields per row:
-  ticket_id, priority, urgency, assigned_group, reported_date, age_hours, sla_threshold_hours, breach_status
-
-After the JSON block, provide a short markdown summary that:
-1. States the reference_timestamp used
-2. Groups ticket counts by breach_status and assigned_group
-3. Recommends actions for the most critical breaches`;
+Do NOT output a JSON block — the frontend fetches and renders the ticket table directly from the API.`;
 
 /**
  * Add new demos here to create additional pages without duplicating UI logic.
