@@ -1,0 +1,79 @@
+name: Deploy to Azure Container Apps
+
+on:
+  push:
+    branches: [ main, master ]
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: 'Deployment environment'
+        required: true
+        default: 'production'
+        type: choice
+        options:
+          - production
+          - staging
+
+env:
+  IMAGE_NAME: quart-react-demo
+
+permissions:
+  contents: read
+  id-token: write
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+    
+    - name: Login to Azure
+      uses: azure/login@v1
+      with:
+        creds: ${{ secrets.AZURE_CREDENTIALS }}
+    
+    - name: Set deployment variables
+      id: vars
+      run: |
+        echo "sha_short=$(git rev-parse --short HEAD)" >> $GITHUB_OUTPUT
+        echo "timestamp=$(date +%Y%m%d-%H%M%S)" >> $GITHUB_OUTPUT
+    
+    - name: Build and push to ACR
+      run: |
+        az acr build \
+          --registry ${{ secrets.ACR_NAME }} \
+          --image ${{ env.IMAGE_NAME }}:${{ steps.vars.outputs.sha_short }} \
+          --image ${{ env.IMAGE_NAME }}:${{ steps.vars.outputs.timestamp }} \
+          --image ${{ env.IMAGE_NAME }}:latest \
+          --file Dockerfile \
+          .
+    
+    - name: Deploy to Azure Container Apps
+      run: |
+        az containerapp update \
+          --name ${{ secrets.CONTAINER_APP_NAME }} \
+          --resource-group ${{ secrets.RESOURCE_GROUP }} \
+          --image ${{ secrets.ACR_NAME }}.azurecr.io/${{ env.IMAGE_NAME }}:${{ steps.vars.outputs.sha_short }}
+    
+    - name: Get application URL
+      id: app-url
+      run: |
+        APP_URL=$(az containerapp show \
+          --name ${{ secrets.CONTAINER_APP_NAME }} \
+          --resource-group ${{ secrets.RESOURCE_GROUP }} \
+          --query properties.configuration.ingress.fqdn \
+          -o tsv)
+        echo "url=https://$APP_URL" >> $GITHUB_OUTPUT
+    
+    - name: Deployment summary
+      run: |
+        echo "### Deployment Complete! 🚀" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        echo "- **Application URL**: ${{ steps.app-url.outputs.url }}" >> $GITHUB_STEP_SUMMARY
+        echo "- **Image Tag**: ${{ steps.vars.outputs.sha_short }}" >> $GITHUB_STEP_SUMMARY
+        echo "- **Commit**: ${{ github.sha }}" >> $GITHUB_STEP_SUMMARY
+        echo "- **Resource Group**: ${{ secrets.RESOURCE_GROUP }}" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        echo "View logs: \`az containerapp logs show --name ${{ secrets.CONTAINER_APP_NAME }} --resource-group ${{ secrets.RESOURCE_GROUP }} --follow\`" >> $GITHUB_STEP_SUMMARY
