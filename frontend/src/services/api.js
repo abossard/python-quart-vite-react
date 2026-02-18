@@ -234,12 +234,13 @@ export async function getCSVTicket(ticketId, fields = []) {
 /**
  * Create a background usecase-demo agent run.
  * @param {string} prompt - Prompt to run with the CSV-aware agent
+ * @param {string} agentType - Type of agent (task_assistant or kba_assistant)
  * @returns {Promise<Object>} Created run payload (status is initially queued)
  */
-export async function createUsecaseDemoAgentRun(prompt) {
+export async function createUsecaseDemoAgentRun(prompt, agentType = "task_assistant") {
   return fetchJSON(`${API_BASE_URL}/usecase-demo/agent-runs`, {
     method: "POST",
-    body: JSON.stringify({ prompt }),
+    body: JSON.stringify({ prompt, agent_type: agentType }),
   });
 }
 

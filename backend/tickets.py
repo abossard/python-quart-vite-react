@@ -57,6 +57,18 @@ class WorkLogType(str, Enum):
     RESOLUTION = "resolution"
 
 
+class KBAArticle(BaseModel):
+    """Knowledge Base Article generated from a ticket."""
+    title: str = Field(..., description="KBA article title (max 100 characters)")
+    question: str = Field(..., description="The problem/question being addressed")
+    answer: str = Field(..., description="The solution/answer to the problem")
+    ticket_id: str = Field(..., description="Source ticket ID")
+    generated_at: datetime = Field(default_factory=datetime.now, description="When the KBA was generated")
+
+    class Config:
+        from_attributes = True
+
+
 # ============================================================================
 # PRIORITY SLA DEADLINES (in minutes)
 # ============================================================================
@@ -159,6 +171,7 @@ class Ticket(BaseModel):
     """
     # Core identifiers
     id: UUID = Field(..., description="Unique ticket identifier")
+    incident_id: Optional[str] = Field(None, description="Original incident number (e.g., INC000012345)")
     
     # Summary and description
     summary: str = Field(..., max_length=500, description="Short issue summary")

@@ -4,6 +4,8 @@ const OPS_DEFAULT_PROMPT = `Analysiere Tickets zu "Outlook" oder "E-Mail" und er
 Liefere nur eine kurze, handlungsorientierte Zusammenfassung mit Prioritäten und nächstem Schritt.
 Nutze ausschließlich CSV-Daten und nenne die verwendeten Ticket-IDs in Fließtext.`
 
+const KBA_DEFAULT_PROMPT = `INC000001234567`
+
 /**
  * Add new demos here to create additional pages without duplicating UI logic.
  * Each definition configures route, prompt, and which result views are rendered.
@@ -77,6 +79,32 @@ export const USECASE_DEMO_DEFINITIONS = [
     matchingTickets: {
       enabled: false,
     },
+  },
+  {
+    id: 'usecase-demo-kba',
+    route: '/kba_draft_builder',
+    tabValue: 'kba-builder',
+    tabLabel: 'KBA Draft Builder',
+    tabTestId: 'tab-kba-builder',
+    testIdPrefix: 'kba-builder',
+    title: 'KBA Draft Builder',
+    menuPointBadge: 'Knowledge Base',
+    pageDescription:
+      'Generate Knowledge Base Article drafts from support tickets using AI. Enter a ticket ID and the system will automatically search for the ticket, analyze its content (summary, description, resolution), and generate a structured KBA article with title, question, and answer in German.',
+    promptLabel: 'Ticket-ID',
+    promptDescription: 'Gib eine Ticket-ID ein (z.B. INC000001234567) um einen KBA-Artikel zu generieren.',
+    defaultPrompt: KBA_DEFAULT_PROMPT,
+    runHistoryLimit: 10,
+    pollIntervalMs: 2000,
+    resultViews: ['kba_article', 'ticket_details'],
+    resultSectionTitle: 'Generierter KBA-Artikel',
+    resultSectionDescription:
+      'Der KBA-Artikel wurde auf Basis des Tickets automatisch generiert und kann als Vorlage für die Knowledge Base verwendet werden.',
+    ticketIdFields: ['ticket_id'],
+    matchingTickets: {
+      enabled: false, // We handle tickets in custom views
+    },
+    agentType: 'kba_assistant', // Use specialized KBA agent
   },
 ]
 

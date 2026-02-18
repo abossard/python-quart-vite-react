@@ -286,7 +286,8 @@ export default function UsecaseDemoPage({ definition }) {
     setIsSubmitting(true)
 
     try {
-      const createdRun = await createUsecaseDemoAgentRun(prompt)
+      const agentType = definition.agentType || 'task_assistant'
+      const createdRun = await createUsecaseDemoAgentRun(prompt, agentType)
       setCurrentRun(createdRun)
       setRuns((prev) => upsertRun(prev, createdRun, definition.runHistoryLimit || 25))
     } catch (err) {

@@ -79,9 +79,9 @@ class AgentRequest(BaseModel):
         max_length=2000,
         description="User prompt for the agent to process"
     )
-    agent_type: Literal["task_assistant"] = Field(
+    agent_type: Literal["task_assistant", "kba_assistant"] = Field(
         default="task_assistant",
-        description="Type of agent to run (currently only task_assistant supported)"
+        description="Type of agent to run: task_assistant for task operations, kba_assistant for Knowledge Base Article generation"
     )
     
     @field_validator('prompt')
@@ -97,6 +97,9 @@ class AgentRequest(BaseModel):
             "examples": [{
                 "prompt": "Create a task to learn LangGraph and list all current tasks",
                 "agent_type": "task_assistant"
+            }, {
+                "prompt": "INC000001234567",
+                "agent_type": "kba_assistant"
             }]
         }
     }
@@ -324,11 +327,14 @@ class AgentService:
             return json.dumps([t.model_dump() for t in tickets[:bounded_limit]], default=str)
 
         def _csv_get_ticket(ticket_id: str) -> str:
+            # Try UUID first, then incident_id
             try:
                 tid = UUID(ticket_id)
+                ticket = service.get_ticket(tid)
             except Exception:
-                return json.dumps({"error": "invalid ticket id"})
-            ticket = service.get_ticket(tid)
+                # Not a UUID, try incident_id
+                ticket = service.get_ticket_by_incident_id(ticket_id)
+            
             if not ticket:
                 return json.dumps({"error": "not found"})
             return json.dumps(ticket.model_dump(), default=str)
@@ -339,6 +345,7 @@ class AgentService:
             matched = []
             for t in tickets:
                 text = " ".join([
+                    t.incident_id or "",
                     t.summary or "",
                     t.description or "",
                     t.notes or "",
@@ -372,12 +379,12 @@ class AgentService:
             StructuredTool.from_function(
                 func=_csv_get_ticket,
                 name="csv_get_ticket",
-                description="Get a ticket by UUID (id). Returns JSON object including notes/resolution.",
+                description="Get a ticket by UUID or incident ID (e.g., INC000012345). Returns JSON object including notes/resolution.",
             ),
             StructuredTool.from_function(
                 func=_csv_search_tickets,
                 name="csv_search_tickets",
-                description="Search tickets by text across summary, description, notes, resolution, requester, group, city. Returns JSON array.",
+                description="Search tickets by text across incident_id, summary, description, notes, resolution, requester, group, city. Returns JSON array.",
             ),
             StructuredTool.from_function(
                 func=_csv_ticket_fields,
@@ -423,7 +430,39 @@ class AgentService:
                 tool_lines.append(f"- `{name}`: {desc}".strip())
             tools_md = "\n".join(tool_lines) if tool_lines else "- (none)"
 
-            system_msg = f"""
+            # Different system prompts for different agent types
+            if request.agent_type == "kba_assistant":
+                system_msg = f"""
+Du bist ein KBA-Assistent. Deine Aufgabe ist es, aus Support-Tickets strukturierte Knowledge Base Artikel zu erstellen.
+
+Verfügbare Tools:
+{tools_md}
+
+Workflow:
+1. Nutze `csv_get_ticket` oder `csv_search_tickets` um das Ticket mit der gegebenen ID zu finden
+2. Analysiere: Summary, Description, Notes, Resolution
+3. Nutze `generate_kba_article` mit der Ticket-ID um einen KBA-Artikel zu erstellen
+4. Gib das Ergebnis als strukturiertes JSON zurück mit: ticket_id, title, question, answer
+
+Wichtig:
+- Verwende ausschließlich die verfügbaren Tools
+- Falls das Ticket nicht gefunden wird, sage das klar
+- Nutze die Ticket-ID exakt wie sie im System steht
+- Der KBA-Artikel soll prägnant und hilfreich sein
+
+Antworte im folgenden JSON-Format:
+```json
+{{
+  "ticket_id": "...",
+  "title": "...",
+  "question": "...",
+  "answer": "..."
+}}
+```
+"""
+            else:
+                # Default task_assistant prompt
+                system_msg = f"""
 Du bist ein freundlicher CSV-Ticket-Assistent. Sprich **Deutsch**.
 
 Antwortstil:
