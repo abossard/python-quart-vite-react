@@ -15,33 +15,18 @@ Für schnelle Ausführung:
 Liefere nur eine kurze, handlungsorientierte Zusammenfassung mit Prioritäten und nächstem Schritt.
 Nutze ausschließlich CSV-Daten und nenne die verwendeten Ticket-IDs in Fließtext.`;
 
-const SLA_BREACH_DEFAULT_PROMPT = `Find all tickets where the "assignee" field is empty (no individual person assigned — note: Status "Assigned" means assigned to a group, NOT to a person. A ticket can have Status="Assigned" and still have no individual assignee).
+const SLA_BREACH_DEFAULT_PROMPT = `Use the csv_sla_breach_tickets tool to retrieve all unassigned tickets at SLA risk.
 
-IMPORTANT: When calling csv_list_tickets, use the "fields" parameter to request ONLY the fields you need: "id,summary,priority,urgency,assignee,assigned_group,created_at". Also use has_assignee=false to filter server-side. This avoids fetching unnecessary data.
-Set limit=100 for initial retrieval and keep this compact field set unless a specific ticket needs deep detail.
-Do not use semantic/text-heavy analysis for this use case; numeric/status/date fields are sufficient.
-Do not include notes/resolution by default; fetch them only for a small number of tickets if strictly required.
+Call it with default parameters (unassigned_only=true, include_ok=false). The tool returns a pre-computed SlaBreachReport with:
+- reference_timestamp: the anchor date used for age calculations (max date in the dataset)
+- total_breached / total_at_risk: summary counts
+- tickets: list of TicketSlaInfo objects already grouped (breached → at_risk) and sorted by age_hours descending
 
-Check these tickets against priority-based SLA thresholds measuring time since created_at (the reported date).
+Output the tickets array as a JSON block with these fields per row:
+  ticket_id, priority, urgency, assigned_group, reported_date, age_hours, sla_threshold_hours, breach_status
 
-IMPORTANT: For the reference timestamp ("now"), do NOT use the current system time. Instead, find the most recent date across all date fields in the CSV data and use that as "now". This ensures meaningful age calculations for demo/historical data.
-
-SLA thresholds by priority:
-- Critical (1): 4 hours
-- High (2): 24 hours (1 day)
-- Medium (3): 72 hours (3 days)
-- Low (4): 120 hours (5 days)
-
-For each matching ticket, compute:
-- age_hours: hours elapsed from reported_date to the reference timestamp
-- sla_threshold_hours: the SLA threshold for its priority
-- breach_status: "breached" if age_hours > sla_threshold_hours, "at risk" if age_hours > 0.75 * sla_threshold_hours, otherwise "ok"
-
-Return ALL tickets with breach_status "breached" or "at risk". Group them by breach_status (all "breached" first, then all "at risk"), and within each group sort by age_hours descending.
-
-Output a JSON array of objects with these fields: ticket_id, priority, urgency, assigned_group (the team responsible), reported_date, age_hours (rounded to 1 decimal), sla_threshold_hours, breach_status.
 After the JSON block, provide a short markdown summary that:
-1. States the reference timestamp used
+1. States the reference_timestamp used
 2. Groups ticket counts by breach_status and assigned_group
 3. Recommends actions for the most critical breaches`;
 

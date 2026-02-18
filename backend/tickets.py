@@ -57,7 +57,7 @@ class WorkLogType(str, Enum):
 
 
 # ============================================================================
-# PRIORITY SLA DEADLINES (in minutes)
+# PRIORITY SLA DEADLINES (in minutes) — kept for backwards compatibility
 # ============================================================================
 
 PRIORITY_SLA_MINUTES: dict[TicketPriority, int] = {
@@ -66,6 +66,27 @@ PRIORITY_SLA_MINUTES: dict[TicketPriority, int] = {
     TicketPriority.MEDIUM: 240,
     TicketPriority.LOW: 480,
 }
+
+
+# ============================================================================
+# SLA BREACH THRESHOLDS (in hours) — used for breach status calculations
+# Aligns with ITSM standard expectations and the frontend dashboard
+# ============================================================================
+
+SLA_THRESHOLD_HOURS: dict[TicketPriority, float] = {
+    TicketPriority.CRITICAL: 4.0,
+    TicketPriority.HIGH: 24.0,
+    TicketPriority.MEDIUM: 72.0,
+    TicketPriority.LOW: 120.0,
+}
+
+
+class SlaBreachStatus(str, Enum):
+    """SLA breach status for a ticket."""
+    BREACHED = "breached"   # age > threshold
+    AT_RISK = "at_risk"     # age > 75% of threshold
+    OK = "ok"               # age <= 75% of threshold
+    UNKNOWN = "unknown"     # cannot determine
 
 
 # ============================================================================
@@ -378,6 +399,141 @@ def build_reminder_candidate(
 
 
 # ============================================================================
+# SLA BREACH MODELS — for breach-status reporting
+# ============================================================================
+
+class TicketSlaInfo(BaseModel):
+    """SLA breach information for a single ticket."""
+    ticket_id: str = Field(..., description="Incident ID or UUID of the ticket")
+    priority: str = Field(..., description="Ticket priority (critical/high/medium/low)")
+    urgency: Optional[str] = Field(None, description="Urgency level")
+    assigned_group: Optional[str] = Field(None, description="Responsible support team")
+    reported_date: str = Field(..., description="Ticket creation date (ISO format)")
+    age_hours: float = Field(..., description="Hours elapsed since creation (1 decimal)")
+    sla_threshold_hours: float = Field(..., description="SLA threshold in hours for this priority")
+    breach_status: SlaBreachStatus = Field(..., description="Current SLA breach status")
+
+
+class SlaBreachReport(BaseModel):
+    """Aggregated SLA breach report."""
+    reference_timestamp: str = Field(..., description="Reference time used for age calculation")
+    total_breached: int = Field(..., ge=0)
+    total_at_risk: int = Field(..., ge=0)
+    tickets: list[TicketSlaInfo] = Field(default_factory=list)
+
+
+# ============================================================================
+# SLA BREACH CALCULATIONS — Pure functions
+# ============================================================================
+
+def get_sla_threshold_hours(priority: TicketPriority) -> float:
+    """Return the SLA threshold in hours for a given priority."""
+    return SLA_THRESHOLD_HOURS.get(priority, SLA_THRESHOLD_HOURS[TicketPriority.LOW])
+
+
+def calculate_ticket_sla_info(
+    ticket: "Ticket",
+    reference_time: Optional[datetime] = None,
+) -> TicketSlaInfo:
+    """
+    Compute SLA breach information for a single ticket.
+
+    Args:
+        ticket: The ticket to evaluate.
+        reference_time: Anchor for age calculation. When None, uses the current time.
+            Callers managing historical datasets should pass the max date in the
+            dataset so results are deterministic.
+
+    Returns:
+        TicketSlaInfo with pre-computed age_hours and breach_status.
+    """
+    if reference_time is None:
+        reference_time = datetime.now(ticket.created_at.tzinfo)
+
+    delta = reference_time - ticket.created_at
+    age_hours = round(delta.total_seconds() / 3600, 1)
+
+    threshold = get_sla_threshold_hours(ticket.priority)
+
+    if age_hours > threshold:
+        status = SlaBreachStatus.BREACHED
+    elif age_hours > threshold * 0.75:
+        status = SlaBreachStatus.AT_RISK
+    else:
+        status = SlaBreachStatus.OK
+
+    ticket_id = ticket.incident_id or str(ticket.id)
+
+    return TicketSlaInfo(
+        ticket_id=ticket_id,
+        priority=ticket.priority.value,
+        urgency=ticket.urgency,
+        assigned_group=ticket.assigned_group,
+        reported_date=ticket.created_at.isoformat(),
+        age_hours=age_hours,
+        sla_threshold_hours=threshold,
+        breach_status=status,
+    )
+
+
+def get_sla_breach_report(
+    tickets: "list[Ticket]",
+    reference_time: Optional[datetime] = None,
+    include_ok: bool = False,
+) -> SlaBreachReport:
+    """
+    Build a sorted, grouped SLA breach report from a ticket list.
+
+    Grouping order: breached first, then at_risk, then ok (if include_ok).
+    Within each group, sorted by age_hours descending.
+
+    Args:
+        tickets: Tickets to evaluate.
+        reference_time: Anchor timestamp. Uses max created_at in the list when None.
+        include_ok: Whether to include non-breached, non-at-risk tickets.
+
+    Returns:
+        SlaBreachReport with grouped/sorted TicketSlaInfo entries.
+    """
+    if not tickets:
+        ref_str = (reference_time or datetime.now()).isoformat()
+        return SlaBreachReport(reference_timestamp=ref_str, total_breached=0, total_at_risk=0)
+
+    if reference_time is None:
+        reference_time = max(t.created_at for t in tickets)
+
+    infos = [calculate_ticket_sla_info(t, reference_time) for t in tickets]
+
+    group_order = {
+        SlaBreachStatus.BREACHED: 0,
+        SlaBreachStatus.AT_RISK: 1,
+        SlaBreachStatus.OK: 2,
+        SlaBreachStatus.UNKNOWN: 3,
+    }
+
+    filtered = [
+        i for i in infos
+        if i.breach_status in (SlaBreachStatus.BREACHED, SlaBreachStatus.AT_RISK)
+        or (include_ok and i.breach_status == SlaBreachStatus.OK)
+    ]
+
+    sorted_infos = sorted(
+        filtered,
+        key=lambda i: (group_order[i.breach_status], -i.age_hours),
+    )
+
+    total_breached = sum(1 for i in sorted_infos if i.breach_status == SlaBreachStatus.BREACHED)
+    total_at_risk = sum(1 for i in sorted_infos if i.breach_status == SlaBreachStatus.AT_RISK)
+
+    return SlaBreachReport(
+        reference_timestamp=reference_time.isoformat(),
+        total_breached=total_breached,
+        total_at_risk=total_at_risk,
+        tickets=sorted_infos,
+    )
+
+
+# ============================================================================
 # EXPORTS
 # ============================================================================
 
@@ -387,8 +543,10 @@ __all__ = [
     "TicketPriority",
     "ModificationStatus",
     "WorkLogType",
+    "SlaBreachStatus",
     # Constants
     "PRIORITY_SLA_MINUTES",
+    "SLA_THRESHOLD_HOURS",
     # Models
     "Ticket",
     "TicketWithDetails",
@@ -403,6 +561,9 @@ __all__ = [
     "ModificationCreate",
     "ModificationReview",
     "OverlayMetadata",
+    # SLA breach models
+    "TicketSlaInfo",
+    "SlaBreachReport",
     # Reminder models
     "ReminderCandidate",
     "ReminderRequest",
@@ -414,4 +575,8 @@ __all__ = [
     "is_assigned_without_assignee",
     "count_reminders_in_worklogs",
     "build_reminder_candidate",
+    # SLA breach calculations
+    "get_sla_threshold_hours",
+    "calculate_ticket_sla_info",
+    "get_sla_breach_report",
 ]

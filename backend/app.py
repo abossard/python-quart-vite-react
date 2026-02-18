@@ -623,6 +623,28 @@ async def get_csv_ticket_stats():
     })
 
 
+@app.route("/api/csv-tickets/sla-breach", methods=["GET"])
+async def get_csv_tickets_sla_breach():
+    """
+    Return unassigned tickets grouped by SLA breach status (breached → at_risk),
+    sorted by age_hours descending within each group.
+
+    Query params:
+    - unassigned_only: true/false (default: true)
+    - include_ok: true/false (default: false) — include non-breached tickets too
+    """
+    from tickets import get_sla_breach_report
+
+    unassigned_only = request.args.get("unassigned_only", "true").lower() != "false"
+    include_ok = request.args.get("include_ok", "false").lower() == "true"
+
+    tickets = _csv_ticket_service.list_tickets(
+        has_assignee=False if unassigned_only else None,
+    )
+    report = get_sla_breach_report(tickets, reference_time=None, include_ok=include_ok)
+    return jsonify(report.model_dump(mode="json"))
+
+
 @app.route("/api/health", methods=["GET"])
 async def health_check():
     """Health check endpoint."""
