@@ -1,17 +1,17 @@
 import {
-  Badge,
-  Button,
-  Checkbox,
-  Text,
-  ToolbarButton,
-  Tooltip,
-  makeStyles,
-  tokens
+    Badge,
+    Button,
+    Checkbox,
+    Text,
+    ToolbarButton,
+    Tooltip,
+    makeStyles,
+    tokens
 } from '@fluentui/react-components'
 import {
-  ArrowUp24Regular,
-  Mail24Regular,
-  SelectAllOn24Regular,
+    ArrowUp24Regular,
+    Mail24Regular,
+    SelectAllOn24Regular,
 } from '@fluentui/react-icons'
 import { useCallback, useMemo, useState } from 'react'
 import ReactMarkdown from 'react-markdown'
