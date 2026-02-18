@@ -191,14 +191,13 @@ class UsecaseDemoRunService:
         # Enforce a predictable output block for table rendering.
         structured_prompt = (
             f"{run.prompt}\n\n"
-            "Zusatzformat:\n"
-            "- Gib zuerst eine kurze Zusammenfassung.\n"
-            "- Füge danach einen JSON-Codeblock mit `rows` hinzu.\n"
-            "- JSON-Schema:\n"
-            "  {\"rows\": [{\"menu_point\": \"...\", \"project_name\": \"...\", "
-            "\"summary\": \"...\", \"agent_prompt\": \"...\", \"ticket_ids\": \"...\", "
-            "\"csv_evidence\": \"...\"}]}\n"
-            "- Falls keine sinnvollen Zeilen existieren, gib `{\"rows\": []}` zurück."
+            "Antwortformat:\n"
+            "- Führe die Anfrage mit möglichst wenigen Tool-Aufrufen aus.\n"
+            "- Nutze kompakte fields und sinnvolle limits.\n"
+            "- Fordere notes/resolution nur bei explizitem Bedarf an.\n"
+            "- Gib einen JSON-Codeblock mit {\"rows\": [...]} zurück.\n"
+            "- Falls keine sinnvollen Zeilen existieren, gib {\"rows\": []} zurück.\n"
+            "- Optional danach: kurze Zusammenfassung in 2-4 Stichpunkten."
         )
 
         try:

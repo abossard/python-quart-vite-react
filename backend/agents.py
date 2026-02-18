@@ -32,12 +32,41 @@ Advanced StateGraph example (for learning):
 # Standard library
 import os
 from datetime import datetime
+from time import perf_counter
 from typing import Any, Literal, Optional
 
 # Load environment variables before anything else
 from dotenv import load_dotenv
 
 load_dotenv()
+
+import logging
+
+from langchain_core.globals import set_verbose
+
+
+def _env_flag(name: str, default: str = "false") -> bool:
+    """Parse environment boolean flags with common truthy values."""
+    return os.getenv(name, default).strip().lower() in {"1", "true", "yes", "on"}
+
+
+def _env_int(name: str, default: int) -> int:
+    """Parse integer env var with fallback."""
+    raw = os.getenv(name)
+    if raw is None:
+        return default
+    try:
+        return int(raw)
+    except ValueError:
+        return default
+
+
+LANGCHAIN_VERBOSE = _env_flag("LANGCHAIN_VERBOSE", "false")
+set_verbose(LANGCHAIN_VERBOSE)
+
+logging.basicConfig(level=logging.INFO)
+logging.getLogger("langchain").setLevel(logging.INFO if LANGCHAIN_VERBOSE else logging.WARNING)
+logger = logging.getLogger(__name__)
 
 from uuid import UUID
 
@@ -52,6 +81,7 @@ from csv_data import get_csv_ticket_service
 
 # Third-party - FastMCP client for external MCP servers
 from fastmcp import Client as MCPClient
+from langchain_core.callbacks import BaseCallbackHandler
 from langchain_core.tools import StructuredTool
 
 # Third-party - LangChain and LangGraph
@@ -149,6 +179,10 @@ class AgentResponse(BaseModel):
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY", "")
 OPENAI_MODEL = os.getenv("OPENAI_MODEL", "gpt-4o-mini")
 OPENAI_BASE_URL = os.getenv("OPENAI_BASE_URL", "")  # optional override
+OPENAI_CALL_LOGGING_ENABLED = _env_flag("OPENAI_CALL_LOGGING_ENABLED", "true")
+AGENT_EFFICIENCY_MODE = _env_flag("AGENT_EFFICIENCY_MODE", "true")
+AGENT_TRACE_ENABLED = _env_flag("AGENT_TRACE_ENABLED", "false")
+REACT_AGENT_RECURSION_LIMIT = max(3, _env_int("REACT_AGENT_RECURSION_LIMIT", 8))
 
 # External MCP server URL for ticket management (hardcoded)
 TICKET_MCP_SERVER_URL = "https://yodrrscbpxqnslgugwow.supabase.co/functions/v1/mcp/a7f2b8c4-d3e9-4f1a-b5c6-e8d9f0123456"
@@ -189,6 +223,120 @@ def _schema_to_pydantic(name: str, schema: dict) -> type[BaseModel]:
     
     model_name = f"{name.title().replace('_', '').replace('-', '')}Args"
     return create_model(model_name, **fields)
+
+
+def _extract_llm_call_metadata(response: Any) -> tuple[dict[str, Any] | None, str | None, str | None]:
+    """Extract token usage, model name, and finish reason from LLMResult-like objects."""
+    token_usage: dict[str, Any] | None = None
+    model_name: str | None = None
+    finish_reason: str | None = None
+
+    llm_output = getattr(response, "llm_output", None)
+    if isinstance(llm_output, dict):
+        maybe_usage = llm_output.get("token_usage")
+        if isinstance(maybe_usage, dict):
+            token_usage = maybe_usage
+        maybe_model = llm_output.get("model_name")
+        if isinstance(maybe_model, str):
+            model_name = maybe_model
+
+    generations = getattr(response, "generations", None) or []
+    if generations and generations[0]:
+        first_generation = generations[0][0]
+        generation_info = getattr(first_generation, "generation_info", None)
+        if isinstance(generation_info, dict):
+            maybe_finish = generation_info.get("finish_reason")
+            if isinstance(maybe_finish, str):
+                finish_reason = maybe_finish
+
+        message = getattr(first_generation, "message", None)
+        if message is not None:
+            usage_metadata = getattr(message, "usage_metadata", None)
+            if isinstance(usage_metadata, dict):
+                token_usage = token_usage or usage_metadata
+
+            response_metadata = getattr(message, "response_metadata", None)
+            if isinstance(response_metadata, dict):
+                maybe_usage = response_metadata.get("token_usage")
+                if isinstance(maybe_usage, dict):
+                    token_usage = token_usage or maybe_usage
+
+                maybe_model = response_metadata.get("model_name")
+                if isinstance(maybe_model, str):
+                    model_name = model_name or maybe_model
+
+                maybe_finish = response_metadata.get("finish_reason")
+                if isinstance(maybe_finish, str):
+                    finish_reason = finish_reason or maybe_finish
+
+    return token_usage, model_name, finish_reason
+
+
+class OpenAICallLoggingCallback(BaseCallbackHandler):
+    """Log each OpenAI/LangChain LLM call with latency and token usage at INFO level."""
+
+    def __init__(self) -> None:
+        self._start_times: dict[UUID, float] = {}
+
+    def on_llm_start(
+        self,
+        serialized: dict[str, Any],
+        prompts: list[str],
+        *,
+        run_id: UUID,
+        **kwargs: Any,
+    ) -> None:
+        self._start_times[run_id] = perf_counter()
+        model_name = None
+        if isinstance(serialized, dict):
+            model_name = (
+                serialized.get("kwargs", {}).get("model")
+                if isinstance(serialized.get("kwargs"), dict)
+                else None
+            )
+        prompt_chars = sum(len(prompt or "") for prompt in prompts)
+        logger.info(
+            "OpenAI call start run_id=%s model=%s prompts=%d chars=%d",
+            run_id,
+            model_name or OPENAI_MODEL,
+            len(prompts),
+            prompt_chars,
+        )
+
+    def on_llm_end(
+        self,
+        response: Any,
+        *,
+        run_id: UUID,
+        **kwargs: Any,
+    ) -> None:
+        started_at = self._start_times.pop(run_id, None)
+        duration_ms = int((perf_counter() - started_at) * 1000) if started_at is not None else None
+        token_usage, model_name, finish_reason = _extract_llm_call_metadata(response)
+        logger.info(
+            "OpenAI call end run_id=%s model=%s duration_ms=%s finish_reason=%s token_usage=%s",
+            run_id,
+            model_name or OPENAI_MODEL,
+            duration_ms if duration_ms is not None else "n/a",
+            finish_reason or "n/a",
+            token_usage or {},
+        )
+
+    def on_llm_error(
+        self,
+        error: BaseException,
+        *,
+        run_id: UUID,
+        **kwargs: Any,
+    ) -> None:
+        started_at = self._start_times.pop(run_id, None)
+        duration_ms = int((perf_counter() - started_at) * 1000) if started_at is not None else None
+        logger.error(
+            "OpenAI call error run_id=%s duration_ms=%s error=%s",
+            run_id,
+            duration_ms if duration_ms is not None else "n/a",
+            error,
+        )
 
 
 def _mcp_tool_to_langchain(mcp_client: MCPClient, tool: Any) -> StructuredTool:
@@ -286,6 +434,8 @@ class AgentService:
         
         # CSV tools only (do not expose operations or external MCP)
         self.tools = self._build_csv_tools()
+        self._system_prompt = self._build_system_prompt()
+        self._react_agent = create_react_agent(self.llm, self.tools)
 
         # Ticket MCP client state (unused)
         self._ticket_mcp_client: Optional[MCPClient] = None
@@ -304,10 +454,46 @@ class AgentService:
                 pass
             self._ticket_mcp_client = None
 
+    def _build_system_prompt(self) -> str:
+        """Build a concise system prompt optimized for low-latency tool usage."""
+        efficiency_rules = (
+            "- Plane möglichst einen einzelnen Tool-Aufruf und stoppe früh, sobald die Antwort klar ist.\n"
+            "- Nutze kleine Payloads: setze sinnvolle limits und kompakte fields.\n"
+            "- Fordere notes/resolution nur bei explizitem Bedarf an.\n"
+        ) if AGENT_EFFICIENCY_MODE else ""
+        return (
+            "Du bist ein präziser CSV-Ticket-Assistent. Sprich Deutsch.\n\n"
+            "Verhalten:\n"
+            "- Verwende ausschließlich csv_* Tools für Ticketdaten.\n"
+            f"{efficiency_rules}"
+            "- Erfinde keine Daten; markiere fehlende Daten klar.\n"
+            "- Gib eine kurze Antwort und bei strukturierten Ergebnissen einen JSON-Codeblock "
+            "mit {\"rows\": [...]}."
+        )
+
     def _build_csv_tools(self) -> list[StructuredTool]:
         """Build LangChain tools backed by CSVTicketService."""
         import json
         service = get_csv_ticket_service()
+        compact_default_fields = [
+            "id",
+            "summary",
+            "status",
+            "priority",
+            "assignee",
+            "assigned_group",
+            "created_at",
+            "updated_at",
+        ]
+
+        def _select_fields(fields: str | None) -> list[str] | None:
+            if not fields:
+                return compact_default_fields
+            normalized = fields.strip()
+            if normalized in {"*", "all"}:
+                return None
+            parsed = [f.strip() for f in normalized.split(",") if f.strip()]
+            return parsed or compact_default_fields
 
         def _csv_list_tickets(
             status: str | None = None,
@@ -323,15 +509,15 @@ class AgentService:
             tickets = service.list_tickets(status=status_enum, assigned_group=assigned_group, has_assignee=has_assignee)
             bounded_limit = max(1, min(limit, 100))
             items = tickets[:bounded_limit]
-            if fields:
-                field_list = [f.strip() for f in fields.split(",")]
-                return json.dumps([
-                    {k: v for k, v in t.model_dump().items() if k in field_list}
-                    for t in items
-                ], default=str)
-            return json.dumps([t.model_dump() for t in items], default=str)
+            selected_fields = _select_fields(fields)
+            if selected_fields is None:
+                return json.dumps([t.model_dump() for t in items], default=str)
+            return json.dumps([
+                {k: v for k, v in t.model_dump().items() if k in selected_fields}
+                for t in items
+            ], default=str)
 
-        def _csv_get_ticket(ticket_id: str) -> str:
+        def _csv_get_ticket(ticket_id: str, fields: str | None = None) -> str:
             try:
                 tid = UUID(ticket_id)
             except Exception:
@@ -339,12 +525,18 @@ class AgentService:
             ticket = service.get_ticket(tid)
             if not ticket:
                 return json.dumps({"error": "not found"})
-            return json.dumps(ticket.model_dump(), default=str)
+            dump = ticket.model_dump()
+            selected_fields = _select_fields(fields)
+            if selected_fields is None:
+                return json.dumps(dump, default=str)
+            return json.dumps({k: v for k, v in dump.items() if k in selected_fields}, default=str)
 
         def _csv_search_tickets(query: str, fields: str | None = None, limit: int = 25) -> str:
             q = query.lower()
             tickets = service.list_tickets()
+            selected_fields = _select_fields(fields)
             matched = []
+            bounded_limit = max(1, min(limit, 100))
             for t in tickets:
                 text = " ".join([
                     t.summary or "",
@@ -357,11 +549,10 @@ class AgentService:
                 ]).lower()
                 if q in text:
                     dump = t.model_dump()
-                    if fields:
-                        field_list = [f.strip() for f in fields.split(",")]
-                        dump = {k: v for k, v in dump.items() if k in field_list}
+                    if selected_fields is not None:
+                        dump = {k: v for k, v in dump.items() if k in selected_fields}
                     matched.append(dump)
-                    if len(matched) >= limit:
+                    if len(matched) >= bounded_limit:
                         break
             return json.dumps(matched, default=str)
 
@@ -378,21 +569,35 @@ class AgentService:
                     "List tickets from CSV with optional filters: status "
                     "(new, assigned, in_progress, pending, resolved, closed, cancelled), "
                     "assigned_group, has_assignee (true/false), limit (default 50, max 100), "
-                    "and fields (comma-separated field names to return, e.g. "
-                    "'id,summary,priority,assignee,assigned_group,created_at' — "
-                    "omit to return all fields). Use fields to reduce response size and speed up queries. "
-                    "Returns JSON array."
+                    "and fields (comma-separated field names). "
+                    "Default response is compact for speed: "
+                    "'id,summary,status,priority,assignee,assigned_group,created_at,updated_at'. "
+                    "For deterministic analytics, prefer status/priority/date fields and avoid wide payloads. "
+                    "Notes/resolution are excluded by default unless requested via fields. "
+                    "Use fields='*' only when full payload is absolutely needed. Returns JSON array."
                 ),
             ),
             StructuredTool.from_function(
                 func=_csv_get_ticket,
                 name="csv_get_ticket",
-                description="Get a ticket by UUID (id). Returns JSON object including notes/resolution.",
+                description=(
+                    "Get ticket by UUID (id). Supports optional fields (comma-separated). "
+                    "Default response is compact fields without notes/resolution for speed. "
+                    "Prefer requesting only required fields for drill-down. "
+                    "Request notes/resolution explicitly via fields, or use fields='*' for full payload."
+                ),
             ),
             StructuredTool.from_function(
                 func=_csv_search_tickets,
                 name="csv_search_tickets",
-                description="Search tickets by text across summary, description, notes, resolution, requester, group, city. Optional fields param (comma-separated) to limit returned fields. Returns JSON array.",
+                description=(
+                    "Search tickets by text across summary, description, notes, resolution, requester, group, city. "
+                    "Supports fields (comma-separated field names). "
+                    "Notes/resolution are excluded by default unless requested via fields. "
+                    "Prefer low limits and compact fields for latency-sensitive runs. "
+                    "Default response is compact fields for speed; use fields='*' only when needed. "
+                    "Returns JSON array."
+                ),
             ),
             StructuredTool.from_function(
                 func=_csv_ticket_fields,
@@ -426,72 +631,45 @@ class AgentService:
             ValueError: If agent execution fails
         """
         try:
-            # Create ReAct agent with LangGraph tools
-            # The tools are the actual Python functions with @tool decorator
-            agent = create_react_agent(self.llm, self.tools)
-            
-            # System message to guide the agent's behavior
-            tool_lines = []
-            for t in self.tools:
-                name = t.name if hasattr(t, 'name') else str(t)
-                desc = (t.description if hasattr(t, 'description') else "") or ""
-                tool_lines.append(f"- `{name}`: {desc}".strip())
-            tools_md = "\n".join(tool_lines) if tool_lines else "- (none)"
-
-            system_msg = f"""
-Du bist ein freundlicher CSV-Ticket-Assistent. Sprich **Deutsch**.
-
-Antwortstil:
-- Starte immer mit einer kurzen Begrüßung.
-- Liste sofort die verfügbaren Tools (Markdown-Bullets).
-- Nutze **Markdown** mit klaren Überschriften (##), Bullet-Listen und Tabellen, wenn sinnvoll.
-- Für JSON-Daten nutze fenced Code-Blöcke:
-  ```json
-  {{"example": "value"}}
-  ```
-- Halte Antworten knapp und gut strukturiert.
-
-Verfügbare Tools:
-{tools_md}
-
-Verhalten:
-- Verwende ausschließlich die csv_* Tools für Ticket-Informationen. Keine Daten erfinden.
-- Falls Daten fehlen, sage das explizit.
-- Fasse Ergebnisse klar zusammen; für Listen sind kompakte Tabellen ideal.
-"""
-            
             # Execute agent with user prompt
-            print(f"\n{'='*60}")
-            print(f"🤖 AGENT EXECUTION START")
-            print(f"{'='*60}")
-            print(f"   Prompt: {request.prompt[:100]}{'...' if len(request.prompt) > 100 else ''}")
-            print(f"   Agent type: {request.agent_type}")
-            print(f"   Available tools ({len(self.tools)}):")
-            for t in self.tools:
-                name = t.name if hasattr(t, 'name') else str(t)
-                print(f"      • {name}")
-            print(f"{'='*60}\n")
+            if AGENT_TRACE_ENABLED:
+                print(f"\n{'='*60}")
+                print(f"🤖 AGENT EXECUTION START")
+                print(f"{'='*60}")
+                print(f"   Prompt: {request.prompt[:100]}{'...' if len(request.prompt) > 100 else ''}")
+                print(f"   Agent type: {request.agent_type}")
+                print(f"   Available tools ({len(self.tools)}):")
+                for t in self.tools:
+                    name = t.name if hasattr(t, 'name') else str(t)
+                    print(f"      • {name}")
+                print(f"{'='*60}\n")
             
-            result = await agent.ainvoke(
-                {"messages": [("system", system_msg), ("user", request.prompt)]}
+            invoke_config: dict[str, Any] = {"recursion_limit": REACT_AGENT_RECURSION_LIMIT}
+            if OPENAI_CALL_LOGGING_ENABLED:
+                invoke_config["callbacks"] = [OpenAICallLoggingCallback()]
+
+            result = await self._react_agent.ainvoke(
+                {"messages": [("system", self._system_prompt), ("user", request.prompt)]},
+                config=invoke_config,
             )
             
-            print(f"\n{'='*60}")
-            print(f"📋 AGENT EXECUTION COMPLETE")
-            print(f"{'='*60}")
-            print(f"   Total messages: {len(result['messages'])}")
-            for i, msg in enumerate(result["messages"]):
-                msg_type = type(msg).__name__
-                has_tool_calls = hasattr(msg, 'tool_calls') and msg.tool_calls
-                content_preview = ""
-                if hasattr(msg, 'content') and msg.content:
-                    content_preview = str(msg.content)[:80] + "..." if len(str(msg.content)) > 80 else str(msg.content)
-                print(f"   [{i}] {msg_type}: {content_preview}")
-                if has_tool_calls:
-                    for tc in msg.tool_calls:
-                        tc_name = tc.get('name', tc) if isinstance(tc, dict) else str(tc)
-                        print(f"       🔧 Tool call: {tc_name}")
-            print(f"{'='*60}\n")
+            if AGENT_TRACE_ENABLED:
+                print(f"\n{'='*60}")
+                print(f"📋 AGENT EXECUTION COMPLETE")
+                print(f"{'='*60}")
+                print(f"   Total messages: {len(result['messages'])}")
+                for i, msg in enumerate(result["messages"]):
+                    msg_type = type(msg).__name__
+                    has_tool_calls = hasattr(msg, 'tool_calls') and msg.tool_calls
+                    content_preview = ""
+                    if hasattr(msg, 'content') and msg.content:
+                        content_preview = str(msg.content)[:80] + "..." if len(str(msg.content)) > 80 else str(msg.content)
+                    print(f"   [{i}] {msg_type}: {content_preview}")
+                    if has_tool_calls:
+                        for tc in msg.tool_calls:
+                            tc_name = tc.get('name', tc) if isinstance(tc, dict) else str(tc)
+                            print(f"       🔧 Tool call: {tc_name}")
+                print(f"{'='*60}\n")
             
             # Extract the agent's final response
             final_message = result["messages"][-1]

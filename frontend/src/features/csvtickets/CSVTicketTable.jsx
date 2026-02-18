@@ -219,7 +219,7 @@ export default function CSVTicketTable() {
   
   // Selected columns
   const [selectedFields, setSelectedFields] = useState([
-    'summary', 'status', 'priority', 'assignee', 'assigned_group', 
+    'incident_id', 'summary', 'status', 'priority', 'assignee', 'assigned_group', 
     'requester_name', 'city', 'created_at'
   ])
 
@@ -313,6 +313,12 @@ export default function CSVTicketTable() {
   const renderCell = (ticket, fieldName) => {
     const value = ticket[fieldName]
     
+    if (fieldName === 'incident_id') {
+      return value ? (
+        <span style={{ fontFamily: 'monospace', fontWeight: 600, letterSpacing: '0.02em' }}>{value}</span>
+      ) : '—'
+    }
+
     if (fieldName === 'status') {
       return getStatusBadge(value)
     }

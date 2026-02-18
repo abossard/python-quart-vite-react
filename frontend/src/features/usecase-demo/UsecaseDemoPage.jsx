@@ -427,7 +427,7 @@ export default function UsecaseDemoPage({ definition }) {
               {config.description && (
                 <Text size={200} className={styles.viewDescription}>{config.description}</Text>
               )}
-              {config.render({ run: currentRun, markdown: visibleResultMarkdown, styles })}
+              {config.render({ run: currentRun, markdown: visibleResultMarkdown, styles, matchingTickets, isLoadingTickets })}
             </div>
           ))
         )}

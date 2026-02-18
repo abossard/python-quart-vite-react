@@ -375,6 +375,7 @@ def _map_mcp_ticket_to_frontend(mcp_ticket: dict) -> dict:
     
     return {
         "id": str(mcp_ticket.get("id", "")),
+        "incident_id": mcp_ticket.get("incident_id"),
         "title": mcp_ticket.get("summary", ""),
         "description": mcp_ticket.get("description", ""),
         "status": status,

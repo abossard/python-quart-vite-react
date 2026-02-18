@@ -157,7 +157,7 @@ function filterTickets(tickets, searchTerm, priorityFilter) {
     const term = searchTerm.toLowerCase()
     filtered = filtered.filter(
       (ticket) =>
-        ticket.id.toLowerCase().includes(term) ||
+        (ticket.incident_id || ticket.id).toLowerCase().includes(term) ||
         ticket.title.toLowerCase().includes(term) ||
         ticket.description.toLowerCase().includes(term)
     )
@@ -194,12 +194,14 @@ export default function TicketsWithoutAnAssignee() {
   // Columns for DataGrid
   const columns = [
     createTableColumn({
-      columnId: 'id',
-      compare: (a, b) => a.id.localeCompare(b.id),
-      renderHeaderCell: () => 'ID',
+      columnId: 'incident_id',
+      compare: (a, b) => (a.incident_id || a.id).localeCompare(b.incident_id || b.id),
+      renderHeaderCell: () => 'Incident ID',
       renderCell: (item) => (
         <TableCellLayout>
-          <Text weight="semibold">{item.id}</Text>
+          <Text weight="semibold" style={{ fontFamily: 'monospace' }}>
+            {item.incident_id || item.id}
+          </Text>
         </TableCellLayout>
       ),
     }),
@@ -246,7 +248,7 @@ export default function TicketsWithoutAnAssignee() {
 
   const handleReminder = () => {
     if (selectedTicket) {
-      setReminderMessage(`Erinnerung für Ticket ${selectedTicket.id} wurde gesendet.`)
+      setReminderMessage(`Erinnerung für Ticket ${selectedTicket.incident_id || selectedTicket.id} wurde gesendet.`)
       // TODO: Backend integration - send reminder API call
     }
   }
@@ -268,7 +270,7 @@ export default function TicketsWithoutAnAssignee() {
   const handleMarkAsGood = () => {
     if (selectedTicket) {
       setTicketDecisions(prev => ({ ...prev, [selectedTicket.id]: 'GOOD' }))
-      setReminderMessage(`Ticket ${selectedTicket.id} als GOOD markiert.`)
+      setReminderMessage(`Ticket ${selectedTicket.incident_id || selectedTicket.id} als GOOD markiert.`)
       // TODO: Backend integration - update ticket status
     }
   }
@@ -276,7 +278,7 @@ export default function TicketsWithoutAnAssignee() {
   const handleMarkAsEscalate = () => {
     if (selectedTicket) {
       setTicketDecisions(prev => ({ ...prev, [selectedTicket.id]: 'ESCALATE' }))
-      setReminderMessage(`Ticket ${selectedTicket.id} zur Eskalation markiert.`)
+      setReminderMessage(`Ticket ${selectedTicket.incident_id || selectedTicket.id} zur Eskalation markiert.`)
       // TODO: Backend integration - escalate ticket
     }
   }
@@ -387,8 +389,10 @@ export default function TicketsWithoutAnAssignee() {
                 </div>
 
                 <div className={styles.detailField}>
-                  <Text className={styles.detailLabel}>Ticket ID</Text>
-                  <Text className={styles.detailValue}>{selectedTicket.id}</Text>
+                  <Text className={styles.detailLabel}>Incident ID</Text>
+                  <Text className={styles.detailValue} style={{ fontFamily: 'monospace', fontWeight: 600 }}>
+                    {selectedTicket.incident_id || selectedTicket.id}
+                  </Text>
                 </div>
 
                 <div className={styles.detailField}>

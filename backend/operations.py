@@ -21,6 +21,7 @@ _csv_loaded = False
 
 
 CSV_TICKET_FIELDS = [
+    {"name": "incident_id", "label": "Incident ID", "type": "string"},
     {"name": "id", "label": "ID", "type": "uuid"},
     {"name": "summary", "label": "Summary", "type": "string"},
     {"name": "status", "label": "Status", "type": "enum"},

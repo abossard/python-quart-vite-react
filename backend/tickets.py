@@ -159,6 +159,7 @@ class Ticket(BaseModel):
     """
     # Core identifiers
     id: UUID = Field(..., description="Unique ticket identifier")
+    incident_id: Optional[str] = Field(None, description="Original incident ID (INC...)")
     
     # Summary and description
     summary: str = Field(..., max_length=500, description="Short issue summary")
