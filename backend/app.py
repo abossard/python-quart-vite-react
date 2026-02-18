@@ -48,6 +48,7 @@ from operations import (
     op_get_task_stats,
     op_list_tasks,
     op_update_task,
+    op_csv_analyze_ticket_splitting,
     task_service,
 )
 from usecase_demo import UsecaseDemoRunCreate, usecase_demo_run_service
@@ -643,6 +644,32 @@ async def get_csv_tickets_sla_breach():
     )
     report = get_sla_breach_report(tickets, reference_time=None, include_ok=include_ok)
     return jsonify(report.model_dump(mode="json"))
+
+
+@app.route("/api/csv-tickets/analyze-splitting", methods=["POST"])
+async def post_csv_tickets_analyze_splitting():
+    """
+    Analyze CSV tickets to identify those with multiple issues.
+    
+    Request body:
+    {
+        "limit": 50  // optional, default 50, max 200
+    }
+    
+    Returns:
+    {
+        "analyzed_count": int,
+        "single_issue_tickets": [...],
+        "multi_issue_tickets": [...]
+    }
+    """
+    from operations import op_csv_analyze_ticket_splitting
+    
+    data = await request.get_json() or {}
+    limit = data.get("limit", 50)
+    
+    result = await op_csv_analyze_ticket_splitting(limit=limit)
+    return jsonify(result)
 
 
 @app.route("/api/health", methods=["GET"])
