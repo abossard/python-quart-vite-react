@@ -276,3 +276,21 @@ export async function analyzeTicketsForSplitting(limit = 50) {
     body: JSON.stringify({ limit }),
   });
 }
+
+/**
+ * Get pre-computed SLA breach report for unassigned tickets.
+ * @param {Object} options
+ * @param {boolean} [options.unassignedOnly=true] - Only unassigned tickets
+ * @param {boolean} [options.includeOk=false] - Include non-breached tickets
+ * @returns {Promise<{reference_timestamp: string, total_breached: number, total_at_risk: number, tickets: Array}>}
+ */
+export async function getSlaBreach({
+  unassignedOnly = true,
+  includeOk = false,
+} = {}) {
+  const params = new URLSearchParams({
+    unassigned_only: unassignedOnly.toString(),
+    include_ok: includeOk.toString(),
+  });
+  return fetchJSON(`${API_BASE_URL}/csv-tickets/sla-breach?${params}`);
+}

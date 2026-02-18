@@ -12,7 +12,13 @@ from uuid import UUID
 from api_decorators import operation
 from csv_data import get_csv_ticket_service
 from tasks import Task, TaskCreate, TaskFilter, TaskService, TaskStats, TaskUpdate
-from tickets import Ticket, TicketStatus
+from tickets import (
+    SlaBreachReport,
+    Ticket,
+    TicketSlaInfo,
+    TicketStatus,
+    get_sla_breach_report,
+)
 
 # Service instances shared across interfaces
 _task_service = TaskService()
@@ -21,6 +27,7 @@ _csv_loaded = False
 
 
 CSV_TICKET_FIELDS = [
+    {"name": "incident_id", "label": "Incident ID", "type": "string"},
     {"name": "id", "label": "ID", "type": "uuid"},
     {"name": "summary", "label": "Summary", "type": "string"},
     {"name": "status", "label": "Status", "type": "enum"},
@@ -398,6 +405,44 @@ Analysiere jetzt die Tickets und gib das JSON zurück:"""
         }
 
 
+@operation(
+    name="csv_sla_breach_tickets",
+    description=(
+        "Return tickets at SLA breach risk from the CSV dataset. "
+        "By default only unassigned tickets (assigned to a group but no individual) are included. "
+        "Results contain pre-computed age_hours, sla_threshold_hours, and breach_status. "
+        "Grouped: 'breached' first, then 'at_risk'. Within each group sorted by age_hours descending. "
+        "The reference timestamp is the maximum created_at date found in the selected tickets "
+        "(not the current system time), making results deterministic for historical datasets. "
+        "SLA thresholds: critical=4h, high=24h, medium=72h, low=120h."
+    ),
+    http_method="GET",
+)
+async def op_csv_sla_breach_tickets(
+    unassigned_only: bool = True,
+    include_ok: bool = False,
+) -> SlaBreachReport:
+    """
+    Pre-compute SLA breach status for CSV tickets.
+
+    Args:
+        unassigned_only: When True (default), only return tickets that are assigned
+            to a group but have no individual assignee — the primary use case for
+            proactive SLA monitoring.
+        include_ok: When True, also include tickets that are within their SLA window.
+            Default False keeps the result focused on actionable items.
+
+    Returns:
+        SlaBreachReport with reference_timestamp, counts, and a sorted list of
+        TicketSlaInfo objects ready for display or further AI commentary.
+    """
+    _ensure_csv_loaded()
+    tickets = _csv_service.list_tickets(
+        has_assignee=False if unassigned_only else None,
+    )
+    return get_sla_breach_report(tickets, reference_time=None, include_ok=include_ok)
+
+
 # Export shared services for callers (REST app, CLI tools, etc.)
 task_service = _task_service
 csv_ticket_service = _csv_service
@@ -417,5 +462,6 @@ __all__ = [
     "op_csv_ticket_stats",
     "op_csv_ticket_fields",
     "op_csv_analyze_ticket_splitting",
+    "op_csv_sla_breach_tickets",
     "CSV_TICKET_FIELDS",
 ]

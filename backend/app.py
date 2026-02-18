@@ -36,7 +36,6 @@ from api_decorators import operation
 
 # CSV ticket service
 from csv_data import Ticket, get_csv_ticket_service
-from usecase_demo import UsecaseDemoRunCreate, usecase_demo_run_service
 
 # FastMCP client for direct ticket MCP calls (no AI)
 from fastmcp import Client as MCPClient
@@ -51,6 +50,7 @@ from operations import (
     op_update_task,
     task_service,
 )
+from usecase_demo import UsecaseDemoRunCreate, usecase_demo_run_service
 
 # Ticket MCP server URL (same as in agents.py)
 TICKET_MCP_SERVER_URL = "https://yodrrscbpxqnslgugwow.supabase.co/functions/v1/mcp/a7f2b8c4-d3e9-4f1a-b5c6-e8d9f0123456"
@@ -375,6 +375,7 @@ def _map_mcp_ticket_to_frontend(mcp_ticket: dict) -> dict:
     
     return {
         "id": str(mcp_ticket.get("id", "")),
+        "incident_id": mcp_ticket.get("incident_id"),
         "title": mcp_ticket.get("summary", ""),
         "description": mcp_ticket.get("description", ""),
         "status": status,
@@ -620,6 +621,28 @@ async def get_csv_ticket_stats():
         "by_group": dict(groups.most_common(10)),
         "by_city": dict(cities.most_common(10)),
     })
+
+
+@app.route("/api/csv-tickets/sla-breach", methods=["GET"])
+async def get_csv_tickets_sla_breach():
+    """
+    Return unassigned tickets grouped by SLA breach status (breached → at_risk),
+    sorted by age_hours descending within each group.
+
+    Query params:
+    - unassigned_only: true/false (default: true)
+    - include_ok: true/false (default: false) — include non-breached tickets too
+    """
+    from tickets import get_sla_breach_report
+
+    unassigned_only = request.args.get("unassigned_only", "true").lower() != "false"
+    include_ok = request.args.get("include_ok", "false").lower() == "true"
+
+    tickets = _csv_ticket_service.list_tickets(
+        has_assignee=False if unassigned_only else None,
+    )
+    report = get_sla_breach_report(tickets, reference_time=None, include_ok=include_ok)
+    return jsonify(report.model_dump(mode="json"))
 
 
 @app.route("/api/health", methods=["GET"])

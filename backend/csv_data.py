@@ -291,6 +291,7 @@ def csv_row_to_ticket(row: CSVTicketRow) -> Ticket:
     
     return Ticket(
         id=ticket_id,
+        incident_id=row.incident_id or row.entry_id or None,
         summary=row.summary or "No summary",
         description=row.notes or row.summary or "No description",
         status=map_status(row.status or row.status_ppl),
