@@ -326,52 +326,37 @@ async def op_csv_analyze_ticket_splitting(limit: int = 50) -> dict[str, Any]:
             "multi_issue_tickets": [],
         }
     
-    # Build AI prompt for ticket splitting analysis
-    prompt = f"""Du bist ein Experte für IT-Support-Ticket-Analyse. Analysiere die folgenden {len(tickets_data)} Tickets und identifiziere jene, die MEHRERE separate Probleme beschreiben.
+    # Build AI prompt for ticket splitting analysis (shortened to fit 5000 char limit)
+    prompt = f"""Analysiere {len(tickets_data)} IT-Support-Tickets auf MEHRERE Probleme.
 
-KRITERIEN FÜR MULTI-PROBLEM-TICKETS:
-- Enthält Wörter wie "und", "außerdem", "zusätzlich", "auch", "sowie"
-- Beschreibt verschiedene Fehlertypen oder Systeme
-- Erwähnt mehrere Service-Kategorien
-- Listet mehrere separate Anfragen auf
+KRITERIEN:
+- Wörter: "und", "außerdem", "zusätzlich", "auch"
+- Verschiedene Fehlertypen/Systeme
+- Mehrere Service-Kategorien
 
-TICKETS ZU ANALYSIEREN:
-{tickets_data[:10]}
+TICKETS (erste 10):
+{str(tickets_data[:10])[:2000]}
 
-WICHTIG: Antworte NUR mit einem validen JSON-Objekt in diesem Format:
+ANTWORTE NUR MIT DIESEM JSON:
 {{
-  "single_issue": [
-    {{"id": "uuid", "summary": "...", "reason": "Beschreibt nur ein Problem"}}
-  ],
-  "multi_issue": [
-    {{
-      "id": "uuid",
-      "summary": "...",
-      "issues_identified": ["Problem 1 beschreibung", "Problem 2 beschreibung"],
-      "suggested_splits": [
-        {{
-          "title": "Ticket 1: Problem X",
-          "description": "Details zu Problem X",
-          "priority": "medium"
-        }},
-        {{
-          "title": "Ticket 2: Problem Y",
-          "description": "Details zu Problem Y",
-          "priority": "high"
-        }}
-      ]
-    }}
-  ]
-}}
-
-Analysiere jetzt die Tickets und gib das JSON zurück:"""
+  "single_issue": [{{"id": "uuid", "summary": "...", "reason": "1 Problem"}}],
+  "multi_issue": [{{
+    "id": "uuid",
+    "summary": "...",
+    "issues_identified": ["Problem 1", "Problem 2"],
+    "suggested_splits": [
+      {{"title": "Ticket 1: X", "description": "Details X", "priority": "medium"}},
+      {{"title": "Ticket 2: Y", "description": "Details Y", "priority": "high"}}
+    ]
+  }}]
+}}"""
     
     # Run agent analysis
     agent_service = AgentService()
     try:
         from agents import AgentRequest
         result = await agent_service.run_agent(
-            AgentRequest(prompt=prompt, agent_type="csv_assistant")
+            AgentRequest(prompt=prompt, agent_type="task_assistant")
         )
         
         # Parse agent response - try to extract JSON
