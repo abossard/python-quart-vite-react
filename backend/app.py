@@ -36,7 +36,6 @@ from api_decorators import operation
 
 # CSV ticket service
 from csv_data import Ticket, get_csv_ticket_service
-from usecase_demo import UsecaseDemoRunCreate, usecase_demo_run_service
 
 # FastMCP client for direct ticket MCP calls (no AI)
 from fastmcp import Client as MCPClient
@@ -51,6 +50,7 @@ from operations import (
     op_update_task,
     task_service,
 )
+from usecase_demo import UsecaseDemoRunCreate, usecase_demo_run_service
 
 # Ticket MCP server URL (same as in agents.py)
 TICKET_MCP_SERVER_URL = "https://yodrrscbpxqnslgugwow.supabase.co/functions/v1/mcp/a7f2b8c4-d3e9-4f1a-b5c6-e8d9f0123456"

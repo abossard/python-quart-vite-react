@@ -17,7 +17,6 @@ from uuid import UUID
 
 from pydantic import BaseModel, Field
 
-
 # ============================================================================
 # ENUMS - Status and Priority types
 # ============================================================================
