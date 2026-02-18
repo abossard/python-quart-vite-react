@@ -20,11 +20,13 @@ import {
     DataHistogram24Regular,
     Info24Regular,
     Table24Regular,
+    SplitVerticalRegular,
 } from '@fluentui/react-icons'
 import { Navigate, Route, Routes, useLocation, useNavigate } from 'react-router-dom'
 import AgentChat from './features/agent/AgentChat'
 import CSVTicketTable from './features/csvtickets/CSVTicketTable'
 import FieldsDocs from './features/fields/FieldsDocs'
+import TicketSplitter from './features/ticket-splitter/TicketSplitter'
 import { USECASE_DEMO_DEFINITIONS } from './features/usecase-demo/demoDefinitions'
 import UsecaseDemoPage from './features/usecase-demo/UsecaseDemoPage'
 import KitchenSink from './features/kitchensink/KitchenSink'
@@ -77,6 +79,7 @@ export default function App() {
   const tabs = [
     { value: 'csvtickets', label: 'Tickets', icon: <Table24Regular />, path: '/csvtickets', testId: 'tab-csvtickets' },
     ...usecaseTabs,
+    { value: 'ticket-splitter', label: 'Ticket Splitter', icon: <SplitVerticalRegular />, path: '/ticket-splitter', testId: 'tab-ticket-splitter' },
     { value: 'kitchensink', label: 'Kitchen Sink', icon: <DataHistogram24Regular />, path: '/kitchensink', testId: 'tab-kitchensink' },
     { value: 'fields', label: 'Fields', icon: <Info24Regular />, path: '/fields', testId: 'tab-fields' },
     { value: 'agent', label: 'Agent', icon: <Bot24Regular />, path: '/agent', testId: 'tab-agent' },
@@ -122,6 +125,7 @@ export default function App() {
               element={<UsecaseDemoPage definition={definition} />}
             />
           ))}
+          <Route path="/ticket-splitter" element={<TicketSplitter />} />
           <Route path="/kitchensink" element={<KitchenSink />} />
           <Route path="/fields" element={<FieldsDocs />} />
           <Route path="/agent" element={<AgentChat />} />

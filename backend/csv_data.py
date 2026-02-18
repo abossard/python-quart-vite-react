@@ -17,6 +17,7 @@ from datetime import datetime
 from pathlib import Path
 from typing import Optional
 from uuid import NAMESPACE_DNS, UUID, uuid5
+from typing import Any
 
 from pydantic import BaseModel, Field
 from tickets import Ticket, TicketPriority, TicketStatus, TicketWithDetails
@@ -499,6 +500,34 @@ class CSVTicketService:
             if t.assigned_group is not None
             and t.assignee is None
             and t.status in (TicketStatus.NEW, TicketStatus.ASSIGNED, TicketStatus.IN_PROGRESS)
+        ]
+    
+    def get_tickets_for_analysis(self, limit: int = 100) -> list[dict[str, Any]]:
+        """
+        Get tickets with relevant fields for AI analysis.
+        Returns simplified dict format to reduce token usage.
+        
+        Args:
+            limit: Maximum number of tickets to return (default 100)
+        
+        Returns:
+            List of dicts with id, summary, description, notes, priority, status
+        """
+        tickets = list(self._tickets.values())[:limit]
+        
+        return [
+            {
+                "id": str(ticket.id),
+                "incident_id": generate_uuid_from_incident_id(ticket.summary).hex[:8],
+                "summary": ticket.summary,
+                "description": ticket.description or "",
+                "notes": ticket.notes or "",
+                "priority": ticket.priority.value,
+                "status": ticket.status.value,
+                "assigned_group": ticket.assigned_group or "",
+                "service": ticket.service or "",
+            }
+            for ticket in tickets
         ]
     
     @property

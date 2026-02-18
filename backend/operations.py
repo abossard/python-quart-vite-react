@@ -271,6 +271,133 @@ async def op_csv_ticket_fields() -> list[dict[str, str]]:
     return CSV_TICKET_FIELDS
 
 
+@operation(
+    name="csv_analyze_ticket_splitting",
+    description="Analyze CSV tickets to identify those with multiple issues and suggest how to split them",
+    http_method="POST",
+)
+async def op_csv_analyze_ticket_splitting(limit: int = 50) -> dict[str, Any]:
+    """
+    Analyze tickets using AI to identify those containing multiple problems.
+    Returns categorized tickets and split suggestions.
+    
+    Args:
+        limit: Maximum number of tickets to analyze (default 50, max 200)
+    
+    Returns:
+        {
+            "analyzed_count": int,
+            "single_issue_tickets": [{"id": str, "summary": str, ...}],
+            "multi_issue_tickets": [
+                {
+                    "id": str,
+                    "summary": str,
+                    "description": str,
+                    "issues_identified": ["issue1", "issue2"],
+                    "suggested_splits": [
+                        {"title": str, "description": str, "priority": str},
+                        ...
+                    ]
+                }
+            ]
+        }
+    """
+    from agents import AgentService
+    
+    _ensure_csv_loaded()
+    
+    # Normalize limit
+    normalized_limit = max(1, min(limit, 200))
+    
+    # Get tickets for analysis
+    tickets_data = _csv_service.get_tickets_for_analysis(normalized_limit)
+    
+    if not tickets_data:
+        return {
+            "analyzed_count": 0,
+            "single_issue_tickets": [],
+            "multi_issue_tickets": [],
+        }
+    
+    # Build AI prompt for ticket splitting analysis
+    prompt = f"""Du bist ein Experte für IT-Support-Ticket-Analyse. Analysiere die folgenden {len(tickets_data)} Tickets und identifiziere jene, die MEHRERE separate Probleme beschreiben.
+
+KRITERIEN FÜR MULTI-PROBLEM-TICKETS:
+- Enthält Wörter wie "und", "außerdem", "zusätzlich", "auch", "sowie"
+- Beschreibt verschiedene Fehlertypen oder Systeme
+- Erwähnt mehrere Service-Kategorien
+- Listet mehrere separate Anfragen auf
+
+TICKETS ZU ANALYSIEREN:
+{tickets_data[:10]}
+
+WICHTIG: Antworte NUR mit einem validen JSON-Objekt in diesem Format:
+{{
+  "single_issue": [
+    {{"id": "uuid", "summary": "...", "reason": "Beschreibt nur ein Problem"}}
+  ],
+  "multi_issue": [
+    {{
+      "id": "uuid",
+      "summary": "...",
+      "issues_identified": ["Problem 1 beschreibung", "Problem 2 beschreibung"],
+      "suggested_splits": [
+        {{
+          "title": "Ticket 1: Problem X",
+          "description": "Details zu Problem X",
+          "priority": "medium"
+        }},
+        {{
+          "title": "Ticket 2: Problem Y",
+          "description": "Details zu Problem Y",
+          "priority": "high"
+        }}
+      ]
+    }}
+  ]
+}}
+
+Analysiere jetzt die Tickets und gib das JSON zurück:"""
+    
+    # Run agent analysis
+    agent_service = AgentService()
+    try:
+        from agents import AgentRequest
+        result = await agent_service.run_agent(
+            AgentRequest(prompt=prompt, agent_type="csv_assistant")
+        )
+        
+        # Parse agent response - try to extract JSON
+        import json
+        import re
+        
+        result_text = result.result
+        
+        # Try to find JSON in response
+        json_match = re.search(r'\{[\s\S]*\}', result_text)
+        if json_match:
+            analysis = json.loads(json_match.group())
+        else:
+            # Fallback: return empty result
+            analysis = {"single_issue": [], "multi_issue": []}
+        
+        # Format response
+        return {
+            "analyzed_count": len(tickets_data),
+            "single_issue_tickets": analysis.get("single_issue", []),
+            "multi_issue_tickets": analysis.get("multi_issue", []),
+        }
+    
+    except Exception as e:
+        # Return error but with structure
+        return {
+            "analyzed_count": len(tickets_data),
+            "single_issue_tickets": [],
+            "multi_issue_tickets": [],
+            "error": str(e),
+        }
+
+
 # Export shared services for callers (REST app, CLI tools, etc.)
 task_service = _task_service
 csv_ticket_service = _csv_service
@@ -289,5 +416,6 @@ __all__ = [
     "op_csv_search_tickets",
     "op_csv_ticket_stats",
     "op_csv_ticket_fields",
+    "op_csv_analyze_ticket_splitting",
     "CSV_TICKET_FIELDS",
 ]

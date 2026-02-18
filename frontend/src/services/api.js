@@ -260,3 +260,19 @@ export async function getUsecaseDemoAgentRun(runId) {
 export async function listUsecaseDemoAgentRuns(limit = 20) {
   return fetchJSON(`${API_BASE_URL}/usecase-demo/agent-runs?limit=${limit}`);
 }
+
+// ============================================================================
+// Ticket Splitting APIs
+// ============================================================================
+
+/**
+ * Analyze CSV tickets for splitting
+ * @param {number} limit - Maximum number of tickets to analyze (1-200)
+ * @returns {Promise<Object>} Analysis result with single_issue and multi_issue tickets
+ */
+export async function analyzeTicketsForSplitting(limit = 50) {
+  return fetchJSON(`${API_BASE_URL}/csv-tickets/analyze-splitting`, {
+    method: "POST",
+    body: JSON.stringify({ limit }),
+  });
+}
