@@ -1,34 +1,34 @@
 import {
-  Badge,
-  Button,
-  Card,
-  CardHeader,
-  Field,
-  Spinner,
-  Subtitle1,
-  Text,
-  Textarea,
-  makeStyles,
-  tokens,
+    Badge,
+    Button,
+    Card,
+    CardHeader,
+    Field,
+    Spinner,
+    Subtitle1,
+    Text,
+    Textarea,
+    makeStyles,
+    tokens,
 } from '@fluentui/react-components'
 import {
-  ArrowSync24Regular,
-  Bot24Regular,
-  Play24Regular,
+    ArrowSync24Regular,
+    Bot24Regular,
+    Play24Regular,
 } from '@fluentui/react-icons'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import {
-  createUsecaseDemoAgentRun,
-  getCSVTicket,
-  getUsecaseDemoAgentRun,
-  listUsecaseDemoAgentRuns,
+    createUsecaseDemoAgentRun,
+    getCSVTicket,
+    getUsecaseDemoAgentRun,
+    listUsecaseDemoAgentRuns,
 } from '../../services/api'
 import { RESULT_VIEW_REGISTRY } from './resultViews'
 import {
-  extractTicketIdsFromRows,
-  formatDateTime,
-  sanitizeMarkdownForDisplay,
-  upsertRun,
+    extractTicketIdsFromRows,
+    formatDateTime,
+    sanitizeMarkdownForDisplay,
+    upsertRun,
 } from './usecaseDemoUtils'
 
 const STATUS_COLORS = {
@@ -427,7 +427,7 @@ export default function UsecaseDemoPage({ definition }) {
               {config.description && (
                 <Text size={200} className={styles.viewDescription}>{config.description}</Text>
               )}
-              {config.render({ run: currentRun, markdown: visibleResultMarkdown, styles })}
+              {config.render({ run: currentRun, markdown: visibleResultMarkdown, styles, matchingTickets, isLoadingTickets })}
             </div>
           ))
         )}

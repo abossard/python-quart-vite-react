@@ -38,6 +38,13 @@ test.describe("App shell", () => {
     );
     await expect(page.getByText("Operations Usecase Demo")).toBeVisible();
 
+    await page.getByTestId("tab-usecase-demo-sla-breach").click();
+    await expect(page.getByTestId("tab-usecase-demo-sla-breach")).toHaveAttribute(
+      "aria-selected",
+      "true"
+    );
+    await expect(page.getByTestId("sla-breach-prompt")).toBeVisible();
+
     await page.getByTestId("tab-fields").click();
     await expect(page.getByTestId("tab-fields")).toHaveAttribute(
       "aria-selected",
@@ -75,6 +82,12 @@ test.describe("App shell", () => {
 
     await visit(page, "/usecase_demo_ops");
     await expect(page.getByTestId("tab-usecase-demo-ops")).toHaveAttribute(
+      "aria-selected",
+      "true"
+    );
+
+    await visit(page, "/usecase_demo_sla_breach");
+    await expect(page.getByTestId("tab-usecase-demo-sla-breach")).toHaveAttribute(
       "aria-selected",
       "true"
     );
@@ -268,6 +281,23 @@ test.describe("Ops usecase demo page", () => {
     await expect(page.getByText("No result available yet.")).toBeVisible();
     await expect(page.getByTestId("ops-demo-result-view-table")).toHaveCount(0);
     await expect(page.getByText("Matching Tickets")).toHaveCount(0);
+  });
+});
+
+test.describe("SLA Breach Risk demo page", () => {
+  test("uses config-specific prompt and table+markdown views", async ({ page }) => {
+    await visit(page, "/usecase_demo_sla_breach");
+
+    const prompt = page.getByTestId("sla-breach-prompt");
+    const startButton = page.getByTestId("sla-breach-start-agent");
+
+    await expect(prompt).toBeVisible();
+    await expect(prompt).toContainText("assignee");
+    await expect(startButton).toBeEnabled();
+
+    await expect(page.getByText("SLA Breach Results")).toBeVisible();
+    await expect(page.getByText("No result available yet.")).toBeVisible();
+    await expect(page.getByText("Group-Assigned, No Individual Assignee")).toBeVisible();
   });
 });
 
