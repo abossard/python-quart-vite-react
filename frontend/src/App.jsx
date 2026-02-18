@@ -36,6 +36,7 @@ import Dashboard from './features/dashboard/Dashboard'
 import TaskList from './features/tasks/TaskList'
 import TicketList from './features/tickets/TicketList'
 import TicketsWithoutAnAssignee from './features/tickets/TicketsWithoutAnAssignee'
+import { createBooking, checkAvailability, getBookingIcsUrl } from './services/api'
 
 const useStyles = makeStyles({
   app: {
@@ -108,8 +109,8 @@ const useStyles = makeStyles({
     position: 'absolute',
     top: '7cm',
     left: 0,
-    maxHeight: '15cm',
-    overflowY: 'auto',
+    minHeight: '15cm',
+    overflow: 'visible',
   },
   slotsGrid: {
     display: 'grid',
@@ -127,12 +128,17 @@ const useStyles = makeStyles({
     border: `2px solid ${tokens.colorBrandBackground}`,
     borderRadius: tokens.borderRadiusMedium,
     marginTop: tokens.spacingVerticalM,
+    overflow: 'visible',
+    position: 'relative',
+    zIndex: 10,
   },
   formField: {
     display: 'flex',
     flexDirection: 'column',
     gap: tokens.spacingVerticalXS,
     marginBottom: tokens.spacingVerticalM,
+    overflow: 'visible',
+    position: 'relative',
   },
   spacer: {
     flexGrow: 1,
@@ -182,6 +188,27 @@ export default function App() {
     hardware: '',
     userEmail: '',
   })
+  const [isBooking, setIsBooking] = useState(false)
+  const [bookingError, setBookingError] = useState(null)
+  const [bookingSuccess, setBookingSuccess] = useState(false)
+  const [slotAvailability, setSlotAvailability] = useState([])
+  const [lastBookingId, setLastBookingId] = useState(null)
+  
+  // Load slot availability when date changes
+  useEffect(() => {
+    if (selectedDate) {
+      checkAvailability(selectedDate)
+        .then(availability => {
+          setSlotAvailability(availability)
+        })
+        .catch(error => {
+          console.error('Failed to load availability:', error)
+          setSlotAvailability([])
+        })
+    } else {
+      setSlotAvailability([])
+    }
+  }, [selectedDate])
   
   // Reset form data when slot or bookingType changes
   useEffect(() => {
@@ -192,7 +219,81 @@ export default function App() {
       hardware: '',
       userEmail: '',
     })
+    setBookingError(null)
+    setBookingSuccess(false)
   }, [selectedSlot, bookingType])
+  
+  const handleBooking = async () => {
+    // Validation
+    if (!bookingType || !formData.name || !formData.vorname || !formData.email || !formData.hardware) {
+      setBookingError('Bitte füllen Sie alle Pflichtfelder aus')
+      return
+    }
+    
+    if (bookingType === 'für jemand anders' && !formData.userEmail) {
+      setBookingError('Bitte geben Sie Ihre E-Mail-Adresse ein')
+      return
+    }
+    
+    setIsBooking(true)
+    setBookingError(null)
+    
+    try {
+      const bookingData = {
+        booking_date: selectedDate,
+        time_slot: selectedSlot,
+        booking_type: bookingType,
+        name: formData.name,
+        vorname: formData.vorname,
+        email: formData.email,
+        hardware: formData.hardware,
+        user_email: bookingType === 'für jemand anders' ? formData.userEmail : null,
+      }
+      
+      const booking = await createBooking(bookingData)
+      
+      // Show success
+      setBookingSuccess(true)
+      setLastBookingId(booking.id)
+      
+      // Reload availability to update slots
+      const availability = await checkAvailability(selectedDate)
+      setSlotAvailability(availability)
+      
+      // Reset form
+      setSelectedSlot(null)
+      setBookingType('')
+      setFormData({
+        name: '',
+        vorname: '',
+        email: '',
+        hardware: '',
+        userEmail: '',
+      })
+    } catch (error) {
+      setBookingError(error.message || 'Buchung fehlgeschlagen')
+    } finally {
+      setIsBooking(false)
+    }
+  }
+  
+  const handleDownloadIcs = () => {
+    if (lastBookingId) {
+      const url = getBookingIcsUrl(lastBookingId)
+      window.open(url, '_blank')
+      // Clear success message after download
+      setTimeout(() => {
+        setBookingSuccess(false)
+        setLastBookingId(null)
+      }, 1000)
+    }
+  }
+  
+  const isSlotAvailable = (slot) => {
+    if (slotAvailability.length === 0) return true // Default to available
+    const slotInfo = slotAvailability.find(s => s.time_slot === slot)
+    return slotInfo ? slotInfo.available : true
+  }
   
   const formatDateSwiss = (dateString) => {
     if (!dateString) return ''
@@ -265,24 +366,75 @@ export default function App() {
         <div className={styles.slotsDisplay}>
           <Text weight="semibold">Verfügbare Termine am {formatDateSwiss(selectedDate)}</Text>
           <div className={styles.slotsGrid}>
-            {generateTimeSlots().map((slot) => (
-              <Button
-                key={slot}
-                appearance={selectedSlot === slot ? "primary" : "outline"}
-                size="small"
-                className={styles.slotButton}
-                onClick={slot === '08:00' ? () => setSelectedSlot(slot) : undefined}
-              >
-                {slot}
-              </Button>
-            ))}
+            {generateTimeSlots().map((slot) => {
+              const available = isSlotAvailable(slot)
+              return (
+                <Button
+                  key={slot}
+                  appearance={selectedSlot === slot ? "primary" : "outline"}
+                  size="small"
+                  className={styles.slotButton}
+                  onClick={available ? () => setSelectedSlot(slot) : undefined}
+                  disabled={!available}
+                  style={{
+                    opacity: available ? 1 : 0.5,
+                    cursor: available ? 'pointer' : 'not-allowed',
+                  }}
+                >
+                  {slot} {!available && '(gebucht)'}
+                </Button>
+              )
+            })}
           </div>
           
-          {selectedSlot === '08:00' && (
+          {selectedSlot && (
             <div className={styles.bookingFormContainer}>
+              {/* TODO: Outlook-Integration - Dieses Formular ist Platzhalter für Outlook-Kalender-Anbindung */}
+              {/* Geplant: Outlook-Verfügbarkeit prüfen, Einladungen versenden, Termin-Synchronisation */}
               <Text size={500} weight="semibold" style={{ marginBottom: tokens.spacingVerticalM }}>
-                Termin buchen: {formatDateSwiss(selectedDate)} um {selectedSlot}
+                Termin buchen: {formatDateSwiss(selectedDate)} um {selectedSlot} (20 Minuten)
               </Text>
+              
+              {bookingSuccess && lastBookingId && (
+                <div style={{ 
+                  padding: tokens.spacingVerticalM, 
+                  backgroundColor: tokens.colorPaletteGreenBackground2,
+                  borderRadius: tokens.borderRadiusMedium,
+                  marginBottom: tokens.spacingVerticalM,
+                  color: tokens.colorPaletteGreenForeground1,
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: tokens.spacingVerticalS,
+                }}>
+                  <div>✓ Termin erfolgreich gebucht!</div>
+                  <div style={{ fontSize: '12px', fontStyle: 'italic', color: tokens.colorNeutralForeground3 }}>
+                    💡 Platzhalter: Später Outlook-API für direkte Kalendersynchronisation
+                  </div>
+                  <Button 
+                    appearance="primary" 
+                    onClick={handleDownloadIcs}
+                    style={{ 
+                      backgroundColor: tokens.colorBrandBackground, 
+                      color: 'white',
+                      alignSelf: 'flex-start',
+                    }}
+                  >
+                    📅 Platzhalter: Outlook-Template herunterladen (.ics)
+                  </Button>
+                </div>
+              )}
+              
+              {bookingError && (
+                <div style={{ 
+                  padding: tokens.spacingVerticalM, 
+                  backgroundColor: tokens.colorPaletteRedBackground2,
+                  borderRadius: tokens.borderRadiusMedium,
+                  marginBottom: tokens.spacingVerticalM,
+                  color: tokens.colorPaletteRedForeground1
+                }}>
+                  ⚠ {bookingError}
+                </div>
+              )}
               
               <div className={styles.formField}>
                 <Label required>Terminbuchung</Label>
@@ -351,10 +503,16 @@ export default function App() {
                   </div>
                   
                   <div style={{ display: 'flex', gap: tokens.spacingHorizontalS }}>
-                    <Button appearance="primary">Termin buchen</Button>
+                    <Button 
+                      appearance="primary" 
+                      onClick={handleBooking}
+                      disabled={isBooking}
+                    >
+                      {isBooking ? 'Wird gebucht...' : 'Termin buchen'}
+                    </Button>
                     <Button onClick={() => { 
-                      setSelectedSlot(null); 
-                      setBookingType(''); 
+                      setSelectedSlot(null);
+                      setBookingType('');
                       setFormData({
                         name: '',
                         vorname: '',
@@ -362,6 +520,8 @@ export default function App() {
                         hardware: '',
                         userEmail: '',
                       });
+                      setBookingError(null);
+                      setBookingSuccess(false);
                     }}>Abbrechen</Button>
                   </div>
                 </>

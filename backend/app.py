@@ -44,6 +44,9 @@ from operations import (
     op_list_tasks,
     op_update_task,
     task_service,
+    op_create_booking,
+    op_list_bookings,
+    op_check_availability,
 )
 
 # Ticket MCP server URL (same as in agents.py)
@@ -151,6 +154,70 @@ async def rest_get_stats():
     """REST wrapper: get task statistics."""
     stats = await op_get_task_stats()
     return jsonify(stats.model_dump())
+
+
+# ============================================================================
+# BOOKING ENDPOINTS
+# TODO: Outlook-Integration - Diese Endpoints sind Platzhalter für die
+# zukünftige Microsoft Outlook/Exchange Calendar Anbindung.
+# Aktuell: In-Memory-Speicherung
+# Geplant: Outlook Calendar API, MS Graph API, Exchange Web Services (EWS)
+# ============================================================================
+
+@app.route("/api/bookings", methods=["POST"])
+async def rest_create_booking():
+    """REST wrapper: create a booking."""
+    data = await request.get_json()
+    try:
+        from operations import BookingCreate
+        booking_data = BookingCreate(**data)
+        booking = await op_create_booking(booking_data)
+        return jsonify(booking.model_dump()), 201
+    except ValueError as e:
+        return jsonify({"error": str(e)}), 409  # 409 Conflict for already booked slot
+    except ValidationError as e:
+        return jsonify({"error": str(e)}), 400
+
+
+@app.route("/api/bookings", methods=["GET"])
+async def rest_list_bookings():
+    """REST wrapper: list all bookings."""
+    bookings = await op_list_bookings()
+    return jsonify([b.model_dump() for b in bookings])
+
+
+@app.route("/api/bookings/availability/<booking_date>", methods=["GET"])
+async def rest_check_availability(booking_date: str):
+    """REST wrapper: check slot availability for a date."""
+    availability = await op_check_availability(booking_date)
+    return jsonify([a.model_dump() for a in availability])
+
+
+@app.route("/api/bookings/<booking_id>/download", methods=["GET"])
+async def rest_download_booking_ics(booking_id: str):
+    """Download .ics file for a booking.
+    
+    TODO OUTLOOK-INTEGRATION: Dieser Endpoint ist Platzhalter für echte Outlook-API
+    Aktuell: Generiert lokale .ics-Datei
+    Zukünftig: Microsoft Graph API für direkte Kalendererstellung
+    """
+    bookings = await op_list_bookings()
+    booking = next((b for b in bookings if b.id == booking_id), None)
+    
+    if not booking:
+        return jsonify({"error": "Booking not found"}), 404
+    
+    if not booking.ics_content:
+        return jsonify({"error": "ICS content not available"}), 404
+    
+    # Return as downloadable .ics file
+    # TODO OUTLOOK-INTEGRATION: Ersetze durch MS Graph API Call
+    from quart import Response
+    response = Response(booking.ics_content, mimetype='text/calendar')
+    # Dateiname macht deutlich: Dies ist Platzhalter für Outlook-Integration
+    filename = f'PLATZHALTER-OUTLOOK-{booking.vorname}-{booking.name}-{booking.booking_date}-{booking.time_slot.replace(":", "")}.ics'
+    response.headers['Content-Disposition'] = f'attachment; filename="{filename}"'
+    return response
 
 
 # ============================================================================

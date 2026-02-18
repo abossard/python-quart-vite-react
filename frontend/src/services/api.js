@@ -100,6 +100,48 @@ export async function updateTask(taskId, updates) {
   });
 }
 
+// ============================================================================
+// Booking APIs
+// ============================================================================
+
+/**
+ * Create a new booking
+ * @param {Object} bookingData - Booking data
+ * @returns {Promise<Object>} Created booking
+ */
+export async function createBooking(bookingData) {
+  return fetchJSON(`${API_BASE_URL}/bookings`, {
+    method: "POST",
+    body: JSON.stringify(bookingData),
+  });
+}
+
+/**
+ * Get all bookings
+ * @returns {Promise<Array>} List of bookings
+ */
+export async function getBookings() {
+  return fetchJSON(`${API_BASE_URL}/bookings`);
+}
+
+/**
+ * Check slot availability for a specific date
+ * @param {string} date - Date in YYYY-MM-DD format
+ * @returns {Promise<Array>} List of slot availability
+ */
+export async function checkAvailability(date) {
+  return fetchJSON(`${API_BASE_URL}/bookings/availability/${date}`);
+}
+
+/**
+ * Get download URL for booking .ics file
+ * @param {string} bookingId - Booking ID
+ * @returns {string} Download URL
+ */
+export function getBookingIcsUrl(bookingId) {
+  return `${API_BASE_URL}/bookings/${bookingId}/download`;
+}
+
 export async function deleteTask(taskId) {
   return fetchJSON(`${API_BASE_URL}/tasks/${taskId}`, {
     method: "DELETE",
