@@ -1,19 +1,19 @@
 const VPN_DEFAULT_PROMPT = `Find VPN issues where you think it's more a skill issue than a technical issue.
 
 For speed:
-- First call csv_search_tickets with fields="id,summary,status,priority,assignee,assigned_group,created_at" and limit=20.
-- Use csv_get_ticket only for the top 3-5 most relevant IDs when deeper context is required.
+- First call csv_search_tickets with fields="incident_id,summary,status,priority,assignee,assigned_group,created_at" and limit=20.
+- Use csv_get_ticket only for the top 3-5 most relevant INC numbers when deeper context is required.
 - Stop after the first sufficient result set; avoid extra tool loops.
 - Do not request notes or resolution by default; only request them when explicitly needed for evidence.`;
 
 const OPS_DEFAULT_PROMPT = `Analysiere Tickets zu "Outlook" oder "E-Mail" und erstelle einen einzigen Operations-Usecase.
 Für schnelle Ausführung:
-- Nutze zuerst csv_search_tickets mit fields="id,summary,status,priority,assigned_group,created_at" und limit=20.
-- Nutze csv_get_ticket nur für wenige ausgewählte Ticket-IDs, wenn Details nötig sind.
+- Nutze zuerst csv_search_tickets mit fields="incident_id,summary,status,priority,assigned_group,created_at" und limit=20.
+- Nutze csv_get_ticket nur für wenige ausgewählte INC-Nummern, wenn Details nötig sind.
 - Beende nach dem ersten ausreichenden Datensatz und vermeide zusätzliche Tool-Schleifen.
 - Fordere notes/resolution nicht standardmäßig an, nur wenn sie für die Aussage zwingend notwendig sind.
 Liefere nur eine kurze, handlungsorientierte Zusammenfassung mit Prioritäten und nächstem Schritt.
-Nutze ausschließlich CSV-Daten und nenne die verwendeten Ticket-IDs in Fließtext.`;
+Nutze ausschließlich CSV-Daten und nenne die verwendeten INC-Nummern in Fließtext.`;
 
 const SLA_BREACH_DEFAULT_PROMPT = `Call csv_sla_breach_tickets with default parameters (unassigned_only=true, include_ok=false).
 
@@ -58,6 +58,7 @@ export const USECASE_DEMO_DEFINITIONS = [
       description:
         "Ticket IDs from the agent result are resolved against CSV data. Click a ticket to inspect details.",
       fields: [
+        "incident_id",
         "id",
         "summary",
         "status",
