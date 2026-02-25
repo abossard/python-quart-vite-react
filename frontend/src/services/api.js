@@ -210,8 +210,8 @@ export async function getCSVTicketStats() {
 }
 
 /**
- * Get one CSV ticket by ID.
- * @param {string} ticketId - Ticket UUID
+ * Get one CSV ticket by INC number (e.g. INC000016349327) or UUID.
+ * @param {string} ticketId - INC number or UUID
  * @param {string[]} fields - Optional field selection
  * @returns {Promise<Object>} Ticket details
  */
@@ -310,7 +310,7 @@ export async function deleteWorkbenchAgent(agentId) {
 
 export async function runWorkbenchAgent(
   agentId,
-  { inputPrompt = "", requiredInputValue = "" } = {}
+  { inputPrompt = "", requiredInputValue = "" } = {},
 ) {
   return fetchJSON(`${API_BASE_URL}/workbench/agents/${agentId}/runs`, {
     method: "POST",

@@ -748,17 +748,21 @@ async def get_csv_tickets():
 @app.route("/api/csv-tickets/<ticket_id>", methods=["GET"])
 async def get_csv_ticket(ticket_id: str):
     """
-    Get one CSV ticket by ID.
+    Get one CSV ticket by INC number (e.g. INC000016349327) or UUID.
 
     Query params:
     - fields: optional comma-separated list of fields to include
     """
-    try:
-        parsed_id = UUID(ticket_id)
-    except ValueError:
-        return jsonify({"error": "Invalid ticket ID"}), 400
+    # Try INC number first (primary identifier)
+    if ticket_id.upper().startswith("INC"):
+        ticket = _csv_ticket_service.get_ticket_by_incident_id(ticket_id)
+    else:
+        try:
+            parsed_id = UUID(ticket_id)
+        except ValueError:
+            return jsonify({"error": "Invalid ticket ID. Use an INC number (e.g. INC000016349327) or UUID."}), 400
+        ticket = _csv_ticket_service.get_ticket(parsed_id)
 
-    ticket = _csv_ticket_service.get_ticket(parsed_id)
     if ticket is None:
         return jsonify({"error": "Ticket not found"}), 404
 

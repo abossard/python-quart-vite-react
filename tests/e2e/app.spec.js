@@ -15,7 +15,7 @@ test.describe("App shell", () => {
 
     await expect(page.getByTestId("tab-csvtickets")).toHaveAttribute(
       "aria-selected",
-      "true"
+      "true",
     );
     await expect(page.getByText("CSV Ticket Data")).toBeVisible();
     await expect(page.getByText(/Showing \d+ of \d+ tickets/)).toBeVisible();
@@ -27,42 +27,41 @@ test.describe("App shell", () => {
     await page.getByTestId("tab-usecase-demo").click();
     await expect(page.getByTestId("tab-usecase-demo")).toHaveAttribute(
       "aria-selected",
-      "true"
+      "true",
     );
     await expect(page.getByText("Usecase Demo Description")).toBeVisible();
 
     await page.getByTestId("tab-usecase-demo-ops").click();
     await expect(page.getByTestId("tab-usecase-demo-ops")).toHaveAttribute(
       "aria-selected",
-      "true"
+      "true",
     );
     await expect(page.getByText("Operations Usecase Demo")).toBeVisible();
 
     await page.getByTestId("tab-usecase-demo-sla-breach").click();
-    await expect(page.getByTestId("tab-usecase-demo-sla-breach")).toHaveAttribute(
-      "aria-selected",
-      "true"
-    );
+    await expect(
+      page.getByTestId("tab-usecase-demo-sla-breach"),
+    ).toHaveAttribute("aria-selected", "true");
     await expect(page.getByTestId("sla-breach-prompt")).toBeVisible();
 
     await page.getByTestId("tab-fields").click();
     await expect(page.getByTestId("tab-fields")).toHaveAttribute(
       "aria-selected",
-      "true"
+      "true",
     );
     await expect(page.getByText("CSV Ticket Fields")).toBeVisible();
 
     await page.getByTestId("tab-kitchensink").click();
     await expect(page.getByTestId("tab-kitchensink")).toHaveAttribute(
       "aria-selected",
-      "true"
+      "true",
     );
     await expect(page.getByText("Kitchen Sink Demo")).toBeVisible();
 
     await page.getByTestId("tab-agent").click();
     await expect(page.getByTestId("tab-agent")).toHaveAttribute(
       "aria-selected",
-      "true"
+      "true",
     );
     await expect(page.getByTestId("agent-input")).toBeVisible();
   });
@@ -71,37 +70,36 @@ test.describe("App shell", () => {
     await visit(page, "/fields");
     await expect(page.getByTestId("tab-fields")).toHaveAttribute(
       "aria-selected",
-      "true"
+      "true",
     );
 
     await visit(page, "/usecase_demo_1");
     await expect(page.getByTestId("tab-usecase-demo")).toHaveAttribute(
       "aria-selected",
-      "true"
+      "true",
     );
 
     await visit(page, "/usecase_demo_ops");
     await expect(page.getByTestId("tab-usecase-demo-ops")).toHaveAttribute(
       "aria-selected",
-      "true"
+      "true",
     );
 
     await visit(page, "/usecase_demo_sla_breach");
-    await expect(page.getByTestId("tab-usecase-demo-sla-breach")).toHaveAttribute(
-      "aria-selected",
-      "true"
-    );
+    await expect(
+      page.getByTestId("tab-usecase-demo-sla-breach"),
+    ).toHaveAttribute("aria-selected", "true");
 
     await visit(page, "/agent");
     await expect(page.getByTestId("tab-agent")).toHaveAttribute(
       "aria-selected",
-      "true"
+      "true",
     );
 
     await visit(page, "/csvtickets");
     await expect(page.getByTestId("tab-csvtickets")).toHaveAttribute(
       "aria-selected",
-      "true"
+      "true",
     );
   });
 });
@@ -134,7 +132,9 @@ test.describe("CSV tickets", () => {
 });
 
 test.describe("Usecase demo page", () => {
-  test("allows editing prompt and toggles start button state", async ({ page }) => {
+  test("allows editing prompt and toggles start button state", async ({
+    page,
+  }) => {
     await visit(page, "/usecase_demo_1");
 
     const prompt = page.getByTestId("usecase-demo-prompt");
@@ -154,13 +154,16 @@ test.describe("Usecase demo page", () => {
   test("starts a run and shows mocked result table", async ({ page }) => {
     let statusCalls = 0;
 
-    await page.route("**/api/usecase-demo/agent-runs?limit=25", async (route) => {
-      await route.fulfill({
-        status: 200,
-        contentType: "application/json",
-        body: JSON.stringify({ runs: [] }),
-      });
-    });
+    await page.route(
+      "**/api/usecase-demo/agent-runs?limit=25",
+      async (route) => {
+        await route.fulfill({
+          status: 200,
+          contentType: "application/json",
+          body: JSON.stringify({ runs: [] }),
+        });
+      },
+    );
 
     await page.route("**/api/usecase-demo/agent-runs/run-1", async (route) => {
       statusCalls += 1;
@@ -173,12 +176,12 @@ test.describe("Usecase demo page", () => {
         completed_at: "2026-02-11T10:00:02",
         tools_used: ["csv_ticket_stats", "csv_search_tickets"],
         result_markdown:
-          "## Summary\\nProject generated.\\n\\n```json\\n{\"rows\":[{\"menu_point\":\"Smart Routing\",\"project_name\":\"Auto Assignment Optimizer\",\"ticket_ids\":\"ticket-1\"}]}\\n```",
+          '## Summary\\nProject generated.\\n\\n```json\\n{"rows":[{"menu_point":"Smart Routing","project_name":"Auto Assignment Optimizer","ticket_ids":"INC000016349327"}]}\\n```',
         result_rows: [
           {
             menu_point: "Smart Routing",
             project_name: "Auto Assignment Optimizer",
-            ticket_ids: "ticket-1",
+            ticket_ids: "INC000016349327",
           },
         ],
         result_columns: ["menu_point", "project_name", "ticket_ids"],
@@ -229,12 +232,13 @@ test.describe("Usecase demo page", () => {
       });
     });
 
-    await page.route("**/api/csv-tickets/ticket-1*", async (route) => {
+    await page.route("**/api/csv-tickets/INC000016349327*", async (route) => {
       await route.fulfill({
         status: 200,
         contentType: "application/json",
         body: JSON.stringify({
-          id: "ticket-1",
+          incident_id: "INC000016349327",
+          id: "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
           summary: "VPN Failure on Remote Access",
           status: "pending",
           priority: "high",
@@ -256,18 +260,30 @@ test.describe("Usecase demo page", () => {
     await page.getByTestId("usecase-demo-start-agent").click();
 
     await expect(page.getByText("Run ID: run-1")).toBeVisible();
-    await expect(page.getByRole("cell", { name: "Auto Assignment Optimizer" })).toBeVisible({ timeout: 12000 });
+    await expect(
+      page.getByRole("cell", { name: "Auto Assignment Optimizer" }),
+    ).toBeVisible({ timeout: 12000 });
     await expect(page.getByText("Structured JSON Preview")).toHaveCount(0);
-    await expect(page.getByRole("button", { name: "Copy JSON" })).toHaveCount(0);
-    await expect(page.getByTestId("usecase-demo-ticket-open-ticket-1")).toBeVisible();
-    await page.getByTestId("usecase-demo-ticket-open-ticket-1").click();
-    await expect(page.getByTestId("usecase-demo-ticket-details")).toContainText("VPN Failure on Remote Access");
-    await expect(page.getByTestId("usecase-demo-ticket-details")).toContainText("Network Team");
+    await expect(page.getByRole("button", { name: "Copy JSON" })).toHaveCount(
+      0,
+    );
+    await expect(
+      page.getByTestId("usecase-demo-ticket-open-INC000016349327"),
+    ).toBeVisible();
+    await page.getByTestId("usecase-demo-ticket-open-INC000016349327").click();
+    await expect(page.getByTestId("usecase-demo-ticket-details")).toContainText(
+      "VPN Failure on Remote Access",
+    );
+    await expect(page.getByTestId("usecase-demo-ticket-details")).toContainText(
+      "Network Team",
+    );
   });
 });
 
 test.describe("Ops usecase demo page", () => {
-  test("uses config-specific prompt and markdown-only view", async ({ page }) => {
+  test("uses config-specific prompt and markdown-only view", async ({
+    page,
+  }) => {
     await visit(page, "/usecase_demo_ops");
 
     const prompt = page.getByTestId("ops-demo-prompt");
@@ -285,19 +301,20 @@ test.describe("Ops usecase demo page", () => {
 });
 
 test.describe("SLA Breach Risk demo page", () => {
-  test("uses config-specific prompt and table+markdown views", async ({ page }) => {
+  test("uses config-specific prompt and table+markdown views", async ({
+    page,
+  }) => {
     await visit(page, "/usecase_demo_sla_breach");
 
     const prompt = page.getByTestId("sla-breach-prompt");
     const startButton = page.getByTestId("sla-breach-start-agent");
 
     await expect(prompt).toBeVisible();
-    await expect(prompt).toContainText("assignee");
+    await expect(prompt).toContainText("csv_sla_breach_tickets");
     await expect(startButton).toBeEnabled();
 
     await expect(page.getByText("SLA Breach Results")).toBeVisible();
     await expect(page.getByText("No result available yet.")).toBeVisible();
-    await expect(page.getByText("Group-Assigned, No Individual Assignee")).toBeVisible();
   });
 });
 

@@ -204,7 +204,7 @@ export default function UsecaseDemoPage({ definition }) {
   )
 
   const selectedTicket = useMemo(
-    () => matchingTickets.find((ticket) => ticket.id === selectedTicketId) || null,
+    () => matchingTickets.find((ticket) => ticket.incident_id === selectedTicketId || ticket.id === selectedTicketId) || null,
     [matchingTickets, selectedTicketId]
   )
 
@@ -254,10 +254,10 @@ export default function UsecaseDemoPage({ definition }) {
       const loadedTickets = tickets.filter((ticket) => !ticket._error)
       setMatchingTickets(loadedTickets)
       setSelectedTicketId((previousId) => {
-        if (previousId && loadedTickets.some((ticket) => ticket.id === previousId)) {
+        if (previousId && loadedTickets.some((ticket) => ticket.incident_id === previousId || ticket.id === previousId)) {
           return previousId
         }
-        return loadedTickets[0]?.id || null
+        return loadedTickets[0]?.incident_id || loadedTickets[0]?.id || null
       })
 
       if (!loadedTickets.length) {
@@ -462,23 +462,25 @@ export default function UsecaseDemoPage({ definition }) {
                     </tr>
                   </thead>
                   <tbody>
-                    {matchingTickets.map((ticket, index) => (
-                      <tr key={ticket.id} className={index % 2 ? styles.rowAlt : ''}>
-                        <td className={styles.td}>{ticket.id}</td>
+                    {matchingTickets.map((ticket, index) => {
+                      const ticketKey = ticket.incident_id || ticket.id
+                      return (
+                      <tr key={ticketKey} className={index % 2 ? styles.rowAlt : ''}>
+                        <td className={styles.td}>{ticketKey}</td>
                         <td className={styles.td}>{ticket.summary || '—'}</td>
                         <td className={styles.td}>{ticket.status || '—'}</td>
                         <td className={styles.td}>
                           <Button
                             size="small"
-                            appearance={selectedTicketId === ticket.id ? 'primary' : 'secondary'}
-                            onClick={() => setSelectedTicketId(ticket.id)}
-                            data-testid={`${testIdPrefix}-ticket-open-${ticket.id}`}
+                            appearance={selectedTicketId === ticketKey ? 'primary' : 'secondary'}
+                            onClick={() => setSelectedTicketId(ticketKey)}
+                            data-testid={`${testIdPrefix}-ticket-open-${ticketKey}`}
                           >
                             Open
                           </Button>
                         </td>
                       </tr>
-                    ))}
+                    )})}
                   </tbody>
                 </table>
               </div>
@@ -486,7 +488,7 @@ export default function UsecaseDemoPage({ definition }) {
               {selectedTicket && (
                 <div className={styles.ticketDetails} data-testid={`${testIdPrefix}-ticket-details`}>
                   <Text weight="semibold">{selectedTicket.summary || 'Ticket Details'}</Text>
-                  <Text>ID: {selectedTicket.id}</Text>
+                  <Text>INC: {selectedTicket.incident_id || '—'}</Text>
                   <Text>Status: {selectedTicket.status || '—'}</Text>
                   <Text>Priority: {selectedTicket.priority || '—'}</Text>
                   <Text>Assignee: {selectedTicket.assignee || '—'}</Text>
