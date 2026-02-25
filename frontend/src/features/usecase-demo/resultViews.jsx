@@ -1,21 +1,21 @@
 import {
-  Badge,
-  Button,
-  Checkbox,
-  Spinner,
-  Text,
-  ToolbarButton,
-  Tooltip,
-  makeStyles,
-  tokens
+    Badge,
+    Button,
+    Checkbox,
+    Spinner,
+    Text,
+    ToolbarButton,
+    Tooltip,
+    makeStyles,
+    tokens
 } from '@fluentui/react-components'
 import {
-  ArrowUp24Regular,
-  CheckmarkCircle24Regular,
-  DismissCircle24Regular,
-  Mail24Regular,
-  SelectAllOn24Regular,
-  Warning24Regular,
+    ArrowUp24Regular,
+    CheckmarkCircle24Regular,
+    DismissCircle24Regular,
+    Mail24Regular,
+    SelectAllOn24Regular,
+    Warning24Regular,
 } from '@fluentui/react-icons'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import ReactMarkdown from 'react-markdown'
@@ -385,6 +385,11 @@ export const RESULT_VIEW_REGISTRY = {
   markdown: {
     title: 'Narrative Summary',
     description: 'Human-readable summary from the run output.',
+    render: (props) => <ResultMarkdownView {...props} />,
+  },
+  'sla-next-actions': {
+    title: 'Next Actions',
+    description: 'Agent commentary on immediate follow-up actions based on SLA breach data.',
     render: (props) => <ResultMarkdownView {...props} />,
   },
   'sla-breach': {

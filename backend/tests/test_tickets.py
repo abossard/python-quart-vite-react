@@ -1,8 +1,11 @@
 """
 Test build_reminder_candidate with real support ticket data.
 
-This script validates the Pydantic models and calculation functions
+Validates the Pydantic models and calculation functions
 against sample data from the support-tickets MCP service.
+
+Run from backend directory:
+    python -m pytest tests/test_tickets.py
 """
 
 from datetime import datetime, timezone
@@ -82,7 +85,7 @@ SAMPLE_TICKETS = [
         "requester_email": "admin@company.org",
         "city": "Zürich",
         "service": "Infrastructure",
-        "created_at": "2025-12-17T11:00:00+00:00",  # 30+ mins ago → overdue
+        "created_at": "2025-12-17T11:00:00+00:00",
         "updated_at": "2025-12-17T11:00:00+00:00",
         "work_logs": [],
     },
@@ -126,7 +129,7 @@ SAMPLE_TICKETS = [
         "requester_email": "worker@company.org",
         "city": "Basel",
         "service": "Workplace",
-        "created_at": "2025-12-17T11:30:00+00:00",  # Recent → within SLA
+        "created_at": "2025-12-17T11:30:00+00:00",
         "updated_at": "2025-12-17T11:30:00+00:00",
         "work_logs": [],
     },
@@ -143,7 +146,7 @@ SAMPLE_TICKETS = [
         "requester_email": "mobile@company.org",
         "city": "Luzern",
         "service": "Communication",
-        "created_at": "2025-12-17T04:00:00+00:00",  # 8+ hours ago
+        "created_at": "2025-12-17T04:00:00+00:00",
         "updated_at": "2025-12-17T10:00:00+00:00",
         "work_logs": [
             {
@@ -246,93 +249,61 @@ SAMPLE_TICKETS = [
     },
 ]
 
+TEST_NOW = datetime(2025, 12, 17, 12, 0, 0, tzinfo=timezone.utc)
 
-def parse_ticket_with_worklogs(data: dict) -> tuple[Ticket, list[WorkLog]]:
+
+def _parse_ticket(data: dict) -> tuple[Ticket, list[WorkLog]]:
     """Parse raw ticket data into Ticket and WorkLog models."""
-    work_logs_data = data.pop("work_logs", [])
-    ticket = Ticket.model_validate(data)
+    raw = {**data}
+    work_logs_data = raw.pop("work_logs", [])
+    ticket = Ticket.model_validate(raw)
     work_logs = [WorkLog.model_validate(wl) for wl in work_logs_data]
     return ticket, work_logs
 
 
-def main():
-    print("=" * 70)
-    print("Testing build_reminder_candidate with 10 support tickets")
-    print("=" * 70)
-    print()
-    
-    # Use a fixed "now" for consistent testing
-    test_now = datetime(2025, 12, 17, 12, 0, 0, tzinfo=timezone.utc)
-    print(f"Test time (now): {test_now.isoformat()}")
-    print()
-    
-    # Show SLA deadlines
-    print("SLA Deadlines by Priority:")
-    for priority, minutes in PRIORITY_SLA_MINUTES.items():
-        print(f"  {priority.value:10s}: {minutes:4d} min ({minutes // 60}h {minutes % 60}m)")
-    print()
-    
-    # Process each ticket
-    print("-" * 70)
-    print(f"{'#':>2} {'Priority':10s} {'Status':12s} {'Elapsed':>8s} {'SLA':>6s} {'Overdue':>8s} {'Reminded':>9s} {'NeedsReminder':>13s}")
-    print("-" * 70)
-    
-    candidates_needing_reminder = []
-    
-    for i, raw_data in enumerate(SAMPLE_TICKETS, 1):
-        # Make a copy to avoid mutating original
-        data = {**raw_data, "work_logs": raw_data.get("work_logs", [])}
-        work_logs_data = data.pop("work_logs")
-        
-        ticket = Ticket.model_validate(data)
-        work_logs = [WorkLog.model_validate(wl) for wl in work_logs_data]
-        
-        # Build reminder candidate
-        candidate = build_reminder_candidate(ticket, work_logs, now=test_now)
-        
-        # Check if needs reminder (assigned without assignee + overdue)
-        needs_reminder = is_assigned_without_assignee(ticket) and candidate.is_overdue
-        
-        elapsed_str = f"{candidate.minutes_since_creation}m"
-        sla_str = f"{candidate.sla_deadline_minutes}m"
-        
-        print(
-            f"{i:2d} "
-            f"{ticket.priority.value:10s} "
-            f"{ticket.status.value:12s} "
-            f"{elapsed_str:>8s} "
-            f"{sla_str:>6s} "
-            f"{'YES' if candidate.is_overdue else 'no':>8s} "
-            f"{candidate.reminder_count:>9d} "
-            f"{'>>> YES <<<' if needs_reminder else 'no':>13s}"
-        )
-        
-        if needs_reminder:
-            candidates_needing_reminder.append((i, ticket, candidate))
-    
-    print("-" * 70)
-    print()
-    
-    # Summary
-    print("=" * 70)
-    print("TICKETS NEEDING REMINDER:")
-    print("=" * 70)
-    
-    if not candidates_needing_reminder:
-        print("  None")
-    else:
-        for idx, ticket, candidate in candidates_needing_reminder:
-            reminded_msg = f" (reminded {candidate.reminder_count}x)" if candidate.was_reminded_before else ""
-            print(f"  #{idx}: {ticket.summary}")
-            print(f"       ID: {ticket.id}")
-            print(f"       Priority: {ticket.priority.value} | Group: {ticket.assigned_group}")
-            print(f"       Overdue by: {candidate.minutes_since_creation - candidate.sla_deadline_minutes} minutes{reminded_msg}")
-            print()
-    
-    print("=" * 70)
-    print("TEST PASSED: All tickets parsed and analyzed successfully!")
-    print("=" * 70)
+def test_all_tickets_parse():
+    """All sample tickets parse into valid Pydantic models."""
+    for raw in SAMPLE_TICKETS:
+        ticket, work_logs = _parse_ticket(raw)
+        assert ticket.id
+        assert ticket.priority
 
 
-if __name__ == "__main__":
-    main()
+def test_critical_unassigned_overdue():
+    """Critical ticket with no assignee that is overdue needs a reminder."""
+    raw = SAMPLE_TICKETS[2]  # "CRITICAL: Production database down"
+    ticket, work_logs = _parse_ticket(raw)
+    candidate = build_reminder_candidate(ticket, work_logs, now=TEST_NOW)
+    assert candidate.is_overdue
+    assert is_assigned_without_assignee(ticket)
+
+
+def test_resolved_ticket_no_reminder():
+    """Resolved ticket should not trigger a reminder."""
+    raw = SAMPLE_TICKETS[6]  # "Password reset request"
+    ticket, work_logs = _parse_ticket(raw)
+    assert not is_assigned_without_assignee(ticket)
+
+
+def test_critical_with_assignee_no_reminder():
+    """Critical ticket with an assignee does not need a reminder."""
+    raw = SAMPLE_TICKETS[7]  # "CRITICAL: Network switch failure"
+    ticket, work_logs = _parse_ticket(raw)
+    assert not is_assigned_without_assignee(ticket)
+
+
+def test_high_overdue_reminder_count():
+    """High-priority overdue ticket counts existing reminders."""
+    raw = SAMPLE_TICKETS[5]  # "Email not syncing on mobile"
+    ticket, work_logs = _parse_ticket(raw)
+    candidate = build_reminder_candidate(ticket, work_logs, now=TEST_NOW)
+    assert candidate.is_overdue
+    assert candidate.reminder_count == 2
+
+
+def test_low_new_within_sla():
+    """Low-priority new ticket within SLA is not overdue."""
+    raw = SAMPLE_TICKETS[4]  # "Request for second monitor"
+    ticket, work_logs = _parse_ticket(raw)
+    candidate = build_reminder_candidate(ticket, work_logs, now=TEST_NOW)
+    assert not candidate.is_overdue
