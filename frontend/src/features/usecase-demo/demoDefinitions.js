@@ -15,7 +15,7 @@ Für schnelle Ausführung:
 Liefere nur eine kurze, handlungsorientierte Zusammenfassung mit Prioritäten und nächstem Schritt.
 Nutze ausschließlich CSV-Daten und nenne die verwendeten INC-Nummern in Fließtext.`;
 
-const KBA_DEFAULT_PROMPT = `INC000001234567`;
+const KBA_DEFAULT_PROMPT = `INC000016349815`;
 
 const SLA_BREACH_DEFAULT_PROMPT = `Call csv_sla_breach_tickets with default parameters (unassigned_only=true, include_ok=false).
 
@@ -161,10 +161,10 @@ export const USECASE_DEMO_DEFINITIONS = [
     defaultPrompt: KBA_DEFAULT_PROMPT,
     runHistoryLimit: 10,
     pollIntervalMs: 2000,
-    resultViews: ['kba_article', 'ticket_details'],
-    resultSectionTitle: 'Generierter KBA-Artikel',
+    resultViews: ['kba_markdown'],
+    resultSectionTitle: 'Knowledge Base Artikel',
     resultSectionDescription:
-      'Der KBA-Artikel wurde auf Basis des Tickets automatisch generiert und kann als Vorlage für die Knowledge Base verwendet werden.',
+      'Der KBA-Artikel wurde als Markdown generiert und kann direkt in die Knowledge Base übernommen werden.',
     ticketIdFields: ['ticket_id'],
     matchingTickets: {
       enabled: false,

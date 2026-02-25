@@ -518,11 +518,15 @@ class AgentService:
             ], default=str)
 
         def _csv_get_ticket(ticket_id: str, fields: str | None = None) -> str:
-            try:
-                tid = UUID(ticket_id)
-            except Exception:
-                return json.dumps({"error": "invalid ticket id"})
-            ticket = service.get_ticket(tid)
+            # Try INC number first (primary identifier)
+            if ticket_id.upper().startswith("INC"):
+                ticket = service.get_ticket_by_incident_id(ticket_id)
+            else:
+                try:
+                    tid = UUID(ticket_id)
+                except Exception:
+                    return json.dumps({"error": "invalid ticket id"})
+                ticket = service.get_ticket(tid)
             if not ticket:
                 return json.dumps({"error": "not found"})
             dump = ticket.model_dump()
@@ -581,9 +585,9 @@ class AgentService:
                 func=_csv_get_ticket,
                 name="csv_get_ticket",
                 description=(
-                    "Get ticket by UUID (id). Supports optional fields (comma-separated). "
+                    "Get ticket by INC number (e.g. INC000016349327) or UUID. "
+                    "Supports optional fields (comma-separated). "
                     "Default response is compact fields without notes/resolution for speed. "
-                    "Prefer requesting only required fields for drill-down. "
                     "Request notes/resolution explicitly via fields, or use fields='*' for full payload."
                 ),
             ),
@@ -651,17 +655,47 @@ class AgentService:
             # Use KBA-specific system prompt when agent_type is kba_assistant
             if request.agent_type == "kba_assistant":
                 system_prompt = (
-                    "Du bist ein KBA-Assistent. Erstelle aus Support-Tickets strukturierte Knowledge Base Artikel.\n\n"
-                    "Workflow:\n"
-                    "1. Nutze csv_get_ticket oder csv_search_tickets um das Ticket zu finden\n"
-                    "2. Analysiere: Summary, Description, Notes, Resolution\n"
-                    "3. Nutze generate_kba_article mit der Ticket-ID um einen KBA-Artikel zu erstellen\n"
-                    "4. Gib das Ergebnis als strukturiertes JSON zurück mit: ticket_id, title, question, answer\n\n"
-                    "Wichtig:\n"
-                    "- Verwende ausschließlich die verfügbaren Tools\n"
-                    "- Falls das Ticket nicht gefunden wird, sage das klar\n"
-                    "- Der KBA-Artikel soll prägnant und hilfreich sein\n\n"
-                    'Antworte im JSON-Format:\n```json\n{"ticket_id": "...", "title": "...", "question": "...", "answer": "..."}\n```'
+                    "Du bist ein KBA-Redakteur. Erstelle aus Support-Tickets professionelle Knowledge Base Artikel.\n\n"
+                    "## Workflow\n"
+                    "1. Rufe `csv_get_ticket` mit der INC-Nummer auf (setze fields='*' für vollständige Daten inkl. Notes/Resolution).\n"
+                    "2. Analysiere: Summary, Description, Notes, Resolution, Status, Priority, Assignee.\n"
+                    "3. Erstelle den KBA-Artikel direkt als Markdown (KEIN JSON, KEIN Tool-Aufruf für die Generierung).\n\n"
+                    "## Ausgabeformat (exakt dieses Markdown-Schema verwenden)\n\n"
+                    "```\n"
+                    "# [Prägnanter, aussagekräftiger Titel]\n\n"
+                    "## Inhaltsverzeichnis\n"
+                    "- [Zusammenfassung](#zusammenfassung)\n"
+                    "- [Problembeschreibung](#problembeschreibung)\n"
+                    "- [Ursachenanalyse](#ursachenanalyse)\n"
+                    "- [Lösungsschritte](#lösungsschritte)\n"
+                    "- [Zusätzliche Hinweise](#zusätzliche-hinweise)\n\n"
+                    "## Zusammenfassung\n"
+                    "> Kurze Zusammenfassung (2-3 Sätze) des Problems und der Lösung.\n\n"
+                    "| Feld | Wert |\n"
+                    "|------|------|\n"
+                    "| **Ticket-ID** | INC... |\n"
+                    "| **Priorität** | ... |\n"
+                    "| **Status** | ... |\n"
+                    "| **Zuständige Gruppe** | ... |\n\n"
+                    "## Problembeschreibung\n"
+                    "Detaillierte Beschreibung des gemeldeten Problems.\n\n"
+                    "## Ursachenanalyse\n"
+                    "Root Cause (falls aus Ticket ableitbar, sonst 'Nicht dokumentiert').\n\n"
+                    "## Lösungsschritte\n"
+                    "1. Schritt 1\n"
+                    "2. Schritt 2\n"
+                    "3. ...\n\n"
+                    "## Zusätzliche Hinweise\n"
+                    "Tipps, Workarounds, Referenzen.\n\n"
+                    "---\n"
+                    "*Generiert aus Ticket [INC...]*\n"
+                    "```\n\n"
+                    "## Regeln\n"
+                    "- Nutze **einen einzigen** `csv_get_ticket`-Aufruf mit der INC-Nummer und `fields='*'`.\n"
+                    "- Schreibe den kompletten Artikel auf **Deutsch**.\n"
+                    "- Falls das Ticket nicht gefunden wird, sage das klar.\n"
+                    "- Gib **nur** den Markdown-Artikel zurück, keine JSON-Blöcke.\n"
+                    "- Leite Inhalte ausschließlich aus den Ticketdaten ab — erfinde nichts.\n"
                 )
             else:
                 system_prompt = self._system_prompt

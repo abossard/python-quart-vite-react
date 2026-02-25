@@ -44,6 +44,10 @@ class UsecaseDemoRunCreate(BaseModel):
         max_length=8000,
         description="Prompt to execute with the CSV ticket assistant",
     )
+    agent_type: str = Field(
+        default="task_assistant",
+        description="Type of agent to run (task_assistant or kba_assistant)",
+    )
 
     @field_validator("prompt")
     @classmethod
@@ -59,6 +63,7 @@ class UsecaseDemoRun(BaseModel):
 
     id: str = Field(..., description="Unique run identifier")
     prompt: str = Field(..., description="Prompt used for the run")
+    agent_type: str = Field(default="task_assistant", description="Type of agent used")
     status: UsecaseDemoRunStatus = Field(default=UsecaseDemoRunStatus.QUEUED)
     created_at: datetime = Field(default_factory=datetime.now)
     started_at: datetime | None = Field(default=None)
@@ -147,7 +152,7 @@ class UsecaseDemoRunService:
 
     async def create_run(self, payload: UsecaseDemoRunCreate) -> UsecaseDemoRun:
         """Create a run and schedule asynchronous execution."""
-        run = UsecaseDemoRun(id=str(uuid4()), prompt=payload.prompt)
+        run = UsecaseDemoRun(id=str(uuid4()), prompt=payload.prompt, agent_type=payload.agent_type)
         async with self._lock:
             self._runs[run.id] = run
 

@@ -20,6 +20,7 @@ import {
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
+import { Copy24Regular, DocumentText24Regular } from '@fluentui/react-icons'
 import { getSlaBreach } from '../../services/api'
 
 function ResultTableView({ run, styles }) {
@@ -475,6 +476,190 @@ function ResultTicketDetailsView({ run, styles }) {
   )
 }
 
+const useKbaStyles = makeStyles({
+  wrapper: {
+    border: `1px solid ${tokens.colorNeutralStroke2}`,
+    borderRadius: tokens.borderRadiusMedium,
+    overflow: 'hidden',
+  },
+  header: {
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    padding: `${tokens.spacingVerticalS} ${tokens.spacingHorizontalM}`,
+    backgroundColor: tokens.colorNeutralBackground3,
+    borderBottom: `1px solid ${tokens.colorNeutralStroke2}`,
+  },
+  headerLeft: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: tokens.spacingHorizontalS,
+  },
+  body: {
+    padding: `${tokens.spacingVerticalL} ${tokens.spacingHorizontalL}`,
+    '& h1': {
+      fontSize: '1.6rem',
+      fontWeight: tokens.fontWeightSemibold,
+      borderBottom: `2px solid ${tokens.colorBrandStroke1}`,
+      paddingBottom: tokens.spacingVerticalS,
+      marginBottom: tokens.spacingVerticalM,
+    },
+    '& h2': {
+      fontSize: '1.2rem',
+      fontWeight: tokens.fontWeightSemibold,
+      color: tokens.colorBrandForeground1,
+      marginTop: tokens.spacingVerticalL,
+      marginBottom: tokens.spacingVerticalS,
+    },
+    '& h3': {
+      fontSize: '1rem',
+      fontWeight: tokens.fontWeightSemibold,
+      marginTop: tokens.spacingVerticalM,
+      marginBottom: tokens.spacingVerticalXS,
+    },
+    '& p': { lineHeight: 1.7, marginBottom: tokens.spacingVerticalS },
+    '& ul, & ol': { paddingLeft: '1.5em', marginBottom: tokens.spacingVerticalS },
+    '& li': { lineHeight: 1.6, marginBottom: tokens.spacingVerticalXXS },
+    '& code': {
+      backgroundColor: tokens.colorNeutralBackground4,
+      padding: '2px 6px',
+      borderRadius: tokens.borderRadiusSmall,
+      fontFamily: tokens.fontFamilyMonospace,
+      fontSize: '0.9em',
+    },
+    '& pre': {
+      backgroundColor: tokens.colorNeutralBackground4,
+      padding: tokens.spacingVerticalM,
+      borderRadius: tokens.borderRadiusMedium,
+      overflow: 'auto',
+    },
+    '& pre code': { backgroundColor: 'transparent', padding: 0 },
+    '& blockquote': {
+      borderLeft: `4px solid ${tokens.colorBrandStroke1}`,
+      margin: `${tokens.spacingVerticalS} 0`,
+      padding: `${tokens.spacingVerticalXS} ${tokens.spacingHorizontalM}`,
+      color: tokens.colorNeutralForeground2,
+      backgroundColor: tokens.colorNeutralBackground2,
+      borderRadius: `0 ${tokens.borderRadiusMedium} ${tokens.borderRadiusMedium} 0`,
+    },
+    '& table': { width: '100%', borderCollapse: 'collapse', marginBottom: tokens.spacingVerticalM },
+    '& th, & td': {
+      padding: `${tokens.spacingVerticalXS} ${tokens.spacingHorizontalS}`,
+      border: `1px solid ${tokens.colorNeutralStroke2}`,
+      textAlign: 'left',
+    },
+    '& th': { backgroundColor: tokens.colorNeutralBackground3, fontWeight: tokens.fontWeightSemibold },
+    '& hr': { border: 'none', borderTop: `1px solid ${tokens.colorNeutralStroke2}`, margin: `${tokens.spacingVerticalL} 0` },
+    '& strong': { fontWeight: tokens.fontWeightSemibold },
+  },
+  errorWrapper: {
+    border: '1px solid #d13438',
+    borderRadius: tokens.borderRadiusMedium,
+    overflow: 'hidden',
+  },
+  errorHeader: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: tokens.spacingHorizontalS,
+    padding: `${tokens.spacingVerticalS} ${tokens.spacingHorizontalM}`,
+    backgroundColor: '#fde7e9',
+    borderBottom: '1px solid #d13438',
+  },
+  errorBody: {
+    padding: `${tokens.spacingVerticalM} ${tokens.spacingHorizontalL}`,
+    backgroundColor: '#fef0f1',
+    color: '#a80000',
+    lineHeight: 1.6,
+  },
+})
+
+function ResultKBAMarkdownView({ run, markdown, styles }) {
+  const kbaStyles = useKbaStyles()
+  const [copied, setCopied] = useState(false)
+
+  // Show red error screen when run failed or has an error
+  if (run?.status === 'failed' || run?.error) {
+    return (
+      <div className={kbaStyles.errorWrapper}>
+        <div className={kbaStyles.errorHeader}>
+          <DismissCircle24Regular style={{ color: '#d13438' }} />
+          <Text weight="semibold" style={{ color: '#a80000' }}>Fehler bei der KBA-Generierung</Text>
+        </div>
+        <div className={kbaStyles.errorBody}>
+          <Text style={{ display: 'block', marginBottom: '8px', fontWeight: 600 }}>
+            Der KBA-Artikel konnte nicht erstellt werden:
+          </Text>
+          <Text style={{ display: 'block', whiteSpace: 'pre-wrap' }}>
+            {run.error || 'Ein unbekannter Fehler ist aufgetreten.'}
+          </Text>
+        </div>
+      </div>
+    )
+  }
+
+  if (!markdown) {
+    return <Text>Kein KBA-Artikel vorhanden. Bitte starten Sie einen Lauf mit einer gültigen Ticket-ID.</Text>
+  }
+
+  // Detect if the markdown indicates the ticket was not found
+  const notFoundPatterns = [
+    /nicht gefunden/i,
+    /not found/i,
+    /konnte.*nicht.*gefunden/i,
+    /ungültig/i,
+    /invalid.*ticket/i,
+    /error.*not found/i,
+  ]
+  const looksLikeError = notFoundPatterns.some((p) => p.test(markdown)) && markdown.length < 600
+
+  if (looksLikeError) {
+    return (
+      <div className={kbaStyles.errorWrapper}>
+        <div className={kbaStyles.errorHeader}>
+          <DismissCircle24Regular style={{ color: '#d13438' }} />
+          <Text weight="semibold" style={{ color: '#a80000' }}>Ticket nicht gefunden</Text>
+        </div>
+        <div className={kbaStyles.errorBody}>
+          <ReactMarkdown remarkPlugins={[remarkGfm]}>{markdown}</ReactMarkdown>
+        </div>
+      </div>
+    )
+  }
+
+  const handleCopy = () => {
+    navigator.clipboard.writeText(markdown).then(() => {
+      setCopied(true)
+      setTimeout(() => setCopied(false), 2000)
+    })
+  }
+
+  return (
+    <div className={kbaStyles.wrapper}>
+      <div className={kbaStyles.header}>
+        <div className={kbaStyles.headerLeft}>
+          <DocumentText24Regular style={{ color: tokens.colorBrandForeground1 }} />
+          <Text weight="semibold">Knowledge Base Artikel</Text>
+        </div>
+        <Tooltip content={copied ? 'Kopiert!' : 'Markdown kopieren'} relationship="description">
+          <Button
+            appearance="subtle"
+            icon={<Copy24Regular />}
+            onClick={handleCopy}
+            size="small"
+          >
+            {copied ? 'Kopiert!' : 'Kopieren'}
+          </Button>
+        </Tooltip>
+      </div>
+      <div className={kbaStyles.body}>
+        <ReactMarkdown remarkPlugins={[remarkGfm]}>
+          {markdown}
+        </ReactMarkdown>
+      </div>
+    </div>
+  )
+}
+
 export const RESULT_VIEW_REGISTRY = {
   table: {
     title: 'Structured Table',
@@ -505,5 +690,10 @@ export const RESULT_VIEW_REGISTRY = {
     title: 'Quell-Ticket',
     description: 'Details des ursprünglichen Support-Tickets.',
     render: (props) => <ResultTicketDetailsView {...props} />,
+  },
+  kba_markdown: {
+    title: 'Knowledge Base Artikel',
+    description: 'Professionell formatierter KBA-Artikel im Markdown-Format mit Inhaltsverzeichnis und Kapiteln.',
+    render: (props) => <ResultKBAMarkdownView {...props} />,
   },
 }
