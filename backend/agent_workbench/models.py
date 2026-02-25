@@ -68,6 +68,14 @@ class AgentDefinition(SQLModel, table=True):
     name: str = SField(index=True, description="Human-readable agent name")
     description: str = SField(default="", description="Optional description")
     system_prompt: str = SField(description="System prompt sent to the LLM")
+    requires_input: bool = SField(
+        default=False,
+        description="When true, runs must include required_input_value",
+    )
+    required_input_description: str = SField(
+        default="",
+        description="Description shown to operators for required runtime input",
+    )
     # Stored as JSON arrays in TEXT columns
     tool_names_json: str = SField(
         default="[]",
@@ -115,6 +123,8 @@ class AgentDefinition(SQLModel, table=True):
             "name": self.name,
             "description": self.description,
             "system_prompt": self.system_prompt,
+            "requires_input": self.requires_input,
+            "required_input_description": self.required_input_description,
             "tool_names": self.tool_names,
             "success_criteria": [c.model_dump() for c in self.success_criteria],
             "created_at": self.created_at.isoformat(),
@@ -228,6 +238,8 @@ class AgentDefinitionCreate(BaseModel):
     name: str = Field(..., min_length=1, max_length=200)
     description: str = Field(default="")
     system_prompt: str = Field(..., min_length=1)
+    requires_input: bool = Field(default=False)
+    required_input_description: str = Field(default="")
     tool_names: list[str] = Field(default_factory=list)
     success_criteria: list[SuccessCriteria] = Field(default_factory=list)
 
@@ -236,12 +248,15 @@ class AgentDefinitionUpdate(BaseModel):
     name: Optional[str] = Field(default=None)
     description: Optional[str] = Field(default=None)
     system_prompt: Optional[str] = Field(default=None)
+    requires_input: Optional[bool] = Field(default=None)
+    required_input_description: Optional[str] = Field(default=None)
     tool_names: Optional[list[str]] = Field(default=None)
     success_criteria: Optional[list[SuccessCriteria]] = Field(default=None)
 
 
 class AgentRunCreate(BaseModel):
-    input_prompt: str = Field(..., min_length=1, max_length=10000)
+    input_prompt: str = Field(default="", max_length=10000)
+    required_input_value: Optional[str] = Field(default=None, max_length=2000)
 
 
 # ============================================================================
@@ -258,6 +273,18 @@ def build_engine(db_path: Path):
 
 def _run_migrations(engine) -> None:
     """Apply lightweight SQLite migrations for new columns."""
+    _ensure_column(
+        engine,
+        "workbench_agent_definitions",
+        "requires_input",
+        "BOOLEAN NOT NULL DEFAULT 0",
+    )
+    _ensure_column(
+        engine,
+        "workbench_agent_definitions",
+        "required_input_description",
+        "TEXT NOT NULL DEFAULT ''",
+    )
     _ensure_column(
         engine,
         "workbench_agent_runs",

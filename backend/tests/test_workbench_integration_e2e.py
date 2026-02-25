@@ -30,6 +30,13 @@ class _FakeReactAgent:
 
     async def ainvoke(self, _payload: dict, config: dict | None = None) -> dict:
         _ = config
+        user_message = ""
+        messages = _payload.get("messages", [])
+        if messages:
+            first = messages[0]
+            if isinstance(first, (list, tuple)) and len(first) >= 2:
+                user_message = str(first[1])
+
         tool = next(
             (item for item in self._tools if getattr(item, "name", "") == "csv_ticket_stats"),
             None,
@@ -39,7 +46,7 @@ class _FakeReactAgent:
 
         stats = await tool.ainvoke({})
         total = stats.get("total", 0) if isinstance(stats, dict) else 0
-        output = f"Used csv_ticket_stats successfully. total={total}"
+        output = f"Used csv_ticket_stats successfully. total={total}. context={user_message}"
         return {
             "messages": [
                 _ToolCallMessage("csv_ticket_stats"),
@@ -140,6 +147,67 @@ class WorkbenchIntegrationE2ETests(unittest.IsolatedAsyncioTestCase):
                 self.assertEqual(evaluate_resp.status_code, 200, evaluate_data)
                 self.assertTrue(evaluate_data["overall_passed"])
                 self.assertEqual(evaluate_data["score"], 1.0)
+
+    async def test_required_input_agent_run_validation_and_context(self) -> None:
+        with patch("agent_workbench.service._build_react_agent", new=_fake_build_react_agent):
+            async with backend_app_module.app.test_app() as test_app:
+                client = test_app.test_client()
+
+                invalid_create_resp = await client.post(
+                    "/api/workbench/agents",
+                    json={
+                        "name": "Needs Input Invalid",
+                        "description": "",
+                        "system_prompt": "Use CSV tools.",
+                        "requires_input": True,
+                        "required_input_description": "",
+                        "tool_names": ["csv_ticket_stats"],
+                        "success_criteria": [],
+                    },
+                )
+                self.assertEqual(invalid_create_resp.status_code, 400)
+
+                create_resp = await client.post(
+                    "/api/workbench/agents",
+                    json={
+                        "name": "Needs Input",
+                        "description": "",
+                        "system_prompt": "Use CSV tools.",
+                        "requires_input": True,
+                        "required_input_description": "Ticket INC number",
+                        "tool_names": ["csv_ticket_stats"],
+                        "success_criteria": [],
+                    },
+                )
+                create_data = await create_resp.get_json()
+                self.assertEqual(create_resp.status_code, 201, create_data)
+                self.assertTrue(create_data["requires_input"])
+                self.assertEqual(create_data["required_input_description"], "Ticket INC number")
+                agent_id = create_data["id"]
+
+                missing_input_resp = await client.post(
+                    f"/api/workbench/agents/{agent_id}/runs",
+                    json={"input_prompt": ""},
+                )
+                self.assertEqual(missing_input_resp.status_code, 400)
+
+                run_resp = await client.post(
+                    f"/api/workbench/agents/{agent_id}/runs",
+                    json={"required_input_value": "INC-12345"},
+                )
+                run_data = await run_resp.get_json()
+                self.assertEqual(run_resp.status_code, 200, run_data)
+                self.assertEqual(run_data["status"], "completed")
+                self.assertEqual(run_data["input_prompt"], "")
+                self.assertIn("INC-12345", run_data["output"] or "")
+                self.assertEqual(
+                    run_data["agent_snapshot"].get("required_input_value"),
+                    "INC-12345",
+                )
+                self.assertIn(
+                    "Required input (Ticket INC number): INC-12345",
+                    run_data["agent_snapshot"].get("composed_user_message", ""),
+                )
 
 
 if __name__ == "__main__":

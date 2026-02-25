@@ -97,20 +97,24 @@ export default function WorkbenchPage() {
     name: '',
     description: '',
     systemPrompt: '',
+    requiresInput: false,
+    requiredInputDescription: '',
   })
   const [fieldErrors, setFieldErrors] = useState({
     name: '',
     systemPrompt: '',
     tools: '',
+    requiredInputDescription: '',
   })
   const [selectedToolNames, setSelectedToolNames] = useState([])
   const [runForm, setRunForm] = useState({
     agentId: '',
     prompt: '',
+    requiredInputValue: '',
   })
   const [runFieldErrors, setRunFieldErrors] = useState({
     agentId: '',
-    prompt: '',
+    requiredInputValue: '',
   })
   const [runError, setRunError] = useState('')
   const [runOutput, setRunOutput] = useState('')
@@ -181,11 +185,14 @@ export default function WorkbenchPage() {
     setFieldErrors((prev) => ({ ...prev, tools: '' }))
   }
 
+  const selectedRunAgent = agents.find((agent) => agent.id === runForm.agentId) || null
+
   const validateForm = () => {
     const nextErrors = {
       name: '',
       systemPrompt: '',
       tools: '',
+      requiredInputDescription: '',
     }
     if (!formData.name.trim()) {
       nextErrors.name = 'Agent name is required'
@@ -193,26 +200,31 @@ export default function WorkbenchPage() {
     if (!formData.systemPrompt.trim()) {
       nextErrors.systemPrompt = 'System prompt is required'
     }
+    if (formData.requiresInput && !formData.requiredInputDescription.trim()) {
+      nextErrors.requiredInputDescription = 'Input description is required when input is required'
+    }
     if (selectedToolNames.length === 0) {
       nextErrors.tools = 'Select at least one tool'
     }
     setFieldErrors(nextErrors)
-    return !nextErrors.name && !nextErrors.systemPrompt && !nextErrors.tools
+    return !nextErrors.name && !nextErrors.systemPrompt && !nextErrors.tools && !nextErrors.requiredInputDescription
   }
 
   const validateRunForm = () => {
     const nextErrors = {
       agentId: '',
-      prompt: '',
+      requiredInputValue: '',
     }
     if (!runForm.agentId) {
       nextErrors.agentId = 'Select an agent'
     }
-    if (!runForm.prompt.trim()) {
-      nextErrors.prompt = 'Run prompt is required'
+    if (selectedRunAgent?.requires_input && !runForm.requiredInputValue.trim()) {
+      nextErrors.requiredInputValue = selectedRunAgent.required_input_description
+        ? `Required input is needed: ${selectedRunAgent.required_input_description}`
+        : 'Required input is needed for this agent'
     }
     setRunFieldErrors(nextErrors)
-    return !nextErrors.agentId && !nextErrors.prompt
+    return !nextErrors.agentId && !nextErrors.requiredInputValue
   }
 
   const handleCreateAgent = async () => {
@@ -228,6 +240,10 @@ export default function WorkbenchPage() {
         name: formData.name.trim(),
         description: formData.description.trim(),
         system_prompt: formData.systemPrompt.trim(),
+        requires_input: formData.requiresInput,
+        required_input_description: formData.requiresInput
+          ? formData.requiredInputDescription.trim()
+          : '',
         tool_names: selectedToolNames,
         success_criteria: [],
       })
@@ -238,6 +254,8 @@ export default function WorkbenchPage() {
         name: '',
         description: '',
         systemPrompt: '',
+        requiresInput: false,
+        requiredInputDescription: '',
       })
       setRunForm((prev) => ({
         ...prev,
@@ -247,6 +265,7 @@ export default function WorkbenchPage() {
         name: '',
         systemPrompt: '',
         tools: '',
+        requiredInputDescription: '',
       })
       setNotice('Agent created')
     } catch (err) {
@@ -279,13 +298,20 @@ export default function WorkbenchPage() {
     setRunError('')
     setRunOutput('')
     setRunButtonOutput('')
+    setRunFieldErrors({
+      agentId: '',
+      requiredInputValue: '',
+    })
     if (!validateRunForm()) {
       return
     }
 
     setIsRunningAgent(true)
     try {
-      const run = await runWorkbenchAgent(runForm.agentId, runForm.prompt.trim())
+      const run = await runWorkbenchAgent(runForm.agentId, {
+        inputPrompt: runForm.prompt.trim(),
+        requiredInputValue: runForm.requiredInputValue.trim(),
+      })
       const output = typeof run?.output === 'string' ? run.output : ''
       setRunOutput(output || '(no output)')
 
@@ -366,6 +392,37 @@ export default function WorkbenchPage() {
                 placeholder="optional"
               />
             </Field>
+            <Checkbox
+              data-testid="workbench-agent-requires-input-checkbox"
+              label="Require input?"
+              checked={formData.requiresInput}
+              onChange={(_, data) => {
+                const checked = Boolean(data.checked)
+                setFormData((prev) => ({
+                  ...prev,
+                  requiresInput: checked,
+                  requiredInputDescription: checked ? prev.requiredInputDescription : '',
+                }))
+                setFieldErrors((prev) => ({ ...prev, requiredInputDescription: '' }))
+              }}
+            />
+            {formData.requiresInput && (
+              <>
+                <Field label="Input description" required>
+                  <Input
+                    data-testid="workbench-agent-required-input-description"
+                    value={formData.requiredInputDescription}
+                    onChange={(_, data) => {
+                      setFormData((prev) => ({ ...prev, requiredInputDescription: data.value }))
+                      setFieldErrors((prev) => ({ ...prev, requiredInputDescription: '' }))
+                    }}
+                    placeholder="e.g. Ticket INC number"
+                    aria-invalid={fieldErrors.requiredInputDescription ? 'true' : 'false'}
+                  />
+                </Field>
+                {fieldErrors.requiredInputDescription && <Text>{fieldErrors.requiredInputDescription}</Text>}
+              </>
+            )}
             <Field label="System prompt" required>
               <Textarea
                 data-testid="workbench-agent-system-prompt-input"
@@ -421,8 +478,13 @@ export default function WorkbenchPage() {
               value={runForm.agentId}
               onChange={(event) => {
                 const value = event.target.value
-                setRunForm((prev) => ({ ...prev, agentId: value }))
-                setRunFieldErrors((prev) => ({ ...prev, agentId: '' }))
+                const nextAgent = agents.find((agent) => agent.id === value)
+                setRunForm((prev) => ({
+                  ...prev,
+                  agentId: value,
+                  requiredInputValue: nextAgent?.requires_input ? prev.requiredInputValue : '',
+                }))
+                setRunFieldErrors((prev) => ({ ...prev, agentId: '', requiredInputValue: '' }))
               }}
               aria-invalid={runFieldErrors.agentId ? 'true' : 'false'}
             >
@@ -436,7 +498,28 @@ export default function WorkbenchPage() {
           </Field>
           {runFieldErrors.agentId && <Text>{runFieldErrors.agentId}</Text>}
 
-          <Field label="Run prompt" required>
+          {selectedRunAgent?.requires_input && (
+            <>
+              <Field
+                label={selectedRunAgent.required_input_description || 'Required input'}
+                required
+              >
+                <Input
+                  data-testid="workbench-run-required-input"
+                  value={runForm.requiredInputValue}
+                  onChange={(_, data) => {
+                    setRunForm((prev) => ({ ...prev, requiredInputValue: data.value }))
+                    setRunFieldErrors((prev) => ({ ...prev, requiredInputValue: '' }))
+                  }}
+                  placeholder={selectedRunAgent.required_input_description || 'Enter required input'}
+                  aria-invalid={runFieldErrors.requiredInputValue ? 'true' : 'false'}
+                />
+              </Field>
+              {runFieldErrors.requiredInputValue && <Text>{runFieldErrors.requiredInputValue}</Text>}
+            </>
+          )}
+
+          <Field label="Run prompt (optional)">
             <Textarea
               data-testid="workbench-run-prompt-input"
               resize="vertical"
@@ -444,13 +527,10 @@ export default function WorkbenchPage() {
               value={runForm.prompt}
               onChange={(_, data) => {
                 setRunForm((prev) => ({ ...prev, prompt: data.value }))
-                setRunFieldErrors((prev) => ({ ...prev, prompt: '' }))
               }}
-              placeholder="Summarize open high-priority ticket trends."
-              aria-invalid={runFieldErrors.prompt ? 'true' : 'false'}
+              placeholder="Optional. Leave empty to run with only required input/context."
             />
           </Field>
-          {runFieldErrors.prompt && <Text>{runFieldErrors.prompt}</Text>}
 
           <Button
             appearance="primary"

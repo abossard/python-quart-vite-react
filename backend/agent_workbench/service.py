@@ -158,10 +158,55 @@ class WorkbenchService:
             "name": agent.name,
             "description": agent.description,
             "system_prompt": agent.system_prompt,
+            "requires_input": agent.requires_input,
+            "required_input_description": agent.required_input_description,
             "tool_names": list(agent.tool_names),
             "success_criteria": [criteria.model_dump() for criteria in agent.success_criteria],
             "captured_at": datetime.now().isoformat(),
         }
+
+    def _normalize_input_contract(
+        self,
+        requires_input: bool,
+        required_input_description: str,
+    ) -> tuple[bool, str]:
+        normalized_description = (required_input_description or "").strip()
+        if requires_input and not normalized_description:
+            raise ValueError(
+                "required_input_description must be provided when requires_input is true"
+            )
+        if not requires_input:
+            normalized_description = ""
+        return requires_input, normalized_description
+
+    def _build_run_user_message(
+        self,
+        agent_def: AgentDefinition,
+        run_request: AgentRunCreate,
+    ) -> tuple[str, str]:
+        run_prompt = (run_request.input_prompt or "").strip()
+        required_input_value = (run_request.required_input_value or "").strip()
+        message_parts: list[str] = []
+
+        if run_prompt:
+            message_parts.append(run_prompt)
+
+        if agent_def.requires_input:
+            if not required_input_value:
+                raise ValueError(
+                    "Missing required_input_value for this agent. "
+                    f"Expected: {agent_def.required_input_description}"
+                )
+            message_parts.append(
+                f"Required input ({agent_def.required_input_description}): {required_input_value}"
+            )
+        elif required_input_value:
+            message_parts.append(f"Additional input: {required_input_value}")
+
+        if not message_parts:
+            message_parts.append("Proceed with the configured system instructions and tools.")
+
+        return "\n\n".join(message_parts), required_input_value
 
     def _criteria_from_run_snapshot(self, run: AgentRun) -> list[SuccessCriteria]:
         snapshot = run.agent_snapshot
@@ -184,10 +229,16 @@ class WorkbenchService:
 
     def create_agent(self, data: AgentDefinitionCreate) -> AgentDefinition:
         validated_tool_names = self._validate_tool_names(data.tool_names)
+        requires_input, required_input_description = self._normalize_input_contract(
+            data.requires_input,
+            data.required_input_description,
+        )
         agent = AgentDefinition(
             name=data.name,
             description=data.description,
             system_prompt=data.system_prompt,
+            requires_input=requires_input,
+            required_input_description=required_input_description,
         )
         agent.tool_names = validated_tool_names
         agent.success_criteria = data.success_criteria
@@ -218,6 +269,19 @@ class WorkbenchService:
                 agent.description = data.description
             if data.system_prompt is not None:
                 agent.system_prompt = data.system_prompt
+            next_requires_input = agent.requires_input if data.requires_input is None else data.requires_input
+            next_required_input_description = (
+                agent.required_input_description
+                if data.required_input_description is None
+                else data.required_input_description
+            )
+            (
+                agent.requires_input,
+                agent.required_input_description,
+            ) = self._normalize_input_contract(
+                next_requires_input,
+                next_required_input_description,
+            )
             if data.tool_names is not None:
                 agent.tool_names = self._validate_tool_names(data.tool_names)
             if data.success_criteria is not None:
@@ -279,11 +343,16 @@ class WorkbenchService:
 
         validated_tool_names = self._validate_tool_names(agent_def.tool_names)
         agent_snapshot = self._build_agent_snapshot(agent_def)
+        user_message, normalized_required_input = self._build_run_user_message(agent_def, run_request)
+        normalized_prompt = (run_request.input_prompt or "").strip()
+        agent_snapshot["input_prompt"] = normalized_prompt
+        agent_snapshot["required_input_value"] = normalized_required_input
+        agent_snapshot["composed_user_message"] = user_message
 
         # -- Persist a PENDING run --
         run = AgentRun(
             agent_id=agent_id,
-            input_prompt=run_request.input_prompt,
+            input_prompt=normalized_prompt,
             status=RunStatus.RUNNING.value,
         )
         run.agent_snapshot = agent_snapshot
@@ -300,7 +369,7 @@ class WorkbenchService:
             react = _build_react_agent(self.llm, tools, agent_def.system_prompt)
 
             result = await react.ainvoke(
-                {"messages": [("user", run_request.input_prompt)]},
+                {"messages": [("user", user_message)]},
                 config={"recursion_limit": self._recursion_limit},
             )
 

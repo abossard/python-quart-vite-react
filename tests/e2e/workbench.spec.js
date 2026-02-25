@@ -100,4 +100,64 @@ test.describe("Agent Fabric UI", () => {
       { timeout: 10000 }
     );
   });
+
+  test("requires and forwards configured run input", async ({ page }) => {
+    const agentName = `e2e-required-input-${Date.now()}`;
+
+    await page.route("**/api/workbench/agents/*/runs", async (route) => {
+      const body = route.request().postDataJSON();
+      const requiredInputValue = body?.required_input_value || "";
+      await route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify({
+          id: "run-e2e-required-1",
+          agent_id: "agent-e2e-required-1",
+          input_prompt: body?.input_prompt || "",
+          status: "completed",
+          output: `Processed required input: ${requiredInputValue}`,
+          agent_snapshot: { tool_names: ["csv_ticket_stats"] },
+          tools_used: ["csv_ticket_stats"],
+          error: null,
+          created_at: "2026-02-25T10:00:00Z",
+          completed_at: "2026-02-25T10:00:01Z",
+        }),
+      });
+    });
+
+    await page.goto(`${APP_URL}/workbench`, { waitUntil: "load" });
+    await expect(page.getByTestId("workbench-page-title")).toBeVisible();
+
+    await page.getByTestId("workbench-agent-name-input").fill(agentName);
+    await page
+      .getByTestId("workbench-agent-system-prompt-input")
+      .fill("Use csv_ticket_stats and summarize.");
+    await page.getByTestId("workbench-agent-requires-input-checkbox").click();
+    await page.getByTestId("workbench-create-agent-button").click();
+    await expect(page.getByText("Input description is required when input is required")).toBeVisible();
+
+    await page
+      .getByTestId("workbench-agent-required-input-description")
+      .fill("Ticket INC number");
+    await page.getByTestId("workbench-create-agent-button").click();
+
+    const createdRow = page.locator(
+      '[data-testid="workbench-agents-table"] tbody tr',
+      { hasText: agentName }
+    );
+    await expect(createdRow).toBeVisible({ timeout: 10000 });
+
+    await expect(page.getByTestId("workbench-run-required-input")).toBeVisible();
+    await page.getByTestId("workbench-run-agent-button").click();
+    await expect(page.getByText("Required input is needed: Ticket INC number")).toBeVisible();
+
+    await page.getByTestId("workbench-run-required-input").fill("INC-987654");
+    await page.getByTestId("workbench-run-agent-button").click();
+
+    await expect(page.getByTestId("workbench-run-agent-button")).toContainText("Running");
+    await expect(page.getByTestId("workbench-run-output")).toContainText(
+      "Processed required input: INC-987654",
+      { timeout: 10000 }
+    );
+  });
 });

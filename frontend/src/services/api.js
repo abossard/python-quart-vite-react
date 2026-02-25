@@ -308,9 +308,15 @@ export async function deleteWorkbenchAgent(agentId) {
   });
 }
 
-export async function runWorkbenchAgent(agentId, inputPrompt) {
+export async function runWorkbenchAgent(
+  agentId,
+  { inputPrompt = "", requiredInputValue = "" } = {}
+) {
   return fetchJSON(`${API_BASE_URL}/workbench/agents/${agentId}/runs`, {
     method: "POST",
-    body: JSON.stringify({ input_prompt: inputPrompt }),
+    body: JSON.stringify({
+      input_prompt: inputPrompt,
+      required_input_value: requiredInputValue || undefined,
+    }),
   });
 }
