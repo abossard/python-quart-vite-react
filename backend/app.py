@@ -30,7 +30,7 @@ load_dotenv()
 
 # Import unified operation system
 
-# Agent Workbench
+# Agent Fabric
 from agent_workbench import (
     AgentDefinitionCreate,
     AgentDefinitionUpdate,
@@ -191,7 +191,7 @@ async def rest_run_agent():
 
 
 # ============================================================================
-# AGENT WORKBENCH ENDPOINTS
+# AGENT FABRIC ENDPOINTS
 # ============================================================================
 
 _WORKBENCH_UI_OPERATION_NAMES = [
@@ -212,7 +212,7 @@ _WORKBENCH_UI_OPERATION_NAMES = [
 
 @app.route("/api/workbench/ui-config", methods=["GET"])
 async def workbench_ui_config():
-    """Expose UI-friendly endpoint metadata and enums for Agent Workbench."""
+    """Expose UI-friendly endpoint metadata and enums for Agent Fabric."""
     endpoints: list[dict] = []
     for op_name in _WORKBENCH_UI_OPERATION_NAMES:
         op = get_operation(op_name)
@@ -227,7 +227,7 @@ async def workbench_ui_config():
         })
 
     return jsonify({
-        "module": "agent_workbench",
+        "module": "agent_fabric",
         "version": "1",
         "criteria_types": [criteria.value for criteria in CriteriaType],
         "run_statuses": [status.value for status in RunStatus],

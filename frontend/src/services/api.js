@@ -280,7 +280,7 @@ export async function getSlaBreach({
 }
 
 // ============================================================================
-// Agent Workbench APIs
+// Agent Fabric APIs
 // ============================================================================
 
 export async function getWorkbenchUiConfig() {
@@ -305,5 +305,12 @@ export async function createWorkbenchAgent(agentData) {
 export async function deleteWorkbenchAgent(agentId) {
   return fetchJSON(`${API_BASE_URL}/workbench/agents/${agentId}`, {
     method: "DELETE",
+  });
+}
+
+export async function runWorkbenchAgent(agentId, inputPrompt) {
+  return fetchJSON(`${API_BASE_URL}/workbench/agents/${agentId}/runs`, {
+    method: "POST",
+    body: JSON.stringify({ input_prompt: inputPrompt }),
   });
 }

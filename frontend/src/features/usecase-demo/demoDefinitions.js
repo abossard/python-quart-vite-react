@@ -17,12 +17,13 @@ Nutze ausschließlich CSV-Daten und nenne die verwendeten Ticket-IDs in Fließte
 
 const SLA_BREACH_DEFAULT_PROMPT = `Call csv_sla_breach_tickets with default parameters (unassigned_only=true, include_ok=false).
 
-Using the returned report, write ONLY a short markdown summary (max 200 words):
-1. State the reference_timestamp used
-2. Group ticket counts by breach_status and assigned_group, and confirm assignee is empty
-3. Recommend actions for the most critical breaches
+Then provide only a concise markdown "next actions" commentary:
+1. Mention the reference_timestamp used.
+2. Identify highest-risk assigned groups (breached first, then at_risk).
+3. Give concrete next actions for the next 30-60 minutes.
+4. Add one short escalation recommendation for unresolved breached tickets.
 
-Do NOT output a JSON block — the frontend fetches and renders the ticket table directly from the API.`;
+Do NOT output a JSON block — the frontend already renders the SLA table from the API.`;
 
 /**
  * Add new demos here to create additional pages without duplicating UI logic.
@@ -116,14 +117,13 @@ export const USECASE_DEMO_DEFINITIONS = [
     defaultPrompt: SLA_BREACH_DEFAULT_PROMPT,
     runHistoryLimit: 25,
     pollIntervalMs: 2000,
-    resultViews: ["sla-breach", "markdown"],
+    resultViews: ["sla-breach", "sla-next-actions"],
     resultSectionTitle: "SLA Breach Results",
     resultSectionDescription:
       "Tickets at risk or already past their SLA threshold, sorted by severity.",
     ticketIdFields: ["ticket_ids", "ticket_id", "ticketIds"],
-    // Tickets are shown inline in the sla-breach result view; disable the separate card.
     matchingTickets: {
-      enabled: true,
+      enabled: false,
       title: "Affected Tickets (Group-Assigned, No Individual Assignee)",
       description:
         'These tickets are routed to a support group but no individual has picked them up. The "Assigned Group" column shows the responsible team; "Assignee" is empty for all.',

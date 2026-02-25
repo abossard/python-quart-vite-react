@@ -1,7 +1,7 @@
 """
 Workbench Integration
 
-Wires the project's tools into the Agent Workbench and exposes a
+Wires the project's tools into the Agent Fabric module and exposes a
 singleton WorkbenchService ready to use in app.py.
 
 Separation of concerns:
@@ -28,18 +28,18 @@ def _build_registry() -> ToolRegistry:
 
     Sources:
       1. All @operation-decorated functions via api_decorators.get_langchain_tools()
-         This includes: task management + csv_* ticket operations
+         Exposed to Agent Fabric: csv_* ticket operations only.
 
     The registry is built once at startup and shared with WorkbenchService.
     """
     registry = ToolRegistry()
     try:
         all_tools = get_langchain_tools()
-        user_tools = [
+        ticket_tools = [
             tool for tool in all_tools
-            if not getattr(tool, "name", "").startswith("workbench_")
+            if getattr(tool, "name", "").startswith("csv_")
         ]
-        registry.register_all(user_tools)
+        registry.register_all(ticket_tools)
     except Exception as exc:
         import logging
         logging.getLogger(__name__).warning("Could not load langchain tools: %s", exc)

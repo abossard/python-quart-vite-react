@@ -81,7 +81,7 @@ export default function App() {
     ...usecaseTabs,
     { value: 'kitchensink', label: 'Kitchen Sink', icon: <DataHistogram24Regular />, path: '/kitchensink', testId: 'tab-kitchensink' },
     { value: 'fields', label: 'Fields', icon: <Info24Regular />, path: '/fields', testId: 'tab-fields' },
-    { value: 'workbench', label: 'Workbench', icon: <Wrench24Regular />, path: '/workbench', testId: 'tab-workbench' },
+    { value: 'workbench', label: 'Agent Fabric', icon: <Wrench24Regular />, path: '/workbench', testId: 'tab-workbench' },
     { value: 'agent', label: 'Agent', icon: <Bot24Regular />, path: '/agent', testId: 'tab-agent' },
   ]
   const activeTab = tabs.find((tab) => location.pathname.startsWith(tab.path))?.value ?? 'csvtickets'

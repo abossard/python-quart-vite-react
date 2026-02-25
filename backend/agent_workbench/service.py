@@ -110,13 +110,21 @@ class WorkbenchService:
     # Tool introspection
     # ------------------------------------------------------------------
 
-    def list_tools(self) -> list[dict[str, str]]:
+    def list_tools(self) -> list[dict[str, Any]]:
         """Return metadata about all registered tools."""
-        result = []
+        result: list[dict[str, Any]] = []
         for t in self._registry.available_tools():
+            input_schema: dict[str, Any] = {"type": "object", "properties": {}}
+            args_schema = getattr(t, "args_schema", None)
+            if args_schema and hasattr(args_schema, "model_json_schema"):
+                try:
+                    input_schema = args_schema.model_json_schema()
+                except Exception:
+                    input_schema = {"type": "object", "properties": {}}
             result.append({
                 "name": t.name,
                 "description": (t.description or "")[:200],
+                "input_schema": input_schema,
             })
         return result
 

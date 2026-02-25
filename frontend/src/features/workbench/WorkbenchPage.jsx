@@ -19,6 +19,7 @@ import {
   getWorkbenchUiConfig,
   listWorkbenchAgents,
   listWorkbenchTools,
+  runWorkbenchAgent,
 } from '../../services/api'
 
 const useStyles = makeStyles({
@@ -73,6 +74,14 @@ const useStyles = makeStyles({
   empty: {
     padding: tokens.spacingVerticalL,
   },
+  select: {
+    width: '100%',
+    border: `1px solid ${tokens.colorNeutralStroke1}`,
+    borderRadius: tokens.borderRadiusMedium,
+    padding: `${tokens.spacingVerticalS} ${tokens.spacingHorizontalM}`,
+    backgroundColor: tokens.colorNeutralBackground1,
+    color: tokens.colorNeutralForeground1,
+  },
 })
 
 export default function WorkbenchPage() {
@@ -89,7 +98,25 @@ export default function WorkbenchPage() {
     description: '',
     systemPrompt: '',
   })
+  const [fieldErrors, setFieldErrors] = useState({
+    name: '',
+    systemPrompt: '',
+    tools: '',
+  })
   const [selectedToolNames, setSelectedToolNames] = useState([])
+  const [runForm, setRunForm] = useState({
+    agentId: '',
+    prompt: '',
+  })
+  const [runFieldErrors, setRunFieldErrors] = useState({
+    agentId: '',
+    prompt: '',
+  })
+  const [runError, setRunError] = useState('')
+  const [runOutput, setRunOutput] = useState('')
+  const [runButtonOutput, setRunButtonOutput] = useState('')
+  const [isRunningAgent, setIsRunningAgent] = useState(false)
+  const [runPulse, setRunPulse] = useState(0)
 
   const loadData = async () => {
     setLoading(true)
@@ -100,9 +127,28 @@ export default function WorkbenchPage() {
         listWorkbenchTools(),
         listWorkbenchAgents(),
       ])
+      const nextTools = toolsPayload.tools || []
+      const nextAgents = agentsPayload.agents || []
+
       setUiConfig(configPayload)
-      setTools(toolsPayload.tools || [])
-      setAgents(agentsPayload.agents || [])
+      setTools(nextTools)
+      setAgents(nextAgents)
+      setSelectedToolNames((prev) => {
+        const availableNames = nextTools.map((tool) => tool.name)
+        if (prev.length === 0) {
+          return availableNames
+        }
+        const filtered = prev.filter((name) => availableNames.includes(name))
+        return filtered.length > 0 ? filtered : availableNames
+      })
+      setRunForm((prev) => ({
+        ...prev,
+        agentId: (
+          prev.agentId && nextAgents.some((agent) => agent.id === prev.agentId)
+            ? prev.agentId
+            : (nextAgents[0]?.id || '')
+        ),
+      }))
     } catch (err) {
       setError(err?.message || 'Failed to load workbench data')
     } finally {
@@ -114,30 +160,71 @@ export default function WorkbenchPage() {
     loadData()
   }, [])
 
+  useEffect(() => {
+    if (!isRunningAgent) {
+      setRunPulse(0)
+      return undefined
+    }
+
+    const timer = setInterval(() => {
+      setRunPulse((prev) => (prev + 1) % 4)
+    }, 350)
+    return () => clearInterval(timer)
+  }, [isRunningAgent])
+
   const toggleTool = (toolName) => {
     setSelectedToolNames((prev) => (
       prev.includes(toolName)
         ? prev.filter((item) => item !== toolName)
         : [...prev, toolName]
     ))
+    setFieldErrors((prev) => ({ ...prev, tools: '' }))
+  }
+
+  const validateForm = () => {
+    const nextErrors = {
+      name: '',
+      systemPrompt: '',
+      tools: '',
+    }
+    if (!formData.name.trim()) {
+      nextErrors.name = 'Agent name is required'
+    }
+    if (!formData.systemPrompt.trim()) {
+      nextErrors.systemPrompt = 'System prompt is required'
+    }
+    if (selectedToolNames.length === 0) {
+      nextErrors.tools = 'Select at least one tool'
+    }
+    setFieldErrors(nextErrors)
+    return !nextErrors.name && !nextErrors.systemPrompt && !nextErrors.tools
+  }
+
+  const validateRunForm = () => {
+    const nextErrors = {
+      agentId: '',
+      prompt: '',
+    }
+    if (!runForm.agentId) {
+      nextErrors.agentId = 'Select an agent'
+    }
+    if (!runForm.prompt.trim()) {
+      nextErrors.prompt = 'Run prompt is required'
+    }
+    setRunFieldErrors(nextErrors)
+    return !nextErrors.agentId && !nextErrors.prompt
   }
 
   const handleCreateAgent = async () => {
     setError('')
     setNotice('')
-
-    if (!formData.name.trim() || !formData.systemPrompt.trim()) {
-      setError('Name and system prompt are required')
-      return
-    }
-    if (selectedToolNames.length === 0) {
-      setError('Select at least one tool')
+    if (!validateForm()) {
       return
     }
 
     setSubmitting(true)
     try {
-      await createWorkbenchAgent({
+      const createdAgent = await createWorkbenchAgent({
         name: formData.name.trim(),
         description: formData.description.trim(),
         system_prompt: formData.systemPrompt.trim(),
@@ -152,6 +239,15 @@ export default function WorkbenchPage() {
         description: '',
         systemPrompt: '',
       })
+      setRunForm((prev) => ({
+        ...prev,
+        agentId: createdAgent?.id || prev.agentId,
+      }))
+      setFieldErrors({
+        name: '',
+        systemPrompt: '',
+        tools: '',
+      })
       setNotice('Agent created')
     } catch (err) {
       setError(err?.message || 'Failed to create agent')
@@ -165,17 +261,67 @@ export default function WorkbenchPage() {
     setNotice('')
     try {
       await deleteWorkbenchAgent(agentId)
-      setAgents((prev) => prev.filter((agent) => agent.id !== agentId))
+      setAgents((prev) => {
+        const nextAgents = prev.filter((agent) => agent.id !== agentId)
+        setRunForm((current) => ({
+          ...current,
+          agentId: current.agentId === agentId ? (nextAgents[0]?.id || '') : current.agentId,
+        }))
+        return nextAgents
+      })
       setNotice('Agent deleted')
     } catch (err) {
       setError(err?.message || 'Failed to delete agent')
     }
   }
 
+  const handleRunAgent = async () => {
+    setRunError('')
+    setRunOutput('')
+    setRunButtonOutput('')
+    if (!validateRunForm()) {
+      return
+    }
+
+    setIsRunningAgent(true)
+    try {
+      const run = await runWorkbenchAgent(runForm.agentId, runForm.prompt.trim())
+      const output = typeof run?.output === 'string' ? run.output : ''
+      setRunOutput(output || '(no output)')
+
+      const preview = output.replace(/\s+/g, ' ').trim().slice(0, 90)
+      if (!preview) {
+        setRunButtonOutput('completed')
+      } else {
+        for (let index = 1; index <= preview.length; index += 3) {
+          setRunButtonOutput(preview.slice(0, index))
+          // eslint-disable-next-line no-await-in-loop
+          await new Promise((resolve) => setTimeout(resolve, 14))
+        }
+      }
+    } catch (err) {
+      setRunError(err?.message || 'Failed to run agent')
+    } finally {
+      setIsRunningAgent(false)
+    }
+  }
+
+  const runButtonLabel = isRunningAgent
+    ? (
+      runButtonOutput
+        ? `Running: ${runButtonOutput}`
+        : `Running${'.'.repeat(runPulse)}`
+    )
+    : (
+      runButtonOutput
+        ? `Last output: ${runButtonOutput}`
+        : 'Run Agent'
+    )
+
   if (loading) {
     return (
       <div className={styles.container}>
-        <Spinner label="Loading Agent Workbench..." />
+        <Spinner label="Loading Agent Fabric..." />
       </div>
     )
   }
@@ -183,7 +329,7 @@ export default function WorkbenchPage() {
   return (
     <div className={styles.container}>
       <div>
-        <Subtitle1 data-testid="workbench-page-title">Agent Workbench</Subtitle1>
+        <Subtitle1 data-testid="workbench-page-title">Agent Fabric</Subtitle1>
         <Caption1>
           Minimal technical UI for agent definitions and lifecycle.
           {' '}
@@ -203,10 +349,15 @@ export default function WorkbenchPage() {
               <Input
                 data-testid="workbench-agent-name-input"
                 value={formData.name}
-                onChange={(_, data) => setFormData((prev) => ({ ...prev, name: data.value }))}
+                onChange={(_, data) => {
+                  setFormData((prev) => ({ ...prev, name: data.value }))
+                  setFieldErrors((prev) => ({ ...prev, name: '' }))
+                }}
                 placeholder="e.g. CSV triage assistant"
+                aria-invalid={fieldErrors.name ? 'true' : 'false'}
               />
             </Field>
+            {fieldErrors.name && <Text>{fieldErrors.name}</Text>}
             <Field label="Description">
               <Input
                 data-testid="workbench-agent-description-input"
@@ -221,10 +372,15 @@ export default function WorkbenchPage() {
                 resize="vertical"
                 rows={6}
                 value={formData.systemPrompt}
-                onChange={(_, data) => setFormData((prev) => ({ ...prev, systemPrompt: data.value }))}
+                onChange={(_, data) => {
+                  setFormData((prev) => ({ ...prev, systemPrompt: data.value }))
+                  setFieldErrors((prev) => ({ ...prev, systemPrompt: '' }))
+                }}
                 placeholder="Use csv_ticket_stats and explain findings."
+                aria-invalid={fieldErrors.systemPrompt ? 'true' : 'false'}
               />
             </Field>
+            {fieldErrors.systemPrompt && <Text>{fieldErrors.systemPrompt}</Text>}
             <Button
               appearance="primary"
               data-testid="workbench-create-agent-button"
@@ -250,9 +406,75 @@ export default function WorkbenchPage() {
                 />
               ))}
             </div>
+            {fieldErrors.tools && <Text>{fieldErrors.tools}</Text>}
           </div>
         </Card>
       </div>
+
+      <Card>
+        <div className={styles.cardBody}>
+          <Text weight="semibold">Run Agent</Text>
+          <Field label="Agent" required>
+            <select
+              className={styles.select}
+              data-testid="workbench-run-agent-select"
+              value={runForm.agentId}
+              onChange={(event) => {
+                const value = event.target.value
+                setRunForm((prev) => ({ ...prev, agentId: value }))
+                setRunFieldErrors((prev) => ({ ...prev, agentId: '' }))
+              }}
+              aria-invalid={runFieldErrors.agentId ? 'true' : 'false'}
+            >
+              <option value="">Select an agent</option>
+              {agents.map((agent) => (
+                <option key={agent.id} value={agent.id}>
+                  {agent.name}
+                </option>
+              ))}
+            </select>
+          </Field>
+          {runFieldErrors.agentId && <Text>{runFieldErrors.agentId}</Text>}
+
+          <Field label="Run prompt" required>
+            <Textarea
+              data-testid="workbench-run-prompt-input"
+              resize="vertical"
+              rows={4}
+              value={runForm.prompt}
+              onChange={(_, data) => {
+                setRunForm((prev) => ({ ...prev, prompt: data.value }))
+                setRunFieldErrors((prev) => ({ ...prev, prompt: '' }))
+              }}
+              placeholder="Summarize open high-priority ticket trends."
+              aria-invalid={runFieldErrors.prompt ? 'true' : 'false'}
+            />
+          </Field>
+          {runFieldErrors.prompt && <Text>{runFieldErrors.prompt}</Text>}
+
+          <Button
+            appearance="primary"
+            data-testid="workbench-run-agent-button"
+            onClick={handleRunAgent}
+            disabled={isRunningAgent || agents.length === 0}
+          >
+            {runButtonLabel}
+          </Button>
+
+          {runError && <Text data-testid="workbench-run-error">{runError}</Text>}
+          {runOutput && (
+            <Field label="Run output">
+              <Textarea
+                data-testid="workbench-run-output"
+                value={runOutput}
+                readOnly
+                resize="vertical"
+                rows={6}
+              />
+            </Field>
+          )}
+        </div>
+      </Card>
 
       <Card>
         <div className={styles.cardBody}>

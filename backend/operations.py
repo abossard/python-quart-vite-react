@@ -325,18 +325,18 @@ async def op_csv_sla_breach_tickets(
 
 @operation(
     name="workbench_list_tools",
-    description="List tools available for Agent Workbench definitions",
+    description="List tools available for Agent Fabric definitions",
     http_method="GET",
     http_path="/api/workbench/tools",
 )
-async def op_workbench_list_tools() -> list[dict[str, str]]:
+async def op_workbench_list_tools() -> list[dict[str, Any]]:
     """Return all registered tool metadata from the workbench registry."""
     return _get_workbench_service().list_tools()
 
 
 @operation(
     name="workbench_list_agents",
-    description="List all Agent Workbench agent definitions",
+    description="List all Agent Fabric agent definitions",
     http_method="GET",
     http_path="/api/workbench/agents",
 )
@@ -348,7 +348,7 @@ async def op_workbench_list_agents() -> list[dict[str, Any]]:
 
 @operation(
     name="workbench_create_agent",
-    description="Create a new Agent Workbench agent definition",
+    description="Create a new Agent Fabric agent definition",
     http_method="POST",
     http_path="/api/workbench/agents",
 )
@@ -360,7 +360,7 @@ async def op_workbench_create_agent(data: AgentDefinitionCreate) -> dict[str, An
 
 @operation(
     name="workbench_get_agent",
-    description="Get one Agent Workbench agent definition by id",
+    description="Get one Agent Fabric agent definition by id",
     http_method="GET",
     http_path="/api/workbench/agents/{agent_id}",
 )
@@ -372,7 +372,7 @@ async def op_workbench_get_agent(agent_id: str) -> dict[str, Any] | None:
 
 @operation(
     name="workbench_update_agent",
-    description="Update an Agent Workbench agent definition",
+    description="Update an Agent Fabric agent definition",
     http_method="PUT",
     http_path="/api/workbench/agents/{agent_id}",
 )
@@ -387,7 +387,7 @@ async def op_workbench_update_agent(
 
 @operation(
     name="workbench_delete_agent",
-    description="Delete an Agent Workbench agent definition",
+    description="Delete an Agent Fabric agent definition",
     http_method="DELETE",
     http_path="/api/workbench/agents/{agent_id}",
 )
@@ -398,7 +398,7 @@ async def op_workbench_delete_agent(agent_id: str) -> bool:
 
 @operation(
     name="workbench_run_agent",
-    description="Run an Agent Workbench agent with a prompt",
+    description="Run an Agent Fabric agent with a prompt",
     http_method="POST",
     http_path="/api/workbench/agents/{agent_id}/runs",
 )
@@ -410,7 +410,7 @@ async def op_workbench_run_agent(agent_id: str, data: AgentRunCreate) -> dict[st
 
 @operation(
     name="workbench_list_agent_runs",
-    description="List Agent Workbench runs for a specific agent",
+    description="List Agent Fabric runs for a specific agent",
     http_method="GET",
     http_path="/api/workbench/agents/{agent_id}/runs",
 )
@@ -426,7 +426,7 @@ async def op_workbench_list_agent_runs(
 
 @operation(
     name="workbench_list_runs",
-    description="List Agent Workbench runs, optionally filtered by agent id",
+    description="List Agent Fabric runs, optionally filtered by agent id",
     http_method="GET",
     http_path="/api/workbench/runs",
 )
@@ -442,7 +442,7 @@ async def op_workbench_list_runs(
 
 @operation(
     name="workbench_get_run",
-    description="Get one Agent Workbench run by id",
+    description="Get one Agent Fabric run by id",
     http_method="GET",
     http_path="/api/workbench/runs/{run_id}",
 )
@@ -454,7 +454,7 @@ async def op_workbench_get_run(run_id: str) -> dict[str, Any] | None:
 
 @operation(
     name="workbench_evaluate_run",
-    description="Evaluate an Agent Workbench run against its success criteria",
+    description="Evaluate an Agent Fabric run against its success criteria",
     http_method="POST",
     http_path="/api/workbench/runs/{run_id}/evaluate",
 )
@@ -466,7 +466,7 @@ async def op_workbench_evaluate_run(run_id: str) -> dict[str, Any]:
 
 @operation(
     name="workbench_get_evaluation",
-    description="Get evaluation for an Agent Workbench run",
+    description="Get evaluation for an Agent Fabric run",
     http_method="GET",
     http_path="/api/workbench/runs/{run_id}/evaluation",
 )

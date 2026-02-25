@@ -89,7 +89,17 @@ class WorkbenchIntegrationE2ETests(unittest.IsolatedAsyncioTestCase):
                 tools_payload = await tools_resp.get_json()
                 tool_names = [tool["name"] for tool in tools_payload["tools"]]
                 self.assertIn("csv_ticket_stats", tool_names)
+                self.assertIn("csv_ticket_fields", tool_names)
+                self.assertFalse(any(name.startswith("list_task") for name in tool_names))
+                self.assertFalse(any(name.startswith("create_task") for name in tool_names))
                 self.assertFalse(any(name.startswith("workbench_") for name in tool_names))
+
+                list_tickets_tool = next(
+                    item for item in tools_payload["tools"] if item["name"] == "csv_list_tickets"
+                )
+                input_props = list_tickets_tool.get("input_schema", {}).get("properties", {})
+                self.assertIn("status", input_props)
+                self.assertIn("limit", input_props)
 
                 create_payload = {
                     "name": "CSV stats verifier",
