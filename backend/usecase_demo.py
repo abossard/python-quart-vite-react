@@ -18,9 +18,8 @@ from enum import Enum
 from typing import Any
 from uuid import uuid4
 
-from pydantic import BaseModel, Field, field_validator
-
 from agents import AgentRequest, agent_service
+from pydantic import BaseModel, Field, field_validator
 
 USECASE_DEMO_AGENT_TIMEOUT_SECONDS = float(
     os.getenv("USECASE_DEMO_AGENT_TIMEOUT_SECONDS", "300")
@@ -134,6 +133,11 @@ def _extract_columns(rows: list[dict[str, Any]]) -> list[str]:
     return columns
 
 
+def _is_sla_breach_prompt(prompt: str) -> bool:
+    normalized = prompt.lower()
+    return "csv_sla_breach_tickets" in normalized or "sla breach" in normalized
+
+
 class UsecaseDemoRunService:
     """In-memory run orchestration with polling-friendly status updates."""
 
@@ -188,17 +192,28 @@ class UsecaseDemoRunService:
             error=None,
         )
 
-        # Enforce a predictable output block for table rendering.
-        structured_prompt = (
-            f"{run.prompt}\n\n"
-            "Antwortformat:\n"
-            "- Führe die Anfrage mit möglichst wenigen Tool-Aufrufen aus.\n"
-            "- Nutze kompakte fields und sinnvolle limits.\n"
-            "- Fordere notes/resolution nur bei explizitem Bedarf an.\n"
-            "- Gib einen JSON-Codeblock mit {\"rows\": [...]} zurück.\n"
-            "- Falls keine sinnvollen Zeilen existieren, gib {\"rows\": []} zurück.\n"
-            "- Optional danach: kurze Zusammenfassung in 2-4 Stichpunkten."
-        )
+        if _is_sla_breach_prompt(run.prompt):
+            structured_prompt = (
+                f"{run.prompt}\n\n"
+                "Antwortformat für SLA-Breach Usecase:\n"
+                "- Rufe csv_sla_breach_tickets als primäre Quelle auf.\n"
+                "- Bevorzuge einen einzelnen Tool-Aufruf; keine unnötigen Tool-Schleifen.\n"
+                "- Liefere ausschließlich kurze Next-Actions als Markdown (max. 6 Bullet Points).\n"
+                "- Keine JSON-Blöcke zurückgeben.\n"
+                "- Fokus: Priorisierung, Verantwortliche Gruppen, sofortige Eskalationsschritte."
+            )
+        else:
+            # Enforce a predictable output block for table rendering.
+            structured_prompt = (
+                f"{run.prompt}\n\n"
+                "Antwortformat:\n"
+                "- Führe die Anfrage mit möglichst wenigen Tool-Aufrufen aus.\n"
+                "- Nutze kompakte fields und sinnvolle limits.\n"
+                "- Fordere notes/resolution nur bei explizitem Bedarf an.\n"
+                "- Gib einen JSON-Codeblock mit {\"rows\": [...]} zurück.\n"
+                "- Falls keine sinnvollen Zeilen existieren, gib {\"rows\": []} zurück.\n"
+                "- Optional danach: kurze Zusammenfassung in 2-4 Stichpunkten."
+            )
 
         try:
             response = await asyncio.wait_for(

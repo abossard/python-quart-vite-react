@@ -20,6 +20,7 @@ import {
     DataHistogram24Regular,
     Info24Regular,
     Table24Regular,
+    Wrench24Regular,
 } from '@fluentui/react-icons'
 import { Navigate, Route, Routes, useLocation, useNavigate } from 'react-router-dom'
 import AgentChat from './features/agent/AgentChat'
@@ -28,6 +29,7 @@ import FieldsDocs from './features/fields/FieldsDocs'
 import { USECASE_DEMO_DEFINITIONS } from './features/usecase-demo/demoDefinitions'
 import UsecaseDemoPage from './features/usecase-demo/UsecaseDemoPage'
 import KitchenSink from './features/kitchensink/KitchenSink'
+import WorkbenchPage from './features/workbench/WorkbenchPage'
 
 const useStyles = makeStyles({
   app: {
@@ -79,6 +81,7 @@ export default function App() {
     ...usecaseTabs,
     { value: 'kitchensink', label: 'Kitchen Sink', icon: <DataHistogram24Regular />, path: '/kitchensink', testId: 'tab-kitchensink' },
     { value: 'fields', label: 'Fields', icon: <Info24Regular />, path: '/fields', testId: 'tab-fields' },
+    { value: 'workbench', label: 'Agent Fabric', icon: <Wrench24Regular />, path: '/workbench', testId: 'tab-workbench' },
     { value: 'agent', label: 'Agent', icon: <Bot24Regular />, path: '/agent', testId: 'tab-agent' },
   ]
   const activeTab = tabs.find((tab) => location.pathname.startsWith(tab.path))?.value ?? 'csvtickets'
@@ -124,6 +127,7 @@ export default function App() {
           ))}
           <Route path="/kitchensink" element={<KitchenSink />} />
           <Route path="/fields" element={<FieldsDocs />} />
+          <Route path="/workbench" element={<WorkbenchPage />} />
           <Route path="/agent" element={<AgentChat />} />
           <Route path="*" element={<Navigate to="/csvtickets" replace />} />
         </Routes>

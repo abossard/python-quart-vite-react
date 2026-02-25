@@ -9,6 +9,7 @@ from pathlib import Path
 from typing import Any
 from uuid import UUID
 
+from agent_workbench import AgentDefinitionCreate, AgentDefinitionUpdate, AgentRunCreate
 from api_decorators import operation
 from csv_data import get_csv_ticket_service
 from tasks import Task, TaskCreate, TaskFilter, TaskService, TaskStats, TaskUpdate
@@ -92,6 +93,12 @@ def _sorted_tickets(tickets: list[Ticket], sort: str, sort_dir: str) -> list[Tic
         return sorted(tickets, key=sort_key, reverse=reverse)
     except TypeError:
         return tickets
+
+
+def _get_workbench_service():
+    """Lazy import avoids circular import during module bootstrap."""
+    from workbench_integration import workbench_service
+    return workbench_service
 
 
 @operation(
@@ -316,6 +323,159 @@ async def op_csv_sla_breach_tickets(
     return get_sla_breach_report(tickets, reference_time=None, include_ok=include_ok)
 
 
+@operation(
+    name="workbench_list_tools",
+    description="List tools available for Agent Fabric definitions",
+    http_method="GET",
+    http_path="/api/workbench/tools",
+)
+async def op_workbench_list_tools() -> list[dict[str, Any]]:
+    """Return all registered tool metadata from the workbench registry."""
+    return _get_workbench_service().list_tools()
+
+
+@operation(
+    name="workbench_list_agents",
+    description="List all Agent Fabric agent definitions",
+    http_method="GET",
+    http_path="/api/workbench/agents",
+)
+async def op_workbench_list_agents() -> list[dict[str, Any]]:
+    """List all persisted workbench agent definitions."""
+    agents = _get_workbench_service().list_agents()
+    return [agent.to_dict() for agent in agents]
+
+
+@operation(
+    name="workbench_create_agent",
+    description="Create a new Agent Fabric agent definition",
+    http_method="POST",
+    http_path="/api/workbench/agents",
+)
+async def op_workbench_create_agent(data: AgentDefinitionCreate) -> dict[str, Any]:
+    """Create and persist a workbench agent definition."""
+    agent = _get_workbench_service().create_agent(data)
+    return agent.to_dict()
+
+
+@operation(
+    name="workbench_get_agent",
+    description="Get one Agent Fabric agent definition by id",
+    http_method="GET",
+    http_path="/api/workbench/agents/{agent_id}",
+)
+async def op_workbench_get_agent(agent_id: str) -> dict[str, Any] | None:
+    """Fetch one workbench agent definition by id."""
+    agent = _get_workbench_service().get_agent(agent_id)
+    return agent.to_dict() if agent else None
+
+
+@operation(
+    name="workbench_update_agent",
+    description="Update an Agent Fabric agent definition",
+    http_method="PUT",
+    http_path="/api/workbench/agents/{agent_id}",
+)
+async def op_workbench_update_agent(
+    agent_id: str,
+    data: AgentDefinitionUpdate,
+) -> dict[str, Any] | None:
+    """Update and return one workbench agent definition."""
+    agent = _get_workbench_service().update_agent(agent_id, data)
+    return agent.to_dict() if agent else None
+
+
+@operation(
+    name="workbench_delete_agent",
+    description="Delete an Agent Fabric agent definition",
+    http_method="DELETE",
+    http_path="/api/workbench/agents/{agent_id}",
+)
+async def op_workbench_delete_agent(agent_id: str) -> bool:
+    """Delete one workbench agent definition by id."""
+    return _get_workbench_service().delete_agent(agent_id)
+
+
+@operation(
+    name="workbench_run_agent",
+    description="Run an Agent Fabric agent with a prompt",
+    http_method="POST",
+    http_path="/api/workbench/agents/{agent_id}/runs",
+)
+async def op_workbench_run_agent(agent_id: str, data: AgentRunCreate) -> dict[str, Any]:
+    """Execute an existing workbench agent definition and persist the run."""
+    run = await _get_workbench_service().run_agent(agent_id, data)
+    return run.to_dict()
+
+
+@operation(
+    name="workbench_list_agent_runs",
+    description="List Agent Fabric runs for a specific agent",
+    http_method="GET",
+    http_path="/api/workbench/agents/{agent_id}/runs",
+)
+async def op_workbench_list_agent_runs(
+    agent_id: str,
+    limit: int = 50,
+) -> list[dict[str, Any]]:
+    """Return recent runs for a single workbench agent."""
+    normalized_limit = min(max(limit, 1), 500)
+    runs = _get_workbench_service().list_runs(agent_id=agent_id, limit=normalized_limit)
+    return [run.to_dict() for run in runs]
+
+
+@operation(
+    name="workbench_list_runs",
+    description="List Agent Fabric runs, optionally filtered by agent id",
+    http_method="GET",
+    http_path="/api/workbench/runs",
+)
+async def op_workbench_list_runs(
+    agent_id: str | None = None,
+    limit: int = 50,
+) -> list[dict[str, Any]]:
+    """Return recent workbench runs."""
+    normalized_limit = min(max(limit, 1), 500)
+    runs = _get_workbench_service().list_runs(agent_id=agent_id, limit=normalized_limit)
+    return [run.to_dict() for run in runs]
+
+
+@operation(
+    name="workbench_get_run",
+    description="Get one Agent Fabric run by id",
+    http_method="GET",
+    http_path="/api/workbench/runs/{run_id}",
+)
+async def op_workbench_get_run(run_id: str) -> dict[str, Any] | None:
+    """Fetch one persisted run by id."""
+    run = _get_workbench_service().get_run(run_id)
+    return run.to_dict() if run else None
+
+
+@operation(
+    name="workbench_evaluate_run",
+    description="Evaluate an Agent Fabric run against its success criteria",
+    http_method="POST",
+    http_path="/api/workbench/runs/{run_id}/evaluate",
+)
+async def op_workbench_evaluate_run(run_id: str) -> dict[str, Any]:
+    """Evaluate one run and upsert its evaluation record."""
+    evaluation = await _get_workbench_service().evaluate_run(run_id)
+    return evaluation.to_dict()
+
+
+@operation(
+    name="workbench_get_evaluation",
+    description="Get evaluation for an Agent Fabric run",
+    http_method="GET",
+    http_path="/api/workbench/runs/{run_id}/evaluation",
+)
+async def op_workbench_get_evaluation(run_id: str) -> dict[str, Any] | None:
+    """Get existing evaluation result for one run."""
+    evaluation = _get_workbench_service().get_evaluation(run_id)
+    return evaluation.to_dict() if evaluation else None
+
+
 # Export shared services for callers (REST app, CLI tools, etc.)
 task_service = _task_service
 csv_ticket_service = _csv_service
@@ -335,5 +495,17 @@ __all__ = [
     "op_csv_ticket_stats",
     "op_csv_ticket_fields",
     "op_csv_sla_breach_tickets",
+    "op_workbench_list_tools",
+    "op_workbench_list_agents",
+    "op_workbench_create_agent",
+    "op_workbench_get_agent",
+    "op_workbench_update_agent",
+    "op_workbench_delete_agent",
+    "op_workbench_run_agent",
+    "op_workbench_list_agent_runs",
+    "op_workbench_list_runs",
+    "op_workbench_get_run",
+    "op_workbench_evaluate_run",
+    "op_workbench_get_evaluation",
     "CSV_TICKET_FIELDS",
 ]
