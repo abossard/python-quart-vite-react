@@ -30,9 +30,18 @@ load_dotenv()
 
 # Import unified operation system
 
+# Agent Workbench
+from agent_workbench import (
+    AgentDefinitionCreate,
+    AgentDefinitionUpdate,
+    AgentRunCreate,
+    CriteriaType,
+    RunStatus,
+)
+
 # Agent service for OpenAI LangGraph agents
 from agents import AgentRequest, AgentResponse, agent_service
-from api_decorators import operation
+from api_decorators import get_operation, operation
 
 # CSV ticket service
 from csv_data import Ticket, get_csv_ticket_service
@@ -51,6 +60,7 @@ from operations import (
     task_service,
 )
 from usecase_demo import UsecaseDemoRunCreate, usecase_demo_run_service
+from workbench_integration import _tool_registry, workbench_service
 
 # Ticket MCP server URL (same as in agents.py)
 TICKET_MCP_SERVER_URL = "https://yodrrscbpxqnslgugwow.supabase.co/functions/v1/mcp/a7f2b8c4-d3e9-4f1a-b5c6-e8d9f0123456"
@@ -178,6 +188,182 @@ async def rest_run_agent():
         return jsonify({"error": str(e)}), 400
     except Exception as e:
         return jsonify({"error": str(e)}), 500
+
+
+# ============================================================================
+# AGENT WORKBENCH ENDPOINTS
+# ============================================================================
+
+_WORKBENCH_UI_OPERATION_NAMES = [
+    "workbench_list_tools",
+    "workbench_list_agents",
+    "workbench_create_agent",
+    "workbench_get_agent",
+    "workbench_update_agent",
+    "workbench_delete_agent",
+    "workbench_run_agent",
+    "workbench_list_agent_runs",
+    "workbench_list_runs",
+    "workbench_get_run",
+    "workbench_evaluate_run",
+    "workbench_get_evaluation",
+]
+
+
+@app.route("/api/workbench/ui-config", methods=["GET"])
+async def workbench_ui_config():
+    """Expose UI-friendly endpoint metadata and enums for Agent Workbench."""
+    endpoints: list[dict] = []
+    for op_name in _WORKBENCH_UI_OPERATION_NAMES:
+        op = get_operation(op_name)
+        if op is None:
+            continue
+        endpoints.append({
+            "name": op.name,
+            "method": op.http_method,
+            "path": op.http_path,
+            "description": op.description,
+            "input_schema": op.get_mcp_input_schema(),
+        })
+
+    return jsonify({
+        "module": "agent_workbench",
+        "version": "1",
+        "criteria_types": [criteria.value for criteria in CriteriaType],
+        "run_statuses": [status.value for status in RunStatus],
+        "defaults": {
+            "run_list_limit": 50,
+            "max_run_list_limit": 500,
+        },
+        "endpoints": endpoints,
+    })
+
+
+@app.route("/api/workbench/tools", methods=["GET"])
+async def workbench_list_tools():
+    """List all tools available for use in agent definitions."""
+    return jsonify({"tools": workbench_service.list_tools()})
+
+
+@app.route("/api/workbench/agents", methods=["GET"])
+async def workbench_list_agents():
+    """List all agent definitions."""
+    agents = workbench_service.list_agents()
+    return jsonify({"agents": [a.to_dict() for a in agents]})
+
+
+@app.route("/api/workbench/agents", methods=["POST"])
+async def workbench_create_agent():
+    """Create a new agent definition."""
+    try:
+        data = await request.get_json()
+        agent_def = workbench_service.create_agent(AgentDefinitionCreate(**data))
+        return jsonify(agent_def.to_dict()), 201
+    except ValidationError as exc:
+        return jsonify({"error": str(exc)}), 400
+    except ValueError as exc:
+        return jsonify({"error": str(exc)}), 400
+    except Exception as exc:
+        return jsonify({"error": str(exc)}), 500
+
+
+@app.route("/api/workbench/agents/<agent_id>", methods=["GET"])
+async def workbench_get_agent(agent_id: str):
+    """Get a single agent definition."""
+    agent_def = workbench_service.get_agent(agent_id)
+    if agent_def is None:
+        return jsonify({"error": "Agent not found"}), 404
+    return jsonify(agent_def.to_dict())
+
+
+@app.route("/api/workbench/agents/<agent_id>", methods=["PUT"])
+async def workbench_update_agent(agent_id: str):
+    """Update an agent definition."""
+    try:
+        data = await request.get_json()
+        agent_def = workbench_service.update_agent(agent_id, AgentDefinitionUpdate(**data))
+        if agent_def is None:
+            return jsonify({"error": "Agent not found"}), 404
+        return jsonify(agent_def.to_dict())
+    except ValidationError as exc:
+        return jsonify({"error": str(exc)}), 400
+    except ValueError as exc:
+        return jsonify({"error": str(exc)}), 400
+    except Exception as exc:
+        return jsonify({"error": str(exc)}), 500
+
+
+@app.route("/api/workbench/agents/<agent_id>", methods=["DELETE"])
+async def workbench_delete_agent(agent_id: str):
+    """Delete an agent definition."""
+    if not workbench_service.delete_agent(agent_id):
+        return jsonify({"error": "Agent not found"}), 404
+    return jsonify({"message": "Deleted"}), 200
+
+
+@app.route("/api/workbench/agents/<agent_id>/runs", methods=["POST"])
+async def workbench_run_agent(agent_id: str):
+    """Run an agent against a prompt and return the completed AgentRun."""
+    try:
+        data = await request.get_json()
+        run = await workbench_service.run_agent(agent_id, AgentRunCreate(**data))
+        return jsonify(run.to_dict()), 200
+    except ValueError as exc:
+        message = str(exc)
+        status = 404 if "not found" in message.lower() else 400
+        return jsonify({"error": message}), status
+    except ValidationError as exc:
+        return jsonify({"error": str(exc)}), 400
+    except Exception as exc:
+        return jsonify({"error": str(exc)}), 500
+
+
+@app.route("/api/workbench/agents/<agent_id>/runs", methods=["GET"])
+async def workbench_list_agent_runs(agent_id: str):
+    """List all runs for an agent."""
+    limit = request.args.get("limit", 50, type=int)
+    runs = workbench_service.list_runs(agent_id=agent_id, limit=limit)
+    return jsonify({"runs": [r.to_dict() for r in runs]})
+
+
+@app.route("/api/workbench/runs", methods=["GET"])
+async def workbench_list_all_runs():
+    """List all runs across all agents."""
+    limit = request.args.get("limit", 50, type=int)
+    runs = workbench_service.list_runs(limit=limit)
+    return jsonify({"runs": [r.to_dict() for r in runs]})
+
+
+@app.route("/api/workbench/runs/<run_id>", methods=["GET"])
+async def workbench_get_run(run_id: str):
+    """Get a single run."""
+    run = workbench_service.get_run(run_id)
+    if run is None:
+        return jsonify({"error": "Run not found"}), 404
+    return jsonify(run.to_dict())
+
+
+@app.route("/api/workbench/runs/<run_id>/evaluate", methods=["POST"])
+async def workbench_evaluate_run(run_id: str):
+    """Evaluate a completed run against its agent's success criteria."""
+    try:
+        evaluation = await workbench_service.evaluate_run(run_id)
+        return jsonify(evaluation.to_dict()), 200
+    except ValueError as exc:
+        message = str(exc)
+        status = 404 if "not found" in message.lower() else 400
+        return jsonify({"error": message}), status
+    except Exception as exc:
+        return jsonify({"error": str(exc)}), 500
+
+
+@app.route("/api/workbench/runs/<run_id>/evaluation", methods=["GET"])
+async def workbench_get_evaluation(run_id: str):
+    """Get the evaluation result for a run (if it exists)."""
+    evaluation = workbench_service.get_evaluation(run_id)
+    if evaluation is None:
+        return jsonify({"error": "No evaluation found for this run"}), 404
+    return jsonify(evaluation.to_dict())
 
 
 # ============================================================================

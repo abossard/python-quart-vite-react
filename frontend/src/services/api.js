@@ -278,3 +278,32 @@ export async function getSlaBreach({
   });
   return fetchJSON(`${API_BASE_URL}/csv-tickets/sla-breach?${params}`);
 }
+
+// ============================================================================
+// Agent Workbench APIs
+// ============================================================================
+
+export async function getWorkbenchUiConfig() {
+  return fetchJSON(`${API_BASE_URL}/workbench/ui-config`);
+}
+
+export async function listWorkbenchTools() {
+  return fetchJSON(`${API_BASE_URL}/workbench/tools`);
+}
+
+export async function listWorkbenchAgents() {
+  return fetchJSON(`${API_BASE_URL}/workbench/agents`);
+}
+
+export async function createWorkbenchAgent(agentData) {
+  return fetchJSON(`${API_BASE_URL}/workbench/agents`, {
+    method: "POST",
+    body: JSON.stringify(agentData),
+  });
+}
+
+export async function deleteWorkbenchAgent(agentId) {
+  return fetchJSON(`${API_BASE_URL}/workbench/agents/${agentId}`, {
+    method: "DELETE",
+  });
+}

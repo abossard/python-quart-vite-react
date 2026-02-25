@@ -19,7 +19,7 @@ const SLA_BREACH_DEFAULT_PROMPT = `Call csv_sla_breach_tickets with default para
 
 Using the returned report, write ONLY a short markdown summary (max 200 words):
 1. State the reference_timestamp used
-2. Group ticket counts by breach_status and assigned_group
+2. Group ticket counts by breach_status and assigned_group, and confirm assignee is empty
 3. Recommend actions for the most critical breaches
 
 Do NOT output a JSON block — the frontend fetches and renders the ticket table directly from the API.`;
