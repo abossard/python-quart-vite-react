@@ -61,7 +61,7 @@ test.describe("Agent Fabric UI", () => {
           agent_id: "agent-e2e-1",
           input_prompt: "Summarize ticket trends",
           status: "completed",
-          output: "Ticket trend summary: high priority incidents are concentrated in Network services.",
+          output: "# Ticket trend summary\n\n- High priority incidents are concentrated in **Network services**.",
           agent_snapshot: { tool_names: ["csv_ticket_stats"] },
           tools_used: ["csv_ticket_stats"],
           error: null,
@@ -99,6 +99,9 @@ test.describe("Agent Fabric UI", () => {
       "Ticket trend summary",
       { timeout: 10000 }
     );
+    await expect(
+      page.locator('[data-testid="workbench-run-output"] h1')
+    ).toHaveText("Ticket trend summary");
   });
 
   test("requires and forwards configured run input", async ({ page }) => {

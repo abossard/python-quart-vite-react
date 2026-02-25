@@ -52,6 +52,18 @@ def _build_react_agent(llm: Any, tools: list[Any], system_prompt: str) -> Any:
     return create_react_agent(llm, tools, prompt=system_prompt)
 
 
+def _append_markdown_output_instruction(system_prompt: str) -> str:
+    instruction = (
+        "Format your final answer as GitHub-flavored Markdown. "
+        "Use headings, bullet lists, and tables when helpful. "
+        "Do not wrap the entire response in a code block."
+    )
+    base_prompt = (system_prompt or "").strip()
+    if not base_prompt:
+        return instruction
+    return f"{base_prompt}\n\n{instruction}"
+
+
 # ============================================================================
 # WORKBENCH SERVICE
 # ============================================================================
@@ -366,7 +378,8 @@ class WorkbenchService:
         # -- Execute --
         try:
             tools = self._registry.resolve(validated_tool_names)
-            react = _build_react_agent(self.llm, tools, agent_def.system_prompt)
+            runtime_system_prompt = _append_markdown_output_instruction(agent_def.system_prompt)
+            react = _build_react_agent(self.llm, tools, runtime_system_prompt)
 
             result = await react.ainvoke(
                 {"messages": [("user", user_message)]},

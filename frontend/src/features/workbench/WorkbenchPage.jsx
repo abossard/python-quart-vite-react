@@ -13,6 +13,8 @@ import {
   tokens,
 } from '@fluentui/react-components'
 import { useEffect, useState } from 'react'
+import ReactMarkdown from 'react-markdown'
+import remarkGfm from 'remark-gfm'
 import {
   createWorkbenchAgent,
   deleteWorkbenchAgent,
@@ -81,6 +83,48 @@ const useStyles = makeStyles({
     padding: `${tokens.spacingVerticalS} ${tokens.spacingHorizontalM}`,
     backgroundColor: tokens.colorNeutralBackground1,
     color: tokens.colorNeutralForeground1,
+  },
+  runOutputMarkdown: {
+    border: `1px solid ${tokens.colorNeutralStroke1}`,
+    borderRadius: tokens.borderRadiusMedium,
+    padding: `${tokens.spacingVerticalS} ${tokens.spacingHorizontalM}`,
+    backgroundColor: tokens.colorNeutralBackground1,
+    maxHeight: '320px',
+    overflowY: 'auto',
+    '& h1, & h2, & h3': {
+      margin: `${tokens.spacingVerticalXS} 0`,
+      fontWeight: tokens.fontWeightSemibold,
+    },
+    '& ul, & ol': {
+      margin: `${tokens.spacingVerticalXS} 0`,
+      paddingLeft: tokens.spacingHorizontalL,
+    },
+    '& table': {
+      width: '100%',
+      borderCollapse: 'collapse',
+      marginTop: tokens.spacingVerticalXS,
+    },
+    '& th, & td': {
+      border: `1px solid ${tokens.colorNeutralStroke1}`,
+      padding: tokens.spacingHorizontalXS,
+      textAlign: 'left',
+    },
+    '& pre': {
+      backgroundColor: tokens.colorNeutralBackground3,
+      padding: tokens.spacingHorizontalM,
+      borderRadius: tokens.borderRadiusSmall,
+      overflowX: 'auto',
+    },
+    '& code': {
+      fontFamily: 'monospace',
+      backgroundColor: tokens.colorNeutralBackground3,
+      padding: '0 4px',
+      borderRadius: tokens.borderRadiusSmall,
+    },
+    '& a': {
+      color: tokens.colorBrandForegroundLink,
+      textDecoration: 'underline',
+    },
   },
 })
 
@@ -543,14 +587,12 @@ export default function WorkbenchPage() {
 
           {runError && <Text data-testid="workbench-run-error">{runError}</Text>}
           {runOutput && (
-            <Field label="Run output">
-              <Textarea
-                data-testid="workbench-run-output"
-                value={runOutput}
-                readOnly
-                resize="vertical"
-                rows={6}
-              />
+            <Field label="Run output (Markdown)">
+              <div data-testid="workbench-run-output" className={styles.runOutputMarkdown}>
+                <ReactMarkdown remarkPlugins={[remarkGfm]}>
+                  {runOutput}
+                </ReactMarkdown>
+              </div>
             </Field>
           )}
         </div>
