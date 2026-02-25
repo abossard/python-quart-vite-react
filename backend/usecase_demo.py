@@ -18,12 +18,11 @@ from enum import Enum
 from typing import Any
 from uuid import uuid4
 
+from agents import AgentRequest, agent_service
 from pydantic import BaseModel, Field, field_validator
 
-from agents import AgentRequest, agent_service
-
 USECASE_DEMO_AGENT_TIMEOUT_SECONDS = float(
-    os.getenv("USECASE_DEMO_AGENT_TIMEOUT_SECONDS", "120")
+    os.getenv("USECASE_DEMO_AGENT_TIMEOUT_SECONDS", "300")
 )
 
 
@@ -45,10 +44,6 @@ class UsecaseDemoRunCreate(BaseModel):
         max_length=8000,
         description="Prompt to execute with the CSV ticket assistant",
     )
-    agent_type: str = Field(
-        default="task_assistant",
-        description="Type of agent to run: task_assistant or kba_assistant",
-    )
 
     @field_validator("prompt")
     @classmethod
@@ -64,7 +59,6 @@ class UsecaseDemoRun(BaseModel):
 
     id: str = Field(..., description="Unique run identifier")
     prompt: str = Field(..., description="Prompt used for the run")
-    agent_type: str = Field(default="task_assistant", description="Agent type used")
     status: UsecaseDemoRunStatus = Field(default=UsecaseDemoRunStatus.QUEUED)
     created_at: datetime = Field(default_factory=datetime.now)
     started_at: datetime | None = Field(default=None)
@@ -139,6 +133,11 @@ def _extract_columns(rows: list[dict[str, Any]]) -> list[str]:
     return columns
 
 
+def _is_sla_breach_prompt(prompt: str) -> bool:
+    normalized = prompt.lower()
+    return "csv_sla_breach_tickets" in normalized or "sla breach" in normalized
+
+
 class UsecaseDemoRunService:
     """In-memory run orchestration with polling-friendly status updates."""
 
@@ -148,11 +147,7 @@ class UsecaseDemoRunService:
 
     async def create_run(self, payload: UsecaseDemoRunCreate) -> UsecaseDemoRun:
         """Create a run and schedule asynchronous execution."""
-        run = UsecaseDemoRun(
-            id=str(uuid4()),
-            prompt=payload.prompt,
-            agent_type=payload.agent_type
-        )
+        run = UsecaseDemoRun(id=str(uuid4()), prompt=payload.prompt)
         async with self._lock:
             self._runs[run.id] = run
 
@@ -197,28 +192,35 @@ class UsecaseDemoRunService:
             error=None,
         )
 
-        # Different prompt structures for different agent types
         if run.agent_type == "kba_assistant":
-            # KBA assistant expects just the ticket ID and returns structured JSON
             structured_prompt = run.prompt
-        else:
-            # Standard task assistant - enforce a predictable output block for table rendering
+        elif _is_sla_breach_prompt(run.prompt):
             structured_prompt = (
                 f"{run.prompt}\n\n"
-                "Zusatzformat:\n"
-                "- Gib zuerst eine kurze Zusammenfassung.\n"
-                "- Füge danach einen JSON-Codeblock mit `rows` hinzu.\n"
-                "- JSON-Schema:\n"
-                "  {\"rows\": [{\"menu_point\": \"...\", \"project_name\": \"...\", "
-                "\"summary\": \"...\", \"agent_prompt\": \"...\", \"ticket_ids\": \"...\", "
-                "\"csv_evidence\": \"...\"}]}\n"
-                "- Falls keine sinnvollen Zeilen existieren, gib `{\"rows\": []}` zurück."
+                "Antwortformat für SLA-Breach Usecase:\n"
+                "- Rufe csv_sla_breach_tickets als primäre Quelle auf.\n"
+                "- Bevorzuge einen einzelnen Tool-Aufruf; keine unnötigen Tool-Schleifen.\n"
+                "- Liefere ausschließlich kurze Next-Actions als Markdown (max. 6 Bullet Points).\n"
+                "- Keine JSON-Blöcke zurückgeben.\n"
+                "- Fokus: Priorisierung, Verantwortliche Gruppen, sofortige Eskalationsschritte."
+            )
+        else:
+            # Enforce a predictable output block for table rendering.
+            structured_prompt = (
+                f"{run.prompt}\n\n"
+                "Antwortformat:\n"
+                "- Führe die Anfrage mit möglichst wenigen Tool-Aufrufen aus.\n"
+                "- Nutze kompakte fields und sinnvolle limits.\n"
+                "- Fordere notes/resolution nur bei explizitem Bedarf an.\n"
+                "- Gib einen JSON-Codeblock mit {\"rows\": [...]} zurück.\n"
+                "- Falls keine sinnvollen Zeilen existieren, gib {\"rows\": []} zurück.\n"
+                "- Optional danach: kurze Zusammenfassung in 2-4 Stichpunkten."
             )
 
         try:
             response = await asyncio.wait_for(
                 agent_service.run_agent(
-                    AgentRequest(prompt=structured_prompt, agent_type=run.agent_type)
+                    AgentRequest(prompt=structured_prompt, agent_type=run.agent_type or "task_assistant")
                 ),
                 timeout=USECASE_DEMO_AGENT_TIMEOUT_SECONDS,
             )

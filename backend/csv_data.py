@@ -290,7 +290,7 @@ def csv_row_to_ticket(row: CSVTicketRow) -> Ticket:
     
     return Ticket(
         id=ticket_id,
-        incident_id=row.incident_id,
+        incident_id=row.incident_id or row.entry_id or None,
         summary=row.summary or "No summary",
         description=row.notes or row.summary or "No description",
         status=map_status(row.status or row.status_ppl),
@@ -440,7 +440,7 @@ class CSVTicketService:
     
     def __init__(self):
         self._tickets: dict[UUID, Ticket] = {}
-        self._incident_id_index: dict[str, UUID] = {}  # incident_id (uppercase) -> UUID
+        self._tickets_by_incident_id: dict[str, Ticket] = {}
         self._loaded_files: set[str] = set()
     
     def load_csv(self, file_path: str | Path) -> int:
@@ -456,9 +456,8 @@ class CSVTicketService:
         
         for ticket in tickets:
             self._tickets[ticket.id] = ticket
-            # Build incident_id index (case-insensitive)
             if ticket.incident_id:
-                self._incident_id_index[ticket.incident_id.upper()] = ticket.id
+                self._tickets_by_incident_id[ticket.incident_id] = ticket
         
         self._loaded_files.add(file_key)
         return len(tickets)
@@ -466,13 +465,10 @@ class CSVTicketService:
     def get_ticket(self, ticket_id: UUID) -> Optional[Ticket]:
         """Get ticket by UUID."""
         return self._tickets.get(ticket_id)
-    
+
     def get_ticket_by_incident_id(self, incident_id: str) -> Optional[Ticket]:
-        """Get ticket by incident ID (e.g., INC000012345). Case-insensitive."""
-        uuid = self._incident_id_index.get(incident_id.upper())
-        if uuid:
-            return self._tickets.get(uuid)
-        return None
+        """Get ticket by INC number (e.g. INC000016349327)."""
+        return self._tickets_by_incident_id.get(incident_id)
     
     def list_tickets(
         self,

@@ -1,35 +1,34 @@
 import {
-  Badge,
-  Button,
-  Card,
-  CardHeader,
-  Field,
-  Spinner,
-  Subtitle1,
-  Text,
-  Textarea,
-  makeStyles,
-  tokens,
+    Badge,
+    Button,
+    Card,
+    CardHeader,
+    Field,
+    Spinner,
+    Subtitle1,
+    Text,
+    Textarea,
+    makeStyles,
+    tokens,
 } from '@fluentui/react-components'
 import {
-  ArrowSync24Regular,
-  Bot24Regular,
-  Play24Regular,
+    ArrowSync24Regular,
+    Bot24Regular,
+    Play24Regular,
 } from '@fluentui/react-icons'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import {
-  createUsecaseDemoAgentRun,
-  getCSVTicket,
-  getUsecaseDemoAgentRun,
-  listUsecaseDemoAgentRuns,
+    createUsecaseDemoAgentRun,
+    getCSVTicket,
+    getUsecaseDemoAgentRun,
+    listUsecaseDemoAgentRuns,
 } from '../../services/api'
 import { RESULT_VIEW_REGISTRY } from './resultViews'
 import {
-  extractTicketIdsFromRows,
-  formatDateTime,
-  sanitizeMarkdownForDisplay,
-  upsertRun,
-  parseTicketIds,
+    extractTicketIdsFromRows,
+    formatDateTime,
+    sanitizeMarkdownForDisplay,
+    upsertRun,
 } from './usecaseDemoUtils'
 
 const STATUS_COLORS = {
@@ -199,21 +198,13 @@ export default function UsecaseDemoPage({ definition }) {
     definition.runHistoryLimit,
   ])
 
-
-  const matchingTicketIds = useMemo(() => {
-    // Erst aus result_rows extrahieren
-    const ids = extractTicketIdsFromRows(currentRun?.result_rows || [], definition.ticketIdFields)
-    if (ids.length > 0) return ids
-    // Fallback: IDs aus Markdown extrahieren
-    if (currentRun?.result_markdown) {
-      // parseTicketIds ist bereits importiert in usecaseDemoUtils
-      return parseTicketIds(currentRun.result_markdown)
-    }
-    return []
-  }, [currentRun?.result_rows, currentRun?.result_markdown, definition.ticketIdFields])
+  const matchingTicketIds = useMemo(
+    () => extractTicketIdsFromRows(currentRun?.result_rows || [], definition.ticketIdFields),
+    [currentRun?.result_rows, definition.ticketIdFields]
+  )
 
   const selectedTicket = useMemo(
-    () => matchingTickets.find((ticket) => ticket.id === selectedTicketId) || null,
+    () => matchingTickets.find((ticket) => ticket.incident_id === selectedTicketId || ticket.id === selectedTicketId) || null,
     [matchingTickets, selectedTicketId]
   )
 
@@ -263,10 +254,10 @@ export default function UsecaseDemoPage({ definition }) {
       const loadedTickets = tickets.filter((ticket) => !ticket._error)
       setMatchingTickets(loadedTickets)
       setSelectedTicketId((previousId) => {
-        if (previousId && loadedTickets.some((ticket) => ticket.id === previousId)) {
+        if (previousId && loadedTickets.some((ticket) => ticket.incident_id === previousId || ticket.id === previousId)) {
           return previousId
         }
-        return loadedTickets[0]?.id || null
+        return loadedTickets[0]?.incident_id || loadedTickets[0]?.id || null
       })
 
       if (!loadedTickets.length) {
@@ -295,8 +286,7 @@ export default function UsecaseDemoPage({ definition }) {
     setIsSubmitting(true)
 
     try {
-      const agentType = definition.agentType || 'task_assistant'
-      const createdRun = await createUsecaseDemoAgentRun(prompt, agentType)
+      const createdRun = await createUsecaseDemoAgentRun(prompt)
       setCurrentRun(createdRun)
       setRuns((prev) => upsertRun(prev, createdRun, definition.runHistoryLimit || 25))
     } catch (err) {
@@ -401,102 +391,6 @@ export default function UsecaseDemoPage({ definition }) {
               </div>
             </div>
 
-            {/* TICKET_SEARCH_RESULT_TABLE_START */}
-            {currentRun && (matchingTicketIds.length > 0 || isLoadingTickets || matchingTicketIds.length === 0) && (
-              <div style={{ marginTop: tokens.spacingVerticalM }}>
-                <Text size={200} weight="semibold">Ticket-Suche Ergebnis</Text>
-                <div className={styles.tableWrapper}>
-                  <table className={styles.table}>
-                    <thead>
-                      <tr>
-                        <th className={styles.th}>Ticket-ID</th>
-                        <th className={styles.th}>In CSV gefunden</th>
-                        <th className={styles.th}>Status</th>
-                        <th className={styles.th}>Priority</th>
-                        <th className={styles.th}>Summary</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      <>
-                        {matchingTicketIds.length === 0 ? (
-                          <tr>
-                            <td className={styles.td} colSpan={5} style={{ textAlign: 'center' }}>
-                              <Badge color="danger">✗ Ticket nicht gefunden</Badge>
-                            </td>
-                          </tr>
-                        ) : (
-                          matchingTicketIds.map((ticketId, idx) => {
-                            const ticket = matchingTickets.find(t => t.id === ticketId)
-                            const isLoaded = ticket && !ticket._error
-                            const isSelected = selectedTicketId === ticketId
-                            return (
-                              <tr 
-                                key={ticketId}
-                                className={idx % 2 === 1 ? styles.rowAlt : ''}
-                                onClick={() => isLoaded && setSelectedTicketId(ticketId)}
-                                style={{ 
-                                  cursor: isLoaded ? 'pointer' : 'default',
-                                  backgroundColor: isSelected ? tokens.colorBrandBackground2 : undefined
-                                }}
-                              >
-                                <td className={styles.td}>
-                                  {isSelected && '→ '}
-                                  <Text weight={isSelected ? 'semibold' : 'regular'}>{ticketId}</Text>
-                                </td>
-                                <td className={styles.td}>
-                                  {isLoaded ? (
-                                    <Badge color="success" appearance="filled">✓ Ja</Badge>
-                                  ) : isLoadingTickets ? (
-                                    <Badge color="informative">⏳ Lädt...</Badge>
-                                  ) : (
-                                    <Badge color="danger">✗ Nicht gefunden</Badge>
-                                  )}
-                                </td>
-                                <td className={styles.td}>
-                                  {ticket?.status ? (
-                                    <Badge color="subtle">{ticket.status}</Badge>
-                                  ) : (
-                                    <Text size={200}>-</Text>
-                                  )}
-                                </td>
-                                <td className={styles.td}>
-                                  {ticket?.priority ? (
-                                    <Badge color={
-                                      ticket.priority === '1-Critical' || ticket.priority === '2-High' 
-                                        ? 'danger' 
-                                        : 'subtle'
-                                    }>
-                                      {ticket.priority}
-                                    </Badge>
-                                  ) : (
-                                    <Text size={200}>-</Text>
-                                  )}
-                                </td>
-                                <td className={styles.td}>
-                                  {ticket?.summary ? (
-                                    <Text 
-                                      size={200} 
-                                      style={{ maxWidth: '300px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}
-                                      title={ticket.summary}
-                                    >
-                                      {ticket.summary}
-                                    </Text>
-                                  ) : (
-                                    <Text size={200}>-</Text>
-                                  )}
-                                </td>
-                              </tr>
-                            )
-                          })
-                        )}
-                      </>
-                    </tbody>
-                  </table>
-                </div>
-              </div>
-            )}
-            {/* TICKET_SEARCH_RESULT_TABLE_END */}
-
             {['queued', 'running'].includes(currentRun.status) && (
               <Spinner size="small" label="Agent is running in the background..." />
             )}
@@ -533,7 +427,7 @@ export default function UsecaseDemoPage({ definition }) {
               {config.description && (
                 <Text size={200} className={styles.viewDescription}>{config.description}</Text>
               )}
-              {config.render({ run: currentRun, markdown: visibleResultMarkdown, styles })}
+              {config.render({ run: currentRun, markdown: visibleResultMarkdown, styles, matchingTickets, isLoadingTickets })}
             </div>
           ))
         )}
@@ -568,23 +462,25 @@ export default function UsecaseDemoPage({ definition }) {
                     </tr>
                   </thead>
                   <tbody>
-                    {matchingTickets.map((ticket, index) => (
-                      <tr key={ticket.id} className={index % 2 ? styles.rowAlt : ''}>
-                        <td className={styles.td}>{ticket.id}</td>
+                    {matchingTickets.map((ticket, index) => {
+                      const ticketKey = ticket.incident_id || ticket.id
+                      return (
+                      <tr key={ticketKey} className={index % 2 ? styles.rowAlt : ''}>
+                        <td className={styles.td}>{ticketKey}</td>
                         <td className={styles.td}>{ticket.summary || '—'}</td>
                         <td className={styles.td}>{ticket.status || '—'}</td>
                         <td className={styles.td}>
                           <Button
                             size="small"
-                            appearance={selectedTicketId === ticket.id ? 'primary' : 'secondary'}
-                            onClick={() => setSelectedTicketId(ticket.id)}
-                            data-testid={`${testIdPrefix}-ticket-open-${ticket.id}`}
+                            appearance={selectedTicketId === ticketKey ? 'primary' : 'secondary'}
+                            onClick={() => setSelectedTicketId(ticketKey)}
+                            data-testid={`${testIdPrefix}-ticket-open-${ticketKey}`}
                           >
                             Open
                           </Button>
                         </td>
                       </tr>
-                    ))}
+                    )})}
                   </tbody>
                 </table>
               </div>
@@ -592,7 +488,7 @@ export default function UsecaseDemoPage({ definition }) {
               {selectedTicket && (
                 <div className={styles.ticketDetails} data-testid={`${testIdPrefix}-ticket-details`}>
                   <Text weight="semibold">{selectedTicket.summary || 'Ticket Details'}</Text>
-                  <Text>ID: {selectedTicket.id}</Text>
+                  <Text>INC: {selectedTicket.incident_id || '—'}</Text>
                   <Text>Status: {selectedTicket.status || '—'}</Text>
                   <Text>Priority: {selectedTicket.priority || '—'}</Text>
                   <Text>Assignee: {selectedTicket.assignee || '—'}</Text>

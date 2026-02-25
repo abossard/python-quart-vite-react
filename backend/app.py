@@ -30,13 +30,21 @@ load_dotenv()
 
 # Import unified operation system
 
+# Agent Fabric
+from agent_workbench import (
+    AgentDefinitionCreate,
+    AgentDefinitionUpdate,
+    AgentRunCreate,
+    CriteriaType,
+    RunStatus,
+)
+
 # Agent service for OpenAI LangGraph agents
 from agents import AgentRequest, AgentResponse, agent_service
-from api_decorators import operation
+from api_decorators import get_operation, operation
 
 # CSV ticket service
 from csv_data import Ticket, get_csv_ticket_service
-from usecase_demo import UsecaseDemoRunCreate, usecase_demo_run_service
 
 # FastMCP client for direct ticket MCP calls (no AI)
 from fastmcp import Client as MCPClient
@@ -51,6 +59,8 @@ from operations import (
     op_update_task,
     task_service,
 )
+from usecase_demo import UsecaseDemoRunCreate, usecase_demo_run_service
+from workbench_integration import _tool_registry, workbench_service
 
 # Ticket MCP server URL (same as in agents.py)
 TICKET_MCP_SERVER_URL = "https://yodrrscbpxqnslgugwow.supabase.co/functions/v1/mcp/a7f2b8c4-d3e9-4f1a-b5c6-e8d9f0123456"
@@ -178,6 +188,182 @@ async def rest_run_agent():
         return jsonify({"error": str(e)}), 400
     except Exception as e:
         return jsonify({"error": str(e)}), 500
+
+
+# ============================================================================
+# AGENT FABRIC ENDPOINTS
+# ============================================================================
+
+_WORKBENCH_UI_OPERATION_NAMES = [
+    "workbench_list_tools",
+    "workbench_list_agents",
+    "workbench_create_agent",
+    "workbench_get_agent",
+    "workbench_update_agent",
+    "workbench_delete_agent",
+    "workbench_run_agent",
+    "workbench_list_agent_runs",
+    "workbench_list_runs",
+    "workbench_get_run",
+    "workbench_evaluate_run",
+    "workbench_get_evaluation",
+]
+
+
+@app.route("/api/workbench/ui-config", methods=["GET"])
+async def workbench_ui_config():
+    """Expose UI-friendly endpoint metadata and enums for Agent Fabric."""
+    endpoints: list[dict] = []
+    for op_name in _WORKBENCH_UI_OPERATION_NAMES:
+        op = get_operation(op_name)
+        if op is None:
+            continue
+        endpoints.append({
+            "name": op.name,
+            "method": op.http_method,
+            "path": op.http_path,
+            "description": op.description,
+            "input_schema": op.get_mcp_input_schema(),
+        })
+
+    return jsonify({
+        "module": "agent_fabric",
+        "version": "1",
+        "criteria_types": [criteria.value for criteria in CriteriaType],
+        "run_statuses": [status.value for status in RunStatus],
+        "defaults": {
+            "run_list_limit": 50,
+            "max_run_list_limit": 500,
+        },
+        "endpoints": endpoints,
+    })
+
+
+@app.route("/api/workbench/tools", methods=["GET"])
+async def workbench_list_tools():
+    """List all tools available for use in agent definitions."""
+    return jsonify({"tools": workbench_service.list_tools()})
+
+
+@app.route("/api/workbench/agents", methods=["GET"])
+async def workbench_list_agents():
+    """List all agent definitions."""
+    agents = workbench_service.list_agents()
+    return jsonify({"agents": [a.to_dict() for a in agents]})
+
+
+@app.route("/api/workbench/agents", methods=["POST"])
+async def workbench_create_agent():
+    """Create a new agent definition."""
+    try:
+        data = await request.get_json()
+        agent_def = workbench_service.create_agent(AgentDefinitionCreate(**data))
+        return jsonify(agent_def.to_dict()), 201
+    except ValidationError as exc:
+        return jsonify({"error": str(exc)}), 400
+    except ValueError as exc:
+        return jsonify({"error": str(exc)}), 400
+    except Exception as exc:
+        return jsonify({"error": str(exc)}), 500
+
+
+@app.route("/api/workbench/agents/<agent_id>", methods=["GET"])
+async def workbench_get_agent(agent_id: str):
+    """Get a single agent definition."""
+    agent_def = workbench_service.get_agent(agent_id)
+    if agent_def is None:
+        return jsonify({"error": "Agent not found"}), 404
+    return jsonify(agent_def.to_dict())
+
+
+@app.route("/api/workbench/agents/<agent_id>", methods=["PUT"])
+async def workbench_update_agent(agent_id: str):
+    """Update an agent definition."""
+    try:
+        data = await request.get_json()
+        agent_def = workbench_service.update_agent(agent_id, AgentDefinitionUpdate(**data))
+        if agent_def is None:
+            return jsonify({"error": "Agent not found"}), 404
+        return jsonify(agent_def.to_dict())
+    except ValidationError as exc:
+        return jsonify({"error": str(exc)}), 400
+    except ValueError as exc:
+        return jsonify({"error": str(exc)}), 400
+    except Exception as exc:
+        return jsonify({"error": str(exc)}), 500
+
+
+@app.route("/api/workbench/agents/<agent_id>", methods=["DELETE"])
+async def workbench_delete_agent(agent_id: str):
+    """Delete an agent definition."""
+    if not workbench_service.delete_agent(agent_id):
+        return jsonify({"error": "Agent not found"}), 404
+    return jsonify({"message": "Deleted"}), 200
+
+
+@app.route("/api/workbench/agents/<agent_id>/runs", methods=["POST"])
+async def workbench_run_agent(agent_id: str):
+    """Run an agent against a prompt and return the completed AgentRun."""
+    try:
+        data = await request.get_json()
+        run = await workbench_service.run_agent(agent_id, AgentRunCreate(**data))
+        return jsonify(run.to_dict()), 200
+    except ValueError as exc:
+        message = str(exc)
+        status = 404 if "not found" in message.lower() else 400
+        return jsonify({"error": message}), status
+    except ValidationError as exc:
+        return jsonify({"error": str(exc)}), 400
+    except Exception as exc:
+        return jsonify({"error": str(exc)}), 500
+
+
+@app.route("/api/workbench/agents/<agent_id>/runs", methods=["GET"])
+async def workbench_list_agent_runs(agent_id: str):
+    """List all runs for an agent."""
+    limit = request.args.get("limit", 50, type=int)
+    runs = workbench_service.list_runs(agent_id=agent_id, limit=limit)
+    return jsonify({"runs": [r.to_dict() for r in runs]})
+
+
+@app.route("/api/workbench/runs", methods=["GET"])
+async def workbench_list_all_runs():
+    """List all runs across all agents."""
+    limit = request.args.get("limit", 50, type=int)
+    runs = workbench_service.list_runs(limit=limit)
+    return jsonify({"runs": [r.to_dict() for r in runs]})
+
+
+@app.route("/api/workbench/runs/<run_id>", methods=["GET"])
+async def workbench_get_run(run_id: str):
+    """Get a single run."""
+    run = workbench_service.get_run(run_id)
+    if run is None:
+        return jsonify({"error": "Run not found"}), 404
+    return jsonify(run.to_dict())
+
+
+@app.route("/api/workbench/runs/<run_id>/evaluate", methods=["POST"])
+async def workbench_evaluate_run(run_id: str):
+    """Evaluate a completed run against its agent's success criteria."""
+    try:
+        evaluation = await workbench_service.evaluate_run(run_id)
+        return jsonify(evaluation.to_dict()), 200
+    except ValueError as exc:
+        message = str(exc)
+        status = 404 if "not found" in message.lower() else 400
+        return jsonify({"error": message}), status
+    except Exception as exc:
+        return jsonify({"error": str(exc)}), 500
+
+
+@app.route("/api/workbench/runs/<run_id>/evaluation", methods=["GET"])
+async def workbench_get_evaluation(run_id: str):
+    """Get the evaluation result for a run (if it exists)."""
+    evaluation = workbench_service.get_evaluation(run_id)
+    if evaluation is None:
+        return jsonify({"error": "No evaluation found for this run"}), 404
+    return jsonify(evaluation.to_dict())
 
 
 # ============================================================================
@@ -375,6 +561,7 @@ def _map_mcp_ticket_to_frontend(mcp_ticket: dict) -> dict:
     
     return {
         "id": str(mcp_ticket.get("id", "")),
+        "incident_id": mcp_ticket.get("incident_id"),
         "title": mcp_ticket.get("summary", ""),
         "description": mcp_ticket.get("description", ""),
         "status": status,
@@ -561,17 +748,21 @@ async def get_csv_tickets():
 @app.route("/api/csv-tickets/<ticket_id>", methods=["GET"])
 async def get_csv_ticket(ticket_id: str):
     """
-    Get one CSV ticket by ID.
+    Get one CSV ticket by INC number (e.g. INC000016349327) or UUID.
 
     Query params:
     - fields: optional comma-separated list of fields to include
     """
-    try:
-        parsed_id = UUID(ticket_id)
-    except ValueError:
-        return jsonify({"error": "Invalid ticket ID"}), 400
+    # Try INC number first (primary identifier)
+    if ticket_id.upper().startswith("INC"):
+        ticket = _csv_ticket_service.get_ticket_by_incident_id(ticket_id)
+    else:
+        try:
+            parsed_id = UUID(ticket_id)
+        except ValueError:
+            return jsonify({"error": "Invalid ticket ID. Use an INC number (e.g. INC000016349327) or UUID."}), 400
+        ticket = _csv_ticket_service.get_ticket(parsed_id)
 
-    ticket = _csv_ticket_service.get_ticket(parsed_id)
     if ticket is None:
         return jsonify({"error": "Ticket not found"}), 404
 
@@ -620,6 +811,28 @@ async def get_csv_ticket_stats():
         "by_group": dict(groups.most_common(10)),
         "by_city": dict(cities.most_common(10)),
     })
+
+
+@app.route("/api/csv-tickets/sla-breach", methods=["GET"])
+async def get_csv_tickets_sla_breach():
+    """
+    Return unassigned tickets grouped by SLA breach status (breached → at_risk),
+    sorted by age_hours descending within each group.
+
+    Query params:
+    - unassigned_only: true/false (default: true)
+    - include_ok: true/false (default: false) — include non-breached tickets too
+    """
+    from tickets import get_sla_breach_report
+
+    unassigned_only = request.args.get("unassigned_only", "true").lower() != "false"
+    include_ok = request.args.get("include_ok", "false").lower() == "true"
+
+    tickets = _csv_ticket_service.list_tickets(
+        has_assignee=False if unassigned_only else None,
+    )
+    report = get_sla_breach_report(tickets, reference_time=None, include_ok=include_ok)
+    return jsonify(report.model_dump(mode="json"))
 
 
 @app.route("/api/health", methods=["GET"])

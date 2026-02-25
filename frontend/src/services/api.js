@@ -210,8 +210,8 @@ export async function getCSVTicketStats() {
 }
 
 /**
- * Get one CSV ticket by ID.
- * @param {string} ticketId - Ticket UUID
+ * Get one CSV ticket by INC number (e.g. INC000016349327) or UUID.
+ * @param {string} ticketId - INC number or UUID
  * @param {string[]} fields - Optional field selection
  * @returns {Promise<Object>} Ticket details
  */
@@ -260,4 +260,64 @@ export async function getUsecaseDemoAgentRun(runId) {
  */
 export async function listUsecaseDemoAgentRuns(limit = 20) {
   return fetchJSON(`${API_BASE_URL}/usecase-demo/agent-runs?limit=${limit}`);
+}
+
+/**
+ * Get pre-computed SLA breach report for unassigned tickets.
+ * @param {Object} options
+ * @param {boolean} [options.unassignedOnly=true] - Only unassigned tickets
+ * @param {boolean} [options.includeOk=false] - Include non-breached tickets
+ * @returns {Promise<{reference_timestamp: string, total_breached: number, total_at_risk: number, tickets: Array}>}
+ */
+export async function getSlaBreach({
+  unassignedOnly = true,
+  includeOk = false,
+} = {}) {
+  const params = new URLSearchParams({
+    unassigned_only: unassignedOnly.toString(),
+    include_ok: includeOk.toString(),
+  });
+  return fetchJSON(`${API_BASE_URL}/csv-tickets/sla-breach?${params}`);
+}
+
+// ============================================================================
+// Agent Fabric APIs
+// ============================================================================
+
+export async function getWorkbenchUiConfig() {
+  return fetchJSON(`${API_BASE_URL}/workbench/ui-config`);
+}
+
+export async function listWorkbenchTools() {
+  return fetchJSON(`${API_BASE_URL}/workbench/tools`);
+}
+
+export async function listWorkbenchAgents() {
+  return fetchJSON(`${API_BASE_URL}/workbench/agents`);
+}
+
+export async function createWorkbenchAgent(agentData) {
+  return fetchJSON(`${API_BASE_URL}/workbench/agents`, {
+    method: "POST",
+    body: JSON.stringify(agentData),
+  });
+}
+
+export async function deleteWorkbenchAgent(agentId) {
+  return fetchJSON(`${API_BASE_URL}/workbench/agents/${agentId}`, {
+    method: "DELETE",
+  });
+}
+
+export async function runWorkbenchAgent(
+  agentId,
+  { inputPrompt = "", requiredInputValue = "" } = {},
+) {
+  return fetchJSON(`${API_BASE_URL}/workbench/agents/${agentId}/runs`, {
+    method: "POST",
+    body: JSON.stringify({
+      input_prompt: inputPrompt,
+      required_input_value: requiredInputValue || undefined,
+    }),
+  });
 }
