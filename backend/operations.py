@@ -9,14 +9,17 @@ from pathlib import Path
 from typing import Any
 from uuid import UUID
 
-from agent_workbench import (AgentDefinitionCreate, AgentDefinitionUpdate,
-                             AgentRunCreate)
+from agent_workbench import AgentDefinitionCreate, AgentDefinitionUpdate, AgentRunCreate
 from api_decorators import operation
 from csv_data import get_csv_ticket_service
-from tasks import (Task, TaskCreate, TaskFilter, TaskService, TaskStats,
-                   TaskUpdate)
-from tickets import (SlaBreachReport, Ticket, TicketSlaInfo, TicketStatus,
-                     get_sla_breach_report)
+from tasks import Task, TaskCreate, TaskFilter, TaskService, TaskStats, TaskUpdate
+from tickets import (
+    SlaBreachReport,
+    Ticket,
+    TicketSlaInfo,
+    TicketStatus,
+    get_sla_breach_report,
+)
 
 # Service instances shared across interfaces
 _task_service = TaskService()

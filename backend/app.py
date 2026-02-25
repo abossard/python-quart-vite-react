@@ -31,19 +31,34 @@ load_dotenv()
 # Import unified operation system
 
 # Agent Fabric
-from agent_workbench import (AgentDefinitionCreate, AgentDefinitionUpdate,
-                             AgentRunCreate, CriteriaType, RunStatus)
+from agent_workbench import (
+    AgentDefinitionCreate,
+    AgentDefinitionUpdate,
+    AgentRunCreate,
+    CriteriaType,
+    RunStatus,
+)
+
 # Agent service for OpenAI LangGraph agents
 from agents import AgentRequest, AgentResponse, agent_service
 from api_decorators import get_operation, operation
+
 # CSV ticket service
 from csv_data import Ticket, get_csv_ticket_service
+
 # FastMCP client for direct ticket MCP calls (no AI)
 from fastmcp import Client as MCPClient
 from mcp_handler import handle_mcp_request
-from operations import (CSV_TICKET_FIELDS, op_create_task, op_delete_task,
-                        op_get_task, op_get_task_stats, op_list_tasks,
-                        op_update_task, task_service)
+from operations import (
+    CSV_TICKET_FIELDS,
+    op_create_task,
+    op_delete_task,
+    op_get_task,
+    op_get_task_stats,
+    op_list_tasks,
+    op_update_task,
+    task_service,
+)
 from usecase_demo import UsecaseDemoRunCreate, usecase_demo_run_service
 from workbench_integration import _tool_registry, workbench_service
 
@@ -53,9 +68,9 @@ TICKET_MCP_SERVER_URL = "https://yodrrscbpxqnslgugwow.supabase.co/functions/v1/m
 from pydantic import ValidationError
 from quart import Quart, jsonify, request, send_from_directory
 from quart_cors import cors
+
 # Import Pydantic models and service
-from tasks import (Task, TaskCreate, TaskFilter, TaskService, TaskStats,
-                   TaskUpdate)
+from tasks import Task, TaskCreate, TaskFilter, TaskService, TaskStats, TaskUpdate
 
 # ============================================================================
 # APPLICATION SETUP
