@@ -51,3 +51,12 @@ Reference implementation: `backend/csv_data.py` (column mapping, status/priority
 - Keep changes minimal, targeted, and reversible
 - No broad refactors; prioritize clarity for learners
 - Document findings inline (markdown cells/comments)
+
+## KBA Draft Builder
+
+To change the KBA Draft Builder behavior, update these files:
+
+- **Agent system prompt** (controls what the LLM generates): `backend/agents.py` → search for `if request.agent_type == "kba_assistant"` inside `run_agent()`. The `system_prompt` string there defines the Markdown structure, tone, language, and rules.
+- **Tool descriptions** (controls how the agent discovers/uses tools): `backend/agents.py` → `_build_csv_tools()`, specifically the `description` kwarg for `csv_get_ticket` and `csv_search_tickets`.
+- **Default user prompt** (the pre-filled INC number): `frontend/src/features/usecase-demo/demoDefinitions.js` → `KBA_DEFAULT_PROMPT` constant.
+- **Result rendering** (how the Markdown is displayed): `frontend/src/features/usecase-demo/resultViews.jsx` → `ResultKBAMarkdownView` component and its `useKbaStyles`.
