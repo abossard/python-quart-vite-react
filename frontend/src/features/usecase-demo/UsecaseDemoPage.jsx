@@ -29,6 +29,7 @@ import {
   formatDateTime,
   sanitizeMarkdownForDisplay,
   upsertRun,
+  parseTicketIds,
 } from './usecaseDemoUtils'
 
 const STATUS_COLORS = {
@@ -198,10 +199,18 @@ export default function UsecaseDemoPage({ definition }) {
     definition.runHistoryLimit,
   ])
 
-  const matchingTicketIds = useMemo(
-    () => extractTicketIdsFromRows(currentRun?.result_rows || [], definition.ticketIdFields),
-    [currentRun?.result_rows, definition.ticketIdFields]
-  )
+
+  const matchingTicketIds = useMemo(() => {
+    // Erst aus result_rows extrahieren
+    const ids = extractTicketIdsFromRows(currentRun?.result_rows || [], definition.ticketIdFields)
+    if (ids.length > 0) return ids
+    // Fallback: IDs aus Markdown extrahieren
+    if (currentRun?.result_markdown) {
+      // parseTicketIds ist bereits importiert in usecaseDemoUtils
+      return parseTicketIds(currentRun.result_markdown)
+    }
+    return []
+  }, [currentRun?.result_rows, currentRun?.result_markdown, definition.ticketIdFields])
 
   const selectedTicket = useMemo(
     () => matchingTickets.find((ticket) => ticket.id === selectedTicketId) || null,
@@ -391,6 +400,102 @@ export default function UsecaseDemoPage({ definition }) {
                 <div><Text>{formatDateTime(currentRun.completed_at)}</Text></div>
               </div>
             </div>
+
+            {/* TICKET_SEARCH_RESULT_TABLE_START */}
+            {currentRun && (matchingTicketIds.length > 0 || isLoadingTickets || matchingTicketIds.length === 0) && (
+              <div style={{ marginTop: tokens.spacingVerticalM }}>
+                <Text size={200} weight="semibold">Ticket-Suche Ergebnis</Text>
+                <div className={styles.tableWrapper}>
+                  <table className={styles.table}>
+                    <thead>
+                      <tr>
+                        <th className={styles.th}>Ticket-ID</th>
+                        <th className={styles.th}>In CSV gefunden</th>
+                        <th className={styles.th}>Status</th>
+                        <th className={styles.th}>Priority</th>
+                        <th className={styles.th}>Summary</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      <>
+                        {matchingTicketIds.length === 0 ? (
+                          <tr>
+                            <td className={styles.td} colSpan={5} style={{ textAlign: 'center' }}>
+                              <Badge color="danger">✗ Ticket nicht gefunden</Badge>
+                            </td>
+                          </tr>
+                        ) : (
+                          matchingTicketIds.map((ticketId, idx) => {
+                            const ticket = matchingTickets.find(t => t.id === ticketId)
+                            const isLoaded = ticket && !ticket._error
+                            const isSelected = selectedTicketId === ticketId
+                            return (
+                              <tr 
+                                key={ticketId}
+                                className={idx % 2 === 1 ? styles.rowAlt : ''}
+                                onClick={() => isLoaded && setSelectedTicketId(ticketId)}
+                                style={{ 
+                                  cursor: isLoaded ? 'pointer' : 'default',
+                                  backgroundColor: isSelected ? tokens.colorBrandBackground2 : undefined
+                                }}
+                              >
+                                <td className={styles.td}>
+                                  {isSelected && '→ '}
+                                  <Text weight={isSelected ? 'semibold' : 'regular'}>{ticketId}</Text>
+                                </td>
+                                <td className={styles.td}>
+                                  {isLoaded ? (
+                                    <Badge color="success" appearance="filled">✓ Ja</Badge>
+                                  ) : isLoadingTickets ? (
+                                    <Badge color="informative">⏳ Lädt...</Badge>
+                                  ) : (
+                                    <Badge color="danger">✗ Nicht gefunden</Badge>
+                                  )}
+                                </td>
+                                <td className={styles.td}>
+                                  {ticket?.status ? (
+                                    <Badge color="subtle">{ticket.status}</Badge>
+                                  ) : (
+                                    <Text size={200}>-</Text>
+                                  )}
+                                </td>
+                                <td className={styles.td}>
+                                  {ticket?.priority ? (
+                                    <Badge color={
+                                      ticket.priority === '1-Critical' || ticket.priority === '2-High' 
+                                        ? 'danger' 
+                                        : 'subtle'
+                                    }>
+                                      {ticket.priority}
+                                    </Badge>
+                                  ) : (
+                                    <Text size={200}>-</Text>
+                                  )}
+                                </td>
+                                <td className={styles.td}>
+                                  {ticket?.summary ? (
+                                    <Text 
+                                      size={200} 
+                                      style={{ maxWidth: '300px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}
+                                      title={ticket.summary}
+                                    >
+                                      {ticket.summary}
+                                    </Text>
+                                  ) : (
+                                    <Text size={200}>-</Text>
+                                  )}
+                                </td>
+                              </tr>
+                            )
+                          })
+                        )}
+                      </>
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            )}
+            {/* TICKET_SEARCH_RESULT_TABLE_END */}
 
             {['queued', 'running'].includes(currentRun.status) && (
               <Spinner size="small" label="Agent is running in the background..." />
