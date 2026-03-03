@@ -104,9 +104,13 @@ const useStyles = makeStyles({
     fontWeight: tokens.fontWeightSemibold,
     color: tokens.colorNeutralForeground3,
     fontSize: tokens.fontSizeBase200,
+    overflowWrap: "break-word",
+    wordBreak: "break-word",
   },
   detailValue: {
     fontSize: tokens.fontSizeBase300,
+    overflowWrap: "break-word",
+    wordBreak: "break-word",
   },
   footer: {
     display: 'grid',
@@ -303,7 +307,7 @@ export default function TicketsWithoutAnAssignee() {
           </Button>
         </div>
         {error && (
-          <MessageBar intent="error" style={{ marginTop: tokens.spacingVerticalM }}>
+          <MessageBar intent="error" style={{ marginTop: tokens.spacingVerticalM, overflowWrap: "break-word" }}>
             <MessageBarBody>{error}</MessageBarBody>
           </MessageBar>
         )}
@@ -435,7 +439,7 @@ export default function TicketsWithoutAnAssignee() {
                 </div>
 
                 {selectedTicket.escalationNeeded && (
-                  <MessageBar intent="warning">
+                  <MessageBar intent="warning" style={{ overflowWrap: "break-word" }}>
                     <MessageBarBody>
                       <AlertUrgent20Regular /> Eskalation erforderlich
                     </MessageBarBody>
@@ -443,7 +447,7 @@ export default function TicketsWithoutAnAssignee() {
                 )}
 
                 {ticketDecisions[selectedTicket.id] && (
-                  <MessageBar intent={ticketDecisions[selectedTicket.id] === 'GOOD' ? 'success' : 'error'}>
+                  <MessageBar intent={ticketDecisions[selectedTicket.id] === 'GOOD' ? 'success' : 'error'} style={{ overflowWrap: "break-word" }}>
                     <MessageBarBody>
                       {ticketDecisions[selectedTicket.id] === 'GOOD' ? (
                         <><Checkmark24Regular /> Als GOOD markiert</>
@@ -467,7 +471,7 @@ export default function TicketsWithoutAnAssignee() {
       <div className={styles.footer}>
         <div style={{ gridColumn: '1 / 3' }}>
           {reminderMessage && (
-            <MessageBar intent="success">
+            <MessageBar intent="success" style={{ overflowWrap: "break-word" }}>
               <MessageBarBody>{reminderMessage}</MessageBarBody>
             </MessageBar>
           )}

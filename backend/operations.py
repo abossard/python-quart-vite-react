@@ -12,6 +12,18 @@ from uuid import UUID
 from agent_workbench import AgentDefinitionCreate, AgentDefinitionUpdate, AgentRunCreate
 from api_decorators import operation
 from csv_data import get_csv_ticket_service
+from kba_audit import get_audit_service
+from kba_models import (
+    KBADraft,
+    KBADraftCreate,
+    KBADraftFilter,
+    KBADraftListResponse,
+    KBADraftUpdate,
+    KBAPublishRequest,
+    KBAPublishResult,
+)
+from kba_service import get_kba_service
+from sqlmodel import Session, create_engine
 from tasks import Task, TaskCreate, TaskFilter, TaskService, TaskStats, TaskUpdate
 from tickets import (
     SlaBreachReport,
@@ -25,6 +37,30 @@ from tickets import (
 _task_service = TaskService()
 _csv_service = get_csv_ticket_service()
 _csv_loaded = False
+
+# KBA service requires database session - initialized lazily
+_kba_db_engine = None
+_kba_session = None
+
+
+def _get_kba_session() -> Session:
+    """Get or create KBA database session"""
+    global _kba_db_engine, _kba_session
+    if _kba_db_engine is None:
+        from pathlib import Path
+        from kba_models import KBADraftTable, KBAAuditLog
+        from sqlmodel import SQLModel
+        
+        db_path = Path(__file__).parent / "data" / "kba.db"
+        db_path.parent.mkdir(parents=True, exist_ok=True)
+        
+        _kba_db_engine = create_engine(f"sqlite:///{db_path}", echo=False)
+        SQLModel.metadata.create_all(_kba_db_engine)
+    
+    if _kba_session is None:
+        _kba_session = Session(_kba_db_engine)
+    
+    return _kba_session
 
 
 CSV_TICKET_FIELDS = [
@@ -58,7 +94,7 @@ def _ensure_csv_loaded() -> None:
     if _csv_loaded:
         return
 
-    default_csv_path = Path(__file__).resolve().parents[1] / "csv" / "data.csv"
+    default_csv_path = Path(__file__).resolve().parents[1] / "CSV" / "data.csv"
     if default_csv_path.exists():
         try:
             _csv_service.load_csv(default_csv_path)
@@ -476,6 +512,167 @@ async def op_workbench_get_evaluation(run_id: str) -> dict[str, Any] | None:
     return evaluation.to_dict() if evaluation else None
 
 
+# ============================================================================
+# KBA DRAFTER OPERATIONS
+# ============================================================================
+
+@operation(
+    name="kba_generate_draft",
+    description="Generate KBA draft from ticket using OpenAI",
+    http_method="POST",
+    http_path="/api/kba/drafts",
+)
+async def op_kba_generate_draft(data: KBADraftCreate) -> KBADraft:
+    """Generate a new KBA draft from a ticket."""
+    session = _get_kba_session()
+    kba_service = get_kba_service(session)
+    return await kba_service.generate_draft(data)
+
+
+@operation(
+    name="kba_get_draft",
+    description="Get KBA draft by ID",
+    http_method="GET",
+    http_path="/api/kba/drafts/{draft_id}",
+)
+async def op_kba_get_draft(draft_id: str) -> KBADraft:
+    """Get a KBA draft by ID."""
+    from uuid import UUID
+    session = _get_kba_session()
+    kba_service = get_kba_service(session)
+    return kba_service.get_draft(UUID(draft_id))
+
+
+@operation(
+    name="kba_update_draft",
+    description="Update KBA draft fields",
+    http_method="PATCH",
+    http_path="/api/kba/drafts/{draft_id}",
+)
+async def op_kba_update_draft(
+    draft_id: str,
+    data: KBADraftUpdate,
+    user_id: str,
+) -> KBADraft:
+    """Update a KBA draft."""
+    from uuid import UUID
+    session = _get_kba_session()
+    kba_service = get_kba_service(session)
+    return kba_service.update_draft(UUID(draft_id), data, user_id)
+
+
+@operation(
+    name="kba_replace_draft",
+    description="Replace/regenerate KBA draft with new content",
+    http_method="POST",
+    http_path="/api/kba/drafts/{draft_id}/replace",
+)
+async def op_kba_replace_draft(
+    draft_id: str,
+    user_id: str = "anonymous",
+) -> KBADraft:
+    """Replace a KBA draft with newly generated content."""
+    from uuid import UUID
+    session = _get_kba_session()
+    kba_service = get_kba_service(session)
+    return await kba_service.replace_draft(UUID(draft_id), user_id)
+
+
+@operation(
+    name="kba_delete_draft",
+    description="Delete KBA draft",
+    http_method="DELETE",
+    http_path="/api/kba/drafts/{draft_id}",
+)
+async def op_kba_delete_draft(
+    draft_id: str,
+    user_id: str = "anonymous",
+) -> bool:
+    """Delete a KBA draft."""
+    from uuid import UUID
+    session = _get_kba_session()
+    kba_service = get_kba_service(session)
+    return kba_service.delete_draft(UUID(draft_id), user_id)
+
+
+@operation(
+    name="kba_publish_draft",
+    description="Publish KBA draft to knowledge base",
+    http_method="POST",
+    http_path="/api/kba/drafts/{draft_id}/publish",
+)
+async def op_kba_publish_draft(
+    draft_id: str,
+    data: KBAPublishRequest,
+) -> KBAPublishResult:
+    """Publish a KBA draft to the target knowledge base system."""
+    from uuid import UUID
+    session = _get_kba_session()
+    kba_service = get_kba_service(session)
+    return await kba_service.publish_draft(UUID(draft_id), data)
+
+
+@operation(
+    name="kba_list_drafts",
+    description="List KBA drafts with filtering",
+    http_method="GET",
+    http_path="/api/kba/drafts",
+)
+async def op_kba_list_drafts(filters: KBADraftFilter) -> KBADraftListResponse:
+    """List KBA drafts with optional filtering."""
+    session = _get_kba_session()
+    kba_service = get_kba_service(session)
+    return kba_service.list_drafts(filters)
+
+
+@operation(
+    name="kba_get_audit_trail",
+    description="Get audit trail for a KBA draft",
+    http_method="GET",
+    http_path="/api/kba/drafts/{draft_id}/audit",
+)
+async def op_kba_get_audit_trail(draft_id: str) -> list[dict[str, Any]]:
+    """Get complete audit trail for a KBA draft."""
+    from uuid import UUID
+    session = _get_kba_session()
+    audit_service = get_audit_service(session)
+    events = audit_service.get_audit_trail(UUID(draft_id))
+    return [event.model_dump() for event in events]
+
+
+@operation(
+    name="kba_list_guidelines",
+    description="List available KBA guidelines",
+    http_method="GET",
+    http_path="/api/kba/guidelines",
+)
+async def op_kba_list_guidelines() -> dict[str, Any]:
+    """List all available KBA guideline categories."""
+    from guidelines_loader import get_guidelines_loader
+    loader = get_guidelines_loader()
+    return {
+        "available": loader.list_available(),
+        "default": "GENERAL"
+    }
+
+
+@operation(
+    name="kba_get_guideline",
+    description="Get specific KBA guideline content",
+    http_method="GET",
+    http_path="/api/kba/guidelines/{category}",
+)
+async def op_kba_get_guideline(category: str) -> dict[str, Any]:
+    """Get content of a specific guideline category."""
+    from guidelines_loader import get_guidelines_loader
+    loader = get_guidelines_loader()
+    content = loader.load_guideline(category)
+    return {
+        "category": category,
+        "content": content
+    }
+
+
 # Export shared services for callers (REST app, CLI tools, etc.)
 task_service = _task_service
 csv_ticket_service = _csv_service
@@ -507,5 +704,14 @@ __all__ = [
     "op_workbench_get_run",
     "op_workbench_evaluate_run",
     "op_workbench_get_evaluation",
+    "op_kba_generate_draft",
+    "op_kba_get_draft",
+    "op_kba_update_draft",
+    "op_kba_delete_draft",
+    "op_kba_publish_draft",
+    "op_kba_list_drafts",
+    "op_kba_get_audit_trail",
+    "op_kba_list_guidelines",
+    "op_kba_get_guideline",
     "CSV_TICKET_FIELDS",
 ]

@@ -1,0 +1,511 @@
+/**
+ * KBA Drafter Page
+ * 
+ * Vollständiger UI-Flow für KBA-Erstellung aus Support-Tickets:
+ * 1. Ticketnummer eingeben + "Entwurf erstellen"
+ * 2. Ladezustand / Fehleranzeige
+ * 3. Strukturierte Anzeige des generierten KBA
+ * 4. Editiermodus mit manueller Prüfung
+ * 5. "Speichern" Button (mit Pending Changes Tracking)
+ * 6. "In Knowledge Base übernehmen" (Publish)
+ * 7. Bestätigung / Erfolgsmeldung
+ */
+
+import { useState, useEffect, useCallback } from "react";
+import {
+  Card,
+  CardHeader,
+  Button,
+  Input,
+  Textarea,
+  Label,
+  makeStyles,
+  Spinner,
+  MessageBar,
+  MessageBarBody,
+  MessageBarTitle,
+  tokens,
+  Badge,
+  Tag,
+  TagGroup,
+  Field,
+} from "@fluentui/react-components";
+import {
+  DocumentText24Regular,
+  Send24Regular,
+  Save24Regular,
+  Checkmark24Regular,
+  Dismiss24Regular,
+  Edit24Regular,
+  Eye24Regular,
+} from "@fluentui/react-icons";
+import * as api from "../../services/api";
+
+const useStyles = makeStyles({
+  container: {
+    display: "flex",
+    flexDirection: "column",
+    gap: tokens.spacingVerticalXL,
+    padding: tokens.spacingVerticalXL,
+    maxWidth: "1400px",
+    margin: "0 auto",
+  },
+  inputSection: {
+    display: "flex",
+    gap: tokens.spacingHorizontalM,
+    alignItems: "flex-end",
+  },
+  draftCard: {
+    marginBottom: tokens.spacingVerticalM,
+  },
+  draftHeader: {
+    display: "flex",
+    justifyContent: "space-between",
+    alignItems: "center",
+  },
+  draftContent: {
+    padding: tokens.spacingVerticalL,
+    display: "flex",
+    flexDirection: "column",
+    gap: tokens.spacingVerticalM,
+  },
+  solutionSteps: {
+    listStyle: "decimal",
+    paddingLeft: tokens.spacingHorizontalXL,
+    "& li": {
+      marginBottom: tokens.spacingVerticalS,
+    },
+  },
+  actions: {
+    display: "flex",
+    gap: tokens.spacingHorizontalM,
+    marginTop: tokens.spacingVerticalM,
+  },
+  statusBadge: {
+    marginLeft: tokens.spacingHorizontalS,
+  },
+});
+
+export default function KBADrafterPage() {
+  const styles = useStyles();
+  
+  const [ticketId, setTicketId] = useState("");
+  const [ticketIdError, setTicketIdError] = useState("");
+  const [loading, setLoading] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [currentDraft, setCurrentDraft] = useState(null);
+  const [editedDraft, setEditedDraft] = useState(null); // Pending changes
+  const [drafts, setDrafts] = useState([]);
+  const [message, setMessage] = useState(null);
+  const [ollamaAvailable, setOllamaAvailable] = useState(null);
+  const [editMode, setEditMode] = useState(false);
+
+  // Check if there are unsaved changes
+  const hasPendingChanges = editedDraft && editedDraft !== currentDraft;
+
+  // UUID validation regex
+  const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+  const validateTicketId = (value) => {
+    if (!value.trim()) {
+      setTicketIdError("Ticketnummer ist erforderlich");
+      return false;
+    }
+    if (!UUID_REGEX.test(value.trim())) {
+      setTicketIdError("Ungültiges UUID-Format (z.B. 550e8400-e29b-41d4-a716-446655440000)");
+      return false;
+    }
+    setTicketIdError("");
+    return true;
+  };
+
+  // Check Ollama health on mount
+  useEffect(() => {
+    api.checkKBAHealth()
+      .then((status) => setOllamaAvailable(status.ollama_available))
+      .catch(() => setOllamaAvailable(false));
+    
+    // Load recent drafts
+    loadDrafts();
+  }, []);
+
+  const loadDrafts = useCallback(async () => {
+    try {
+      const response = await api.listKBADrafts({ limit: 10 });
+      setDrafts(response.items || []);
+    } catch (error) {
+      console.error("Failed to load drafts:", error);
+    }
+  }, []);
+
+  const handleGenerate = async () => {
+    if (!ticketId.trim()) {
+      setMessage({ type: "error", text: "Bitte Ticket-ID eingeben" });
+      return;
+    }
+
+    setLoading(true);
+    setMessage(null);
+
+    try {
+      const draft = await api.generateKBADraft({
+        ticket_id: ticketId,
+        user_id: "user@example.com", // TODO: Get from auth context
+      });
+      
+      setCurrentDraft(draft);
+      setMessage({
+        type: "success",
+        text: `KBA-Entwurf erfolgreich erstellt (${draft.llm_generation_time_ms}ms)`,
+      });
+      setTicketId("");
+      loadDrafts();
+    } catch (error) {
+      setMessage({
+        type: "error",
+        text: error.message || "Fehler beim Generieren des KBA",
+      });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleUpdate = async (field, value) => {
+    if (!currentDraft) return;
+
+    try {
+      const updated = await api.updateKBADraft(
+        currentDraft.id,
+        { [field]: value },
+        "user@example.com"
+      );
+      setCurrentDraft(updated);
+    } catch (error) {
+      setMessage({ type: "error", text: "Fehler beim Speichern" });
+    }
+  };
+
+  const handleReview = async () => {
+    if (!currentDraft) return;
+
+    try {
+      const updated = await api.updateKBADraft(
+        currentDraft.id,
+        { status: "reviewed", reviewed_by: "user@example.com" },
+        "user@example.com"
+      );
+      setCurrentDraft(updated);
+      setMessage({ type: "success", text: "Status: Geprüft" });
+    } catch (error) {
+      setMessage({ type: "error", text: "Fehler beim Status-Update" });
+    }
+  };
+
+  const handlePublish = async () => {
+    if (!currentDraft) return;
+
+    if (currentDraft.status !== "reviewed") {
+      setMessage({
+        type: "error",
+        text: "KBA muss erst geprüft werden bevor er veröffentlicht werden kann",
+      });
+      return;
+    }
+
+    setLoading(true);
+    try {
+      const result = await api.publishKBADraft(currentDraft.id, {
+        target_system: "file", // TODO: Make configurable
+        user_id: "user@example.com",
+      });
+      
+      setMessage({
+        type: "success",
+        text: `KBA veröffentlicht: ${result.published_id}`,
+      });
+      
+      const updated = await api.getKBADraft(currentDraft.id);
+      setCurrentDraft(updated);
+      loadDrafts();
+    } catch (error) {
+      setMessage({ type: "error", text: error.message });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const loadDraft = async (draftId) => {
+    try {
+      const draft = await api.getKBADraft(draftId);
+      setCurrentDraft(draft);
+      setEditing(false);
+    } catch (error) {
+      setMessage({ type: "error", text: "Fehler beim Laden des Entwurfs" });
+    }
+  };
+
+  return (
+    <div className={styles.container}>
+      <h1>
+        <DocumentText24Regular /> KBA Drafter
+      </h1>
+
+      {/* Ollama Status */}
+      {ollamaAvailable === false && (
+        <MessageBar intent="warning">
+          <MessageBarBody>
+            <MessageBarTitle>Ollama nicht verfügbar</MessageBarTitle>
+            Bitte starten Sie Ollama mit: <code>ollama serve</code>
+          </MessageBarBody>
+        </MessageBar>
+      )}
+
+      {/* Message Bar */}
+      {message && (
+        <MessageBar intent={message.type === "error" ? "error" : "success"}>
+          <MessageBarBody>{message.text}</MessageBarBody>
+        </MessageBar>
+      )}
+
+      {/* Input Section */}
+      <Card>
+        <CardHeader
+          header={<strong>Neuen KBA-Entwurf erstellen</strong>}
+description="Geben Sie eine Ticket-UUID ein"
+        />
+        <div className={styles.inputSection}>
+          <div style={{ flex: 1 }}>
+            <Label htmlFor="ticketId">Ticket-ID (UUID)</Label>
+            <Input
+              id="ticketId"
+              value={ticketId}
+              onChange={(e) => setTicketId(e.target.value)}
+              placeholder="550e8400-e29b-41d4-a716-446655440000"
+              disabled={loading}
+            />
+          </div>
+          <Button
+            appearance="primary"
+            icon={<Send24Regular />}
+            onClick={handleGenerate}
+            disabled={loading || !ollamaAvailable}
+          >
+            {loading ? "Generiere..." : "KBA Generieren"}
+          </Button>
+        </div>
+      </Card>
+
+      {/* Current Draft Editor */}
+      {currentDraft && (
+        <Card className={styles.draftCard}>
+          <CardHeader
+            header={
+              <div className={styles.draftHeader}>
+                <strong>KBA-Entwurf</strong>
+                <div>
+                  <Badge
+                    appearance="filled"
+                    color={
+                      currentDraft.status === "published"
+                        ? "success"
+                        : currentDraft.status === "reviewed"
+                        ? "informative"
+                        : "subtle"
+                    }
+                  >
+                    {currentDraft.status}
+                  </Badge>
+                  {currentDraft.incident_id && (
+                    <span className={styles.statusBadge}>
+                      {currentDraft.incident_id}
+                    </span>
+                  )}
+                </div>
+              </div>
+            }
+          />
+          <div className={styles.draftContent}>
+            <div>
+              <Label htmlFor="title">Titel</Label>
+              <Input
+                id="title"
+                value={currentDraft.title}
+                onChange={(e) => handleUpdate("title", e.target.value)}
+                disabled={!editing && currentDraft.status !== "draft"}
+              />
+            </div>
+
+            {/* Symptoms Section */}
+            {currentDraft.symptoms && currentDraft.symptoms.length > 0 && (
+              <div>
+                <Label>Symptome & Fehlermeldungen</Label>
+                <ul className={styles.solutionSteps}>
+                  {currentDraft.symptoms.map((symptom, idx) => (
+                    <li key={idx}>{symptom}</li>
+                  ))}
+                </ul>
+              </div>
+            )}
+
+            {/* Root Cause */}
+            {currentDraft.cause && (
+              <div>
+                <Label>Ursache (Root Cause)</Label>
+                <p style={{ fontStyle: "italic", color: tokens.colorNeutralForeground2 }}>
+                  {currentDraft.cause}
+                </p>
+              </div>
+            )}
+
+            {/* Resolution Steps (renamed from solution_steps) */}
+            <div>
+              <Label>Lösungsschritte</Label>
+              <ol className={styles.solutionSteps}>
+                {(currentDraft.resolution_steps || currentDraft.solution_steps || []).map((step, idx) => (
+                  <li key={idx}>{step}</li>
+                ))}
+              </ol>
+            </div>
+
+            {/* Validation Checks */}
+            {currentDraft.validation_checks && currentDraft.validation_checks.length > 0 && (
+              <div>
+                <Label>Verifikation (Lösung testen)</Label>
+                <ul className={styles.solutionSteps}>
+                  {currentDraft.validation_checks.map((check, idx) => (
+                    <li key={idx} style={{ color: tokens.colorPaletteDarkOrangeBackground3 }}>
+                      ✓ {check}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
+
+            {/* Warnings */}
+            {currentDraft.warnings && currentDraft.warnings.length > 0 && (
+              <MessageBar intent="warning" style={{ marginTop: tokens.spacingVerticalM }}>
+                <MessageBarBody>
+                  <MessageBarTitle>Wichtige Hinweise & Warnungen</MessageBarTitle>
+                  <ul style={{ margin: 0, paddingLeft: tokens.spacingHorizontalL }}>
+                    {currentDraft.warnings.map((warning, idx) => (
+                      <li key={idx}>{warning}</li>
+                    ))}
+                  </ul>
+                </MessageBarBody>
+              </MessageBar>
+            )}
+
+            {/* Confidence Notes */}
+            {currentDraft.confidence_notes && (
+              <MessageBar intent="info" style={{ marginTop: tokens.spacingVerticalM }}>
+                <MessageBarBody>
+                  <MessageBarTitle>LLM-Hinweis / Einschränkungen</MessageBarTitle>
+                  {currentDraft.confidence_notes}
+                </MessageBarBody>
+              </MessageBar>
+            )}
+
+            {/* Legacy field for backward compatibility */}
+            {currentDraft.problem_description && (
+              <div>
+                <Label>Problembeschreibung (Legacy)</Label>
+                <Textarea
+                  id="problem"
+                  value={currentDraft.problem_description}
+                  onChange={(e) =>
+                    handleUpdate("problem_description", e.target.value)
+                  }
+                  rows={4}
+                  disabled={!editing && currentDraft.status !== "draft"}
+                />
+              </div>
+            )}
+
+            {currentDraft.additional_notes && (
+              <div>
+                <Label>Zusätzliche Hinweise</Label>
+                <p>{currentDraft.additional_notes}</p>
+              </div>
+            )}
+
+            <div>
+              <Label>Tags</Label>
+              <TagGroup>
+                {currentDraft.tags.map((tag, idx) => (
+                  <Tag key={idx} size="small">
+                    {tag}
+                  </Tag>
+                ))}
+              </TagGroup>
+            </div>
+
+            <div className={styles.actions}>
+              {currentDraft.status === "draft" && (
+                <Button
+                  appearance="primary"
+                  icon={<Checkmark24Regular />}
+                  onClick={handleReview}
+                >
+                  Als geprüft markieren
+                </Button>
+              )}
+              {currentDraft.status === "reviewed" && (
+                <Button
+                  appearance="primary"
+                  icon={<Save24Regular />}
+                  onClick={handlePublish}
+                  disabled={loading}
+                >
+                  Veröffentlichen
+                </Button>
+              )}
+              <Button
+                icon={<Dismiss24Regular />}
+                onClick={() => setCurrentDraft(null)}
+              >
+                Schließen
+              </Button>
+            </div>
+          </div>
+        </Card>
+      )}
+
+      {/* Recent Drafts */}
+      {!currentDraft && drafts.length > 0 && (
+        <Card>
+          <CardHeader header={<strong>Letzte Entwürfe</strong>} />
+          <div style={{ padding: tokens.spacingVerticalM }}>
+            {drafts.map((draft) => (
+              <Card
+                key={draft.id}
+                style={{ marginBottom: tokens.spacingVerticalS }}
+                onClick={() => loadDraft(draft.id)}
+              >
+                <div style={{ padding: tokens.spacingVerticalM }}>
+                  <div
+                    style={{
+                      display: "flex",
+                      justifyContent: "space-between",
+                    }}
+                  >
+                    <strong>{draft.title}</strong>
+                    <Badge appearance="outline">{draft.status}</Badge>
+                  </div>
+                  <div style={{ fontSize: "12px", color: tokens.colorNeutralForeground3 }}>
+                    {draft.incident_id} • {new Date(draft.created_at).toLocaleString()}
+                  </div>
+                </div>
+              </Card>
+            ))}
+          </div>
+        </Card>
+      )}
+
+      {loading && (
+        <div style={{ textAlign: "center", padding: tokens.spacingVerticalXXL }}>
+          <Spinner label="Generiere KBA-Entwurf mit Ollama..." />
+        </div>
+      )}
+    </div>
+  );
+}

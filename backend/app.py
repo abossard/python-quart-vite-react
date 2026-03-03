@@ -46,6 +46,29 @@ from api_decorators import get_operation, operation
 # CSV ticket service
 from csv_data import Ticket, get_csv_ticket_service
 
+# KBA Drafter
+from kba_exceptions import (
+    DraftNotFoundError,
+    DuplicateKBADraftError,
+    InvalidLLMOutputError,
+    InvalidStatusError,
+    PublishFailedError,
+    TicketNotFoundError,
+)
+from kba_models import (
+    KBADraft,
+    KBADraftCreate,
+    KBADraftFilter,
+    KBADraftUpdate,
+    KBAPublishRequest,
+)
+from kba_exceptions import (
+    LLMTimeoutError,
+    LLMUnavailableError,
+    LLMRateLimitError,
+    LLMAuthenticationError,
+)
+
 # FastMCP client for direct ticket MCP calls (no AI)
 from fastmcp import Client as MCPClient
 from mcp_handler import handle_mcp_request
@@ -89,6 +112,98 @@ app = cors(app, allow_origin="*")
 def format_datetime(dt: datetime) -> str:
     """Format datetime to ISO 8601 string."""
     return dt.isoformat()
+
+
+# ============================================================================
+# ERROR HANDLERS - KBA Drafter Custom Exceptions
+# ============================================================================
+
+@app.errorhandler(TicketNotFoundError)
+async def handle_ticket_not_found(error: TicketNotFoundError):
+    """Handle ticket not found errors."""
+    return jsonify({"error": str(error), "type": "ticket_not_found"}), 404
+
+
+@app.errorhandler(DraftNotFoundError)
+async def handle_draft_not_found(error: DraftNotFoundError):
+    """Handle draft not found errors."""
+    return jsonify({"error": str(error), "type": "draft_not_found"}), 404
+
+
+@app.errorhandler(LLMUnavailableError)
+async def handle_llm_unavailable(error: LLMUnavailableError):
+    """Handle LLM service unavailable errors."""
+    return jsonify({
+        "error": str(error),
+        "type": "llm_unavailable",
+        "suggestion": "Check OPENAI_API_KEY configuration and OpenAI API status"
+    }), 503
+
+
+@app.errorhandler(LLMTimeoutError)
+async def handle_llm_timeout(error: LLMTimeoutError):
+    """Handle LLM timeout errors."""
+    return jsonify({
+        "error": str(error),
+        "type": "llm_timeout"
+    }), 504
+
+
+@app.errorhandler(LLMRateLimitError)
+async def handle_llm_rate_limit(error: LLMRateLimitError):
+    """Handle LLM rate limit errors."""
+    return jsonify({
+        "error": str(error),
+        "type": "llm_rate_limit",
+        "suggestion": "Wait and retry, or check OpenAI account limits"
+    }), 429
+
+
+@app.errorhandler(LLMAuthenticationError)
+async def handle_llm_authentication(error: LLMAuthenticationError):
+    """Handle LLM authentication errors."""
+    return jsonify({
+        "error": str(error),
+        "type": "llm_authentication",
+        "suggestion": "Check OPENAI_API_KEY in .env file"
+    }), 401
+
+
+@app.errorhandler(InvalidLLMOutputError)
+async def handle_invalid_llm_output(error: InvalidLLMOutputError):
+    """Handle invalid LLM output errors."""
+    return jsonify({
+        "error": str(error),
+        "type": "invalid_llm_output"
+    }), 500
+
+
+@app.errorhandler(PublishFailedError)
+async def handle_publish_failed(error: PublishFailedError):
+    """Handle publishing failure errors."""
+    return jsonify({
+        "error": str(error),
+        "type": "publish_failed"
+    }), 500
+
+
+@app.errorhandler(InvalidStatusError)
+async def handle_invalid_status(error: InvalidStatusError):
+    """Handle invalid status errors."""
+    return jsonify({
+        "error": str(error),
+        "type": "invalid_status"
+    }), 409
+
+
+@app.errorhandler(DuplicateKBADraftError)
+async def handle_duplicate_kba_draft(error: DuplicateKBADraftError):
+    """Handle duplicate KBA draft errors."""
+    return jsonify({
+        "error": str(error),
+        "type": "duplicate_kba_draft",
+        "existing_drafts": error.existing_drafts
+    }), 409
 
 
 # =========================================================================
@@ -628,7 +743,7 @@ async def get_qa_tickets():
 _csv_ticket_service = get_csv_ticket_service()
 
 # Load CSV data on startup (using relative path from backend folder)
-_csv_data_path = Path(__file__).parent.parent / "csv" / "data.csv"
+_csv_data_path = Path(__file__).parent.parent / "CSV" / "data.csv"
 if _csv_data_path.exists():
     _csv_loaded = _csv_ticket_service.load_csv(_csv_data_path)
     print(f"📊 Loaded {_csv_loaded} tickets from CSV")
@@ -898,6 +1013,125 @@ if frontend_dist_path.exists() and (frontend_dist_path / "index.html").exists():
             return await send_from_directory(frontend_dist_path, path)
 
         return await send_from_directory(frontend_dist_path, "index.html")
+
+
+# ============================================================================
+# KBA DRAFTER ENDPOINTS
+# ============================================================================
+
+@app.route("/api/kba/drafts", methods=["POST"])
+async def rest_kba_generate_draft():
+    """REST wrapper: generate KBA draft from ticket."""
+    try:
+        from operations import op_kba_generate_draft
+        data = await request.get_json()
+        draft_data = KBADraftCreate(**data)
+        draft = await op_kba_generate_draft(draft_data)
+        return jsonify(draft.model_dump()), 201
+    except ValidationError as e:
+        return jsonify({"error": str(e)}), 400
+
+
+@app.route("/api/kba/drafts/<draft_id>", methods=["GET"])
+async def rest_kba_get_draft(draft_id: str):
+    """REST wrapper: get KBA draft by ID."""
+    from operations import op_kba_get_draft
+    draft = await op_kba_get_draft(draft_id)
+    return jsonify(draft.model_dump())
+
+
+@app.route("/api/kba/drafts/<draft_id>", methods=["PATCH"])
+async def rest_kba_update_draft(draft_id: str):
+    """REST wrapper: update KBA draft."""
+    try:
+        from operations import op_kba_update_draft
+        data = await request.get_json()
+        user_id = data.pop("user_id", "anonymous")
+        update_data = KBADraftUpdate(**data)
+        draft = await op_kba_update_draft(draft_id, update_data, user_id)
+        return jsonify(draft.model_dump())
+    except ValidationError as e:
+        return jsonify({"error": str(e)}), 400
+
+
+@app.route("/api/kba/drafts/<draft_id>", methods=["DELETE"])
+async def rest_kba_delete_draft(draft_id: str):
+    """REST wrapper: delete KBA draft."""
+    from operations import op_kba_delete_draft
+    data = await request.get_json() if await request.data else {}
+    user_id = data.get("user_id", "anonymous")
+    success = await op_kba_delete_draft(draft_id, user_id)
+    if success:
+        return jsonify({"success": True, "message": "Draft deleted"})
+    else:
+        return jsonify({"error": "Draft not found"}), 404
+
+
+@app.route("/api/kba/drafts/<draft_id>/publish", methods=["POST"])
+async def rest_kba_publish_draft(draft_id: str):
+    """REST wrapper: publish KBA draft."""
+    try:
+        from operations import op_kba_publish_draft
+        data = await request.get_json()
+        publish_data = KBAPublishRequest(**data)
+        result = await op_kba_publish_draft(draft_id, publish_data)
+        return jsonify(result.model_dump())
+    except ValidationError as e:
+        return jsonify({"error": str(e)}), 400
+
+
+@app.route("/api/kba/drafts", methods=["GET"])
+async def rest_kba_list_drafts():
+    """REST wrapper: list KBA drafts with filtering."""
+    from operations import op_kba_list_drafts
+    # Parse query parameters
+    filters = KBADraftFilter(
+        status=request.args.get("status"),
+        created_by=request.args.get("created_by"),
+        ticket_id=request.args.get("ticket_id"),
+        incident_id=request.args.get("incident_id"),
+        limit=int(request.args.get("limit", 20)),
+        offset=int(request.args.get("offset", 0))
+    )
+    response = await op_kba_list_drafts(filters)
+    return jsonify(response.model_dump())
+
+
+@app.route("/api/kba/drafts/<draft_id>/audit", methods=["GET"])
+async def rest_kba_get_audit_trail(draft_id: str):
+    """REST wrapper: get audit trail for KBA draft."""
+    from operations import op_kba_get_audit_trail
+    events = await op_kba_get_audit_trail(draft_id)
+    return jsonify({"draft_id": draft_id, "events": events})
+
+
+@app.route("/api/kba/guidelines", methods=["GET"])
+async def rest_kba_list_guidelines():
+    """REST wrapper: list available guidelines."""
+    from operations import op_kba_list_guidelines
+    result = await op_kba_list_guidelines()
+    return jsonify(result)
+
+
+@app.route("/api/kba/guidelines/<category>", methods=["GET"])
+async def rest_kba_get_guideline(category: str):
+    """REST wrapper: get guideline content."""
+    from operations import op_kba_get_guideline
+    result = await op_kba_get_guideline(category)
+    return jsonify(result)
+
+
+@app.route("/api/kba/health", methods=["GET"])
+async def rest_kba_health():
+    """Check LLM service health status."""
+    from llm_service import get_llm_service
+    llm = get_llm_service()
+    available = await llm.health_check()
+    return jsonify({
+        "llm_available": available,
+        "llm_provider": "openai",
+        "model": llm.model
+    })
 
 
 # ============================================================================

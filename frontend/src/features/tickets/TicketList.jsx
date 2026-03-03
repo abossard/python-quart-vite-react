@@ -175,9 +175,13 @@ const useStyles = makeStyles({
     color: tokens.colorNeutralForeground3,
     fontSize: tokens.fontSizeBase200,
     textTransform: 'uppercase',
+    overflowWrap: "break-word",
+    wordBreak: "break-word",
   },
   detailValue: {
     fontSize: tokens.fontSizeBase300,
+    overflowWrap: "break-word",
+    wordBreak: "break-word",
   },
   descriptionBox: {
     backgroundColor: tokens.colorNeutralBackground3,
@@ -185,6 +189,8 @@ const useStyles = makeStyles({
     borderRadius: tokens.borderRadiusMedium,
     whiteSpace: 'pre-wrap',
     lineHeight: '1.5',
+    overflowWrap: "break-word",
+    wordBreak: "break-word",
   },
   worklogItem: {
     borderLeft: `3px solid ${tokens.colorBrandStroke1}`,
@@ -391,7 +397,7 @@ export default function TicketList() {
       renderHeaderCell: () => 'Created',
       renderCell: (item) => (
         <TableCellLayout>
-          <Text style={{ fontSize: tokens.fontSizeBase200, color: tokens.colorNeutralForeground3 }}>
+          <Text style={{ fontSize: tokens.fontSizeBase200, color: tokens.colorNeutralForeground3, overflowWrap: "break-word", wordBreak: "break-word" }}>
             {formatRelativeTime(item.created_at)}
           </Text>
         </TableCellLayout>
@@ -470,11 +476,11 @@ export default function TicketList() {
             )}
           </div>
         </div>
-        <Text weight="semibold" style={{ display: 'block', marginBottom: tokens.spacingVerticalXS }}>
+        <Text weight="semibold" style={{ display: 'block', marginBottom: tokens.spacingVerticalXS, overflowWrap: "break-word", wordBreak: "break-word" }}>
           {log.summary}
         </Text>
         {log.details && (
-          <Text style={{ color: tokens.colorNeutralForeground2 }}>{log.details}</Text>
+          <Text style={{ color: tokens.colorNeutralForeground2, overflowWrap: "break-word", wordBreak: "break-word" }}>{log.details}</Text>
         )}
       </div>
     )
@@ -496,7 +502,7 @@ export default function TicketList() {
   if (error) {
     return (
       <div className={styles.loadingContainer}>
-        <MessageBar intent="error">
+        <MessageBar intent="error" style={{ overflowWrap: "break-word" }}>
           <MessageBarBody>{error}</MessageBarBody>
         </MessageBar>
       </div>
@@ -609,7 +615,7 @@ export default function TicketList() {
               <div className={styles.detailHeader}>
                 <Text className={styles.detailTitle}>{detail.summary}</Text>
                 {detail.incident_id && (
-                  <Text style={{ fontFamily: 'monospace', fontSize: tokens.fontSizeBase200, color: tokens.colorNeutralForeground3, marginBottom: tokens.spacingVerticalXS, display: 'block' }}>
+                  <Text style={{ fontFamily: 'monospace', fontSize: tokens.fontSizeBase200, color: tokens.colorNeutralForeground3, marginBottom: tokens.spacingVerticalXS, display: 'block', overflowWrap: "break-word", wordBreak: "break-word" }}>
                     {detail.incident_id}
                   </Text>
                 )}

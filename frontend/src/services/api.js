@@ -320,3 +320,75 @@ export async function runWorkbenchAgent(
     }),
   });
 }
+
+// ============================================================================
+// KBA Drafter APIs
+// ============================================================================
+
+export async function generateKBADraft(data) {
+  return fetchJSON(`${API_BASE_URL}/kba/drafts`, {
+    method: "POST",
+    body: JSON.stringify(data),
+  });
+}
+
+export async function getKBADraft(draftId) {
+  return fetchJSON(`${API_BASE_URL}/kba/drafts/${draftId}`);
+}
+
+export async function updateKBADraft(draftId, updates, userId = "anonymous") {
+  return fetchJSON(`${API_BASE_URL}/kba/drafts/${draftId}`, {
+    method: "PATCH",
+    body: JSON.stringify({ ...updates, user_id: userId }),
+  });
+}
+
+export async function replaceKBADraft(draftId, userId = "anonymous") {
+  return fetchJSON(`${API_BASE_URL}/kba/drafts/${draftId}/replace`, {
+    method: "POST",
+    body: JSON.stringify({ user_id: userId }),
+  });
+}
+
+export async function deleteKBADraft(draftId, userId = "anonymous") {
+  return fetchJSON(`${API_BASE_URL}/kba/drafts/${draftId}`, {
+    method: "DELETE",
+    body: JSON.stringify({ user_id: userId }),
+  });
+}
+
+export async function publishKBADraft(draftId, publishData) {
+  return fetchJSON(`${API_BASE_URL}/kba/drafts/${draftId}/publish`, {
+    method: "POST",
+    body: JSON.stringify(publishData),
+  });
+}
+
+export async function listKBADrafts(filters = {}) {
+  const params = new URLSearchParams();
+  if (filters.status) params.set("status", filters.status);
+  if (filters.created_by) params.set("created_by", filters.created_by);
+  if (filters.ticket_id) params.set("ticket_id", filters.ticket_id);
+  if (filters.incident_id) params.set("incident_id", filters.incident_id);
+  if (filters.limit) params.set("limit", filters.limit.toString());
+  if (filters.offset) params.set("offset", filters.offset.toString());
+  
+  const queryString = params.toString();
+  return fetchJSON(`${API_BASE_URL}/kba/drafts${queryString ? `?${queryString}` : ""}`);
+}
+
+export async function getKBAAuditTrail(draftId) {
+  return fetchJSON(`${API_BASE_URL}/kba/drafts/${draftId}/audit`);
+}
+
+export async function listKBAGuidelines() {
+  return fetchJSON(`${API_BASE_URL}/kba/guidelines`);
+}
+
+export async function getKBAGuideline(category) {
+  return fetchJSON(`${API_BASE_URL}/kba/guidelines/${category}`);
+}
+
+export async function checkKBAHealth() {
+  return fetchJSON(`${API_BASE_URL}/kba/health`);
+}

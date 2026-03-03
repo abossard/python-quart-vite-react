@@ -18,6 +18,7 @@ import {
 import {
     Bot24Regular,
     DataHistogram24Regular,
+    DocumentEdit24Regular,
     Info24Regular,
     Table24Regular,
     Wrench24Regular,
@@ -29,6 +30,7 @@ import FieldsDocs from './features/fields/FieldsDocs'
 import { USECASE_DEMO_DEFINITIONS } from './features/usecase-demo/demoDefinitions'
 import UsecaseDemoPage from './features/usecase-demo/UsecaseDemoPage'
 import KitchenSink from './features/kitchensink/KitchenSink'
+import KBADrafterPage from './features/kba-drafter/KBADrafterPage'
 import WorkbenchPage from './features/workbench/WorkbenchPage'
 
 const useStyles = makeStyles({
@@ -78,6 +80,7 @@ export default function App() {
 
   const tabs = [
     { value: 'csvtickets', label: 'Tickets', icon: <Table24Regular />, path: '/csvtickets', testId: 'tab-csvtickets' },
+    { value: 'kba-drafter', label: 'KBA Drafter', icon: <DocumentEdit24Regular />, path: '/kba-drafter', testId: 'tab-kba-drafter' },
     ...usecaseTabs,
     { value: 'kitchensink', label: 'Kitchen Sink', icon: <DataHistogram24Regular />, path: '/kitchensink', testId: 'tab-kitchensink' },
     { value: 'fields', label: 'Fields', icon: <Info24Regular />, path: '/fields', testId: 'tab-fields' },
@@ -117,6 +120,7 @@ export default function App() {
       <main className={styles.content}>
         <Routes>
           <Route path="/" element={<Navigate to="/csvtickets" replace />} />
+          <Route path="/kba-drafter" element={<KBADrafterPage />} />
           <Route path="/csvtickets" element={<CSVTicketTable />} />
           {USECASE_DEMO_DEFINITIONS.map((definition) => (
             <Route

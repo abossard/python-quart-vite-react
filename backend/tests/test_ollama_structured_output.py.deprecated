@@ -1,0 +1,501 @@
+"""
+Tests for Ollama Structured Output Parser
+
+Tests parsing, validation, and retry logic for LLM-generated JSON.
+"""
+
+import pytest
+import json
+
+from ollama_structured_output import (
+    StructuredOutputParser,
+    NoJSONFoundError,
+    InvalidJSONError,
+    SchemaValidationError,
+    OutputParseError,
+)
+
+
+# Test schema
+TEST_SCHEMA = {
+    "$schema": "http://json-schema.org/draft-07/schema#",
+    "type": "object",
+    "required": ["title", "items", "count"],
+    "properties": {
+        "title": {
+            "type": "string",
+            "minLength": 5,
+            "maxLength": 50
+        },
+        "items": {
+            "type": "array",
+            "minItems": 1,
+            "items": {"type": "string"}
+        },
+        "count": {
+            "type": "integer",
+            "minimum": 1
+        },
+        "optional_field": {
+            "type": "string"
+        }
+    },
+    "additionalProperties": False
+}
+
+
+@pytest.fixture
+def parser():
+    """Create parser with test schema"""
+    return StructuredOutputParser(schema=TEST_SCHEMA)
+
+
+class TestStructuredOutputParser:
+    """Test StructuredOutputParser class"""
+    
+    def test_parser_initialization(self, parser):
+        """Test parser initializes correctly"""
+        assert parser.schema == TEST_SCHEMA
+        assert parser.validator is not None
+    
+    def test_invalid_schema_raises_error(self):
+        """Test that invalid schema raises ValueError"""
+        invalid_schema = {
+            "type": "invalid_type"  # Invalid schema
+        }
+        
+        with pytest.raises(ValueError, match="Invalid schema"):
+            StructuredOutputParser(schema=invalid_schema)
+    
+    def test_parse_valid_json_text(self, parser):
+        """Test parsing valid JSON from plain text"""
+        response = '{"title": "Test Title", "items": ["item1", "item2"], "count": 2}'
+        
+        result = parser.parse(response)
+        
+        assert result["title"] == "Test Title"
+        assert result["items"] == ["item1", "item2"]
+        assert result["count"] == 2
+    
+    def test_parse_json_code_block(self, parser):
+        """Test parsing JSON from markdown code block"""
+        response = """Here is the result:
+
+```json
+{
+  "title": "Code Block Test",
+  "items": ["a", "b", "c"],
+  "count": 3
+}
+```
+
+That's all!"""
+        
+        result = parser.parse(response)
+        
+        assert result["title"] == "Code Block Test"
+        assert result["items"] == ["a", "b", "c"]
+        assert result["count"] == 3
+    
+    def test_parse_json_code_block_without_language(self, parser):
+        """Test parsing code block without 'json' marker"""
+        response = """```
+{
+  "title": "Plain Block",
+  "items": ["x"],
+  "count": 1
+}
+```"""
+        
+        result = parser.parse(response)
+        
+        assert result["title"] == "Plain Block"
+    
+    def test_parse_ollama_response_dict(self, parser):
+        """Test parsing from Ollama response dict"""
+        response = {
+            "message": {
+                "content": '{"title": "Dict Test", "items": ["test"], "count": 1}'
+            }
+        }
+        
+        result = parser.parse(response)
+        
+        assert result["title"] == "Dict Test"
+    
+    def test_parse_with_extra_text(self, parser):
+        """Test parsing JSON embedded in text"""
+        response = """Some preamble text here.
+
+{"title": "Embedded JSON", "items": ["embedded"], "count": 1}
+
+And some text after."""
+        
+        result = parser.parse(response)
+        
+        assert result["title"] == "Embedded JSON"
+    
+    def test_no_json_found_raises_error(self, parser):
+        """Test that missing JSON raises NoJSONFoundError"""
+        response = "This is just plain text with no JSON at all."
+        
+        with pytest.raises(NoJSONFoundError, match="Could not extract JSON"):
+            parser.parse(response)
+    
+    def test_invalid_json_syntax_raises_error(self, parser):
+        """Test that invalid JSON syntax raises InvalidJSONError"""
+        response = '{"title": "Missing comma" "items": ["x"], "count": 1}'  # Missing comma
+        
+        with pytest.raises(InvalidJSONError, match="Invalid JSON syntax"):
+            parser.parse(response)
+    
+    def test_json_with_unescaped_newlines_raises_error(self, parser):
+        """Test that unescaped newlines raise InvalidJSONError"""
+        # Note: This is intentionally malformed JSON
+        response = '''{"title": "Line
+Break", "items": ["x"], "count": 1}'''
+        
+        with pytest.raises(InvalidJSONError):
+            parser.parse(response)
+    
+    def test_missing_required_field_raises_validation_error(self, parser):
+        """Test that missing required fields raise SchemaValidationError"""
+        response = '{"title": "Missing Items"}' # Missing 'items' and 'count'
+        
+        with pytest.raises(SchemaValidationError) as exc_info:
+            parser.parse(response)
+        
+        error = exc_info.value
+        assert len(error.validation_errors) >= 2  # At least 'items' and 'count'
+        assert any("items" in err.lower() for err in error.validation_errors)
+        assert any("count" in err.lower() for err in error.validation_errors)
+    
+    def test_wrong_type_raises_validation_error(self, parser):
+        """Test that wrong types raise SchemaValidationError"""
+        response = '{"title": "Wrong Type", "items": "not_an_array", "count": 1}'
+        
+        with pytest.raises(SchemaValidationError) as exc_info:
+            parser.parse(response)
+        
+        error = exc_info.value
+        assert any("items" in err.lower() for err in error.validation_errors)
+    
+    def test_string_too_short_raises_validation_error(self, parser):
+        """Test that too-short strings raise validation error"""
+        response = '{"title": "Hi", "items": ["x"], "count": 1}'  # title too short
+        
+        with pytest.raises(SchemaValidationError) as exc_info:
+            parser.parse(response)
+        
+        error = exc_info.value
+        assert any("title" in err.lower() for err in error.validation_errors)
+    
+    def test_string_too_long_raises_validation_error(self, parser):
+        """Test that too-long strings raise validation error"""
+        long_title = "A" * 100  # Exceeds maxLength: 50
+        response = f'{{"title": "{long_title}", "items": ["x"], "count": 1}}'
+        
+        with pytest.raises(SchemaValidationError) as exc_info:
+            parser.parse(response)
+        
+        error = exc_info.value
+        assert any("title" in err.lower() for err in error.validation_errors)
+    
+    def test_empty_array_raises_validation_error(self, parser):
+        """Test that empty required arrays raise validation error"""
+        response = '{"title": "Empty Items", "items": [], "count": 1}'
+        
+        with pytest.raises(SchemaValidationError) as exc_info:
+            parser.parse(response)
+        
+        error = exc_info.value
+        assert any("items" in err.lower() for err in error.validation_errors)
+    
+    def test_negative_number_raises_validation_error(self, parser):
+        """Test that negative numbers raise validation error"""
+        response = '{"title": "Negative Count", "items": ["x"], "count": -1}'
+        
+        with pytest.raises(SchemaValidationError) as exc_info:
+            parser.parse(response)
+        
+        error = exc_info.value
+        assert any("count" in err.lower() for err in error.validation_errors)
+    
+    def test_optional_field_is_optional(self, parser):
+        """Test that optional fields can be omitted"""
+        response = '{"title": "No Optional", "items": ["x"], "count": 1}'
+        
+        result = parser.parse(response)
+        
+        assert "optional_field" not in result
+        assert result["title"] == "No Optional"
+    
+    def test_optional_field_can_be_included(self, parser):
+        """Test that optional fields can be included"""
+        response = '{"title": "With Optional", "items": ["x"], "count": 1, "optional_field": "test"}'
+        
+        result = parser.parse(response)
+        
+        assert result["optional_field"] == "test"
+    
+    def test_additional_properties_not_allowed(self, parser):
+        """Test that additional properties raise validation error"""
+        response = '{"title": "Extra Field", "items": ["x"], "count": 1, "extra": "not_allowed"}'
+        
+        with pytest.raises(SchemaValidationError) as exc_info:
+            parser.parse(response)
+        
+        error = exc_info.value
+        assert any("additional" in err.lower() or "extra" in err.lower() for err in error.validation_errors)
+
+
+class TestParseWithRetry:
+    """Test retry logic with repair prompts"""
+    
+    @pytest.mark.anyio
+    async def test_successful_first_attempt_no_retry(self, parser):
+        """Test that successful parse doesn't trigger retry"""
+        valid_response = '{"title": "First Try", "items": ["test"], "count": 1}'
+        
+        retry_called = False
+        async def mock_retry_fn(prompt):
+            nonlocal retry_called
+            retry_called = True
+            return {"message": {"content": "should not reach here"}}
+        
+        result = await parser.parse_with_retry(
+            ollama_response=valid_response,
+            retry_fn=mock_retry_fn,
+            original_prompt="test prompt"
+        )
+        
+        assert not retry_called
+        assert result["title"] == "First Try"
+    
+    @pytest.mark.anyio
+    async def test_retry_on_parse_error(self, parser):
+        """Test that parse error triggers retry"""
+        # First response: invalid JSON
+        first_response = "This is not JSON"
+        
+        # Second response: valid JSON
+        repair_response = {
+            "message": {
+                "content": '{"title": "Repaired", "items": ["fixed"], "count": 1}'
+            }
+        }
+        
+        async def mock_retry_fn(prompt):
+            assert "ERROR" in prompt  # Repair prompt should contain error
+            assert "ORIGINAL REQUEST" in prompt
+            return repair_response
+        
+        result = await parser.parse_with_retry(
+            ollama_response=first_response,
+            retry_fn=mock_retry_fn,
+            original_prompt="original prompt",
+            max_retries=1
+        )
+        
+        assert result["title"] == "Repaired"
+    
+    @pytest.mark.anyio
+    async def test_retry_on_validation_error(self, parser):
+        """Test that validation error triggers retry"""
+        # First response: valid JSON but missing required fields
+        first_response = '{"title": "Missing Fields"}'
+        
+        # Second response: complete and valid
+        repair_response = '{"title": "Complete", "items": ["fixed"], "count": 1}'
+        
+        retry_count = 0
+        async def mock_retry_fn(prompt):
+            nonlocal retry_count
+            retry_count += 1
+            assert "items" in prompt.lower()  # Should mention missing field
+            return {"message": {"content": repair_response}}
+        
+        result = await parser.parse_with_retry(
+            ollama_response=first_response,
+            retry_fn=mock_retry_fn,
+            original_prompt="original",
+            max_retries=1
+        )
+        
+        assert retry_count == 1
+        assert result["title"] == "Complete"
+    
+    @pytest.mark.anyio
+    async def test_retry_fails_raises_final_error(self, parser):
+        """Test that failed retry raises the final error"""
+        first_response = "Not JSON"
+        
+        retry_count = 0
+        async def mock_retry_fn(prompt):
+            nonlocal retry_count
+            retry_count += 1
+            return {"message": {"content": "Still not JSON"}}
+        
+        with pytest.raises(NoJSONFoundError):
+            await parser.parse_with_retry(
+                ollama_response=first_response,
+                retry_fn=mock_retry_fn,
+                original_prompt="test",
+                max_retries=2
+            )
+        
+        assert retry_count == 2  # Should retry max_retries times
+    
+    @pytest.mark.anyio
+    async def test_max_retries_respected(self, parser):
+        """Test that max_retries limit is respected"""
+        bad_response = "Not JSON"
+        
+        retry_count = 0
+        async def mock_retry_fn(prompt):
+            nonlocal retry_count
+            retry_count += 1
+            return bad_response
+        
+        with pytest.raises(NoJSONFoundError):
+            await parser.parse_with_retry(
+                ollama_response=bad_response,
+                retry_fn=mock_retry_fn,
+                original_prompt="test",
+                max_retries=3
+            )
+        
+        assert retry_count == 3
+
+
+class TestRepairPromptGeneration:
+    """Test repair prompt generation"""
+    
+    def test_repair_prompt_contains_error(self, parser):
+        """Test that repair prompt includes error message"""
+        prompt = parser._build_repair_prompt(
+            original_prompt="Create a JSON",
+            failed_output='{"bad": json}',
+            error="Invalid JSON syntax"
+        )
+        
+        assert "ERROR: Invalid JSON syntax" in prompt
+    
+    def test_repair_prompt_contains_original_request(self, parser):
+        """Test that repair prompt includes original request"""
+        original = "Generate structured data about X"
+        
+        prompt = parser._build_repair_prompt(
+            original_prompt=original,
+            failed_output="{}",
+            error="Missing fields"
+        )
+        
+        assert original in prompt
+        assert "ORIGINAL REQUEST" in prompt
+    
+    def test_repair_prompt_contains_requirements(self, parser):
+        """Test that repair prompt lists requirements"""
+        prompt = parser._build_repair_prompt(
+            original_prompt="test",
+            failed_output="{}",
+            error="test error"
+        )
+        
+        assert "title" in prompt  # Required field from TEST_SCHEMA
+        assert "items" in prompt
+        assert "count" in prompt
+        assert "json" in prompt.lower()  # Should mention JSON format
+    
+    def test_repair_prompt_truncates_long_output(self, parser):
+        """Test that very long failed output is truncated"""
+        long_output = "x" * 5000
+        
+        prompt = parser._build_repair_prompt(
+            original_prompt="test",
+            failed_output=long_output,
+            error="error"
+        )
+        
+        # Should truncate to ~1000 chars
+        assert len(prompt) < 3000
+
+
+class TestEdgeCases:
+    """Test edge cases and corner cases"""
+    
+    def test_parse_nested_json_objects(self):
+        """Test parsing deeply nested JSON"""
+        schema = {
+            "type": "object",
+            "required": ["nested"],
+            "properties": {
+                "nested": {
+                    "type": "object",
+                    "required": ["inner"],
+                    "properties": {
+                        "inner": {"type": "string"}
+                    }
+                }
+            }
+        }
+        parser = StructuredOutputParser(schema=schema)
+        
+        response = '{"nested": {"inner": "value"}}'
+        
+        result = parser.parse(response)
+        
+        assert result["nested"]["inner"] == "value"
+    
+    def test_parse_json_with_unicode(self):
+        """Test parsing JSON with unicode characters"""
+        schema = {
+            "type": "object",
+            "required": ["text"],
+            "properties": {
+                "text": {"type": "string"}
+            }
+        }
+        parser = StructuredOutputParser(schema=schema)
+        
+        response = '{"text": "Ümläute und émojis 🎉"}'
+        
+        result = parser.parse(response)
+        
+        assert "Ümläute" in result["text"]
+        assert "🎉" in result["text"]
+    
+    def test_parse_json_with_escaped_quotes(self):
+        """Test parsing JSON with escaped quotes"""
+        schema = {
+            "type": "object",
+            "required": ["quote"],
+            "properties": {
+                "quote": {"type": "string"}
+            }
+        }
+        parser = StructuredOutputParser(schema=schema)
+        
+        response = r'{"quote": "He said \"hello\" to me"}'
+        
+        result = parser.parse(response)
+        
+        assert result["quote"] == 'He said "hello" to me'
+    
+    def test_parse_empty_json_object(self):
+        """Test parsing empty JSON object"""
+        schema = {
+            "type": "object",
+            "properties": {}
+        }
+        parser = StructuredOutputParser(schema=schema)
+        
+        response = "{}"
+        
+        result = parser.parse(response)
+        
+        assert result == {}
+
+
+if __name__ == "__main__":
+    pytest.main([__file__, "-v"])

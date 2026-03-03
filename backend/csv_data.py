@@ -463,6 +463,15 @@ class CSVTicketService:
         """Get ticket by ID."""
         return self._tickets.get(ticket_id)
     
+    def get_ticket_by_incident_id(self, incident_id: str) -> Optional[Ticket]:
+        """
+        Get ticket by Incident ID (e.g., INC000016349815).
+        
+        Uses deterministic UUID generation to find ticket.
+        """
+        ticket_uuid = generate_uuid_from_incident_id(incident_id)
+        return self._tickets.get(ticket_uuid)
+    
     def list_tickets(
         self,
         status: Optional[TicketStatus] = None,
