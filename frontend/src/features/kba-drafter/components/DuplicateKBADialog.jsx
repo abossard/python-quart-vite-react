@@ -22,8 +22,8 @@ import { Warning24Regular } from "@fluentui/react-icons";
  * 
  * Options:
  * - Abbrechen: Close dialog, do nothing
- * - Ansehen: Load and view the existing draft
- * - Trotzdem neu: Force create a new draft
+ * - Zum KBA: Load and view the existing draft
+ * - (Optional) Trotzdem neu: Force create a new draft (only shown when multiple drafts exist)
  * 
  * @param {Object} props
  * @param {boolean} props.open - Whether dialog is open
@@ -62,14 +62,23 @@ export default function DuplicateKBADialog({
       case "reviewed":
         return "informative";
       case "draft":
+        return "warning";
       default:
         return "subtle";
     }
   };
 
+  // If only one draft exists, provide quick action to view it
+  const hasSingleDraft = existingDrafts.length === 1;
+  const handleViewPrimary = () => {
+    if (hasSingleDraft) {
+      onViewExisting(existingDrafts[0].id);
+    }
+  };
+
   return (
-    <Dialog open={open}>
-      <DialogSurface style={{ maxWidth: "700px" }}>
+    <Dialog open={open} modalType="modal">
+      <DialogSurface style={{ maxWidth: "600px" }}>
         <DialogBody>
           <DialogTitle>
             <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
@@ -80,8 +89,7 @@ export default function DuplicateKBADialog({
           
           <DialogContent>
             <p>
-              Für dieses Ticket existieren bereits {existingDrafts.length}{" "}
-              {existingDrafts.length === 1 ? "KBA-Entwurf" : "KBA-Entwürfe"}.
+              Für dieses Ticket existiert bereits {existingDrafts.length === 1 ? "ein KBA-Entwurf" : `${existingDrafts.length} KBA-Entwürfe`}.
             </p>
 
             <div style={{ marginTop: "16px", marginBottom: "16px" }}>
@@ -124,18 +132,28 @@ export default function DuplicateKBADialog({
               </Table>
             </div>
 
-            <p style={{ fontSize: "14px", color: tokens.colorNeutralForeground2, overflowWrap: "break-word", wordBreak: "break-word" }}>
-              <strong>Tipp:</strong> Klicken Sie auf einen Entwurf um ihn anzusehen, oder erstellen Sie einen neuen.
-            </p>
+            {!hasSingleDraft && (
+              <p style={{ fontSize: "14px", color: tokens.colorNeutralForeground2, overflowWrap: "break-word", wordBreak: "break-word" }}>
+                <strong>Tipp:</strong> Klicken Sie auf einen Entwurf um ihn anzusehen.
+              </p>
+            )}
           </DialogContent>
           
           <DialogActions>
             <Button appearance="secondary" onClick={onCancel}>
               Abbrechen
             </Button>
-            <Button appearance="primary" onClick={onCreateNew}>
-              Trotzdem neu erstellen
-            </Button>
+            {hasSingleDraft ? (
+              <Button appearance="primary" onClick={handleViewPrimary}>
+                Zum KBA
+              </Button>
+            ) : (
+              <>
+                <Button appearance="primary" onClick={onCreateNew}>
+                  Trotzdem neu erstellen
+                </Button>
+              </>
+            )}
           </DialogActions>
         </DialogBody>
       </DialogSurface>

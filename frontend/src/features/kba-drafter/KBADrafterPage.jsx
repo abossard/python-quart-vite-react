@@ -39,6 +39,7 @@ import {
   Eye24Regular,
   Warning24Regular,
   Delete24Regular,
+  Dismiss20Regular,
 } from "@fluentui/react-icons";
 import * as api from "../../services/api";
 import EditableList from "./components/EditableList";
@@ -137,6 +138,7 @@ export default function KBADrafterPage() {
       case "reviewed":
         return "informative";
       case "draft":
+        return "warning";
       default:
         return "subtle";
     }
@@ -206,23 +208,13 @@ export default function KBADrafterPage() {
       loadDrafts();
     } catch (error) {
       // Handle duplicate draft error (409)
-      if (error.message.includes("duplicate") || error.message.includes("exist")) {
-        // Try to extract existing drafts from error
-        try {
-          const response = await fetch(error.url || `http://localhost:5001/api/kba/drafts?ticket_id=${ticketId.trim()}`);
-          if (response.status === 409) {
-            const errorData = await response.json();
-            if (errorData.existing_drafts) {
-              setExistingDrafts(errorData.existing_drafts);
-              setPendingTicketId(ticketId.trim());
-              setDuplicateDialogOpen(true);
-              setLoading(false);
-              return;
-            }
-          }
-        } catch (parseError) {
-          console.error("Failed to parse duplicate error:", parseError);
-        }
+      if (error.status === 409 && error.data?.existing_drafts) {
+        // Show dialog with existing drafts
+        setExistingDrafts(error.data.existing_drafts);
+        setPendingTicketId(ticketId.trim());
+        setDuplicateDialogOpen(true);
+        setLoading(false);
+        return;
       }
       
       setMessage({
@@ -908,23 +900,24 @@ export default function KBADrafterPage() {
                 onClick={() => loadDraft(draft.id)}
               >
                 <div style={{ padding: tokens.spacingVerticalM, paddingBottom: tokens.spacingVerticalL }}>
-                  <div
+                  <Badge 
+                    appearance="filled" 
+                    color={getStatusBadgeColor(draft.status)}
                     style={{
-                      display: "flex",
-                      justifyContent: "space-between",
-                      alignItems: "center"
+                      position: "absolute",
+                      top: "8px",
+                      right: "8px"
                     }}
                   >
-                    <strong style={{ overflowWrap: "break-word", wordBreak: "break-word" }}>{draft.title}</strong>
-                    <Badge appearance="outline" color={getStatusBadgeColor(draft.status)}>{draft.status}</Badge>
+                    {draft.status}
+                  </Badge>
+                  <div>
+                    <strong style={{ overflowWrap: "break-word", wordBreak: "break-word", paddingRight: "80px" }}>{draft.title}</strong>
                   </div>
                   <div style={{ fontSize: "12px", color: tokens.colorNeutralForeground3, marginTop: tokens.spacingVerticalXS, overflowWrap: "break-word", wordBreak: "break-word" }}>
                     {draft.incident_id} • {new Date(draft.created_at).toLocaleString("de-DE")}
                   </div>
-                  <Button
-                    appearance="subtle"
-                    icon={<Delete24Regular />}
-                    size="small"
+                  <div
                     onClick={(e) => {
                       e.stopPropagation();
                       deleteDraft(draft.id, draft.title);
@@ -932,10 +925,28 @@ export default function KBADrafterPage() {
                     title="Entwurf löschen"
                     style={{
                       position: "absolute",
-                      bottom: "8px",
-                      right: "8px"
+                      bottom: 0,
+                      right: 0,
+                      width: "24px",
+                      height: "24px",
+                      backgroundColor: "#d13438",
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      cursor: "pointer",
+                      transition: "background-color 0.2s",
+                      borderTopLeftRadius: "4px"
                     }}
-                  />
+                    onMouseEnter={(e) => e.currentTarget.style.backgroundColor = "#a82c30"}
+                    onMouseLeave={(e) => e.currentTarget.style.backgroundColor = "#d13438"}
+                  >
+                    <Dismiss20Regular
+                      style={{
+                        color: "white",
+                        fontSize: "14px",
+                      }}
+                    />
+                  </div>
                 </div>
               </Card>
             ))}

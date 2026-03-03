@@ -23,10 +23,19 @@ async function fetchJSON(url, options = {}) {
   });
 
   if (!response.ok) {
-    const error = await response
+    const errorData = await response
       .json()
       .catch(() => ({ error: "Request failed" }));
-    throw new Error(error.error || `HTTP ${response.status}`);
+    
+    // For 409 Conflict (duplicate), include full error data
+    if (response.status === 409) {
+      const error = new Error(errorData.error || `HTTP ${response.status}`);
+      error.status = 409;
+      error.data = errorData;
+      throw error;
+    }
+    
+    throw new Error(errorData.error || `HTTP ${response.status}`);
   }
 
   return response.json();
