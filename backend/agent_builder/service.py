@@ -17,7 +17,7 @@ from pathlib import Path
 from time import perf_counter
 from typing import Any, Optional
 
-from .engine.prompt_builder import append_output_instructions
+from .engine.prompt_builder import append_output_instructions, resolve_output_schema
 from .engine.react_runner import build_llm, build_react_agent, extract_tools_used, make_tool_logging_callback
 from .evaluator import compute_score
 from .evaluator import evaluate_run as _evaluate_criteria
@@ -409,17 +409,19 @@ class WorkbenchService:
             # Per-agent LLM: use agent's model/temperature/max_tokens if set, else service defaults
             run_llm = self._resolve_llm_for_agent(agent_def)
 
-            # Pass output_schema as response_format for SDK-level structured output enforcement
-            response_format = agent_def.output_schema if agent_def.has_output_schema else None
-            react = build_react_agent(run_llm, tools, runtime_system_prompt, response_format=response_format)
+            # Always use structured output — custom schema or default (message + referenced_tickets)
+            effective_schema = resolve_output_schema(
+                agent_def.output_schema if agent_def.has_output_schema else None
+            )
+            react = build_react_agent(run_llm, tools, runtime_system_prompt, response_format=effective_schema)
 
             run_recursion_limit = agent_def.recursion_limit or self._recursion_limit
 
             logger.info(
-                "▶️  Agent run_id=%s agent=%s model=%s temp=%s tools=%s structured=%s prompt=%s",
+                "▶️  Agent run_id=%s agent=%s model=%s temp=%s tools=%s custom_schema=%s prompt=%s",
                 run_id, agent_id, agent_def.model or self._model,
                 agent_def.temperature, validated_tool_names,
-                bool(response_format), user_message[:120],
+                agent_def.has_output_schema, user_message[:120],
             )
             t0 = perf_counter()
 
@@ -433,7 +435,7 @@ class WorkbenchService:
 
             total_ms = int((perf_counter() - t0) * 1000)
 
-            # Prefer structured_response (SDK-enforced) over raw message content
+            # Always extract structured_response (guaranteed by response_format)
             structured_response = result.get("structured_response")
             if structured_response is not None:
                 import json as json_mod
@@ -444,6 +446,7 @@ class WorkbenchService:
                 else:
                     output = str(structured_response)
             else:
+                # Fallback if provider doesn't support structured output
                 final_msg = result["messages"][-1]
                 output = final_msg.content if hasattr(final_msg, "content") else str(final_msg)
 

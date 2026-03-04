@@ -17,6 +17,7 @@ from .models import (
     CriteriaType,
     RunStatus,
 )
+from .engine.prompt_builder import DEFAULT_OUTPUT_SCHEMA
 
 agent_builder_bp = Blueprint("agent_builder", __name__)
 
@@ -127,6 +128,7 @@ async def workbench_ui_config():
             "max_tokens": 4096,
         },
         "llm_config_fields": ["model", "temperature", "recursion_limit", "max_tokens", "output_instructions", "output_schema"],
+        "default_output_schema": DEFAULT_OUTPUT_SCHEMA,
         "endpoints": endpoints,
     })
 

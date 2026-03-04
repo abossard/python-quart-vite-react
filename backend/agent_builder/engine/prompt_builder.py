@@ -9,20 +9,34 @@ import json
 from typing import Any
 
 
-DEFAULT_MARKDOWN_INSTRUCTION = (
-    "Format your final answer as GitHub-flavored Markdown. "
-    "Use headings, bullet lists, and tables when helpful. "
-    "Do not wrap the entire response in a code block."
-)
+# Default output schema — always structured, even for "plain" agents.
+# Every agent returns a message (markdown) + list of referenced ticket IDs.
+DEFAULT_OUTPUT_SCHEMA: dict[str, Any] = {
+    "type": "object",
+    "properties": {
+        "message": {
+            "type": "string",
+            "description": "The agent's response formatted as GitHub-flavored Markdown.",
+        },
+        "referenced_tickets": {
+            "type": "array",
+            "items": {"type": "string"},
+            "description": "List of ticket IDs the agent looked at or referenced.",
+        },
+    },
+    "required": ["message", "referenced_tickets"],
+}
+
+
+def resolve_output_schema(custom_schema: dict[str, Any] | None) -> dict[str, Any]:
+    """Return the effective output schema: custom if it has properties, else default."""
+    if custom_schema and custom_schema.get("properties"):
+        return custom_schema
+    return DEFAULT_OUTPUT_SCHEMA
 
 
 def build_schema_instruction(output_schema: dict[str, Any]) -> str:
-    """
-    Build a prompt instruction from a JSON Schema.
-
-    Tells the LLM exactly what structure to produce. The schema is both
-    human-readable (in the prompt) and machine-enforced (via response_format).
-    """
+    """Build a prompt instruction from a JSON Schema."""
     if not output_schema or not output_schema.get("properties"):
         return ""
     schema_str = json.dumps(output_schema, indent=2)
@@ -40,18 +54,17 @@ def append_output_instructions(
 ) -> str:
     """Append output formatting instructions to a system prompt.
 
-    Priority:
-      1. output_schema → generates a strict JSON schema instruction
-      2. output_instructions → custom free-text instruction
-      3. neither → default markdown instruction
+    Always includes a schema instruction (custom or default).
+    output_instructions is prepended as additional context if provided.
     """
-    schema_instruction = build_schema_instruction(output_schema or {})
-    if schema_instruction:
-        instruction = schema_instruction
-    elif output_instructions and output_instructions.strip():
-        instruction = output_instructions.strip()
-    else:
-        instruction = DEFAULT_MARKDOWN_INSTRUCTION
+    effective_schema = resolve_output_schema(output_schema)
+    schema_instruction = build_schema_instruction(effective_schema)
+
+    parts: list[str] = []
+    if output_instructions and output_instructions.strip():
+        parts.append(output_instructions.strip())
+    parts.append(schema_instruction)
+    instruction = "\n\n".join(parts)
 
     base = (system_prompt or "").strip()
     if not base:
@@ -60,7 +73,7 @@ def append_output_instructions(
 
 
 def append_markdown_instruction(system_prompt: str) -> str:
-    """Append default markdown formatting instruction to a system prompt."""
+    """Append default structured output instruction to a system prompt."""
     return append_output_instructions(system_prompt, "")
 
 
