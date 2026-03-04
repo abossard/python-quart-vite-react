@@ -132,14 +132,48 @@ export default function EditableList({
         </div>
       ))}
       
-      <Button
-        appearance="outline"
-        icon={<Add24Regular />}
-        onClick={handleAddItem}
-        size="small"
+      <div
+        style={{
+          display: "flex",
+          gap: "8px",
+          alignItems: "center",
+        }}
       >
-        {itemLabel} hinzufügen
-      </Button>
+        <Button
+          appearance="outline"
+          icon={<Add24Regular />}
+          onClick={handleAddItem}
+          size="small"
+          style={{ flex: 1 }}
+        >
+          {itemLabel} hinzufügen
+        </Button>
+        
+        <div style={{ display: "flex", gap: "4px", visibility: "hidden", pointerEvents: "none" }}>
+          {allowReorder && (
+            <>
+              <Button
+                appearance="subtle"
+                icon={<ArrowUp24Regular />}
+                size="small"
+                disabled
+              />
+              <Button
+                appearance="subtle"
+                icon={<ArrowDown24Regular />}
+                size="small"
+                disabled
+              />
+            </>
+          )}
+          <Button
+            appearance="subtle"
+            icon={<Delete24Regular />}
+            size="small"
+            disabled
+          />
+        </div>
+      </div>
     </div>
   );
 }

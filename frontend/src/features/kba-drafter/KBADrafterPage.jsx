@@ -35,6 +35,13 @@ import {
   DialogBody,
   DialogActions,
   DialogContent,
+  Menu,
+  MenuTrigger,
+  MenuPopover,
+  MenuList,
+  MenuItem,
+  Dropdown,
+  Option,
 } from "@fluentui/react-components";
 import {
   DocumentText24Regular,
@@ -55,6 +62,7 @@ import {
   Search20Regular,
   DocumentSearch20Regular,
   ArrowUndo24Regular,
+  MoreVertical20Regular,
 } from "@fluentui/react-icons";
 import * as api from "../../services/api";
 import EditableList from "./components/EditableList";
@@ -199,6 +207,9 @@ export default function KBADrafterPage() {
   const [ticketDialogOpen, setTicketDialogOpen] = useState(false);
   const [ticketData, setTicketData] = useState(null);
   const [loadingTicket, setLoadingTicket] = useState(false);
+  
+  // Filter state
+  const [statusFilter, setStatusFilter] = useState("all");
 
   // Helper: Check for pending changes
   const hasPendingChanges = editedDraft && JSON.stringify(editedDraft) !== JSON.stringify(currentDraft);
@@ -1129,66 +1140,106 @@ export default function KBADrafterPage() {
       {/* Recent Drafts List */}
       {!currentDraft && drafts.length > 0 && (
         <Card>
-          <CardHeader header={<strong>Letzte Entwürfe</strong>} />
+          <CardHeader 
+            header={
+              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", width: "100%" }}>
+                <strong>Letzte Entwürfe</strong>
+                <Dropdown
+                  placeholder="Status filtern"
+                  value={statusFilter === "all" ? "Alle Status" : statusFilter}
+                  selectedOptions={[statusFilter]}
+                  onOptionSelect={(e, data) => setStatusFilter(data.optionValue)}
+                  size="small"
+                  style={{ minWidth: "150px" }}
+                >
+                  <Option value="all">Alle Status</Option>
+                  <Option value="draft">draft</Option>
+                  <Option value="reviewed">reviewed</Option>
+                  <Option value="published">published</Option>
+                </Dropdown>
+              </div>
+            } 
+          />
           <div style={{ padding: tokens.spacingVerticalM }}>
-            {drafts.map((draft) => (
+            {drafts
+              .filter(draft => statusFilter === "all" || draft.status === statusFilter)
+              .map((draft) => (
               <Card
                 key={draft.id}
                 style={{ 
                   marginBottom: tokens.spacingVerticalS,
                   cursor: "pointer",
                   transition: "background 0.2s",
-                  position: "relative"
                 }}
                 onClick={() => loadDraft(draft.id)}
               >
-                <div style={{ padding: tokens.spacingVerticalM, paddingBottom: tokens.spacingVerticalL }}>
-                  <Badge 
-                    appearance="filled" 
-                    color={getStatusBadgeColor(draft.status)}
-                    style={{
-                      position: "absolute",
-                      top: "8px",
-                      right: "8px"
-                    }}
-                  >
-                    {draft.status}
-                  </Badge>
-                  <div>
-                    <strong style={{ overflowWrap: "break-word", wordBreak: "break-word", paddingRight: "80px" }}>{draft.title}</strong>
-                  </div>
-                  <div style={{ fontSize: "12px", color: tokens.colorNeutralForeground3, marginTop: tokens.spacingVerticalXS, overflowWrap: "break-word", wordBreak: "break-word" }}>
-                    {draft.incident_id} • {new Date(draft.created_at).toLocaleString("de-DE")}
-                  </div>
-                  <div
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      deleteDraft(draft.id, draft.title);
-                    }}
-                    title="Entwurf löschen"
-                    style={{
-                      position: "absolute",
-                      bottom: 0,
-                      right: 0,
-                      width: "24px",
-                      height: "24px",
-                      backgroundColor: "#d13438",
+                <div style={{ 
+                  padding: tokens.spacingVerticalM,
+                  display: "flex",
+                  alignItems: "flex-start",
+                  gap: tokens.spacingHorizontalM,
+                }}>
+                  {/* Left: Content */}
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ 
+                      fontSize: "14px",
+                      fontWeight: 600,
+                      marginBottom: tokens.spacingVerticalXXS,
+                      overflowWrap: "break-word",
+                      wordBreak: "break-word"
+                    }}>
+                      {draft.title}
+                    </div>
+                    <div style={{ 
+                      fontSize: "12px",
+                      color: tokens.colorNeutralForeground3,
                       display: "flex",
-                      alignItems: "center",
-                      justifyContent: "center",
-                      cursor: "pointer",
-                      transition: "background-color 0.2s",
-                      borderTopLeftRadius: "4px"
-                    }}
-                    onMouseEnter={(e) => e.currentTarget.style.backgroundColor = "#a82c30"}
-                    onMouseLeave={(e) => e.currentTarget.style.backgroundColor = "#d13438"}
-                  >
-                    <Dismiss20Regular
-                      style={{
-                        color: "white",
-                        fontSize: "14px",
-                      }}
-                    />
+                      gap: tokens.spacingHorizontalS,
+                      flexWrap: "wrap",
+                      alignItems: "center"
+                    }}>
+                      <span>{draft.incident_id}</span>
+                      <span>•</span>
+                      <span>{new Date(draft.created_at).toLocaleString("de-DE")}</span>
+                    </div>
+                  </div>
+                  
+                  {/* Right: Status Badge */}
+                  <div style={{ display: "flex", justifyContent: "flex-end", minWidth: "80px" }}>
+                    <Badge 
+                      appearance="filled" 
+                      color={getStatusBadgeColor(draft.status)}
+                      size="large"
+                    >
+                      {draft.status}
+                    </Badge>
+                  </div>
+                  
+                  {/* Right: Menu */}
+                  <div style={{ marginLeft: tokens.spacingHorizontalL }}>
+                    <Menu>
+                      <MenuTrigger disableButtonEnhancement>
+                        <Button
+                          appearance="subtle"
+                          icon={<MoreVertical20Regular />}
+                          size="small"
+                          onClick={(e) => e.stopPropagation()}
+                        />
+                      </MenuTrigger>
+                      <MenuPopover>
+                        <MenuList>
+                          <MenuItem
+                            icon={<Delete24Regular />}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              deleteDraft(draft.id, draft.title);
+                            }}
+                          >
+                            Löschen
+                          </MenuItem>
+                        </MenuList>
+                      </MenuPopover>
+                    </Menu>
                   </div>
                 </div>
               </Card>
