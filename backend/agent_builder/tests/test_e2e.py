@@ -261,5 +261,38 @@ class AgentBuilderE2ETests(unittest.IsolatedAsyncioTestCase):
                 self.assertEqual(config["defaults"]["max_tokens"], 4096)
 
 
+    async def test_suggest_schema_endpoint(self) -> None:
+        """POST /api/workbench/suggest-schema returns a JSON Schema."""
+
+        class _FakeLLMResponse:
+            content = '{"type":"object","properties":{"total":{"type":"integer","description":"Total tickets"},"status_breakdown":{"type":"object","description":"Count per status"}}}'
+
+        async def _fake_ainvoke(self_llm, messages):
+            return _FakeLLMResponse()
+
+        with patch("agent_builder.service.build_react_agent", new=_fake_build_react_agent):
+            async with backend_app_module.app.test_app() as test_app:
+                client = test_app.test_client()
+
+                # Patch the LLM's ainvoke
+                from agent_builder.routes import _workbench_service
+                original_llm = _workbench_service._llm
+                _workbench_service._llm = type("FakeLLM", (), {"ainvoke": _fake_ainvoke})()
+
+                try:
+                    resp = await client.post("/api/workbench/suggest-schema", json={
+                        "name": "SLA Breach Detector",
+                        "description": "Finds tickets that breached SLA",
+                        "system_prompt": "Analyze tickets and report SLA breaches",
+                    })
+                    data = await resp.get_json()
+                    self.assertEqual(resp.status_code, 200, data)
+                    schema = data["schema"]
+                    self.assertIn("properties", schema)
+                    self.assertIn("total", schema["properties"])
+                finally:
+                    _workbench_service._llm = original_llm
+
+
 if __name__ == "__main__":
     unittest.main()

@@ -121,6 +121,71 @@ class WorkbenchService:
         return result
 
     # ------------------------------------------------------------------
+    # Schema suggestion (LLM call)
+    # ------------------------------------------------------------------
+
+    async def suggest_schema(
+        self,
+        name: str,
+        description: str,
+        system_prompt: str,
+    ) -> dict[str, Any]:
+        """
+        Ask the LLM to propose a JSON Schema for the agent's output.
+
+        Uses the agent's name, description, and system prompt to infer
+        what structured data the agent should return.
+        """
+        context_parts = []
+        if name:
+            context_parts.append(f"Agent name: {name}")
+        if description:
+            context_parts.append(f"Description: {description}")
+        if system_prompt:
+            context_parts.append(f"System prompt: {system_prompt}")
+        context = "\n".join(context_parts)
+
+        suggest_prompt = (
+            "You are a JSON Schema designer. Given the following agent definition, "
+            "propose a JSON Schema for the agent's output. The schema should capture "
+            "the key data fields the agent would return.\n\n"
+            f"{context}\n\n"
+            "Respond with ONLY a valid JSON Schema object (no markdown, no explanation). "
+            "The schema must have \"type\": \"object\" at the root with a \"properties\" key. "
+            "Use descriptive property names and appropriate types (string, number, integer, boolean, array, object). "
+            "Include a \"description\" for each property."
+        )
+
+        from langchain_core.messages import HumanMessage
+        response = await self.llm.ainvoke([HumanMessage(content=suggest_prompt)])
+        raw = (response.content or "").strip()
+
+        # Extract JSON from response (strip markdown fences if present)
+        import re
+        json_match = re.search(r"```(?:json)?\s*(\{.*?\})\s*```", raw, re.DOTALL)
+        json_str = json_match.group(1) if json_match else raw
+
+        import json as json_mod
+        try:
+            schema = json_mod.loads(json_str)
+            if not isinstance(schema, dict) or "properties" not in schema:
+                raise ValueError("Schema must have 'properties'")
+            return schema
+        except (json_mod.JSONDecodeError, ValueError):
+            return {
+                "type": "object",
+                "properties": {
+                    "result": {"type": "string", "description": "Agent output"},
+                },
+            }
+            result.append({
+                "name": t.name,
+                "description": (t.description or "")[:200],
+                "input_schema": input_schema,
+            })
+        return result
+
+    # ------------------------------------------------------------------
     # Validation helpers (calculations)
     # ------------------------------------------------------------------
 

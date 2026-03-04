@@ -142,6 +142,25 @@ async def workbench_list_tools():
 
 
 # ---------------------------------------------------------------------------
+# Schema suggestion
+# ---------------------------------------------------------------------------
+
+@agent_builder_bp.route("/api/workbench/suggest-schema", methods=["POST"])
+async def workbench_suggest_schema():
+    """Suggest a JSON Schema for structured output based on agent definition."""
+    try:
+        data = await request.get_json()
+        schema = await _workbench_service.suggest_schema(
+            name=data.get("name", ""),
+            description=data.get("description", ""),
+            system_prompt=data.get("system_prompt", ""),
+        )
+        return jsonify({"schema": schema}), 200
+    except Exception as exc:
+        return _error_response(exc)
+
+
+# ---------------------------------------------------------------------------
 # Agent CRUD
 # ---------------------------------------------------------------------------
 

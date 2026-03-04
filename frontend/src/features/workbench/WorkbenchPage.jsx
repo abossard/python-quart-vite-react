@@ -22,6 +22,7 @@ import {
   listWorkbenchAgents,
   listWorkbenchTools,
   runWorkbenchAgent,
+  suggestOutputSchema,
 } from '../../services/api'
 
 const useStyles = makeStyles({
@@ -151,6 +152,8 @@ export default function WorkbenchPage() {
     requiredInputDescription: '',
   })
   const [selectedToolNames, setSelectedToolNames] = useState([])
+  const [outputSchema, setOutputSchema] = useState('')
+  const [suggestingSchema, setSuggestingSchema] = useState(false)
   const [runForm, setRunForm] = useState({
     agentId: '',
     prompt: '',
@@ -278,6 +281,16 @@ export default function WorkbenchPage() {
       return
     }
 
+    let parsedSchema = {}
+    if (outputSchema.trim()) {
+      try {
+        parsedSchema = JSON.parse(outputSchema)
+      } catch {
+        setError('Output schema is not valid JSON')
+        return
+      }
+    }
+
     setSubmitting(true)
     try {
       const createdAgent = await createWorkbenchAgent({
@@ -289,6 +302,7 @@ export default function WorkbenchPage() {
           ? formData.requiredInputDescription.trim()
           : '',
         tool_names: selectedToolNames,
+        output_schema: parsedSchema,
         success_criteria: [],
       })
 
@@ -301,6 +315,7 @@ export default function WorkbenchPage() {
         requiresInput: false,
         requiredInputDescription: '',
       })
+      setOutputSchema('')
       setRunForm((prev) => ({
         ...prev,
         agentId: createdAgent?.id || prev.agentId,
@@ -482,6 +497,39 @@ export default function WorkbenchPage() {
               />
             </Field>
             {fieldErrors.systemPrompt && <Text>{fieldErrors.systemPrompt}</Text>}
+            <Field label="Output schema" hint="JSON Schema for structured output (optional — default is markdown)">
+              <Textarea
+                data-testid="workbench-agent-output-schema"
+                resize="vertical"
+                rows={4}
+                value={outputSchema}
+                onChange={(_, data) => setOutputSchema(data.value)}
+                placeholder='{"type":"object","properties":{"result":{"type":"string"}}}'
+                style={{ fontFamily: 'monospace', fontSize: '12px' }}
+              />
+            </Field>
+            <Button
+              data-testid="workbench-suggest-schema-button"
+              disabled={suggestingSchema || (!formData.name.trim() && !formData.systemPrompt.trim())}
+              onClick={async () => {
+                setSuggestingSchema(true)
+                setError('')
+                try {
+                  const resp = await suggestOutputSchema({
+                    name: formData.name.trim(),
+                    description: formData.description.trim(),
+                    systemPrompt: formData.systemPrompt.trim(),
+                  })
+                  setOutputSchema(JSON.stringify(resp.schema, null, 2))
+                } catch (err) {
+                  setError(err?.message || 'Failed to suggest schema')
+                } finally {
+                  setSuggestingSchema(false)
+                }
+              }}
+            >
+              {suggestingSchema ? 'Suggesting...' : '✨ Suggest Schema'}
+            </Button>
             <Button
               appearance="primary"
               data-testid="workbench-create-agent-button"
