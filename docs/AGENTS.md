@@ -46,7 +46,7 @@ backend/agent_builder/         # Canonical module
 ### How It Works
 
 1. **Operations → Tools**: The `@operation` decorator automatically converts functions to LangChain tools via `to_langchain_tool()`
-2. **Agent Initialization**: `AgentService` loads all tools and creates a ReAct agent with Azure OpenAI
+2. **Agent Initialization**: `WorkbenchService` (or `ChatService`) loads tools from the registry and creates a ReAct agent
 3. **Execution**: Agent receives user prompt, autonomously chooses tools, executes them, and returns results
 
 ### Example Flow
@@ -201,9 +201,9 @@ The agent has access to all `@operation` decorated functions:
 - `AgentResponse` - Structured output with metadata
 
 **Service Layer**:
-- `AgentService.__init__()` - Initializes Azure OpenAI client, loads tools
-- `AgentService.run_agent()` - Executes ReAct agent loop
-- `AgentService._build_state_graph()` - Example for custom LangGraph workflows (learning reference)
+- `WorkbenchService` — CRUD + run + evaluate agents (see [AGENT_BUILDER.md](AGENT_BUILDER.md))
+- `ChatService` — One-shot chat agent
+- Legacy `AgentService` in `agents.py` — Simple chat for `/api/agents/run`
 
 ### api_decorators.py Extensions
 
@@ -215,28 +215,36 @@ The agent has access to all `@operation` decorated functions:
 **Key Insight**: Every `@operation` decorated function automatically becomes:
 1. REST endpoint (existing)
 2. MCP tool (existing)
-3. **LangChain agent tool (NEW!)**
+3. **LangChain agent tool**
 
 ## Learning Examples
 
-### Simple Agent Usage
+### Agent Builder (Configurable)
+
+```python
+from agent_builder import WorkbenchService, AgentDefinitionCreate
+
+# Create via REST or directly:
+agent = service.create_agent(AgentDefinitionCreate(
+    name="SLA Analyzer",
+    system_prompt="Analyze ticket SLA breaches",
+    tool_names=["csv_ticket_stats", "csv_list_tickets"],
+    output_schema={"type": "object", "properties": {"breaches": {"type": "array"}}},
+))
+run = await service.run_agent(agent.id, AgentRunCreate(input_prompt="Check SLA"))
+```
+
+### Simple Chat Agent
 
 ```python
 from agents import AgentService, AgentRequest
 
 service = AgentService()
 result = await service.run_agent(
-    AgentRequest(
-        prompt="Create a task to learn Python",
-        agent_type="task_assistant"
-    )
+    AgentRequest(prompt="Show ticket stats", agent_type="task_assistant")
 )
 print(result.result)
 ```
-
-### Custom StateGraph (Advanced)
-
-See `AgentService._build_state_graph()` docstring for a complete example of building custom multi-step workflows with LangGraph.
 
 ## Testing
 

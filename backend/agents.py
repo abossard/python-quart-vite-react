@@ -1,32 +1,13 @@
 """
 Agent Management Module with OpenAI and LangGraph
 
-Provides LangGraph-based agents for task automation:
+Provides LangGraph-based agents for CSV ticket analysis:
 - Type-safe data models with Pydantic
-- Self-documenting schemas for REST and MCP
 - OpenAI integration via langchain-openai
-- ReAct agent pattern with automatic tool discovery
+- ReAct agent pattern with CSV ticket tools
 
-Following "Grokking Simplicity" and "A Philosophy of Software Design":
-- Deep module: Simple interface, complex implementation
-- Separation of calculations from I/O
-- Clear separation: Data models, Service layer, Agent logic
-
-Example usage:
-    from agents import AgentService, AgentRequest
-    
-    service = AgentService()
-    result = await service.run_agent(
-        AgentRequest(
-            prompt="Create a task to learn LangGraph",
-            agent_type="task_assistant"
-        )
-    )
-    print(result.result)
-
-Advanced StateGraph example (for learning):
-    See the docstring in AgentService._build_state_graph() for a custom
-    LangGraph workflow with nodes, edges, and conditional routing.
+Note: The configurable agent builder lives in agent_builder/.
+This module provides the simple chat agent used by /api/agents/run.
 """
 
 # Standard library
@@ -73,14 +54,9 @@ from uuid import UUID
 # Ensure operations register before we request LangChain tools
 import operations  # noqa: F401
 
-# Local - Import operations registry for automatic tool discovery
-from api_decorators import get_langchain_tools
-
 # Local CSV service
 from csv_data import get_csv_ticket_service
 
-# Third-party - FastMCP client for external MCP servers
-from fastmcp import Client as MCPClient
 from langchain_core.callbacks import BaseCallbackHandler
 from langchain_core.tools import StructuredTool
 
@@ -89,7 +65,7 @@ from langchain_openai import ChatOpenAI
 from langgraph.prebuilt import create_react_agent
 
 # Third-party - Pydantic for validation
-from pydantic import BaseModel, Field, create_model, field_validator
+from pydantic import BaseModel, Field, field_validator
 from tickets import TicketStatus
 
 # ============================================================================
@@ -189,206 +165,6 @@ TICKET_MCP_SERVER_URL = "https://yodrrscbpxqnslgugwow.supabase.co/functions/v1/m
 
 
 # ============================================================================
-# MCP TOOL CONVERSION HELPERS
-# ============================================================================
-
-def _json_type_to_python(json_type: str) -> type:
-    """Map JSON schema type to Python type."""
-    mapping = {
-        "string": str,
-        "integer": int,
-        "number": float,
-        "boolean": bool,
-        "array": list,
-        "object": dict,
-    }
-    return mapping.get(json_type, str)
-
-
-def _schema_to_pydantic(name: str, schema: dict) -> type[BaseModel]:
-    """Convert JSON schema to Pydantic model for LangChain tool args."""
-    properties = schema.get("properties", {})
-    required = set(schema.get("required", []))
-    
-    fields: dict[str, Any] = {}
-    for field_name, field_schema in properties.items():
-        field_type = _json_type_to_python(field_schema.get("type", "string"))
-        field_desc = field_schema.get("description", f"{field_name} parameter")
-        
-        if field_name in required:
-            fields[field_name] = (field_type, Field(description=field_desc))
-        else:
-            default = field_schema.get("default")
-            fields[field_name] = (Optional[field_type], Field(default=default, description=field_desc))
-    
-    model_name = f"{name.title().replace('_', '').replace('-', '')}Args"
-    return create_model(model_name, **fields)
-
-
-def _extract_llm_call_metadata(response: Any) -> tuple[dict[str, Any] | None, str | None, str | None]:
-    """Extract token usage, model name, and finish reason from LLMResult-like objects."""
-    token_usage: dict[str, Any] | None = None
-    model_name: str | None = None
-    finish_reason: str | None = None
-
-    llm_output = getattr(response, "llm_output", None)
-    if isinstance(llm_output, dict):
-        maybe_usage = llm_output.get("token_usage")
-        if isinstance(maybe_usage, dict):
-            token_usage = maybe_usage
-        maybe_model = llm_output.get("model_name")
-        if isinstance(maybe_model, str):
-            model_name = maybe_model
-
-    generations = getattr(response, "generations", None) or []
-    if generations and generations[0]:
-        first_generation = generations[0][0]
-        generation_info = getattr(first_generation, "generation_info", None)
-        if isinstance(generation_info, dict):
-            maybe_finish = generation_info.get("finish_reason")
-            if isinstance(maybe_finish, str):
-                finish_reason = maybe_finish
-
-        message = getattr(first_generation, "message", None)
-        if message is not None:
-            usage_metadata = getattr(message, "usage_metadata", None)
-            if isinstance(usage_metadata, dict):
-                token_usage = token_usage or usage_metadata
-
-            response_metadata = getattr(message, "response_metadata", None)
-            if isinstance(response_metadata, dict):
-                maybe_usage = response_metadata.get("token_usage")
-                if isinstance(maybe_usage, dict):
-                    token_usage = token_usage or maybe_usage
-
-                maybe_model = response_metadata.get("model_name")
-                if isinstance(maybe_model, str):
-                    model_name = model_name or maybe_model
-
-                maybe_finish = response_metadata.get("finish_reason")
-                if isinstance(maybe_finish, str):
-                    finish_reason = finish_reason or maybe_finish
-
-    return token_usage, model_name, finish_reason
-
-
-class OpenAICallLoggingCallback(BaseCallbackHandler):
-    """Log each OpenAI/LangChain LLM call with latency and token usage at INFO level."""
-
-    def __init__(self) -> None:
-        self._start_times: dict[UUID, float] = {}
-
-    def on_llm_start(
-        self,
-        serialized: dict[str, Any],
-        prompts: list[str],
-        *,
-        run_id: UUID,
-        **kwargs: Any,
-    ) -> None:
-        self._start_times[run_id] = perf_counter()
-        model_name = None
-        if isinstance(serialized, dict):
-            model_name = (
-                serialized.get("kwargs", {}).get("model")
-                if isinstance(serialized.get("kwargs"), dict)
-                else None
-            )
-        prompt_chars = sum(len(prompt or "") for prompt in prompts)
-        logger.info(
-            "OpenAI call start run_id=%s model=%s prompts=%d chars=%d",
-            run_id,
-            model_name or OPENAI_MODEL,
-            len(prompts),
-            prompt_chars,
-        )
-
-    def on_llm_end(
-        self,
-        response: Any,
-        *,
-        run_id: UUID,
-        **kwargs: Any,
-    ) -> None:
-        started_at = self._start_times.pop(run_id, None)
-        duration_ms = int((perf_counter() - started_at) * 1000) if started_at is not None else None
-        token_usage, model_name, finish_reason = _extract_llm_call_metadata(response)
-        logger.info(
-            "OpenAI call end run_id=%s model=%s duration_ms=%s finish_reason=%s token_usage=%s",
-            run_id,
-            model_name or OPENAI_MODEL,
-            duration_ms if duration_ms is not None else "n/a",
-            finish_reason or "n/a",
-            token_usage or {},
-        )
-
-    def on_llm_error(
-        self,
-        error: BaseException,
-        *,
-        run_id: UUID,
-        **kwargs: Any,
-    ) -> None:
-        started_at = self._start_times.pop(run_id, None)
-        duration_ms = int((perf_counter() - started_at) * 1000) if started_at is not None else None
-        logger.error(
-            "OpenAI call error run_id=%s duration_ms=%s error=%s",
-            run_id,
-            duration_ms if duration_ms is not None else "n/a",
-            error,
-        )
-
-
-def _mcp_tool_to_langchain(mcp_client: MCPClient, tool: Any) -> StructuredTool:
-    """
-    Convert MCP tool to LangChain StructuredTool.
-    
-    Creates a wrapper that calls the external MCP server via the persistent client.
-    """
-    tool_name = tool.name
-    tool_desc = tool.description or f"MCP tool: {tool_name}"
-    input_schema = tool.inputSchema if hasattr(tool, 'inputSchema') else {}
-    
-    # Create async wrapper that calls MCP server
-    async def call_mcp_tool(**kwargs) -> str:
-        import json as _json
-        print(f"\n{'='*60}")
-        print(f"🔧 MCP TOOL CALL: {tool_name}")
-        print(f"{'='*60}")
-        print(f"📤 REQUEST:")
-        print(f"   Tool: {tool_name}")
-        print(f"   Args: {_json.dumps(kwargs, indent=6, default=str)}")
-        
-        result = await mcp_client.call_tool(tool_name, kwargs)
-        
-        print(f"\n📥 RESPONSE:")
-        # Extract text from MCP response
-        if hasattr(result, 'content') and result.content:
-            texts = [c.text for c in result.content if hasattr(c, 'text')]
-            response_text = "\n".join(texts) if texts else str(result)
-            # Truncate for display if too long
-            display_text = response_text[:500] + "..." if len(response_text) > 500 else response_text
-            print(f"   Content items: {len(result.content)}")
-            print(f"   Text preview: {display_text}")
-        else:
-            response_text = str(result)
-            print(f"   Raw: {response_text[:500]}")
-        
-        print(f"{'='*60}\n")
-        return response_text
-    
-    # Build Pydantic model from input schema
-    args_model = _schema_to_pydantic(tool_name, input_schema)
-    
-    return StructuredTool(
-        name=tool_name,
-        description=tool_desc,
-        coroutine=call_mcp_tool,
-        args_schema=args_model,
-    )
-
-
-# ============================================================================
 # SERVICE LAYER - Business logic for agent operations
 # ============================================================================
 
@@ -432,28 +208,11 @@ class AgentService:
             temperature=0.0,
         )
         
-        # CSV tools only (do not expose operations or external MCP)
+        # CSV tools only
         self.tools = self._build_csv_tools()
         self._system_prompt = self._build_system_prompt()
         self._react_agent = create_react_agent(self.llm, self.tools)
-
-        # Ticket MCP client state (unused)
-        self._ticket_mcp_client: Optional[MCPClient] = None
-        self._ticket_mcp_tools_loaded = False
     
-    async def _ensure_ticket_mcp_connection(self):
-        """No-op: external MCP tools not exposed."""
-        return
-    
-    async def close(self):
-        """Close the ticket MCP client connection."""
-        if self._ticket_mcp_client:
-            try:
-                await self._ticket_mcp_client.__aexit__(None, None, None)
-            except Exception:
-                pass
-            self._ticket_mcp_client = None
-
     def _build_system_prompt(self) -> str:
         """Build a concise system prompt optimized for low-latency tool usage."""
         efficiency_rules = (
@@ -706,61 +465,6 @@ class AgentService:
                 created_at=datetime.now()
             )
     
-    def _build_state_graph(self):
-        """
-        Example: Build a custom StateGraph for advanced workflows.
-        
-        This is a learning example showing how to build a custom LangGraph
-        workflow instead of using the prebuilt create_react_agent.
-        
-        A StateGraph allows you to:
-        - Define custom nodes (functions that process state)
-        - Add conditional edges (routing logic)
-        - Create multi-step workflows with loops
-        - Handle complex agent architectures
-        
-        Example usage (not used in current implementation):
-        
-            from langgraph.graph import StateGraph, END
-            from typing import TypedDict
-            
-            class AgentState(TypedDict):
-                messages: list
-                next_action: str
-            
-            # Define nodes
-            def plan_node(state: AgentState):
-                # Agent plans what to do
-                return {"next_action": "execute"}
-            
-            def execute_node(state: AgentState):
-                # Agent executes tools
-                return {"next_action": "review"}
-            
-            def review_node(state: AgentState):
-                # Agent reviews results
-                return {"next_action": END}
-            
-            # Build graph
-            workflow = StateGraph(AgentState)
-            workflow.add_node("plan", plan_node)
-            workflow.add_node("execute", execute_node)
-            workflow.add_node("review", review_node)
-            
-            # Add edges
-            workflow.set_entry_point("plan")
-            workflow.add_edge("plan", "execute")
-            workflow.add_edge("execute", "review")
-            workflow.add_edge("review", END)
-            
-            # Compile
-            agent = workflow.compile()
-        
-        For this playground, we use create_react_agent for simplicity.
-        Implement StateGraph when you need custom multi-step workflows.
-        """
-        pass
-
 
 # ============================================================================
 # CONVENIENCE EXPORTS
