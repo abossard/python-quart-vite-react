@@ -30,6 +30,7 @@ def _run_migrations(engine) -> None:
     _ensure_column(engine, "workbench_agent_definitions", "max_tokens", "INTEGER NOT NULL DEFAULT 4096")
     _ensure_column(engine, "workbench_agent_definitions", "output_instructions", "TEXT NOT NULL DEFAULT ''")
     _ensure_column(engine, "workbench_agent_definitions", "output_schema", "TEXT NOT NULL DEFAULT '{}'")
+    _ensure_column(engine, "workbench_agent_definitions", "show_in_menu", "BOOLEAN NOT NULL DEFAULT 0")
 
 def _ensure_column(engine, table_name: str, column_name: str, column_ddl: str) -> None:
     with Session(engine) as session:

@@ -356,6 +356,7 @@ class WorkbenchService:
             recursion_limit=data.recursion_limit,
             max_tokens=data.max_tokens,
             output_instructions=data.output_instructions,
+            show_in_menu=data.show_in_menu,
         )
         agent.tool_names = validated_tool_names
         agent.success_criteria = data.success_criteria
@@ -405,6 +406,8 @@ class WorkbenchService:
             agent.output_instructions = data.output_instructions
         if data.output_schema is not None:
             agent.output_schema = data.output_schema
+        if data.show_in_menu is not None:
+            agent.show_in_menu = data.show_in_menu
         agent.updated_at = datetime.now()
         return self._repo.update_agent(agent)
 

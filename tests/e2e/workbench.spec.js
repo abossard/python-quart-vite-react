@@ -649,3 +649,71 @@ test.describe("SchemaRenderer widgets", () => {
     await createdRow.getByRole("button", { name: "Delete" }).click();
   });
 });
+
+test.describe("Show in Menu", () => {
+  test("agent with show_in_menu appears as a tab and runs from its own page", async ({ page }) => {
+    const agentName = `e2e-menu-agent-${Date.now()}`;
+    const backendUrl = APP_URL.replace("3001", "5001");
+
+    // Create an agent with show_in_menu=true via API
+    const createResp = await page.request.post(`${backendUrl}/api/workbench/agents`, {
+      data: {
+        name: agentName,
+        description: "A menu agent for E2E testing",
+        system_prompt: "Use csv_ticket_stats and report the total.",
+        tool_names: ["csv_ticket_stats"],
+        show_in_menu: true,
+      },
+    });
+    const createdAgent = await createResp.json();
+    const agentId = createdAgent.id;
+
+    // Mock the run endpoint for this agent
+    await page.route("**/api/workbench/agents/*/runs", async (route) => {
+      const body = route.request().postDataJSON();
+      await route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify({
+          id: "run-menu-1",
+          agent_id: agentId,
+          input_prompt: body?.input_prompt || "",
+          status: "completed",
+          output: JSON.stringify({
+            message: "## Stats Report\n\nTotal: 206 tickets.",
+            referenced_tickets: [],
+          }, null, 2),
+          agent_snapshot: { tool_names: ["csv_ticket_stats"] },
+          tools_used: ["csv_ticket_stats"],
+          error: null,
+          created_at: "2026-03-04T10:00:00Z",
+          completed_at: "2026-03-04T10:00:01Z",
+        }),
+      });
+    });
+
+    // Load the app — the agent should appear as a tab
+    await page.goto(`${APP_URL}/csvtickets`, { waitUntil: "load" });
+
+    // Find the menu tab for our agent
+    const agentTab = page.getByTestId(`tab-agent-menu-${agentId}`);
+    await expect(agentTab).toBeVisible({ timeout: 10000 });
+    await expect(agentTab).toContainText(agentName);
+
+    // Click the tab — navigates to the agent run page
+    await agentTab.click();
+    await expect(page.getByTestId("agent-run-page-title")).toContainText(agentName);
+    await expect(page.getByText("A menu agent for E2E testing")).toBeVisible();
+
+    // Run the agent from its own page
+    await page.getByTestId("agent-run-button").click();
+
+    // Verify output renders
+    const output = page.getByTestId("agent-run-output");
+    await expect(output).toBeVisible({ timeout: 10000 });
+    await expect(output.getByRole("heading", { name: "Stats Report" })).toBeVisible();
+
+    // Clean up — delete via API
+    await page.request.delete(`${backendUrl}/api/workbench/agents/${agentId}`);
+  });
+});

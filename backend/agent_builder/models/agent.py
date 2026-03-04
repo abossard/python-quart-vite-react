@@ -61,6 +61,10 @@ class AgentDefinition(SQLModel, table=True):
         description="JSON Schema for structured output (empty object = no constraint)",
         sa_column=Column(String, name="output_schema"),
     )
+    show_in_menu: bool = SField(
+        default=False,
+        description="When true, agent appears as a tab in the main navigation",
+    )
     tool_names_json: str = SField(
         default="[]",
         description="JSON-serialized list of tool names available to this agent",
@@ -132,6 +136,7 @@ class AgentDefinition(SQLModel, table=True):
             "max_tokens": self.max_tokens,
             "output_instructions": self.output_instructions,
             "output_schema": self.output_schema,
+            "show_in_menu": self.show_in_menu,
             "tool_names": self.tool_names,
             "success_criteria": [c.model_dump() for c in self.success_criteria],
             "created_at": self.created_at.isoformat(),
@@ -156,6 +161,7 @@ class AgentDefinitionCreate(BaseModel):
     )
     tool_names: list[str] = Field(default_factory=list)
     success_criteria: list[SuccessCriteria] = Field(default_factory=list)
+    show_in_menu: bool = Field(default=False, description="Show agent as a tab in the main navigation")
 
 
 class AgentDefinitionUpdate(BaseModel):
@@ -172,3 +178,4 @@ class AgentDefinitionUpdate(BaseModel):
     output_schema: Optional[dict[str, Any]] = Field(default=None)
     tool_names: Optional[list[str]] = Field(default=None)
     success_criteria: Optional[list[SuccessCriteria]] = Field(default=None)
+    show_in_menu: Optional[bool] = Field(default=None)

@@ -110,6 +110,7 @@ export default function WorkbenchPage() {
     systemPrompt: '',
     requiresInput: false,
     requiredInputDescription: '',
+    showInMenu: false,
   })
   const [fieldErrors, setFieldErrors] = useState({
     name: '',
@@ -270,6 +271,7 @@ export default function WorkbenchPage() {
         tool_names: selectedToolNames,
         output_schema: parsedSchema,
         success_criteria: [],
+        show_in_menu: formData.showInMenu,
       })
 
       const agentsPayload = await listWorkbenchAgents()
@@ -280,6 +282,7 @@ export default function WorkbenchPage() {
         systemPrompt: '',
         requiresInput: false,
         requiredInputDescription: '',
+        showInMenu: false,
       })
       setOutputSchema('')
       setRunForm((prev) => ({
@@ -453,6 +456,12 @@ export default function WorkbenchPage() {
                 }))
                 setFieldErrors((prev) => ({ ...prev, requiredInputDescription: '' }))
               }}
+            />
+            <Checkbox
+              data-testid="workbench-agent-show-in-menu-checkbox"
+              label="Show in menu"
+              checked={formData.showInMenu}
+              onChange={(_, data) => setFormData((prev) => ({ ...prev, showInMenu: Boolean(data.checked) }))}
             />
             {formData.requiresInput && (
               <>
