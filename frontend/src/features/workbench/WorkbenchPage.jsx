@@ -13,8 +13,6 @@ import {
   tokens,
 } from '@fluentui/react-components'
 import { useEffect, useState } from 'react'
-import ReactMarkdown from 'react-markdown'
-import remarkGfm from 'remark-gfm'
 import {
   createWorkbenchAgent,
   deleteWorkbenchAgent,
@@ -22,7 +20,10 @@ import {
   listWorkbenchAgents,
   listWorkbenchTools,
   runWorkbenchAgent,
+  suggestOutputSchema,
 } from '../../services/api'
+import SchemaEditor from './SchemaEditor'
+import SchemaRenderer from './SchemaRenderer'
 
 const useStyles = makeStyles({
   container: {
@@ -84,47 +85,13 @@ const useStyles = makeStyles({
     backgroundColor: tokens.colorNeutralBackground1,
     color: tokens.colorNeutralForeground1,
   },
-  runOutputMarkdown: {
+  runOutputContainer: {
     border: `1px solid ${tokens.colorNeutralStroke1}`,
     borderRadius: tokens.borderRadiusMedium,
     padding: `${tokens.spacingVerticalS} ${tokens.spacingHorizontalM}`,
     backgroundColor: tokens.colorNeutralBackground1,
-    maxHeight: '320px',
+    maxHeight: '400px',
     overflowY: 'auto',
-    '& h1, & h2, & h3': {
-      margin: `${tokens.spacingVerticalXS} 0`,
-      fontWeight: tokens.fontWeightSemibold,
-    },
-    '& ul, & ol': {
-      margin: `${tokens.spacingVerticalXS} 0`,
-      paddingLeft: tokens.spacingHorizontalL,
-    },
-    '& table': {
-      width: '100%',
-      borderCollapse: 'collapse',
-      marginTop: tokens.spacingVerticalXS,
-    },
-    '& th, & td': {
-      border: `1px solid ${tokens.colorNeutralStroke1}`,
-      padding: tokens.spacingHorizontalXS,
-      textAlign: 'left',
-    },
-    '& pre': {
-      backgroundColor: tokens.colorNeutralBackground3,
-      padding: tokens.spacingHorizontalM,
-      borderRadius: tokens.borderRadiusSmall,
-      overflowX: 'auto',
-    },
-    '& code': {
-      fontFamily: 'monospace',
-      backgroundColor: tokens.colorNeutralBackground3,
-      padding: '0 4px',
-      borderRadius: tokens.borderRadiusSmall,
-    },
-    '& a': {
-      color: tokens.colorBrandForegroundLink,
-      textDecoration: 'underline',
-    },
   },
 })
 
@@ -143,6 +110,7 @@ export default function WorkbenchPage() {
     systemPrompt: '',
     requiresInput: false,
     requiredInputDescription: '',
+    showInMenu: false,
   })
   const [fieldErrors, setFieldErrors] = useState({
     name: '',
@@ -151,6 +119,8 @@ export default function WorkbenchPage() {
     requiredInputDescription: '',
   })
   const [selectedToolNames, setSelectedToolNames] = useState([])
+  const [outputSchema, setOutputSchema] = useState('')
+  const [suggestingSchema, setSuggestingSchema] = useState(false)
   const [runForm, setRunForm] = useState({
     agentId: '',
     prompt: '',
@@ -278,6 +248,16 @@ export default function WorkbenchPage() {
       return
     }
 
+    let parsedSchema = {}
+    if (outputSchema.trim()) {
+      try {
+        parsedSchema = JSON.parse(outputSchema)
+      } catch {
+        setError('Output schema is not valid JSON')
+        return
+      }
+    }
+
     setSubmitting(true)
     try {
       const createdAgent = await createWorkbenchAgent({
@@ -289,7 +269,9 @@ export default function WorkbenchPage() {
           ? formData.requiredInputDescription.trim()
           : '',
         tool_names: selectedToolNames,
+        output_schema: parsedSchema,
         success_criteria: [],
+        show_in_menu: formData.showInMenu,
       })
 
       const agentsPayload = await listWorkbenchAgents()
@@ -300,7 +282,9 @@ export default function WorkbenchPage() {
         systemPrompt: '',
         requiresInput: false,
         requiredInputDescription: '',
+        showInMenu: false,
       })
+      setOutputSchema('')
       setRunForm((prev) => ({
         ...prev,
         agentId: createdAgent?.id || prev.agentId,
@@ -359,7 +343,13 @@ export default function WorkbenchPage() {
       const output = typeof run?.output === 'string' ? run.output : ''
       setRunOutput(output || '(no output)')
 
-      const preview = output.replace(/\s+/g, ' ').trim().slice(0, 90)
+      // For button preview, extract message from structured output
+      let previewText = output
+      try {
+        const parsed = JSON.parse(output)
+        if (parsed?.message) previewText = parsed.message
+      } catch { /* raw string is fine */ }
+      const preview = previewText.replace(/\s+/g, ' ').trim().slice(0, 90)
       if (!preview) {
         setRunButtonOutput('completed')
       } else {
@@ -375,6 +365,23 @@ export default function WorkbenchPage() {
       setIsRunningAgent(false)
     }
   }
+
+  /**
+   * Parse structured output: extract message + referenced_tickets from JSON,
+   * or fall back to raw string for non-JSON output.
+   */
+  const parsedOutput = (() => {
+    if (!runOutput) return null
+    try {
+      const parsed = JSON.parse(runOutput)
+      if (typeof parsed === 'object' && parsed !== null) {
+        return parsed
+      }
+    } catch {
+      // Not JSON — raw markdown string
+    }
+    return { message: runOutput }
+  })()
 
   const runButtonLabel = isRunningAgent
     ? (
@@ -450,6 +457,12 @@ export default function WorkbenchPage() {
                 setFieldErrors((prev) => ({ ...prev, requiredInputDescription: '' }))
               }}
             />
+            <Checkbox
+              data-testid="workbench-agent-show-in-menu-checkbox"
+              label="Show in menu"
+              checked={formData.showInMenu}
+              onChange={(_, data) => setFormData((prev) => ({ ...prev, showInMenu: Boolean(data.checked) }))}
+            />
             {formData.requiresInput && (
               <>
                 <Field label="Input description" required>
@@ -482,6 +495,34 @@ export default function WorkbenchPage() {
               />
             </Field>
             {fieldErrors.systemPrompt && <Text>{fieldErrors.systemPrompt}</Text>}
+            <Field label="Output schema" hint="Define the structured output format with display widgets">
+              <SchemaEditor
+                value={outputSchema}
+                onChange={setOutputSchema}
+              />
+            </Field>
+            <Button
+              data-testid="workbench-suggest-schema-button"
+              disabled={suggestingSchema || (!formData.name.trim() && !formData.systemPrompt.trim())}
+              onClick={async () => {
+                setSuggestingSchema(true)
+                setError('')
+                try {
+                  const resp = await suggestOutputSchema({
+                    name: formData.name.trim(),
+                    description: formData.description.trim(),
+                    systemPrompt: formData.systemPrompt.trim(),
+                  })
+                  setOutputSchema(JSON.stringify(resp.schema, null, 2))
+                } catch (err) {
+                  setError(err?.message || 'Failed to suggest schema')
+                } finally {
+                  setSuggestingSchema(false)
+                }
+              }}
+            >
+              {suggestingSchema ? 'Suggesting...' : '✨ Suggest Schema'}
+            </Button>
             <Button
               appearance="primary"
               data-testid="workbench-create-agent-button"
@@ -586,12 +627,13 @@ export default function WorkbenchPage() {
           </Button>
 
           {runError && <Text data-testid="workbench-run-error">{runError}</Text>}
-          {runOutput && (
-            <Field label="Run output (Markdown)">
-              <div data-testid="workbench-run-output" className={styles.runOutputMarkdown}>
-                <ReactMarkdown remarkPlugins={[remarkGfm]}>
-                  {runOutput}
-                </ReactMarkdown>
+          {parsedOutput && (
+            <Field label="Run output">
+              <div data-testid="workbench-run-output" className={styles.runOutputContainer}>
+                <SchemaRenderer
+                  data={parsedOutput}
+                  schema={selectedRunAgent?.output_schema?.properties ? selectedRunAgent.output_schema : undefined}
+                />
               </div>
             </Field>
           )}

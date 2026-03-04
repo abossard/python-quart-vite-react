@@ -1,8 +1,8 @@
 """
-Agent Workbench - Tool Registry
+Agent Builder — Tool Registry
 
-Decouples the workbench from the project's specific tool implementations.
-The project injects tools at startup; the workbench resolves them by name.
+Decouples the builder from specific tool implementations.
+The host project injects tools at startup; the builder resolves them by name.
 """
 
 from typing import Any
@@ -12,22 +12,18 @@ class ToolRegistry:
     """
     Maps string names to LangChain StructuredTool instances.
 
-    The workbench itself has no knowledge of where tools come from.
+    The builder has no knowledge of where tools come from.
     The host project registers tools at startup (dependency injection).
 
     Usage:
         registry = ToolRegistry()
-        registry.register(my_structured_tool)      # from a StructuredTool
-        registry.register_all(list_of_tools)       # bulk
+        registry.register(my_structured_tool)
+        registry.register_all(list_of_tools)
         tools = registry.resolve(["csv_list_tickets", "csv_search_tickets"])
     """
 
     def __init__(self) -> None:
         self._tools: dict[str, Any] = {}
-
-    # ------------------------------------------------------------------
-    # Registration
-    # ------------------------------------------------------------------
 
     def register(self, tool: Any) -> None:
         """Register a single LangChain StructuredTool (requires .name attribute)."""
@@ -40,10 +36,6 @@ class ToolRegistry:
         """Bulk-register a list of LangChain StructuredTools."""
         for t in tools:
             self.register(t)
-
-    # ------------------------------------------------------------------
-    # Resolution
-    # ------------------------------------------------------------------
 
     def resolve(self, names: list[str]) -> list[Any]:
         """

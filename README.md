@@ -1,272 +1,153 @@
-# Quart + Vite + React Demo Application
+# Quart + Vite + React — CSV Ticket Analysis Platform
 
-**Current Task:** Document usecase demo ideas from the CSV-backed ticket dataset and build/iterate pages like `/usecase_demo_1` where each demo page has:
-- a short summary
-- editable agent prompt(s)
-- a button that launches the agent run in background
-- visible results (table/visualization)
+> A teaching-oriented full-stack application that pairs a Python Quart backend with a React + FluentUI frontend. Includes a **config-driven agent builder** for creating LLM-powered ticket analysis agents with structured output.
 
-> A teaching-oriented full-stack sample that pairs a Python Quart backend with a React + FluentUI frontend, real-time Server-Sent Events (SSE), and Playwright tests.
+## Features
 
-## Why this repo?
-- Shows how to keep REST and MCP JSON-RPC in a single Quart process
-- Demonstrates “Grokking Simplicity” (actions vs. calculations vs. data) and “A Philosophy of Software Design” (deep modules)
-- Provides an approachable playground for FluentUI v9, Vite, and Playwright
+| Feature | Screenshot |
+|---------|-----------|
+| **CSV Tickets** — browse, filter, paginate imported ticket data | ![Tickets](menu-tickets.png) |
+| **Agent Fabric** — build agents from config (prompt, tools, output schema) | ![Agent Fabric](menu-agent-fabric.png) |
+| **Agent Chat** — one-shot chat with CSV ticket tools | ![Agent](menu-agent.png) |
+| **Usecase Demos** — pre-built analysis demos with editable prompts | ![Usecase Demo](menu-usecase-demo.png) |
+| **Fields** — CSV schema reference for all available ticket fields | ![Fields](menu-fields.png) |
 
-## Tech stack at a glance
-- Backend: Quart, Pydantic 2, MCP JSON-RPC, Async SSE (`backend/app.py`)
-- Business logic: `TaskService` + models in `backend/tasks.py`
-- LLM Integration: Ollama with local models (`backend/ollama_service.py`)
-- Frontend: React 18, Vite, FluentUI components, feature-first structure under `frontend/src/features`
-- Tests: Playwright E2E (`tests/e2e/app.spec.js`, `tests/e2e/ollama.spec.js`)
+## Architecture
+
+```mermaid
+graph TB
+    subgraph Frontend
+        React[React 18 + FluentUI]
+    end
+
+    subgraph "Backend - Quart"
+        BP[agent_builder Blueprint]
+        REST[REST API + MCP JSON-RPC]
+        OPS["@operation decorator"]
+    end
+
+    subgraph "agent_builder/"
+        SVC[WorkbenchService]
+        CS[ChatService]
+        ENG[ReAct Engine]
+        DB[(SQLite)]
+    end
+
+    React -->|fetch| BP
+    React -->|fetch| REST
+    OPS -->|auto-generates| REST
+    BP --> SVC
+    BP --> CS
+    SVC --> ENG
+    CS --> ENG
+    SVC --> DB
+    ENG -->|response_format| LLM[OpenAI]
+```
+
+## Tech Stack
+
+| Layer | Tech |
+|-------|------|
+| Backend | Python, [Quart](https://quart.palletsprojects.com/), Pydantic 2, SQLModel |
+| Agents | [LangGraph](https://langchain-ai.github.io/langgraph/) ReAct, LangChain, OpenAI |
+| Frontend | React 18, Vite, [FluentUI v9](https://react.fluentui.dev/), Nivo charts |
+| Tests | Playwright E2E, pytest |
+| Protocol | REST, MCP JSON-RPC, SSE |
+
+## Quick Start
+
+```bash
+git clone <your-fork-url> && cd python-quart-vite-react
+./setup.sh              # creates .venv, installs deps, Playwright
+cp .env.example .env    # add your OPENAI_API_KEY
+./start-dev.sh          # starts backend (5001) + frontend (3001)
+```
+
+Open http://localhost:3001
 
 ## Documentation
 
-All deep-dive guides now live under `docs/` for easier discovery:
+| Guide | Description |
+|-------|-------------|
+| **[Agent Builder](docs/AGENT_BUILDER.md)** | Architecture, mermaid diagrams, structured output, API reference |
+| **[MCP App](docs/MCP_APP.md)** | How this project works as an MCP server — protocol, tools, extensibility |
+| [Agents](docs/AGENTS.md) | LangGraph agent setup, config, tools |
+| [Quick Start](docs/QUICKSTART.md) | Fastest path from clone to running |
+| [Learning Guide](docs/LEARNING.md) | Grokking Simplicity + Philosophy of Software Design principles |
+| [Project Structure](docs/PROJECT_STRUCTURE.md) | File-by-file overview |
+| [Unified Architecture](docs/UNIFIED_ARCHITECTURE.md) | REST + MCP integration via @operation |
+| [Pydantic Architecture](docs/PYDANTIC_ARCHITECTURE.md) | Models, validation, schema generation |
+| [CSV AI Guidance](docs/CSV_AI_GUIDANCE.md) | How agents query CSV ticket data |
+| [Nivo Charts](docs/NIVO.md) | Data visualization with Nivo |
+| [Ubuntu Install](docs/INSTALL_UBUNTU.md) | Prerequisites for Ubuntu 22.04 |
+| [Troubleshooting](docs/TROUBLESHOOTING.md) | Common issues and fixes |
 
-- [Ubuntu Installation Guide](docs/INSTALL_UBUNTU.md) – complete prerequisites installation for Ubuntu 22.04 LTS
-- [Quick Start](docs/QUICKSTART.md) – fastest path from clone to running servers
-- [Learning Guide](docs/LEARNING.md) – principles behind the architecture and code style
-- [Project Structure](docs/PROJECT_STRUCTURE.md) – file-by-file overview of the repo
-- [Pydantic Architecture](docs/PYDANTIC_ARCHITECTURE.md) – how models, validation, and operations fit together
-- [Unified Architecture](docs/UNIFIED_ARCHITECTURE.md) – REST + MCP integration details and extension ideas
-- [Troubleshooting](docs/TROUBLESHOOTING.md) – common issues and fixes for setup, dev, and tests
-- [CSV AI Guidance](docs/CSV_AI_GUIDANCE.md) – how AI agents should query and reason over CSV ticket data
+## Agent Builder
 
+The core feature — build LLM agents from config, no code required:
 
+1. **Define** — name, system prompt, tools, output schema (JSON Schema)
+2. **Suggest Schema** — LLM proposes structured output format from your description
+3. **Run** — agent executes with LangGraph ReAct, structured output via `response_format`
+4. **Evaluate** — success criteria (tool_called, output_contains, no_error, llm_judge)
 
+Every agent returns typed JSON. Default: `{message: "markdown...", referenced_tickets: ["INC-001"]}`.
 
+See **[docs/AGENT_BUILDER.md](docs/AGENT_BUILDER.md)** for full architecture.
 
+## Project Layout
 
-## 5-minute quick start (TL;DR)
-1. Clone the repo: `git clone <your-fork-url> && cd python-quart-vite-react`
-2. Run the automated bootstrap: `./setup.sh` (creates the repo-level `.venv`, installs frontend deps, installs Playwright, checks for Ollama)
-3. (Optional) Install Ollama for LLM features: `curl -fsSL https://ollama.com/install.sh | sh && ollama pull llama3.2:1b`
-4. Start all servers: `./start-dev.sh` *(or)* use the VS Code "Full Stack: Backend + Frontend" launch config
-5. Open `http://localhost:3001/usecase_demo_1` and start documenting your usecase demo idea on that page
-6. (Optional) Test Ollama integration: `curl -X POST http://localhost:5001/api/ollama/chat -H "Content-Type: application/json" -d '{"messages":[{"role":"user","content":"Say hello"}]}'`
-7. (Optional) Run the Playwright suite from the repo root: `npm run test:e2e`
-
-## Detailed setup (first-time users)
-
-### 1. Backend requirements
-- Python 3.10+
-- `python3 -m venv .venv`
-- `source .venv/bin/activate`
-- `pip install -r requirements.txt`
-
-### 2. Frontend requirements
-- Node.js 18+
-- `cd frontend && npm install`
-
-### 3. Playwright tooling (from repo root)
-```bash
-npm install          # installs Playwright runner
-npx playwright install chromium
 ```
-> Debian/Ubuntu users may also need `npx playwright install-deps` for browser libs.
+backend/
+├── agent_builder/           # Config-driven agent module (see docs/AGENT_BUILDER.md)
+│   ├── models/              # Pure data (Pydantic/SQLModel)
+│   ├── engine/              # ReAct runner, prompt builder
+│   ├── persistence/         # SQLite repository
+│   ├── routes.py            # Quart Blueprint
+│   └── tests/               # 132 tests
+├── app.py                   # REST API + Blueprint registration
+├── agents.py                # Simple chat agent
+├── operations.py            # @operation definitions (REST + MCP + tools)
+├── csv_data.py              # CSV ticket service
+└── workbench_integration.py # Wires tools into agent_builder
 
-### 4. Ollama (optional - for LLM features)
-```bash
-# Install Ollama
-curl -fsSL https://ollama.com/install.sh | sh
+frontend/src/features/
+├── workbench/               # Agent Fabric UI
+├── agent/                   # Agent chat
+├── csvtickets/              # CSV ticket table
+├── tickets/                 # Ticket visualizations (Nivo)
+└── usecase-demo/            # Demo pages
 
-# Pull the lightweight model
-ollama pull llama3.2:1b
-
-# Verify installation
-ollama list
+tests/e2e/                   # Playwright browser tests
 ```
-
-The app works without Ollama, but LLM endpoints (`/api/ollama/*`) will return 503 errors. For production use, consider:
-- **llama3.2:1b** (~1.3GB) — Fast, good for testing and simple tasks
-- **llama3.2:3b** (~2GB) — Better quality, still fast
-- **qwen2.5:3b** (~2GB) — Alternative with strong performance
-
-> The `setup.sh` script checks for Ollama and provides installation instructions if not found.
-
-## Run & verify
-
-### Option A — Manual terminals
-1. **Backend:** `source .venv/bin/activate && cd backend && python app.py` → serves REST + MCP on `http://localhost:5001`
-2. **Frontend:** `cd frontend && npm run dev` → launches Vite dev server on `http://localhost:3001`
-3. **Ollama (optional):** `ollama serve` → runs LLM server on `http://localhost:11434`
-
-### Option B — Helper script
-`./start-dev.sh` (verifies dependencies, starts backend + frontend + Ollama if available, stops all on Ctrl+C)
-
-### Option C — VS Code
-Use the “Full Stack: Backend + Frontend” launch config to start backend + frontend with attached debuggers.
-
-### Smoke test checklist
-- Visit `http://localhost:3001`
-- Tickets tab should render CSV ticket table + stats from `/api/csv-tickets*`
-- Usecase Demo tab (`/usecase_demo_1`) should show editable prompt + background run controls
-- Fields tab should list mapped CSV fields from `/api/csv-tickets/fields`
-
-## Docker (one command delivery)
-
-Need everything in a single container? The repo now includes a multi-stage `Dockerfile` that builds the Vite frontend, copies the static assets next to the Quart app, and serves everything through Hypercorn on port `5001`.
-
-```bash
-docker build -t quart-react-demo .
-docker run --rm -p 5001:5001 quart-react-demo
-```
-
-- The container exposes only the backend port; the frontend is served by Quart from the built assets, so open `http://localhost:5001`.
-- Set `-e FRONTEND_DIST=/custom/path` if you mount a different build output at runtime.
-- Hot reloading is not part of the container flow—use the regular dev servers for iterative work and Docker for demos or deployment.
-
-## Using the app
-- **Tickets tab (`/csvtickets`):** Shows CSV-backed ticket table, filtering, sorting, and pagination.
-- **Usecase Demo tab (`/usecase_demo_1`):** Main demo page for documenting usecase demo ideas with editable prompts and background agent runs.
-- **Fields tab (`/fields`):** Lists mapped CSV schema fields available to UI/MCP/agent flows.
-- **Agent tab (`/agent`):** Chat-style agent interface for CSV ticket analysis.
-- **Ollama API (backend only):**
-  - `POST /api/ollama/chat` — Chat with local LLM (supports conversation history)
-  - `GET /api/ollama/models` — List available models
-  - Also exposed via MCP tools: `ollama_chat`, `list_ollama_models`
-
-## Architecture cheat sheet
-- Shows how to keep REST and MCP JSON-RPC in a single Quart process
-- Demonstrates “Grokking Simplicity” (actions vs. calculations vs. data) and “A Philosophy of Software Design” (deep modules)
-- Provides an approachable playground for FluentUI v9, Vite, and Playwright
-        ↓
-TaskService + Pydantic models (backend/tasks.py)
-
-- Backend: Quart, Pydantic 2, MCP JSON-RPC, Async SSE (`backend/app.py`)
-- Business logic: `TaskService` + models in `backend/tasks.py`
-- Frontend: React 18, Vite, FluentUI components, feature-first structure under `frontend/src/features`
-- Tests: Playwright E2E (`tests/e2e/app.spec.js`)
-- `TaskService` methods are “deep”: they validate, mutate `_tasks_db`, and return `Task` models—no need for extra helpers.
-- Frontend features live under `frontend/src/features/*`, each with their own state, calculations, and FluentUI layout; all network requests go through `frontend/src/services/api.js` (`fetchJSON` centralizes error handling).
-
-1. Clone the repo: `git clone <your-fork-url> && cd python-quart-vite-react`
-2. Run the automated bootstrap: `./setup.sh` (creates the repo-level `.venv`, installs frontend deps, installs Playwright)
-3. Start both servers: `./start-dev.sh` *(or)* use the VS Code “Full Stack: Backend + Frontend” launch config
-4. Open `http://localhost:3001`, switch to the **Tasks** tab, and create a task—the backend and frontend are now synced
-5. (Optional) Run the Playwright suite from the repo root: `npm run test:e2e`
-- Each tool schema is auto-generated from the `@operation` signature + Pydantic models—change it once, both REST and MCP update.
-
-## Everyday developer workflow
-1. Start servers (script or terminals)
-
-- Python 3.10+
-- `python3 -m venv .venv`
-- `source .venv/bin/activate`
-- `pip install -r requirements.txt`
-## Helpful npm commands
-
-| Command | Purpose |
-|---------|---------|
-| `npm run test:e2e` | Run all Playwright E2E tests |
-| `npm run test:e2e:ui` | Run tests in interactive UI mode |
-| `npm run test:e2e:report` | View test results report |
-| `npm run ollama:pull` | Download llama3.2:1b model |
-| `npm run ollama:start` | Start Ollama server manually |
-| `npm run ollama:status` | Check if Ollama is running |
-
-## Example Ollama API calls
-
-```bash
-# List available models
-curl http://localhost:5001/api/ollama/models
-
-# Simple chat
-curl -X POST http://localhost:5001/api/ollama/chat \
-  -H "Content-Type: application/json" \
-  -d '{
-    "messages": [
-      {"role": "user", "content": "What is Python?"}
-    ],
-    "model": "llama3.2:1b",
-    "temperature": 0.7
-  }'
-
-# Conversation with history
-curl -X POST http://localhost:5001/api/ollama/chat \
-  -H "Content-Type: application/json" \
-  -d '{
-    "messages": [
-      {"role": "user", "content": "My name is Alice"},
-      {"role": "assistant", "content": "Nice to meet you, Alice!"},
-      {"role": "user", "content": "What is my name?"}
-    ],
-    "model": "llama3.2:1b"
-  }'
-
-# Via MCP JSON-RPC
-curl -X POST http://localhost:5001/mcp \
-  -H "Content-Type: application/json" \
-  -d '{
-    "jsonrpc": "2.0",
-    "method": "tools/call",
-    "params": {
-      "name": "ollama_chat",
-      "arguments": {
-        "messages": [{"role": "user", "content": "Hello!"}]
-      }
-    },
-    "id": 1
-  }'
-```
-
-- Node.js 18+
-- `cd frontend && npm install`
 
 ## Testing
 
-The repo includes comprehensive E2E tests using Playwright:
-
 ```bash
-# Run all tests
-npm run test:e2e
+# Backend unit + integration (132 tests)
+cd backend && ./venv/bin/python -m pytest agent_builder/tests/ tests/ -v
 
-# Interactive mode with UI
-npm run test:e2e:ui
-
-# Run specific test file
-npx playwright test tests/e2e/app.spec.js --project=chromium
-
-# View last test report
-npm run test:e2e:report
+# Playwright E2E (15 tests)
+npx playwright test --project=chromium
 ```
 
-**Test suites:**
-- `tests/e2e/app.spec.js` — Dashboard, tasks, SSE streaming
-- `tests/e2e/ollama.spec.js` — LLM chat, model listing, validation (requires Ollama)
+## Docker
 
-Tests rely on:
-- Sample tasks being present
-- Stable `data-testid` attributes in the React components
-- SSE payload shape `{ time, date, timestamp }`
-- Ollama running on `localhost:11434` with `llama3.2:1b` model (for Ollama tests)
-
-1. **Backend:** `source .venv/bin/activate && cd backend && python app.py` → serves REST + MCP on `http://localhost:5001`
-2. **Frontend:** `cd frontend && npm run dev` → launches Vite dev server on `http://localhost:3001`
+```bash
+docker build -t quart-react-demo .
+docker run --rm -p 5001:5001 -e OPENAI_API_KEY=sk-... quart-react-demo
+# Open http://localhost:5001
+```
 
 ## Troubleshooting
 
 | Issue | Fix |
 |-------|-----|
-| Port 5001 in use | `sudo lsof -i :5001` then kill the process (macOS uses 5000 for AirPlay, so backend defaults to 5001) |
-| `source .venv/bin/activate` fails | Recreate the env: `rm -rf .venv && python3 -m venv .venv && pip install -r backend/requirements.txt` |
-| `npm install` errors | `npm cache clean --force && rm -rf node_modules package-lock.json && npm install` |
-| Playwright browser install fails | `sudo npx playwright install-deps && npx playwright install` |
-| Ollama not found | Install: `curl -fsSL https://ollama.com/install.sh \| sh` then `ollama pull llama3.2:1b` |
-| Ollama connection error | Start server: `ollama serve` or check if running: `curl http://localhost:11434/api/tags` |
-| LLM responses are slow | Try a smaller model (`llama3.2:1b` is fastest) or ensure GPU acceleration is enabled |
+| Port 5001 in use | Find the process with `lsof -i :5001` and stop it |
+| `.venv` broken | Recreate: `rm -rf .venv && python3 -m venv .venv && pip install -r backend/requirements.txt` |
+| Playwright fails | `npx playwright install-deps && npx playwright install` |
+| Agent errors | Check `OPENAI_API_KEY` in `.env` |
 
-See [docs/TROUBLESHOOTING.md](docs/TROUBLESHOOTING.md) for more detailed solutions.
+See [docs/TROUBLESHOOTING.md](docs/TROUBLESHOOTING.md) for more.
 
-## Extension ideas
-1. Add a `priority` field to the Pydantic models + UI
-2. Extend the SSE stream to broadcast task stats (remember to update `connectToTimeStream` consumers)
-3. Persist data with SQLite or Postgres instead of `_tasks_db`
-4. Add more Playwright specs (filters, SSE error handling, MCP flows)
-5. **Build a chat UI:** Create `frontend/src/features/ollama/OllamaChat.jsx` with FluentUI components and connect to `/api/ollama/chat`
-6. **Smart task descriptions:** Use Ollama to auto-generate task descriptions from titles
-7. **Task summarization:** Summarize completed tasks using LLM
-8. **Multi-model comparison:** Let users select different Ollama models and compare responses
-
-Happy coding! 🎉
+Happy coding!

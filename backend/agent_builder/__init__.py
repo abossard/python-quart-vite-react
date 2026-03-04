@@ -1,43 +1,49 @@
 """
-Agent Workbench — Backward-compatibility shim.
+Agent Builder — Public API
 
-All functionality has moved to the `agent_builder` package.
-This module re-exports everything so existing imports continue to work.
+Import everything you need from this package:
 
-    from agent_workbench import WorkbenchService  # still works
+    from agent_builder import WorkbenchService, ChatService, ToolRegistry
 """
 
-# Re-export everything from the new module
-from agent_builder import (  # noqa: F401
+from .chat_service import ChatService
+from .evaluator import compute_score, evaluate_run
+from .models import (
     AgentDefinition,
     AgentDefinitionCreate,
     AgentDefinitionUpdate,
     AgentEvaluation,
+    AgentRequest,
+    AgentResponse,
     AgentRun,
     AgentRunCreate,
     CriteriaResult,
     CriteriaType,
     RunStatus,
     SuccessCriteria,
-    WorkbenchService,
-    ToolRegistry,
-    compute_score,
-    evaluate_run,
 )
+from .service import WorkbenchService
+from .tools import ToolRegistry
 
 __all__ = [
+    # Services
+    "ChatService",
     "WorkbenchService",
     "ToolRegistry",
+    # Models
     "AgentDefinition",
     "AgentDefinitionCreate",
     "AgentDefinitionUpdate",
     "AgentEvaluation",
+    "AgentRequest",
+    "AgentResponse",
     "AgentRun",
     "AgentRunCreate",
     "CriteriaResult",
     "CriteriaType",
     "RunStatus",
     "SuccessCriteria",
+    # Evaluator helpers
     "compute_score",
     "evaluate_run",
 ]

@@ -320,3 +320,14 @@ export async function runWorkbenchAgent(
     }),
   });
 }
+
+export async function suggestOutputSchema({ name = "", description = "", systemPrompt = "" } = {}) {
+  return fetchJSON(`${API_BASE_URL}/workbench/suggest-schema`, {
+    method: "POST",
+    body: JSON.stringify({
+      name,
+      description,
+      system_prompt: systemPrompt,
+    }),
+  });
+}

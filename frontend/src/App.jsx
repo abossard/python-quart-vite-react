@@ -22,6 +22,7 @@ import {
     Table24Regular,
     Wrench24Regular,
 } from '@fluentui/react-icons'
+import { useEffect, useState } from 'react'
 import { Navigate, Route, Routes, useLocation, useNavigate } from 'react-router-dom'
 import AgentChat from './features/agent/AgentChat'
 import CSVTicketTable from './features/csvtickets/CSVTicketTable'
@@ -29,7 +30,9 @@ import FieldsDocs from './features/fields/FieldsDocs'
 import { USECASE_DEMO_DEFINITIONS } from './features/usecase-demo/demoDefinitions'
 import UsecaseDemoPage from './features/usecase-demo/UsecaseDemoPage'
 import KitchenSink from './features/kitchensink/KitchenSink'
+import AgentRunPage from './features/workbench/AgentRunPage'
 import WorkbenchPage from './features/workbench/WorkbenchPage'
+import { listWorkbenchAgents } from './services/api'
 
 const useStyles = makeStyles({
   app: {
@@ -66,6 +69,17 @@ export default function App() {
   const location = useLocation()
   const navigate = useNavigate()
 
+  const [menuAgents, setMenuAgents] = useState([])
+  useEffect(() => {
+    listWorkbenchAgents()
+      .then((data) => {
+        const agents = (data.agents || []).filter((a) => a.show_in_menu)
+        console.debug('[App] Menu agents:', agents.map((a) => a.name))
+        setMenuAgents(agents)
+      })
+      .catch((err) => console.warn('[App] Failed to load menu agents:', err))
+  }, [])
+
   const usecaseTabs = USECASE_DEMO_DEFINITIONS.filter(
     (definition) => definition.showInNav !== false
   ).map((definition) => ({
@@ -76,9 +90,18 @@ export default function App() {
     testId: definition.tabTestId,
   }))
 
+  const agentMenuTabs = menuAgents.map((agent) => ({
+    value: `agent-menu-${agent.id}`,
+    label: agent.name,
+    icon: <Bot24Regular />,
+    path: `/agent-run/${agent.id}`,
+    testId: `tab-agent-menu-${agent.id}`,
+  }))
+
   const tabs = [
     { value: 'csvtickets', label: 'Tickets', icon: <Table24Regular />, path: '/csvtickets', testId: 'tab-csvtickets' },
     ...usecaseTabs,
+    ...agentMenuTabs,
     { value: 'kitchensink', label: 'Kitchen Sink', icon: <DataHistogram24Regular />, path: '/kitchensink', testId: 'tab-kitchensink' },
     { value: 'fields', label: 'Fields', icon: <Info24Regular />, path: '/fields', testId: 'tab-fields' },
     { value: 'workbench', label: 'Agent Fabric', icon: <Wrench24Regular />, path: '/workbench', testId: 'tab-workbench' },
@@ -128,6 +151,13 @@ export default function App() {
           <Route path="/kitchensink" element={<KitchenSink />} />
           <Route path="/fields" element={<FieldsDocs />} />
           <Route path="/workbench" element={<WorkbenchPage />} />
+          {menuAgents.map((agent) => (
+            <Route
+              key={agent.id}
+              path={`/agent-run/${agent.id}`}
+              element={<AgentRunPage agent={agent} />}
+            />
+          ))}
           <Route path="/agent" element={<AgentChat />} />
           <Route path="*" element={<Navigate to="/csvtickets" replace />} />
         </Routes>

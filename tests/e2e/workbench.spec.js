@@ -102,6 +102,9 @@ test.describe("Agent Fabric UI", () => {
     await expect(
       page.locator('[data-testid="workbench-run-output"] h1')
     ).toHaveText("Ticket trend summary");
+
+    // Clean up
+    await createdRow.getByRole("button", { name: "Delete" }).click();
   });
 
   test("requires and forwards configured run input", async ({ page }) => {
@@ -162,5 +165,561 @@ test.describe("Agent Fabric UI", () => {
       "Processed required input: INC-987654",
       { timeout: 10000 }
     );
+
+    // Clean up
+    await createdRow.getByRole("button", { name: "Delete" }).click();
+  });
+
+  test("creates agent with output schema via suggest button", async ({ page }) => {
+    const agentName = `e2e-schema-${Date.now()}`;
+
+    // Mock the suggest-schema endpoint
+    await page.route("**/api/workbench/suggest-schema", async (route) => {
+      await route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify({
+          schema: {
+            type: "object",
+            properties: {
+              total: { type: "integer", description: "Total ticket count" },
+              status_breakdown: { type: "object", description: "Count per status" },
+            },
+          },
+        }),
+      });
+    });
+
+    await page.goto(`${APP_URL}/workbench`, { waitUntil: "load" });
+    await expect(page.getByTestId("workbench-page-title")).toBeVisible();
+
+    // Fill agent form
+    await page.getByTestId("workbench-agent-name-input").fill(agentName);
+    await page
+      .getByTestId("workbench-agent-system-prompt-input")
+      .fill("Analyze ticket stats and report totals.");
+
+    // Click suggest schema
+    await page.getByTestId("workbench-suggest-schema-button").click();
+
+    // Wait for schema to appear in the textarea
+    // Wait for schema editor to populate with properties from suggestion
+    const editor = page.getByTestId("schema-editor");
+    await expect(editor).toBeVisible({ timeout: 5000 });
+    // Properties should appear as input fields in the editor
+    await expect(editor.locator('input[value="total"]')).toBeVisible({ timeout: 5000 });
+
+    // Create the agent (schema should be included)
+    await page.getByTestId("workbench-create-agent-button").click();
+
+    const createdRow = page.locator(
+      '[data-testid="workbench-agents-table"] tbody tr',
+      { hasText: agentName }
+    );
+    await expect(createdRow).toBeVisible({ timeout: 10000 });
+
+    // Clean up
+    await createdRow.getByRole("button", { name: "Delete" }).click();
+    await expect(
+      page.locator('[data-testid="workbench-agents-table"] tbody tr', {
+        hasText: agentName,
+      })
+    ).toHaveCount(0, { timeout: 10000 });
+  });
+
+  test("runs VPN troubleshooting agent and verifies structured output", async ({ page }) => {
+    const agentName = `e2e-vpn-agent-${Date.now()}`;
+
+    // Mock run endpoint with realistic VPN analysis structured output
+    await page.route("**/api/workbench/agents/*/runs", async (route) => {
+      const body = route.request().postDataJSON();
+      await route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify({
+          id: "run-vpn-1",
+          agent_id: "agent-vpn-1",
+          input_prompt: body?.input_prompt || "",
+          status: "completed",
+          output: JSON.stringify({
+            message: "## VPN-Probleme Analyse\n\nEs wurden **4 VPN-bezogene Tickets** gefunden:\n\n| Ticket | Problem | Status |\n|--------|---------|--------|\n| INC-101 | VPN deaktivieren | assigned |\n| INC-205 | MS-VPN verbindet nicht | in_progress |\n| INC-312 | VPN Slowdown Evenings | pending |\n| INC-401 | VPN im Homeoffice nicht vorhanden | assigned |\n\n**Empfehlung:** Die meisten VPN-Probleme betreffen die Abendstunden und Homeoffice-Verbindungen.",
+            referenced_tickets: ["INC-101", "INC-205", "INC-312", "INC-401"],
+          }, null, 2),
+          agent_snapshot: {
+            tool_names: ["csv_search_tickets", "csv_ticket_stats"],
+            system_prompt: "Analyze VPN issues in ticket data",
+          },
+          tools_used: ["csv_search_tickets", "csv_ticket_stats"],
+          error: null,
+          created_at: "2026-03-04T09:00:00Z",
+          completed_at: "2026-03-04T09:00:03Z",
+        }),
+      });
+    });
+
+    await page.goto(`${APP_URL}/workbench`, { waitUntil: "load" });
+    await expect(page.getByTestId("workbench-page-title")).toBeVisible();
+
+    // Create the VPN agent
+    await page.getByTestId("workbench-agent-name-input").fill(agentName);
+    await page
+      .getByTestId("workbench-agent-description-input")
+      .fill("Analyzes VPN connectivity issues in ticket data");
+    await page
+      .getByTestId("workbench-agent-system-prompt-input")
+      .fill("Search for VPN-related tickets using csv_search_tickets. Report findings with ticket IDs.");
+    await page.getByTestId("workbench-create-agent-button").click();
+
+    const createdRow = page.locator(
+      '[data-testid="workbench-agents-table"] tbody tr',
+      { hasText: agentName }
+    );
+    await expect(createdRow).toBeVisible({ timeout: 10000 });
+
+    // Run the agent with a VPN prompt
+    await page
+      .getByTestId("workbench-run-prompt-input")
+      .fill("Finde alle VPN-bezogenen Tickets und analysiere die Probleme");
+    await page.getByTestId("workbench-run-agent-button").click();
+
+    // Verify running state
+    await expect(page.getByTestId("workbench-run-agent-button")).toContainText("Running");
+
+    // Verify output renders with VPN content
+    const output = page.getByTestId("workbench-run-output");
+    await expect(output).toContainText("VPN", { timeout: 10000 });
+    await expect(output).toContainText("INC-101");
+    await expect(output).toContainText("INC-312");
+
+    // Referenced tickets rendered as badges by SchemaRenderer
+    await expect(page.locator('[data-testid="schema-renderer"]')).toBeVisible();
+    await expect(page.locator('span').filter({ hasText: 'INC-401' })).toBeVisible();
+
+    // Verify button shows completion
+    await expect(page.getByTestId("workbench-run-agent-button")).toContainText("Last output:", {
+      timeout: 10000,
+    });
+
+    // Clean up
+    await createdRow.getByRole("button", { name: "Delete" }).click();
+  });
+
+  test("handles agent run failure gracefully", async ({ page }) => {
+    const agentName = `e2e-fail-agent-${Date.now()}`;
+
+    // Mock run endpoint that returns a failed run
+    await page.route("**/api/workbench/agents/*/runs", async (route) => {
+      await route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify({
+          id: "run-fail-1",
+          agent_id: "agent-fail-1",
+          input_prompt: "test",
+          status: "failed",
+          output: null,
+          agent_snapshot: { tool_names: ["csv_ticket_stats"] },
+          tools_used: [],
+          error: "OPENAI_API_KEY not configured",
+          created_at: "2026-03-04T09:00:00Z",
+          completed_at: "2026-03-04T09:00:01Z",
+        }),
+      });
+    });
+
+    await page.goto(`${APP_URL}/workbench`, { waitUntil: "load" });
+
+    await page.getByTestId("workbench-agent-name-input").fill(agentName);
+    await page
+      .getByTestId("workbench-agent-system-prompt-input")
+      .fill("Test failure handling");
+    await page.getByTestId("workbench-create-agent-button").click();
+
+    const createdRow = page.locator(
+      '[data-testid="workbench-agents-table"] tbody tr',
+      { hasText: agentName }
+    );
+    await expect(createdRow).toBeVisible({ timeout: 10000 });
+
+    await page.getByTestId("workbench-run-agent-button").click();
+
+    // Output should show even for failed runs (no output = shows fallback)
+    await expect(page.getByTestId("workbench-run-agent-button")).toContainText("Last output:", {
+      timeout: 10000,
+    });
+
+    // Clean up
+    await createdRow.getByRole("button", { name: "Delete" }).click();
+  });
+});
+
+test.describe("Agent Chat UI", () => {
+  test("sends message and displays mocked response", async ({ page }) => {
+    // Mock the agent chat endpoint
+    await page.route("**/api/agents/run", async (route) => {
+      await route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify({
+          result: "# Ticket Stats\n\n| Status | Count |\n|--------|-------|\n| Open | 42 |\n| Closed | 18 |",
+          agent_type: "task_assistant",
+          tools_used: ["csv_ticket_stats"],
+          error: null,
+          created_at: "2026-03-04T10:00:00Z",
+        }),
+      });
+    });
+
+    await page.goto(`${APP_URL}/agent`, { waitUntil: "load" });
+
+    const input = page.getByTestId("agent-input");
+    const send = page.getByTestId("agent-send");
+
+    await expect(input).toBeVisible();
+    await expect(send).toBeDisabled();
+
+    // Type and send
+    await input.fill("Show me ticket stats");
+    await expect(send).toBeEnabled();
+    await send.click();
+
+    // Wait for response to render (use heading role to avoid matching user input)
+    await expect(page.getByRole("heading", { name: "Ticket Stats" })).toBeVisible({ timeout: 10000 });
+    await expect(page.getByText("csv_ticket_stats")).toBeVisible();
+  });
+});
+
+test.describe("SchemaRenderer widgets", () => {
+  test("renders structured output with table, stat-card, and badges", async ({ page }) => {
+    const agentName = `e2e-widgets-${Date.now()}`;
+
+    // Mock run with rich structured output containing multiple widget types
+    await page.route("**/api/workbench/agents/*/runs", async (route) => {
+      await route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify({
+          id: "run-widgets-1",
+          agent_id: "agent-widgets-1",
+          input_prompt: "Analyze VPN connectivity",
+          status: "completed",
+          output: JSON.stringify({
+            message: "## VPN Connectivity Report\n\nAnalyzed 3 VPN-related tickets.",
+            affected_users: [
+              { user: "Alice", issue: "VPN deaktivieren", status: "assigned" },
+              { user: "Bob", issue: "MS-VPN verbindet nicht", status: "in_progress" },
+            ],
+            total_issues: 3,
+            issue_types: ["VPN-001", "VPN-002", "VPN-003"],
+          }, null, 2),
+          agent_snapshot: { tool_names: ["csv_search_tickets"] },
+          tools_used: ["csv_search_tickets"],
+          error: null,
+          created_at: "2026-03-04T10:00:00Z",
+          completed_at: "2026-03-04T10:00:02Z",
+        }),
+      });
+    });
+
+    await page.goto(`${APP_URL}/workbench`, { waitUntil: "load" });
+    await expect(page.getByTestId("workbench-page-title")).toBeVisible();
+
+    // Create agent
+    await page.getByTestId("workbench-agent-name-input").fill(agentName);
+    await page.getByTestId("workbench-agent-system-prompt-input").fill("Analyze VPN issues");
+    await page.getByTestId("workbench-create-agent-button").click();
+
+    const createdRow = page.locator(
+      '[data-testid="workbench-agents-table"] tbody tr',
+      { hasText: agentName }
+    );
+    await expect(createdRow).toBeVisible({ timeout: 10000 });
+
+    // Run agent
+    await page.getByTestId("workbench-run-agent-button").click();
+
+    // Wait for SchemaRenderer to appear
+    const renderer = page.getByTestId("schema-renderer");
+    await expect(renderer).toBeVisible({ timeout: 10000 });
+
+    // Verify markdown widget rendered (message field)
+    await expect(renderer.getByRole("heading", { name: "VPN Connectivity Report" })).toBeVisible();
+
+    // Verify table widget auto-detected (affected_users is array of objects)
+    await expect(renderer.locator("table")).toBeVisible();
+    await expect(renderer.getByText("Alice")).toBeVisible();
+    await expect(renderer.getByText("Bob")).toBeVisible();
+    await expect(renderer.locator("th", { hasText: "user" })).toBeVisible();
+
+    // Verify stat-card auto-detected (total_issues is integer)
+    const statField = renderer.getByTestId("schema-field-total_issues");
+    await expect(statField).toBeVisible();
+    await expect(statField.getByText("3")).toBeVisible();
+
+    // Verify badge-list auto-detected (issue_types is array of strings)
+    await expect(renderer.getByText("VPN-001")).toBeVisible();
+    await expect(renderer.getByText("VPN-003")).toBeVisible();
+
+    // Clean up
+    await createdRow.getByRole("button", { name: "Delete" }).click();
+  });
+
+  test("renders bar-chart and pie-chart from x-ui annotations", async ({ page }) => {
+    const agentName = `e2e-charts-${Date.now()}`;
+    const mockAgentId = `agent-charts-${Date.now()}`;
+    const outputSchema = {
+      type: "object",
+      title: "ChartOutput",
+      properties: {
+        message: { type: "string", "x-ui": { widget: "markdown" } },
+        status_distribution: {
+          type: "object",
+          description: "Tickets per status",
+          "x-ui": { widget: "pie-chart" },
+        },
+        tickets_by_city: {
+          type: "array",
+          items: { type: "object", properties: { city: { type: "string" }, count: { type: "integer" } } },
+          "x-ui": { widget: "bar-chart", indexBy: "city", keys: ["count"] },
+        },
+        total: { type: "integer", "x-ui": { widget: "stat-card", label: "Total Tickets" } },
+        ticket_ids: { type: "array", items: { type: "string" }, "x-ui": { widget: "badge-list" } },
+      },
+    };
+
+    await page.route("**/api/workbench/agents/*/runs", async (route) => {
+      await route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify({
+          id: "run-charts-1",
+          agent_id: mockAgentId,
+          input_prompt: "show charts",
+          status: "completed",
+          output: JSON.stringify({
+            message: "## Dashboard\n\nTicket statistics overview.",
+            status_distribution: { assigned: 43, in_progress: 45, pending: 115 },
+            tickets_by_city: [
+              { city: "Bern", count: 103 },
+              { city: "Zollikofen", count: 26 },
+              { city: "Ittigen", count: 20 },
+            ],
+            total: 206,
+            ticket_ids: ["INC-100", "INC-200", "INC-300"],
+          }, null, 2),
+          agent_snapshot: { tool_names: ["csv_ticket_stats"] },
+          tools_used: ["csv_ticket_stats"],
+          error: null,
+          created_at: "2026-03-04T10:00:00Z",
+          completed_at: "2026-03-04T10:00:02Z",
+        }),
+      });
+    });
+
+    // Inject mock agent with output_schema into agent list
+    let realAgents = null;
+    await page.route("**/api/workbench/agents", async (route) => {
+      if (route.request().method() === "GET") {
+        if (!realAgents) {
+          const resp = await route.fetch();
+          realAgents = (await resp.json()).agents || [];
+        }
+        const agents = [...realAgents];
+        if (!agents.find(a => a.id === mockAgentId)) {
+          agents.push({
+            id: mockAgentId, name: agentName, description: "", system_prompt: "charts",
+            tool_names: ["csv_ticket_stats"], output_schema: outputSchema,
+            requires_input: false, required_input_description: "",
+            model: "", temperature: 0, recursion_limit: 3, max_tokens: 4096,
+            output_instructions: "", success_criteria: [],
+            created_at: "2026-03-04T10:00:00Z", updated_at: "2026-03-04T10:00:00Z",
+          });
+        }
+        await route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ agents }) });
+      } else {
+        await route.continue();
+      }
+    });
+
+    await page.goto(`${APP_URL}/workbench`, { waitUntil: "load" });
+    await expect(page.getByTestId("workbench-page-title")).toBeVisible();
+
+    // Select mock agent and run
+    await page.locator('[data-testid="workbench-run-agent-select"]').selectOption(mockAgentId);
+    await page.getByTestId("workbench-run-agent-button").click();
+
+    const renderer = page.getByTestId("schema-renderer");
+    await expect(renderer).toBeVisible({ timeout: 10000 });
+
+    // Verify markdown widget
+    await expect(renderer.getByRole("heading", { name: "Dashboard" })).toBeVisible();
+
+    // Verify stat-card with label
+    const statField = renderer.getByTestId("schema-field-total");
+    await expect(statField).toBeVisible();
+    await expect(statField.getByText("206")).toBeVisible();
+    await expect(statField.getByText("Total Tickets").first()).toBeVisible();
+
+    // Verify badge-list
+    await expect(renderer.getByText("INC-100")).toBeVisible();
+    await expect(renderer.getByText("INC-300")).toBeVisible();
+
+    // Verify pie-chart (Nivo renders SVG)
+    const pieField = renderer.getByTestId("schema-field-status_distribution");
+    await expect(pieField).toBeVisible();
+    await expect(pieField.locator("svg")).toBeVisible();
+
+    // Verify bar-chart (Nivo renders SVG)
+    const barField = renderer.getByTestId("schema-field-tickets_by_city");
+    await expect(barField).toBeVisible();
+    await expect(barField.locator("svg")).toBeVisible();
+  });
+
+  test("renders raw JSON for object data (auto-detected)", async ({ page }) => {
+    const agentName = `e2e-json-${Date.now()}`;
+
+    await page.route("**/api/workbench/agents/*/runs", async (route) => {
+      await route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify({
+          id: "run-json-1", agent_id: "agent-json-1", input_prompt: "raw",
+          status: "completed",
+          output: JSON.stringify({
+            message: "Here is raw data.",
+            metadata: { version: "1.0", source: "csv", processed_at: "2026-03-04" },
+          }, null, 2),
+          agent_snapshot: { tool_names: ["csv_ticket_stats"] },
+          tools_used: ["csv_ticket_stats"], error: null,
+          created_at: "2026-03-04T10:00:00Z", completed_at: "2026-03-04T10:00:01Z",
+        }),
+      });
+    });
+
+    await page.goto(`${APP_URL}/workbench`, { waitUntil: "load" });
+    await page.getByTestId("workbench-agent-name-input").fill(agentName);
+    await page.getByTestId("workbench-agent-system-prompt-input").fill("Raw data");
+    await page.getByTestId("workbench-create-agent-button").click();
+
+    const createdRow = page.locator('[data-testid="workbench-agents-table"] tbody tr', { hasText: agentName });
+    await expect(createdRow).toBeVisible({ timeout: 10000 });
+    await page.getByTestId("workbench-run-agent-button").click();
+
+    const renderer = page.getByTestId("schema-renderer");
+    await expect(renderer).toBeVisible({ timeout: 10000 });
+    await expect(renderer.getByText("Here is raw data.")).toBeVisible();
+
+    // metadata auto-detected as json (object → pre block)
+    const metaField = renderer.getByTestId("schema-field-metadata");
+    await expect(metaField).toBeVisible();
+    await expect(metaField.locator("pre")).toBeVisible();
+    await expect(metaField.getByText("csv")).toBeVisible();
+
+    await createdRow.getByRole("button", { name: "Delete" }).click();
+  });
+
+  test("falls back gracefully for non-JSON output", async ({ page }) => {
+    const agentName = `e2e-fallback-${Date.now()}`;
+
+    await page.route("**/api/workbench/agents/*/runs", async (route) => {
+      await route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify({
+          id: "run-fb-1", agent_id: "agent-fb-1", input_prompt: "test",
+          status: "completed",
+          output: "# Plain Markdown\n\nThis is **not JSON** — just regular markdown.",
+          agent_snapshot: { tool_names: ["csv_ticket_stats"] },
+          tools_used: ["csv_ticket_stats"], error: null,
+          created_at: "2026-03-04T10:00:00Z", completed_at: "2026-03-04T10:00:01Z",
+        }),
+      });
+    });
+
+    await page.goto(`${APP_URL}/workbench`, { waitUntil: "load" });
+    await page.getByTestId("workbench-agent-name-input").fill(agentName);
+    await page.getByTestId("workbench-agent-system-prompt-input").fill("Fallback");
+    await page.getByTestId("workbench-create-agent-button").click();
+
+    const createdRow = page.locator('[data-testid="workbench-agents-table"] tbody tr', { hasText: agentName });
+    await expect(createdRow).toBeVisible({ timeout: 10000 });
+    await page.getByTestId("workbench-run-agent-button").click();
+
+    const renderer = page.getByTestId("schema-renderer");
+    await expect(renderer).toBeVisible({ timeout: 10000 });
+
+    // Non-JSON falls back: wrapped as {message: raw_text} → markdown
+    await expect(renderer.getByRole("heading", { name: "Plain Markdown" })).toBeVisible();
+    await expect(renderer.getByText("not JSON")).toBeVisible();
+
+    await createdRow.getByRole("button", { name: "Delete" }).click();
+  });
+});
+
+test.describe("Show in Menu", () => {
+  test("agent with show_in_menu appears as a tab and runs from its own page", async ({ page }) => {
+    const agentName = `e2e-menu-agent-${Date.now()}`;
+    const backendUrl = APP_URL.replace("3001", "5001");
+
+    // Create an agent with show_in_menu=true via API
+    const createResp = await page.request.post(`${backendUrl}/api/workbench/agents`, {
+      data: {
+        name: agentName,
+        description: "A menu agent for E2E testing",
+        system_prompt: "Use csv_ticket_stats and report the total.",
+        tool_names: ["csv_ticket_stats"],
+        show_in_menu: true,
+      },
+    });
+    const createdAgent = await createResp.json();
+    const agentId = createdAgent.id;
+
+    // Mock the run endpoint for this agent
+    await page.route("**/api/workbench/agents/*/runs", async (route) => {
+      const body = route.request().postDataJSON();
+      await route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify({
+          id: "run-menu-1",
+          agent_id: agentId,
+          input_prompt: body?.input_prompt || "",
+          status: "completed",
+          output: JSON.stringify({
+            message: "## Stats Report\n\nTotal: 206 tickets.",
+            referenced_tickets: [],
+          }, null, 2),
+          agent_snapshot: { tool_names: ["csv_ticket_stats"] },
+          tools_used: ["csv_ticket_stats"],
+          error: null,
+          created_at: "2026-03-04T10:00:00Z",
+          completed_at: "2026-03-04T10:00:01Z",
+        }),
+      });
+    });
+
+    // Load the app — the agent should appear as a tab
+    await page.goto(`${APP_URL}/csvtickets`, { waitUntil: "load" });
+
+    // Find the menu tab for our agent
+    const agentTab = page.getByTestId(`tab-agent-menu-${agentId}`);
+    await expect(agentTab).toBeVisible({ timeout: 10000 });
+    await expect(agentTab).toContainText(agentName);
+
+    // Click the tab — navigates to the agent run page
+    await agentTab.click();
+    await expect(page.getByTestId("agent-run-page-title")).toContainText(agentName);
+    await expect(page.getByText("A menu agent for E2E testing")).toBeVisible();
+
+    // Run the agent from its own page
+    await page.getByTestId("agent-run-button").click();
+
+    // Verify output renders
+    const output = page.getByTestId("agent-run-output");
+    await expect(output).toBeVisible({ timeout: 10000 });
+    await expect(output.getByRole("heading", { name: "Stats Report" })).toBeVisible();
+
+    // Clean up — delete via API
+    await page.request.delete(`${backendUrl}/api/workbench/agents/${agentId}`);
   });
 });
