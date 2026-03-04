@@ -54,6 +54,7 @@ import {
   Tag20Regular,
   Search20Regular,
   DocumentSearch20Regular,
+  ArrowUndo24Regular,
 } from "@fluentui/react-icons";
 import * as api from "../../services/api";
 import EditableList from "./components/EditableList";
@@ -449,6 +450,27 @@ export default function KBADrafterPage() {
       setEditedDraft(JSON.parse(JSON.stringify(updated)));
       setEditMode(false);
       setMessage({ type: "success", text: "✓ Als geprüft markiert" });
+    } catch (error) {
+      setMessage({ type: "error", text: "Fehler beim Status-Update" });
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  // Handler: Unreview (back to draft)
+  const handleUnreview = async () => {
+    if (!currentDraft) return;
+
+    setSaving(true);
+    try {
+      const updated = await api.updateKBADraft(
+        currentDraft.id,
+        { status: "draft" },
+        "user@example.com"
+      );
+      setCurrentDraft(updated);
+      setEditedDraft(JSON.parse(JSON.stringify(updated)));
+      setMessage({ type: "success", text: "✓ Zurück zu Entwurf" });
     } catch (error) {
       setMessage({ type: "error", text: "Fehler beim Status-Update" });
     } finally {
@@ -1064,6 +1086,18 @@ export default function KBADrafterPage() {
                   disabled={saving || hasPendingChanges}
                 >
                   Als geprüft markieren
+                </Button>
+              )}
+
+              {/* Unreview Button (Reviewed Status) */}
+              {displayDraft.status === "reviewed" && (
+                <Button
+                  appearance="subtle"
+                  icon={<ArrowUndo24Regular />}
+                  onClick={handleUnreview}
+                  disabled={saving}
+                >
+                  Zurück zu Entwurf
                 </Button>
               )}
 
