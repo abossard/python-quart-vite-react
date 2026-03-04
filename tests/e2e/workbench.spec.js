@@ -102,6 +102,9 @@ test.describe("Agent Fabric UI", () => {
     await expect(
       page.locator('[data-testid="workbench-run-output"] h1')
     ).toHaveText("Ticket trend summary");
+
+    // Clean up
+    await createdRow.getByRole("button", { name: "Delete" }).click();
   });
 
   test("requires and forwards configured run input", async ({ page }) => {
@@ -162,6 +165,9 @@ test.describe("Agent Fabric UI", () => {
       "Processed required input: INC-987654",
       { timeout: 10000 }
     );
+
+    // Clean up
+    await createdRow.getByRole("button", { name: "Delete" }).click();
   });
 
   test("creates agent with output schema via suggest button", async ({ page }) => {
