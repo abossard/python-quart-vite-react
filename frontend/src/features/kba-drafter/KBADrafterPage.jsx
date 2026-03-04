@@ -269,6 +269,13 @@ export default function KBADrafterPage() {
     }
   }, []);
 
+  // Auto-scroll to top when opening a draft
+  useEffect(() => {
+    if (currentDraft) {
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    }
+  }, [currentDraft]);
+
   // Handler: Check ticket status before generating KBA Draft
   const handleGenerateClick = async () => {
     if (!validateTicketId(ticketId)) {
