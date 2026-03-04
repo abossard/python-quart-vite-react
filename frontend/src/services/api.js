@@ -236,6 +236,24 @@ export async function getCSVTicket(ticketId, fields = []) {
   return fetchJSON(url);
 }
 
+/**
+ * Get one CSV ticket by Incident ID (e.g., INC000016346).
+ * @param {string} incidentId - Incident ID from tickets
+ * @param {string[]} fields - Optional field selection
+ * @returns {Promise<Object>} Ticket details
+ */
+export async function getCSVTicketByIncident(incidentId, fields = []) {
+  const params = new URLSearchParams();
+  if (fields.length) {
+    params.set("fields", fields.join(","));
+  }
+  const query = params.toString();
+  const url = query
+    ? `${API_BASE_URL}/csv-tickets/by-incident/${incidentId}?${query}`
+    : `${API_BASE_URL}/csv-tickets/by-incident/${incidentId}`;
+  return fetchJSON(url);
+}
+
 // ============================================================================
 // Usecase Demo Agent Run APIs
 // ============================================================================

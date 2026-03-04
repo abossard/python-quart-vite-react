@@ -29,6 +29,12 @@ import {
   Tag,
   TagGroup,
   Field,
+  Dialog,
+  DialogSurface,
+  DialogTitle,
+  DialogBody,
+  DialogActions,
+  DialogContent,
 } from "@fluentui/react-components";
 import {
   DocumentText24Regular,
@@ -41,6 +47,13 @@ import {
   Warning24Regular,
   Delete24Regular,
   Dismiss20Regular,
+  AlertUrgent20Regular,
+  Lightbulb20Regular,
+  Target20Regular,
+  CheckmarkCircle20Regular,
+  Tag20Regular,
+  Search20Regular,
+  DocumentSearch20Regular,
 } from "@fluentui/react-icons";
 import * as api from "../../services/api";
 import EditableList from "./components/EditableList";
@@ -124,6 +137,36 @@ const useStyles = makeStyles({
     alignItems: "center",
     gap: tokens.spacingVerticalL,
   },
+  sectionHeader: {
+    fontSize: "18px",
+    fontWeight: "600",
+    color: tokens.colorBrandForeground1,
+    marginBottom: tokens.spacingVerticalM,
+    display: "flex",
+    alignItems: "center",
+    gap: tokens.spacingHorizontalS,
+  },
+  sectionDivider: {
+    height: "1px",
+    backgroundColor: tokens.colorNeutralStroke2,
+    margin: `${tokens.spacingVerticalL} 0`,
+  },
+  kbaTitle: {
+    fontSize: "24px",
+    fontWeight: "700",
+    color: tokens.colorNeutralForeground1,
+    lineHeight: "1.3",
+    marginBottom: tokens.spacingVerticalM,
+  },
+  fieldSection: {
+    marginBottom: tokens.spacingVerticalL,
+  },
+  listItem: {
+    marginBottom: tokens.spacingVerticalS,
+    lineHeight: "1.5",
+    overflowWrap: "break-word",
+    wordBreak: "break-word",
+  },
 });
 
 export default function KBADrafterPage() {
@@ -150,6 +193,11 @@ export default function KBADrafterPage() {
   const [replaceDialogOpen, setReplaceDialogOpen] = useState(false);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [draftToDelete, setDraftToDelete] = useState(null);
+  
+  // Ticket Viewer Dialog State
+  const [ticketDialogOpen, setTicketDialogOpen] = useState(false);
+  const [ticketData, setTicketData] = useState(null);
+  const [loadingTicket, setLoadingTicket] = useState(false);
 
   // Helper: Check for pending changes
   const hasPendingChanges = editedDraft && JSON.stringify(editedDraft) !== JSON.stringify(currentDraft);
@@ -525,6 +573,33 @@ export default function KBADrafterPage() {
     setEditMode(false);
   };
 
+  // Handler: View Ticket
+  const handleViewTicket = async () => {
+    if (!displayDraft?.incident_id) {
+      setMessage({
+        type: "error",
+        text: "Keine Ticket-ID verfügbar",
+      });
+      return;
+    }
+
+    setLoadingTicket(true);
+    setTicketDialogOpen(true);
+    
+    try {
+      const ticket = await api.getCSVTicketByIncident(displayDraft.incident_id);
+      setTicketData(ticket);
+    } catch (error) {
+      setMessage({
+        type: "error",
+        text: `Fehler beim Laden des Tickets: ${error.message}`,
+      });
+      setTicketDialogOpen(false);
+    } finally {
+      setLoadingTicket(false);
+    }
+  };
+
   // Active draft for display (edited or current)
   const displayDraft = editedDraft || currentDraft;
 
@@ -626,6 +701,16 @@ export default function KBADrafterPage() {
                       {displayDraft.incident_id}
                     </Badge>
                   )}
+                  {displayDraft.incident_id && (
+                    <Button
+                      appearance="subtle"
+                      icon={<DocumentSearch20Regular />}
+                      onClick={handleViewTicket}
+                      size="small"
+                    >
+                      Ticket
+                    </Button>
+                  )}
                   {displayDraft.status === "draft" && (
                     <Button
                       appearance="subtle"
@@ -642,38 +727,54 @@ export default function KBADrafterPage() {
           />
           <div className={styles.draftContent}>
             {/* Title */}
-            <Field label="Titel">
+            <div className={styles.fieldSection}>
               {editMode ? (
-                <Input
-                  value={displayDraft.title || ""}
-                  onChange={(e) => handleFieldChange("title", e.target.value)}
-                  style={{ width: "100%" }}
-                />
+                <>
+                  <div className={styles.sectionHeader}>
+                    <DocumentText24Regular />
+                    Titel
+                  </div>
+                  <Input
+                    value={displayDraft.title || ""}
+                    onChange={(e) => handleFieldChange("title", e.target.value)}
+                    style={{ width: "100%" }}
+                  />
+                </>
               ) : (
-                <div style={{ fontWeight: "600", fontSize: "16px", overflowWrap: "break-word", wordBreak: "break-word" }}>
+                <div className={styles.kbaTitle}>
                   {displayDraft.title}
                 </div>
               )}
-            </Field>
+            </div>
+
+            <div className={styles.sectionDivider} />
 
             {/* Symptoms */}
             {(editMode || (displayDraft.symptoms && displayDraft.symptoms.length > 0)) && (
-              <div>
+              <div className={styles.fieldSection}>
                 {editMode ? (
-                  <EditableList
-                    items={displayDraft.symptoms || []}
-                    onChange={(newSymptoms) => handleFieldChange("symptoms", newSymptoms)}
-                    label="Symptome & Fehlermeldungen"
-                    itemLabel="Symptom"
-                    multiline={true}
-                    placeholder="Beschreiben Sie ein Symptom oder eine Fehlermeldung..."
-                  />
+                  <>
+                    <div className={styles.sectionHeader}>
+                      <AlertUrgent20Regular />
+                      Symptome & Fehlermeldungen
+                    </div>
+                    <EditableList
+                      items={displayDraft.symptoms || []}
+                      onChange={(newSymptoms) => handleFieldChange("symptoms", newSymptoms)}
+                      itemLabel="Symptom"
+                      multiline={true}
+                      placeholder="Beschreiben Sie ein Symptom oder eine Fehlermeldung..."
+                    />
+                  </>
                 ) : (
                   <>
-                    <Label>Symptome & Fehlermeldungen</Label>
+                    <div className={styles.sectionHeader}>
+                      <AlertUrgent20Regular />
+                      Symptome & Fehlermeldungen
+                    </div>
                     <ul className={styles.solutionSteps}>
                       {displayDraft.symptoms.map((symptom, idx) => (
-                        <li key={idx}>{symptom}</li>
+                        <li key={idx} className={styles.listItem}>{symptom}</li>
                       ))}
                     </ul>
                   </>
@@ -682,42 +783,64 @@ export default function KBADrafterPage() {
             )}
 
             {/* Root Cause */}
-            {displayDraft.cause && (
-              <div>
-                <Label>Ursache (Root Cause)</Label>
+            {(editMode || displayDraft.cause) && (
+              <div className={styles.fieldSection}>
                 {editMode ? (
-                  <Textarea
-                    value={displayDraft.cause}
-                    onChange={(e) => handleFieldChange("cause", e.target.value)}
-                    rows={3}
-                    style={{ width: "100%" }}
-                  />
+                  <>
+                    <div className={styles.sectionHeader}>
+                      <Lightbulb20Regular />
+                      Ursache (Root Cause)
+                    </div>
+                    <Textarea
+                      value={displayDraft.cause || ""}
+                      onChange={(e) => handleFieldChange("cause", e.target.value)}
+                      rows={3}
+                      style={{ width: "100%" }}
+                      placeholder="Beschreiben Sie die Ursache des Problems..."
+                    />
+                  </>
                 ) : (
-                  <p style={{ fontStyle: "italic", color: tokens.colorNeutralForeground2, overflowWrap: "break-word", wordBreak: "break-word" }}>
-                    {displayDraft.cause}
-                  </p>
+                  <>
+                    <div className={styles.sectionHeader}>
+                      <Lightbulb20Regular />
+                      Ursache (Root Cause)
+                    </div>
+                    <p style={{ fontStyle: "italic", color: tokens.colorNeutralForeground2, overflowWrap: "break-word", wordBreak: "break-word", lineHeight: "1.5" }}>
+                      {displayDraft.cause}
+                    </p>
+                  </>
                 )}
               </div>
             )}
 
+            <div className={styles.sectionDivider} />
+
             {/* Resolution Steps */}
-            <div>
+            <div className={styles.fieldSection}>
               {editMode ? (
-                <EditableList
-                  items={displayDraft.resolution_steps || displayDraft.solution_steps || []}
-                  onChange={(newSteps) => handleFieldChange("resolution_steps", newSteps)}
-                  label="Lösungsschritte"
-                  itemLabel="Schritt"
-                  multiline={true}
-                  allowReorder={true}
-                  placeholder="Beschreiben Sie einen Lösungsschritt..."
-                />
+                <>
+                  <div className={styles.sectionHeader}>
+                    <Target20Regular />
+                    Lösungsschritte
+                  </div>
+                  <EditableList
+                    items={displayDraft.resolution_steps || displayDraft.solution_steps || []}
+                    onChange={(newSteps) => handleFieldChange("resolution_steps", newSteps)}
+                    itemLabel="Schritt"
+                    multiline={true}
+                    allowReorder={true}
+                    placeholder="Beschreiben Sie einen Lösungsschritt..."
+                  />
+                </>
               ) : (
                 <>
-                  <Label>Lösungsschritte</Label>
+                  <div className={styles.sectionHeader}>
+                    <Target20Regular />
+                    Lösungsschritte
+                  </div>
                   <ol className={styles.solutionSteps}>
                     {(displayDraft.resolution_steps || displayDraft.solution_steps || []).map((step, idx) => (
-                      <li key={idx}>{step}</li>
+                      <li key={idx} className={styles.listItem}>{step}</li>
                     ))}
                   </ol>
                 </>
@@ -726,22 +849,30 @@ export default function KBADrafterPage() {
 
             {/* Validation Checks */}
             {(editMode || (displayDraft.validation_checks && displayDraft.validation_checks.length > 0)) && (
-              <div>
+              <div className={styles.fieldSection}>
                 {editMode ? (
-                  <EditableList
-                    items={displayDraft.validation_checks || []}
-                    onChange={(newChecks) => handleFieldChange("validation_checks", newChecks)}
-                    label="Verifikationsschritte"
-                    itemLabel="Check"
-                    multiline={true}
-                    placeholder="Beschreiben Sie einen Verifikationsschritt..."
-                  />
+                  <>
+                    <div className={styles.sectionHeader}>
+                      <CheckmarkCircle20Regular />
+                      Verifikationsschritte
+                    </div>
+                    <EditableList
+                      items={displayDraft.validation_checks || []}
+                      onChange={(newChecks) => handleFieldChange("validation_checks", newChecks)}
+                      itemLabel="Check"
+                      multiline={true}
+                      placeholder="Beschreiben Sie einen Verifikationsschritt..."
+                    />
+                  </>
                 ) : (
                   <>
-                    <Label>Verifikationsschritte</Label>
+                    <div className={styles.sectionHeader}>
+                      <CheckmarkCircle20Regular />
+                      Verifikationsschritte
+                    </div>
                     <ul className={styles.solutionSteps}>
                       {displayDraft.validation_checks.map((check, idx) => (
-                        <li key={idx} style={{ color: tokens.colorPaletteDarkOrangeBackground3, overflowWrap: "break-word", wordBreak: "break-word" }}>
+                        <li key={idx} className={styles.listItem} style={{ color: tokens.colorPaletteGreenForeground1 }}>
                           ✓ {check}
                         </li>
                       ))}
@@ -753,20 +884,25 @@ export default function KBADrafterPage() {
 
             {/* Warnings */}
             {(editMode || (displayDraft.warnings && displayDraft.warnings.length > 0)) && (
-              <div>
+              <div className={styles.fieldSection}>
                 {editMode ? (
-                  <EditableList
-                    items={displayDraft.warnings || []}
-                    onChange={(newWarnings) => handleFieldChange("warnings", newWarnings)}
-                    label="Wichtige Hinweise & Warnungen"
-                    itemLabel="Warnung"
-                    multiline={true}
-                    placeholder="Beschreiben Sie eine wichtige Warnung..."
-                  />
+                  <>
+                    <div className={styles.sectionHeader}>
+                      <Warning24Regular />
+                      Wichtige Hinweise & Warnungen
+                    </div>
+                    <EditableList
+                      items={displayDraft.warnings || []}
+                      onChange={(newWarnings) => handleFieldChange("warnings", newWarnings)}
+                      itemLabel="Warnung"
+                      multiline={true}
+                      placeholder="Beschreiben Sie eine wichtige Warnung..."
+                    />
+                  </>
                 ) : (
                   <MessageBar intent="warning">
                     <MessageBarBody style={{ padding: "12px" }}>
-                      <MessageBarTitle>
+                      <MessageBarTitle style={{ fontSize: "16px", fontWeight: "600" }}>
                         Wichtige Hinweise & Warnungen
                       </MessageBarTitle>
                       <ul style={{ 
@@ -777,11 +913,7 @@ export default function KBADrafterPage() {
                         listStylePosition: "outside"
                       }}>
                         {displayDraft.warnings.map((warning, idx) => (
-                          <li key={idx} style={{ 
-                            marginBottom: "4px",
-                            overflowWrap: "break-word", 
-                            wordBreak: "break-word" 
-                          }}>
+                          <li key={idx} className={styles.listItem}>
                             {warning}
                           </li>
                         ))}
@@ -794,9 +926,13 @@ export default function KBADrafterPage() {
 
             {/* Confidence Notes */}
             {(editMode || displayDraft.confidence_notes) && (
-              <div>
+              <div className={styles.fieldSection}>
                 {editMode ? (
-                  <Field label="LLM-Hinweis / Einschränkungen">
+                  <>
+                    <div className={styles.sectionHeader}>
+                      <Lightbulb20Regular />
+                      LLM-Hinweis / Einschränkungen
+                    </div>
                     <Textarea
                       value={displayDraft.confidence_notes || ""}
                       onChange={(e) => handleFieldChange("confidence_notes", e.target.value)}
@@ -804,16 +940,19 @@ export default function KBADrafterPage() {
                       placeholder="Zusätzliche Hinweise oder Einschränkungen..."
                       style={{ width: "100%" }}
                     />
-                  </Field>
+                  </>
                 ) : (
                   <MessageBar intent="info">
                     <MessageBarBody style={{ padding: "12px" }}>
-                      <MessageBarTitle>LLM-Hinweis / Einschränkungen</MessageBarTitle>
+                      <MessageBarTitle style={{ fontSize: "16px", fontWeight: "600" }}>
+                        LLM-Hinweis / Einschränkungen
+                      </MessageBarTitle>
                       <div style={{ 
                         margin: "8px 0 0 0",
                         overflowWrap: "break-word", 
                         wordBreak: "break-word",
-                        whiteSpace: "pre-wrap"
+                        whiteSpace: "pre-wrap",
+                        lineHeight: "1.5"
                       }}>
                         {displayDraft.confidence_notes}
                       </div>
@@ -823,20 +962,30 @@ export default function KBADrafterPage() {
               </div>
             )}
 
+            <div className={styles.sectionDivider} />
+
             {/* Tags */}
-            <div>
+            <div className={styles.fieldSection}>
               {editMode ? (
-                <TagEditor
-                  tags={displayDraft.tags || []}
-                  onChange={(newTags) => handleFieldChange("tags", newTags)}
-                  label="Tags"
-                />
+                <>
+                  <div className={styles.sectionHeader}>
+                    <Tag20Regular />
+                    Tags
+                  </div>
+                  <TagEditor
+                    tags={displayDraft.tags || []}
+                    onChange={(newTags) => handleFieldChange("tags", newTags)}
+                  />
+                </>
               ) : (
                 <>
-                  <Label>Tags</Label>
+                  <div className={styles.sectionHeader}>
+                    <Tag20Regular />
+                    Tags
+                  </div>
                   <TagGroup style={{ marginTop: tokens.spacingVerticalXS }}>
                     {(displayDraft.tags || []).map((tag, idx) => (
-                      <Tag key={idx} size="small">
+                      <Tag key={idx} size="medium" appearance="brand">
                         {tag}
                       </Tag>
                     ))}
@@ -846,27 +995,38 @@ export default function KBADrafterPage() {
             </div>
 
             {/* Search Questions */}
-            <div>
-              <Label>Häufige Suchanfragen</Label>
-              <Text size={200} style={{ display: "block", marginBottom: tokens.spacingVerticalS }}>
-                Wie könnten Benutzer nach diesem KBA suchen?
-              </Text>
+            <div className={styles.fieldSection}>
               {editMode ? (
-                <EditableList
-                  items={displayDraft.search_questions || []}
-                  onChange={(newQuestions) => handleFieldChange("search_questions", newQuestions)}
-                  placeholder="z.B. Wie behebe ich VPN-Verbindungsprobleme?"
-                  minLength={10}
-                  maxLength={200}
-                />
+                <>
+                  <div className={styles.sectionHeader}>
+                    <Search20Regular />
+                    Häufige Suchanfragen
+                  </div>
+                  <Text size={200} style={{ display: "block", marginBottom: tokens.spacingVerticalS, color: tokens.colorNeutralForeground3 }}>
+                    Wie könnten Benutzer nach diesem KBA suchen?
+                  </Text>
+                  <EditableList
+                    items={displayDraft.search_questions || []}
+                    onChange={(newQuestions) => handleFieldChange("search_questions", newQuestions)}
+                    placeholder="z.B. Wie behebe ich VPN-Verbindungsprobleme?"
+                    minLength={10}
+                    maxLength={200}
+                  />
+                </>
               ) : (
-                <ul style={{ marginTop: tokens.spacingVerticalXS, paddingLeft: tokens.spacingHorizontalL }}>
-                  {(displayDraft.search_questions || []).map((question, idx) => (
-                    <li key={idx} style={{ marginBottom: tokens.spacingVerticalXXS }}>
-                      {question}
-                    </li>
-                  ))}
-                </ul>
+                <>
+                  <div className={styles.sectionHeader}>
+                    <Search20Regular />
+                    Häufige Suchanfragen
+                  </div>
+                  <ul style={{ marginTop: tokens.spacingVerticalXS, paddingLeft: tokens.spacingHorizontalL }}>
+                    {(displayDraft.search_questions || []).map((question, idx) => (
+                      <li key={idx} className={styles.listItem} style={{ fontStyle: "italic", color: tokens.colorNeutralForeground2 }}>
+                        {question}
+                      </li>
+                    ))}
+                  </ul>
+                </>
               )}
             </div>
 
@@ -1050,6 +1210,121 @@ export default function KBADrafterPage() {
           setDraftToDelete(null);
         }}
       />
+
+      {/* Ticket Viewer Dialog */}
+      <Dialog
+        open={ticketDialogOpen}
+        onOpenChange={(event, data) => setTicketDialogOpen(data.open)}
+      >
+        <DialogSurface style={{ maxWidth: "600px" }}>
+          <DialogTitle>Ticket Details</DialogTitle>
+          <DialogBody>
+            {loadingTicket ? (
+              <div style={{ display: "flex", justifyContent: "center", padding: tokens.spacingVerticalXXL }}>
+                <Spinner size="large" label="Lade Ticket..." />
+              </div>
+            ) : ticketData ? (
+              <DialogContent>
+                <div style={{ display: "flex", flexDirection: "column", gap: tokens.spacingVerticalM }}>
+                  {/* Incident ID */}
+                  <div>
+                    <Label weight="semibold">Incident ID</Label>
+                    <Text block>{ticketData.incident_id || "N/A"}</Text>
+                  </div>
+
+                  {/* Summary */}
+                  <div>
+                    <Label weight="semibold">Summary</Label>
+                    <Text block>{ticketData.summary || "N/A"}</Text>
+                  </div>
+
+                  {/* Status */}
+                  <div>
+                    <Label weight="semibold">Status</Label>
+                    <Badge appearance="filled" color={getStatusBadgeColor(ticketData.status)}>
+                      {ticketData.status || "N/A"}
+                    </Badge>
+                  </div>
+
+                  {/* Priority & Urgency */}
+                  <div style={{ display: "flex", gap: tokens.spacingHorizontalL }}>
+                    <div style={{ flex: 1 }}>
+                      <Label weight="semibold">Priority</Label>
+                      <Text block>{ticketData.priority || "N/A"}</Text>
+                    </div>
+                    <div style={{ flex: 1 }}>
+                      <Label weight="semibold">Urgency</Label>
+                      <Text block>{ticketData.urgency || "N/A"}</Text>
+                    </div>
+                  </div>
+
+                  {/* Assignee & Group */}
+                  <div style={{ display: "flex", gap: tokens.spacingHorizontalL }}>
+                    <div style={{ flex: 1 }}>
+                      <Label weight="semibold">Assigned Person</Label>
+                      <Text block>{ticketData.assigned_person || "N/A"}</Text>
+                    </div>
+                    <div style={{ flex: 1 }}>
+                      <Label weight="semibold">Assigned Group</Label>
+                      <Text block>{ticketData.assigned_group || "N/A"}</Text>
+                    </div>
+                  </div>
+
+                  {/* Notes */}
+                  {ticketData.notes && (
+                    <div>
+                      <Label weight="semibold">Notes</Label>
+                      <div
+                        style={{
+                          maxHeight: "200px",
+                          overflowY: "auto",
+                          padding: tokens.spacingVerticalS,
+                          backgroundColor: tokens.colorNeutralBackground2,
+                          borderRadius: tokens.borderRadiusMedium,
+                        }}
+                      >
+                        <Text block style={{ whiteSpace: "pre-wrap" }}>
+                          {ticketData.notes}
+                        </Text>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Resolution */}
+                  {ticketData.resolution && (
+                    <div>
+                      <Label weight="semibold">Resolution</Label>
+                      <div
+                        style={{
+                          maxHeight: "200px",
+                          overflowY: "auto",
+                          padding: tokens.spacingVerticalS,
+                          backgroundColor: tokens.colorNeutralBackground2,
+                          borderRadius: tokens.borderRadiusMedium,
+                        }}
+                      >
+                        <Text block style={{ whiteSpace: "pre-wrap" }}>
+                          {ticketData.resolution}
+                        </Text>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </DialogContent>
+            ) : (
+              <Text>Keine Ticket-Daten verfügbar</Text>
+            )}
+          </DialogBody>
+          <DialogActions>
+            <Button
+              appearance="secondary"
+              onClick={() => setTicketDialogOpen(false)}
+            >
+              Schließen
+            </Button>
+          </DialogActions>
+        </DialogSurface>
+      </Dialog>
     </div>
   );
 }

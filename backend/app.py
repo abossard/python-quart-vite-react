@@ -900,6 +900,41 @@ async def get_csv_ticket(ticket_id: str):
     return jsonify(result), 200
 
 
+@app.route("/api/csv-tickets/by-incident/<incident_id>", methods=["GET"])
+async def get_csv_ticket_by_incident(incident_id: str):
+    """
+    Get one CSV ticket by Incident ID (e.g., INC000016346).
+
+    Query params:
+    - fields: optional comma-separated list of fields to include
+    """
+    ticket = _csv_ticket_service.get_ticket_by_incident_id(incident_id)
+    if ticket is None:
+        return jsonify({"error": "Ticket not found"}), 404
+
+    fields_param = request.args.get("fields", "")
+    if fields_param:
+        selected_fields = [f.strip() for f in fields_param.split(",") if f.strip()]
+    else:
+        selected_fields = list(ticket.model_fields.keys())
+
+    result = {}
+    for field in selected_fields:
+        val = getattr(ticket, field, None)
+        if val is None:
+            result[field] = None
+        elif hasattr(val, "value"):
+            result[field] = val.value
+        elif hasattr(val, "isoformat"):
+            result[field] = val.isoformat()
+        elif hasattr(val, "hex"):
+            result[field] = str(val)
+        else:
+            result[field] = val
+
+    return jsonify(result), 200
+
+
 @app.route("/api/csv-tickets/stats", methods=["GET"])
 async def get_csv_ticket_stats():
     """Get statistics about CSV tickets."""
