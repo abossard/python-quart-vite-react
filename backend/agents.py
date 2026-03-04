@@ -322,6 +322,18 @@ class AgentService:
             from tickets import Ticket
             return json.dumps(list(Ticket.model_fields.keys()))
 
+        def _csv_sla_breach_tickets(unassigned_only: bool = True, include_ok: bool = False) -> str:
+            """Return tickets at SLA breach risk with pre-computed age and breach status."""
+            from tickets import get_sla_breach_report
+            tickets = service.list_tickets(has_assignee=False if unassigned_only else None)
+            report = get_sla_breach_report(tickets)
+            return json.dumps(report.model_dump(mode="json"), default=str)
+
+        def _csv_ticket_stats() -> str:
+            """Get aggregated ticket statistics."""
+            stats = service.get_ticket_stats()
+            return json.dumps(stats, default=str)
+
         return [
             StructuredTool.from_function(
                 func=_csv_list_tickets,
@@ -331,39 +343,43 @@ class AgentService:
                     "(new, assigned, in_progress, pending, resolved, closed, cancelled), "
                     "assigned_group, has_assignee (true/false), limit (default 50, max 100), "
                     "and fields (comma-separated field names). "
-                    "Default response is compact for speed: "
-                    "'id,summary,status,priority,assignee,assigned_group,created_at,updated_at'. "
-                    "For deterministic analytics, prefer status/priority/date fields and avoid wide payloads. "
-                    "Notes/resolution are excluded by default unless requested via fields. "
-                    "Use fields='*' only when full payload is absolutely needed. Returns JSON array."
+                    "Default response is compact for speed. Returns JSON array."
                 ),
             ),
             StructuredTool.from_function(
                 func=_csv_get_ticket,
                 name="csv_get_ticket",
                 description=(
-                    "Get ticket by UUID (id). Supports optional fields (comma-separated). "
-                    "Default response is compact fields without notes/resolution for speed. "
-                    "Prefer requesting only required fields for drill-down. "
-                    "Request notes/resolution explicitly via fields, or use fields='*' for full payload."
+                    "Get full ticket details by UUID (id). Supports optional fields. "
+                    "Use for drill-down after list/search."
                 ),
             ),
             StructuredTool.from_function(
                 func=_csv_search_tickets,
                 name="csv_search_tickets",
                 description=(
-                    "Search tickets by text across summary, description, notes, resolution, requester, group, city. "
-                    "Supports fields (comma-separated field names). "
-                    "Notes/resolution are excluded by default unless requested via fields. "
-                    "Prefer low limits and compact fields for latency-sensitive runs. "
-                    "Default response is compact fields for speed; use fields='*' only when needed. "
-                    "Returns JSON array."
+                    "Search tickets by text across summary, description, notes, requester, group, city. "
+                    "Returns compact fields. Use csv_get_ticket for full details."
                 ),
             ),
             StructuredTool.from_function(
                 func=_csv_ticket_fields,
                 name="csv_ticket_fields",
                 description="List available ticket fields (schema) as JSON array of field names.",
+            ),
+            StructuredTool.from_function(
+                func=_csv_sla_breach_tickets,
+                name="csv_sla_breach_tickets",
+                description=(
+                    "Return tickets at SLA breach risk. Pre-computed age_hours, sla_threshold_hours, "
+                    "breach_status. SLA thresholds: critical=4h, high=24h, medium=72h, low=120h. "
+                    "Default: unassigned_only=true, include_ok=false. Returns compact JSON."
+                ),
+            ),
+            StructuredTool.from_function(
+                func=_csv_ticket_stats,
+                name="csv_ticket_stats",
+                description="Get aggregated statistics: total, by_status, by_priority, by_group, by_city.",
             ),
         ]
 
