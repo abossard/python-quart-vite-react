@@ -51,6 +51,23 @@ CSV_TICKET_FIELDS = [
     {"name": "notes", "label": "Notes", "type": "string"},
 ]
 
+# Compact fields for agent/MCP tool responses — excludes notes, resolution,
+# description, work logs, and other heavy fields to minimize token usage.
+# Full Ticket with all fields: ~1500 chars (~400 tokens) per ticket
+# Compact ticket: ~250 chars (~60 tokens) — 87% reduction.
+_COMPACT_TICKET_FIELDS = {
+    "incident_id", "summary", "status", "priority", "assignee",
+    "assigned_group", "requester_name", "city", "created_at", "updated_at",
+}
+
+
+def _compact_tickets(tickets: list[Ticket]) -> list[dict[str, Any]]:
+    """Serialize tickets with compact fields only — for agent/MCP consumers."""
+    return [
+        {k: v for k, v in t.model_dump(mode="json").items() if k in _COMPACT_TICKET_FIELDS}
+        for t in tickets
+    ]
+
 
 def _ensure_csv_loaded() -> None:
     """Load the default CSV file once so MCP tools are immediately usable."""
@@ -169,19 +186,19 @@ async def op_get_task_stats() -> TaskStats:
 
 @operation(
     name="csv_list_tickets",
-    description="List tickets loaded from CSV with optional filters and pagination",
+    description="List tickets loaded from CSV with optional filters and pagination. Returns compact fields (incident_id, summary, status, priority, assignee, assigned_group, requester_name, city, created_at, updated_at). Use csv_get_ticket for full details.",
     http_method="GET",
 )
 async def op_csv_list_tickets(
     status: str | None = None,
     assigned_group: str | None = None,
     has_assignee: bool | None = None,
-    limit: int = 100,
+    limit: int = 25,
     offset: int = 0,
     sort: str = "created_at",
     sort_dir: str = "desc",
-) -> list[Ticket]:
-    """List CSV tickets for MCP/agent consumers."""
+) -> list[dict]:
+    """List CSV tickets with compact fields for agent efficiency."""
     _ensure_csv_loaded()
     parsed_status = _parse_status(status)
     tickets = _csv_service.list_tickets(
@@ -192,42 +209,49 @@ async def op_csv_list_tickets(
     tickets = _sorted_tickets(tickets, sort, sort_dir)
 
     normalized_offset = max(offset, 0)
-    normalized_limit = min(max(limit, 1), 500)
-    return tickets[normalized_offset: normalized_offset + normalized_limit]
+    normalized_limit = min(max(limit, 1), 100)
+    return _compact_tickets(tickets[normalized_offset: normalized_offset + normalized_limit])
 
 
 @operation(
     name="csv_get_ticket",
-    description="Get a single CSV ticket by INC number (e.g. INC000016349327) or UUID",
+    description="Get full details of a single CSV ticket by INC number (e.g. INC000016349327) or UUID. Use this to drill down after finding tickets with csv_list_tickets or csv_search_tickets. Optionally specify fields (comma-separated) to limit response.",
     http_method="GET",
 )
-async def op_csv_get_ticket(ticket_id: str) -> Ticket | None:
-    """Get one CSV ticket by INC number or UUID."""
+async def op_csv_get_ticket(ticket_id: str, fields: str = "") -> dict | None:
+    """Get one CSV ticket with optional field selection."""
     _ensure_csv_loaded()
     # Try INC number first (primary identifier)
     if ticket_id.upper().startswith("INC"):
-        return _csv_service.get_ticket_by_incident_id(ticket_id)
-    # Fall back to UUID for internal use
-    try:
-        parsed_id = UUID(ticket_id)
-    except ValueError:
+        ticket = _csv_service.get_ticket_by_incident_id(ticket_id)
+    else:
+        try:
+            parsed_id = UUID(ticket_id)
+        except ValueError:
+            return None
+        ticket = _csv_service.get_ticket(parsed_id)
+    if ticket is None:
         return None
-    return _csv_service.get_ticket(parsed_id)
+    dump = ticket.model_dump(mode="json")
+    if fields and fields.strip() and fields.strip() != "*":
+        selected = {f.strip() for f in fields.split(",") if f.strip()}
+        return {k: v for k, v in dump.items() if k in selected}
+    return dump
 
 
 @operation(
     name="csv_search_tickets",
-    description="Search CSV tickets by text across incident ID, summary, description, notes, requester and location fields",
+    description="Search CSV tickets by text across incident ID, summary, description, notes, requester and location fields. Returns compact fields. Use csv_get_ticket for full details.",
     http_method="GET",
 )
-async def op_csv_search_tickets(query: str, limit: int = 50) -> list[Ticket]:
-    """Search CSV tickets with a simple case-insensitive contains check."""
+async def op_csv_search_tickets(query: str, limit: int = 25) -> list[dict]:
+    """Search CSV tickets — returns compact fields for agent efficiency."""
     _ensure_csv_loaded()
     q = query.strip().lower()
     if not q:
         return []
 
-    normalized_limit = min(max(limit, 1), 500)
+    normalized_limit = min(max(limit, 1), 100)
     matches: list[Ticket] = []
     for ticket in _csv_service.list_tickets():
         haystack = " ".join(
@@ -250,7 +274,7 @@ async def op_csv_search_tickets(query: str, limit: int = 50) -> list[Ticket]:
             if len(matches) >= normalized_limit:
                 break
 
-    return matches
+    return _compact_tickets(matches)
 
 
 @operation(
