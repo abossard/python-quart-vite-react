@@ -163,4 +163,95 @@ test.describe("Agent Fabric UI", () => {
       { timeout: 10000 }
     );
   });
+
+  test("creates agent with output schema via suggest button", async ({ page }) => {
+    const agentName = `e2e-schema-${Date.now()}`;
+
+    // Mock the suggest-schema endpoint
+    await page.route("**/api/workbench/suggest-schema", async (route) => {
+      await route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify({
+          schema: {
+            type: "object",
+            properties: {
+              total: { type: "integer", description: "Total ticket count" },
+              status_breakdown: { type: "object", description: "Count per status" },
+            },
+          },
+        }),
+      });
+    });
+
+    await page.goto(`${APP_URL}/workbench`, { waitUntil: "load" });
+    await expect(page.getByTestId("workbench-page-title")).toBeVisible();
+
+    // Fill agent form
+    await page.getByTestId("workbench-agent-name-input").fill(agentName);
+    await page
+      .getByTestId("workbench-agent-system-prompt-input")
+      .fill("Analyze ticket stats and report totals.");
+
+    // Click suggest schema
+    await page.getByTestId("workbench-suggest-schema-button").click();
+
+    // Wait for schema to appear in the textarea
+    const schemaTextarea = page.getByTestId("workbench-agent-output-schema");
+    await expect(schemaTextarea).toContainText("total", { timeout: 5000 });
+    await expect(schemaTextarea).toContainText("status_breakdown");
+
+    // Create the agent (schema should be included)
+    await page.getByTestId("workbench-create-agent-button").click();
+
+    const createdRow = page.locator(
+      '[data-testid="workbench-agents-table"] tbody tr',
+      { hasText: agentName }
+    );
+    await expect(createdRow).toBeVisible({ timeout: 10000 });
+
+    // Clean up
+    await createdRow.getByRole("button", { name: "Delete" }).click();
+    await expect(
+      page.locator('[data-testid="workbench-agents-table"] tbody tr', {
+        hasText: agentName,
+      })
+    ).toHaveCount(0, { timeout: 10000 });
+  });
+});
+
+test.describe("Agent Chat UI", () => {
+  test("sends message and displays mocked response", async ({ page }) => {
+    // Mock the agent chat endpoint
+    await page.route("**/api/agents/run", async (route) => {
+      await route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify({
+          result: "# Ticket Stats\n\n| Status | Count |\n|--------|-------|\n| Open | 42 |\n| Closed | 18 |",
+          agent_type: "task_assistant",
+          tools_used: ["csv_ticket_stats"],
+          error: null,
+          created_at: "2026-03-04T10:00:00Z",
+        }),
+      });
+    });
+
+    await page.goto(`${APP_URL}/agent`, { waitUntil: "load" });
+
+    const input = page.getByTestId("agent-input");
+    const send = page.getByTestId("agent-send");
+
+    await expect(input).toBeVisible();
+    await expect(send).toBeDisabled();
+
+    // Type and send
+    await input.fill("Show me ticket stats");
+    await expect(send).toBeEnabled();
+    await send.click();
+
+    // Wait for response to render (use heading role to avoid matching user input)
+    await expect(page.getByRole("heading", { name: "Ticket Stats" })).toBeVisible({ timeout: 10000 });
+    await expect(page.getByText("csv_ticket_stats")).toBeVisible();
+  });
 });
