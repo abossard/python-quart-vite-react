@@ -6,7 +6,20 @@ Complete overview of all files and directories in this project.
 python-quart-vite-react/
 │
 ├── backend/                      # Python Quart Backend
-│   ├── app.py                   # REST API endpoints (uses tasks.service)
+│   ├── app.py                   # REST API + Blueprint registration
+│   ├── agent_builder/           # Agent builder module (see docs/AGENT_BUILDER.md)
+│   │   ├── models/              # Pure data (Pydantic/SQLModel)
+│   │   ├── tools/               # ToolRegistry, schema converter
+│   │   ├── engine/              # ReAct runner, prompt builder, callbacks
+│   │   ├── persistence/         # SQLite repository + migrations
+│   │   ├── evaluator.py         # Success criteria evaluation
+│   │   ├── service.py           # WorkbenchService (deep module)
+│   │   ├── chat_service.py      # ChatService (deep module)
+│   │   ├── routes.py            # Quart Blueprint (/api/workbench/*)
+│   │   └── tests/               # 132 tests
+│   ├── agent_workbench/         # Backward-compat shim → agent_builder
+│   ├── agents.py                # Legacy chat agent
+│   ├── workbench_integration.py # Wires tools into agent_builder services
 │   ├── mcp_server.py            # MCP server (uses tasks.service)
 │   ├── tasks/                   # Reusable task management module
 │   │   ├── __init__.py         # Module initialization

@@ -1,28 +1,46 @@
 # LangGraph Agent Playground
 
+> **📖 Full architecture documentation:** See **[AGENT_BUILDER.md](AGENT_BUILDER.md)** for mermaid diagrams, data flow, structured output pipeline, DB schema, and extensibility guide.
+
 ## Overview
 
-A complete LangGraph agent implementation with Azure OpenAI integration for task management automation.
-
-## Features
-
-- **ReAct Agent Pattern**: Reasoning + Acting loop with automatic tool discovery
-- **Azure OpenAI Integration**: Uses Azure's OpenAI service via `langchain-openai`
-- **Automatic Tool Discovery**: All `@operation` decorated functions become agent tools
-- **Type-Safe**: Pydantic models throughout for validation and schemas
-- **Unified Architecture**: Same operations work for REST, MCP, and now AI agents
+Config-driven LLM agents built with LangGraph. Define an agent in the UI (system prompt, tools, output schema) → it's stored in SQLite → runs as a ReAct agent with structured output.
 
 ## Architecture
+
+```mermaid
+graph LR
+    subgraph "Agent Definition (DB)"
+        D[system_prompt<br/>tool_names<br/>model/temperature<br/>output_schema]
+    end
+
+    subgraph "Runtime"
+        R[ToolRegistry.resolve] --> T[LangChain Tools]
+        D --> P[prompt_builder]
+        D --> L[build_llm<br/>per-agent config]
+        P --> A[create_react_agent]
+        T --> A
+        L --> A
+        D -->|output_schema| A
+    end
+
+    A -->|response_format| LLM[OpenAI]
+    LLM --> S[structured_response<br/>typed JSON]
+```
 
 ### Components
 
 ```
-backend/
-├── agents.py              # Agent service with ReAct loop
-├── api_decorators.py      # Extended with to_langchain_tool()
-├── app.py                 # Integrated agent endpoint
-├── tasks.py               # Task operations (auto-exposed as tools)
-└── .env                   # Azure OpenAI configuration
+backend/agent_builder/         # Canonical module
+├── models/                    # Pure data (Pydantic/SQLModel)
+├── tools/                     # ToolRegistry, schema converter
+├── engine/                    # ReAct runner, prompt builder, callbacks
+├── evaluator.py               # Success criteria evaluation
+├── persistence/               # SQLite repository + migrations
+├── service.py                 # WorkbenchService (CRUD + run + eval)
+├── chat_service.py            # ChatService (one-shot)
+├── routes.py                  # Quart Blueprint
+└── tests/                     # 132 tests
 ```
 
 ### How It Works
