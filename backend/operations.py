@@ -71,6 +71,13 @@ def _migrate_kba_schema(engine) -> None:
                 "ALTER TABLE kba_drafts ADD COLUMN is_auto_generated INTEGER DEFAULT 0"
             ))
             session.commit()
+        
+        # Check if generation_warnings column exists
+        if 'generation_warnings' not in columns:
+            session.exec(text(
+                "ALTER TABLE kba_drafts ADD COLUMN generation_warnings TEXT DEFAULT '[]'"
+            ))
+            session.commit()
 
 
 def _get_kba_session() -> Session:
@@ -134,7 +141,7 @@ def _ensure_csv_loaded() -> None:
     if _csv_loaded:
         return
 
-    default_csv_path = Path(__file__).resolve().parents[1] / "CSV" / "data.csv"
+    default_csv_path = Path(__file__).resolve().parents[1] / "csv" / "data.csv"
     if default_csv_path.exists():
         try:
             _csv_service.load_csv(default_csv_path)

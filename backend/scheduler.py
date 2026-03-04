@@ -90,8 +90,18 @@ class AutoGenScheduler:
         return result.model_dump()
     
     async def _run_auto_generation(self):
-        """Internal method to run auto-generation"""
+        """Internal method to run auto-generation.
+        
+        Reloads settings on each run to pick up any changes.
+        Catches all exceptions to prevent APScheduler from silently swallowing them.
+        """
         try:
+            # Reload settings to pick up any changes since last run
+            settings = self.auto_gen_service.get_settings()
+            if not settings.enabled:
+                logger.info("Auto-generation is disabled, skipping run")
+                return None
+            
             result = await self.auto_gen_service.run_auto_generation()
             
             if result.success:
@@ -109,7 +119,7 @@ class AutoGenScheduler:
             
         except Exception as e:
             logger.error(f"Auto-generation failed with exception: {e}", exc_info=True)
-            raise
+            return None
     
     @staticmethod
     def _parse_time(time_str: str) -> tuple[int, int]:

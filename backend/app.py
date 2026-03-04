@@ -779,7 +779,7 @@ async def get_qa_tickets():
 _csv_ticket_service = get_csv_ticket_service()
 
 # Load CSV data on startup (using relative path from backend folder)
-_csv_data_path = Path(__file__).parent.parent / "CSV" / "data.csv"
+_csv_data_path = Path(__file__).parent.parent / "csv" / "data.csv"
 if _csv_data_path.exists():
     _csv_loaded = _csv_ticket_service.load_csv(_csv_data_path)
     print(f"📊 Loaded {_csv_loaded} tickets from CSV")

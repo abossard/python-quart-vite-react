@@ -16,11 +16,13 @@ Key responsibilities:
 """
 
 import logging
+import os
 from datetime import datetime
 from time import perf_counter
 from typing import Optional, Union
 from uuid import UUID, uuid4
 
+from sqlalchemy import func
 from sqlmodel import Session, select, desc
 
 from csv_data import get_csv_ticket_service
@@ -221,12 +223,14 @@ class KBAService:
                 extra={"draft_id": str(draft.id), "ticket_id": str(create_req.ticket_id)}
             )
         except Exception as e:
-            # Log error but continue - search questions are optional
             logger.warning(
                 f"Failed to generate search questions: {str(e)}",
                 extra={"draft_id": str(draft.id), "error": str(e)}
             )
             draft.search_questions = []
+            draft.generation_warnings.append(
+                f"Search questions generation failed: {str(e)}"
+            )
         
         # 7. Save to database
         draft_table = self._draft_to_table(draft)
@@ -557,8 +561,9 @@ class KBAService:
         if filters.incident_id:
             statement = statement.where(KBADraftTable.incident_id == filters.incident_id)
         
-        # Count total
-        total = len(self.session.exec(statement).all())
+        # Count total using SQL COUNT(*)
+        count_statement = select(func.count()).select_from(statement.subquery())
+        total = self.session.exec(count_statement).one()
         
         # Apply pagination
         statement = statement.offset(filters.offset).limit(filters.limit)
@@ -981,23 +986,31 @@ class KBAService:
                 "create_categories": True
             },
             "sharepoint": {
-                "site_url": "https://example.sharepoint.com/sites/KB",
-                "client_id": "...",  # TODO: Load from env
-                "client_secret": "..."  # TODO: Load from env
+                "site_url": os.environ.get("KB_SHAREPOINT_SITE_URL", ""),
+                "client_id": os.environ.get("KB_SHAREPOINT_CLIENT_ID", ""),
+                "client_secret": os.environ.get("KB_SHAREPOINT_CLIENT_SECRET", ""),
             },
             "itsm": {
-                "instance_url": "https://example.service-now.com",
-                "username": "...",  # TODO: Load from env
-                "password": "..."  # TODO: Load from env
+                "instance_url": os.environ.get("KB_ITSM_INSTANCE_URL", ""),
+                "username": os.environ.get("KB_ITSM_USERNAME", ""),
+                "password": os.environ.get("KB_ITSM_PASSWORD", ""),
             },
             "confluence": {
-                "base_url": "https://example.atlassian.net",
-                "username": "...",  # TODO: Load from env
-                "api_token": "..."  # TODO: Load from env
+                "base_url": os.environ.get("KB_CONFLUENCE_BASE_URL", ""),
+                "username": os.environ.get("KB_CONFLUENCE_USERNAME", ""),
+                "api_token": os.environ.get("KB_CONFLUENCE_API_TOKEN", ""),
             }
         }
         
-        return configs.get(target_system, {})
+        config = configs.get(target_system, {})
+        if target_system != "file" and config:
+            missing = [k for k, v in config.items() if not v]
+            if missing:
+                raise NotImplementedError(
+                    f"Adapter '{target_system}' requires environment variables: "
+                    f"{', '.join(f'KB_{target_system.upper()}_{k.upper()}' for k in missing)}"
+                )
+        return config
     
     def _draft_to_table(self, draft: KBADraft) -> KBADraftTable:
         """Convert KBADraft to KBADraftTable for persistence"""
@@ -1024,6 +1037,7 @@ class KBAService:
             tags=draft.tags,
             related_tickets=draft.related_tickets,
             search_questions=draft.search_questions if draft.search_questions is not None else [],
+            generation_warnings=draft.generation_warnings if draft.generation_warnings is not None else [],
             guidelines_used=draft.guidelines_used,
             status=draft.status.value,
             created_at=draft.created_at,
@@ -1055,6 +1069,7 @@ class KBAService:
             tags=table.tags,
             related_tickets=table.related_tickets,
             search_questions=table.search_questions if hasattr(table, 'search_questions') and table.search_questions is not None else [],
+            generation_warnings=table.generation_warnings if hasattr(table, 'generation_warnings') and table.generation_warnings is not None else [],
             guidelines_used=table.guidelines_used,
             status=KBADraftStatus(table.status),
             created_at=table.created_at,

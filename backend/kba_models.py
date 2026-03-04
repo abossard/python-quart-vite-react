@@ -113,6 +113,12 @@ class KBADraft(BaseModel):
         description="User search queries - how users might search for this KBA"
     )
     
+    # Generation warnings (e.g. search questions generation failed)
+    generation_warnings: list[str] = Field(
+        default_factory=list,
+        description="Warnings from the generation process (partial failures)"
+    )
+    
     # Guidelines used during generation
     guidelines_used: list[str] = Field(default_factory=list, description="Guideline categories used")
     
@@ -270,6 +276,7 @@ class KBADraftTable(SQLModel, table=True):
     tags: list[str] = SQLField(sa_column=Column(JSON))
     related_tickets: list[str] = SQLField(sa_column=Column(JSON))
     search_questions: list[str] = SQLField(sa_column=Column(JSON))
+    generation_warnings: list[str] = SQLField(sa_column=Column(JSON, default=[]))
     guidelines_used: list[str] = SQLField(sa_column=Column(JSON))
     
     # Metadata
