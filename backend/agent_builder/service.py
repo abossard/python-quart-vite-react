@@ -408,14 +408,18 @@ class WorkbenchService:
 
             # Per-agent LLM: use agent's model/temperature/max_tokens if set, else service defaults
             run_llm = self._resolve_llm_for_agent(agent_def)
-            react = build_react_agent(run_llm, tools, runtime_system_prompt)
+
+            # Pass output_schema as response_format for SDK-level structured output enforcement
+            response_format = agent_def.output_schema if agent_def.has_output_schema else None
+            react = build_react_agent(run_llm, tools, runtime_system_prompt, response_format=response_format)
 
             run_recursion_limit = agent_def.recursion_limit or self._recursion_limit
 
             logger.info(
-                "▶️  Agent run_id=%s agent=%s model=%s temp=%s tools=%s prompt=%s",
+                "▶️  Agent run_id=%s agent=%s model=%s temp=%s tools=%s structured=%s prompt=%s",
                 run_id, agent_id, agent_def.model or self._model,
-                agent_def.temperature, validated_tool_names, user_message[:120],
+                agent_def.temperature, validated_tool_names,
+                bool(response_format), user_message[:120],
             )
             t0 = perf_counter()
 
@@ -428,8 +432,21 @@ class WorkbenchService:
             )
 
             total_ms = int((perf_counter() - t0) * 1000)
-            final_msg = result["messages"][-1]
-            output = final_msg.content if hasattr(final_msg, "content") else str(final_msg)
+
+            # Prefer structured_response (SDK-enforced) over raw message content
+            structured_response = result.get("structured_response")
+            if structured_response is not None:
+                import json as json_mod
+                if hasattr(structured_response, "model_dump"):
+                    output = json_mod.dumps(structured_response.model_dump(), indent=2, default=str)
+                elif isinstance(structured_response, dict):
+                    output = json_mod.dumps(structured_response, indent=2, default=str)
+                else:
+                    output = str(structured_response)
+            else:
+                final_msg = result["messages"][-1]
+                output = final_msg.content if hasattr(final_msg, "content") else str(final_msg)
+
             tools_used = extract_tools_used(result["messages"])
 
             logger.info(

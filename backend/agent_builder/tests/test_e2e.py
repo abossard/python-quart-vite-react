@@ -60,7 +60,7 @@ class _FakeReactAgent:
         }
 
 
-def _fake_build_react_agent(_llm: object, tools: list[object], _prompt: str) -> _FakeReactAgent:
+def _fake_build_react_agent(_llm: object, tools: list[object], _prompt: str, response_format=None) -> _FakeReactAgent:
     if "GitHub-flavored Markdown" not in _prompt:
         raise AssertionError("Expected markdown instruction in runtime system prompt")
     return _FakeReactAgent(tools)

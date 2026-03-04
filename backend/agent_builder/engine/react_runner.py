@@ -47,11 +47,23 @@ def build_llm(
     return ChatOpenAI(**kwargs)
 
 
-def build_react_agent(llm: Any, tools: list[Any], system_prompt: str) -> Any:
-    """Construct a LangGraph ReAct agent."""
+def build_react_agent(
+    llm: Any,
+    tools: list[Any],
+    system_prompt: str,
+    response_format: Any = None,
+) -> Any:
+    """Construct a LangGraph ReAct agent, optionally with structured output."""
     from langgraph.prebuilt import create_react_agent
 
-    return create_react_agent(llm, tools, prompt=system_prompt)
+    kwargs: dict[str, Any] = {
+        "model": llm,
+        "tools": tools,
+        "prompt": system_prompt,
+    }
+    if response_format is not None:
+        kwargs["response_format"] = response_format
+    return create_react_agent(**kwargs)
 
 
 def extract_tools_used(messages: list[Any]) -> list[str]:
