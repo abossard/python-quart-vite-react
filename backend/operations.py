@@ -274,12 +274,16 @@ async def op_csv_list_tickets(
 
 @operation(
     name="csv_get_ticket",
-    description="Get a single CSV ticket by UUID",
+    description="Get a single CSV ticket by INC number (e.g. INC000016349327) or UUID",
     http_method="GET",
 )
 async def op_csv_get_ticket(ticket_id: str) -> Ticket | None:
-    """Get one CSV ticket."""
+    """Get one CSV ticket by INC number or UUID."""
     _ensure_csv_loaded()
+    # Try INC number first (primary identifier)
+    if ticket_id.upper().startswith("INC"):
+        return _csv_service.get_ticket_by_incident_id(ticket_id)
+    # Fall back to UUID for internal use
     try:
         parsed_id = UUID(ticket_id)
     except ValueError:
@@ -289,7 +293,7 @@ async def op_csv_get_ticket(ticket_id: str) -> Ticket | None:
 
 @operation(
     name="csv_search_tickets",
-    description="Search CSV tickets by text across summary, description, notes, requester and location fields",
+    description="Search CSV tickets by text across incident ID, summary, description, notes, requester and location fields",
     http_method="GET",
 )
 async def op_csv_search_tickets(query: str, limit: int = 50) -> list[Ticket]:
@@ -304,6 +308,7 @@ async def op_csv_search_tickets(query: str, limit: int = 50) -> list[Ticket]:
     for ticket in _csv_service.list_tickets():
         haystack = " ".join(
             [
+                ticket.incident_id or "",
                 ticket.summary or "",
                 ticket.description or "",
                 ticket.notes or "",

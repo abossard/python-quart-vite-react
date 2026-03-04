@@ -440,6 +440,7 @@ class CSVTicketService:
     
     def __init__(self):
         self._tickets: dict[UUID, Ticket] = {}
+        self._tickets_by_incident_id: dict[str, Ticket] = {}
         self._loaded_files: set[str] = set()
     
     def load_csv(self, file_path: str | Path) -> int:
@@ -455,13 +456,19 @@ class CSVTicketService:
         
         for ticket in tickets:
             self._tickets[ticket.id] = ticket
+            if ticket.incident_id:
+                self._tickets_by_incident_id[ticket.incident_id] = ticket
         
         self._loaded_files.add(file_key)
         return len(tickets)
     
     def get_ticket(self, ticket_id: UUID) -> Optional[Ticket]:
-        """Get ticket by ID."""
+        """Get ticket by UUID."""
         return self._tickets.get(ticket_id)
+
+    def get_ticket_by_incident_id(self, incident_id: str) -> Optional[Ticket]:
+        """Get ticket by INC number (e.g. INC000016349327)."""
+        return self._tickets_by_incident_id.get(incident_id)
     
     def get_ticket_by_incident_id(self, incident_id: str) -> Optional[Ticket]:
         """

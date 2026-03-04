@@ -9,9 +9,11 @@ pydantic, sqlmodel, langchain, and the workbench's own sub-modules.
 The host project injects tools and LLM configuration at startup.
 """
 
+import logging
 import os
 from datetime import datetime
 from pathlib import Path
+from time import perf_counter
 from typing import Any, Optional
 
 from sqlmodel import Session, select
@@ -32,6 +34,41 @@ from .models import (
     build_engine,
 )
 from .tool_registry import ToolRegistry
+
+logger = logging.getLogger(__name__)
+
+
+# ============================================================================
+# TOOL CALL LOGGING CALLBACK
+# ============================================================================
+
+def _make_tool_logging_callback() -> Any:
+    """Create a callback handler that logs tool invocations with latency."""
+    from langchain_core.callbacks import BaseCallbackHandler
+
+    class ToolCallLoggingCallback(BaseCallbackHandler):
+        def __init__(self) -> None:
+            super().__init__()
+            self._start_times: dict[Any, float] = {}
+
+        def on_tool_start(self, serialized: dict[str, Any], input_str: str, *, run_id: Any, **kwargs: Any) -> None:
+            self._start_times[run_id] = perf_counter()
+            name = serialized.get("name", "?")
+            preview = input_str[:200] if isinstance(input_str, str) else str(input_str)[:200]
+            logger.info("🔧 Tool START  name=%s run_id=%s input=%s", name, run_id, preview)
+
+        def on_tool_end(self, output: str, *, run_id: Any, **kwargs: Any) -> None:
+            started = self._start_times.pop(run_id, None)
+            ms = int((perf_counter() - started) * 1000) if started is not None else None
+            preview = output[:300] if isinstance(output, str) else str(output)[:300]
+            logger.info("✅ Tool END    run_id=%s duration_ms=%s output=%s", run_id, ms, preview)
+
+        def on_tool_error(self, error: BaseException, *, run_id: Any, **kwargs: Any) -> None:
+            started = self._start_times.pop(run_id, None)
+            ms = int((perf_counter() - started) * 1000) if started is not None else None
+            logger.error("❌ Tool ERROR  run_id=%s duration_ms=%s error=%s", run_id, ms, error)
+
+    return ToolCallLoggingCallback()
 
 # ============================================================================
 # LLM HELPER - isolated so it stays optional at import time
@@ -381,10 +418,19 @@ class WorkbenchService:
             runtime_system_prompt = _append_markdown_output_instruction(agent_def.system_prompt)
             react = _build_react_agent(self.llm, tools, runtime_system_prompt)
 
+            logger.info("▶️  Agent run_id=%s agent=%s tools=%s prompt=%s",
+                        run_id, agent_id, validated_tool_names, user_message[:120])
+            t0 = perf_counter()
+
             result = await react.ainvoke(
                 {"messages": [("user", user_message)]},
-                config={"recursion_limit": self._recursion_limit},
+                config={
+                    "recursion_limit": self._recursion_limit,
+                    "callbacks": [_make_tool_logging_callback()],
+                },
             )
+
+            total_ms = int((perf_counter() - t0) * 1000)
 
             final_msg = result["messages"][-1]
             output = final_msg.content if hasattr(final_msg, "content") else str(final_msg)
@@ -397,6 +443,9 @@ class WorkbenchService:
                         name = tc.get("name", "") if isinstance(tc, dict) else getattr(tc, "name", "")
                         if name:
                             tools_used.append(name)
+
+            logger.info("⏹️  Agent done run_id=%s total_ms=%s tools_used=%s messages=%d",
+                        run_id, total_ms, tools_used, len(result["messages"]))
 
             # -- Persist completion --
             with Session(self._engine) as session:
