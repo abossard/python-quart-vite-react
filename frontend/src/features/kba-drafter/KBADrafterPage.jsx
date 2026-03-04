@@ -203,6 +203,8 @@ export default function KBADrafterPage() {
   const [replaceDialogOpen, setReplaceDialogOpen] = useState(false);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [draftToDelete, setDraftToDelete] = useState(null);
+  const [unsavedChangesDialogOpen, setUnsavedChangesDialogOpen] = useState(false);
+  const [pendingAction, setPendingAction] = useState(null);
   
   // Ticket Viewer Dialog State
   const [ticketDialogOpen, setTicketDialogOpen] = useState(false);
@@ -488,6 +490,7 @@ export default function KBADrafterPage() {
       
       setCurrentDraft(updated);
       setEditedDraft(JSON.parse(JSON.stringify(updated)));
+      setEditMode(false);
       setMessage({ type: "success", text: "✓ Änderungen gespeichert" });
     } catch (error) {
       setMessage({ type: "error", text: "✗ Fehler beim Speichern: " + error.message });
@@ -499,10 +502,8 @@ export default function KBADrafterPage() {
   // Handler: Toggle Edit Mode
   const toggleEditMode = () => {
     if (editMode && hasPendingChanges) {
-      if (window.confirm("Nicht gespeicherte Änderungen verwerfen?")) {
-        setEditedDraft(JSON.parse(JSON.stringify(currentDraft)));
-        setEditMode(false);
-      }
+      setPendingAction('toggleEdit');
+      setUnsavedChangesDialogOpen(true);
     } else {
       setEditMode(!editMode);
       if (!editMode) {
@@ -618,9 +619,9 @@ export default function KBADrafterPage() {
   // Handler: Load Draft from List
   const loadDraft = async (draftId) => {
     if (hasPendingChanges) {
-      if (!window.confirm("Nicht gespeicherte Änderungen verwerfen?")) {
-        return;
-      }
+      setPendingAction({ type: 'loadDraft', draftId });
+      setUnsavedChangesDialogOpen(true);
+      return;
     }
 
     try {
@@ -667,13 +668,44 @@ export default function KBADrafterPage() {
   // Handler: Close Draft
   const handleClose = () => {
     if (hasPendingChanges) {
-      if (!window.confirm("Nicht gespeicherte Änderungen verwerfen?")) {
-        return;
-      }
+      setPendingAction('closeDraft');
+      setUnsavedChangesDialogOpen(true);
+      return;
     }
     setCurrentDraft(null);
     setEditedDraft(null);
     setEditMode(false);
+  };
+
+  // Handler: Discard Unsaved Changes
+  const handleDiscardChanges = async () => {
+    setUnsavedChangesDialogOpen(false);
+
+    if (pendingAction === 'toggleEdit') {
+      setEditedDraft(JSON.parse(JSON.stringify(currentDraft)));
+      setEditMode(false);
+    } else if (pendingAction === 'closeDraft') {
+      setCurrentDraft(null);
+      setEditedDraft(null);
+      setEditMode(false);
+    } else if (pendingAction?.type === 'loadDraft') {
+      try {
+        const draft = await api.getKBADraft(pendingAction.draftId);
+        setCurrentDraft(draft);
+        setEditedDraft(JSON.parse(JSON.stringify(draft)));
+        setEditMode(false);
+      } catch (error) {
+        setMessage({ type: "error", text: "Fehler beim Laden des Entwurfs" });
+      }
+    }
+
+    setPendingAction(null);
+  };
+
+  // Handler: Cancel Discard
+  const handleCancelDiscard = () => {
+    setUnsavedChangesDialogOpen(false);
+    setPendingAction(null);
   };
 
   // Handler: View Ticket
@@ -785,57 +817,77 @@ export default function KBADrafterPage() {
 
       {/* Current Draft Editor/Viewer */}
       {displayDraft && (
-        <Card className={styles.draftCard}>
+        <Card className={styles.draftCard} style={{ position: "relative" }}>
+          {/* Close Button - Top Right Corner */}
+          <Button
+            appearance="subtle"
+            icon={<Dismiss24Regular />}
+            onClick={handleClose}
+            disabled={loading || saving}
+            size="small"
+            style={{ 
+              position: "absolute",
+              top: "16px",
+              right: "16px",
+              zIndex: 10,
+              minWidth: "32px",
+              padding: "6px"
+            }}
+            title="Schließen"
+          />
+          
           <CardHeader
             header={
               <div className={styles.draftHeader}>
-                <div>
-                  <strong>KBA-Entwurf</strong>
-                  {hasPendingChanges && (
-                    <span className={styles.pendingIndicator}> • Nicht gespeichert</span>
-                  )}
-                </div>
-                <div style={{ display: "flex", gap: tokens.spacingHorizontalS, alignItems: "center", marginLeft: tokens.spacingHorizontalL }}>
-                  <Badge
-                    appearance="filled"
-                    color={getStatusBadgeColor(displayDraft.status)}
-                  >
-                    {displayDraft.status}
-                  </Badge>
-                  {displayDraft.is_auto_generated && (
-                    <Badge 
-                      appearance="tint" 
-                      color="informative"
-                      style={{ fontSize: "11px" }}
+                <div style={{ display: "flex", alignItems: "center", gap: tokens.spacingHorizontalL, flex: 1 }}>
+                  <div>
+                    <strong>KBA-Entwurf</strong>
+                    {hasPendingChanges && (
+                      <span className={styles.pendingIndicator}> • Nicht gespeichert</span>
+                    )}
+                  </div>
+                  <div style={{ display: "flex", gap: tokens.spacingHorizontalS, alignItems: "center" }}>
+                    <Badge
+                      appearance="filled"
+                      color={getStatusBadgeColor(displayDraft.status)}
                     >
-                      🤖 AutoGen
+                      {displayDraft.status}
                     </Badge>
-                  )}
-                  {displayDraft.incident_id && (
-                    <Badge appearance="outline" className={styles.statusBadge}>
-                      {displayDraft.incident_id}
-                    </Badge>
-                  )}
-                  {displayDraft.incident_id && (
-                    <Button
-                      appearance="subtle"
-                      icon={<DocumentSearch20Regular />}
-                      onClick={handleViewTicket}
-                      size="small"
-                    >
-                      Ticket
-                    </Button>
-                  )}
-                  {displayDraft.status === "draft" && (
-                    <Button
-                      appearance="subtle"
-                      icon={editMode ? <Eye24Regular /> : <Edit24Regular />}
-                      onClick={toggleEditMode}
-                      size="small"
-                    >
-                      {editMode ? "Vorschau" : "Bearbeiten"}
-                    </Button>
-                  )}
+                    {displayDraft.is_auto_generated && (
+                      <Badge 
+                        appearance="tint" 
+                        color="informative"
+                        style={{ fontSize: "11px" }}
+                      >
+                        🤖 AutoGen
+                      </Badge>
+                    )}
+                    {displayDraft.incident_id && (
+                      <Badge appearance="outline" className={styles.statusBadge}>
+                        {displayDraft.incident_id}
+                      </Badge>
+                    )}
+                    {displayDraft.incident_id && (
+                      <Button
+                        appearance="subtle"
+                        icon={<DocumentSearch20Regular />}
+                        onClick={handleViewTicket}
+                        size="small"
+                      >
+                        Ticket
+                      </Button>
+                    )}
+                    {displayDraft.status === "draft" && (
+                      <Button
+                        appearance="subtle"
+                        icon={editMode ? <Eye24Regular /> : <Edit24Regular />}
+                        onClick={toggleEditMode}
+                        size="small"
+                      >
+                        {editMode ? "Vorschau" : "Bearbeiten"}
+                      </Button>
+                    )}
+                  </div>
                 </div>
               </div>
             }
@@ -1520,6 +1572,18 @@ export default function KBADrafterPage() {
           </DialogActions>
         </DialogSurface>
       </Dialog>
+
+      {/* Unsaved Changes Dialog */}
+      <ConfirmDialog
+        open={unsavedChangesDialogOpen}
+        title="Nicht gespeicherte Änderungen"
+        message="Sie haben nicht gespeicherte Änderungen. Möchten Sie diese verwerfen?"
+        confirmText="Änderungen verwerfen"
+        cancelText="Abbrechen"
+        intent="warning"
+        onConfirm={handleDiscardChanges}
+        onCancel={handleCancelDiscard}
+      />
     </div>
   );
 }
