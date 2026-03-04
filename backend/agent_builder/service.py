@@ -133,8 +133,8 @@ class WorkbenchService:
         """
         Ask the LLM to propose a JSON Schema for the agent's output.
 
-        Uses the agent's name, description, and system prompt to infer
-        what structured data the agent should return.
+        Provides full context about available data, tools, and UI widgets
+        so the LLM can make informed schema suggestions.
         """
         context_parts = []
         if name:
@@ -143,24 +143,67 @@ class WorkbenchService:
             context_parts.append(f"Description: {description}")
         if system_prompt:
             context_parts.append(f"System prompt: {system_prompt}")
-        context = "\n".join(context_parts)
+        agent_context = "\n".join(context_parts)
+
+        # Gather available tool descriptions for context
+        tool_descriptions = "\n".join(
+            f"  - {t['name']}: {t['description'][:150]}"
+            for t in self.list_tools()
+        )
 
         suggest_prompt = (
-            "You are a JSON Schema designer. Given the following agent definition, "
-            "propose a JSON Schema for the agent's output. The schema should capture "
-            "the key data fields the agent would return.\n\n"
-            f"{context}\n\n"
-            "Respond with ONLY a valid JSON Schema object (no markdown, no explanation). "
-            "The schema must have \"type\": \"object\" at the root with a \"properties\" key. "
-            "Use descriptive property names and appropriate types (string, number, integer, boolean, array, object). "
-            "Include a \"description\" for each property.\n\n"
-            "For each property, add an \"x-ui\" annotation with a \"widget\" field. "
-            "Available widgets: \"markdown\" (for text/analysis), \"table\" (for array of objects — "
-            "add \"columns\" listing the column names), \"badge-list\" (for array of strings like IDs), "
-            "\"stat-card\" (for a single number — add \"label\"), \"bar-chart\" (for categorical data — "
-            "add \"indexBy\" and \"keys\"), \"pie-chart\" (for proportional data), \"json\" (for raw objects), "
-            "\"hidden\" (for internal fields).\n\n"
-            "Always include a \"message\" property with widget \"markdown\" for the main response text."
+            "You are a JSON Schema designer for an AI agent output format.\n\n"
+            "## Agent Definition\n"
+            f"{agent_context}\n\n"
+            "## Data Domain\n"
+            "The agent works with IT support/helpdesk ticket data (BMC Remedy/ITSM export). "
+            "Each ticket has these fields:\n"
+            "  - incident_id (string, e.g. 'INC000016349327')\n"
+            "  - summary (string, short description of the issue)\n"
+            "  - status (enum: new, assigned, in_progress, pending, resolved, closed, cancelled)\n"
+            "  - priority (enum: critical, high, medium, low)\n"
+            "  - assignee (string or null, person assigned)\n"
+            "  - assigned_group (string, e.g. 'WOS - Workplace & Software')\n"
+            "  - requester_name (string, who reported it)\n"
+            "  - city (string, e.g. 'Bern', 'Zollikofen', 'Ittigen')\n"
+            "  - created_at / updated_at (datetime)\n"
+            "  - notes, resolution, description (longer text fields)\n"
+            "  - operational_category_1/2/3 (categorization tiers)\n\n"
+            "## Available Tools\n"
+            f"{tool_descriptions}\n\n"
+            "## UI Widget System\n"
+            "Each property MUST have an 'x-ui' annotation with a 'widget' field. "
+            "The frontend renders each property using the specified widget:\n\n"
+            "  'markdown' — Renders text as GitHub-flavored Markdown (headings, tables, bold, lists).\n"
+            "    Use for: analysis text, recommendations, summaries, explanations.\n\n"
+            "  'table' — Renders array of objects as an HTML table.\n"
+            "    Use for: ticket lists, comparison data, multi-row results.\n"
+            "    Options: {\"columns\": [\"col1\", \"col2\"]} to control visible columns and order.\n"
+            "    The array items must be objects with consistent keys.\n\n"
+            "  'badge-list' — Renders array of strings as monospace badge chips.\n"
+            "    Use for: ticket IDs, tags, categories, short labels.\n\n"
+            "  'stat-card' — Renders a single number as a large prominent card.\n"
+            "    Use for: totals, counts, percentages, KPIs.\n"
+            "    Options: {\"label\": \"Total Tickets\"} for the display label.\n\n"
+            "  'bar-chart' — Renders array of objects as a Nivo bar chart.\n"
+            "    Use for: counts by category (status, priority, city, group).\n"
+            "    Options: {\"indexBy\": \"category_key\", \"keys\": [\"value_key\"]}.\n"
+            "    Data must be array of objects like [{\"status\": \"open\", \"count\": 42}, ...].\n\n"
+            "  'pie-chart' — Renders object or array as a Nivo pie chart.\n"
+            "    Use for: proportional breakdowns (status distribution, priority split).\n"
+            "    Can accept {\"open\": 42, \"closed\": 18} or [{\"id\": \"open\", \"value\": 42}].\n\n"
+            "  'json' — Renders as formatted JSON in a code block.\n"
+            "    Use for: raw data, debug output, complex nested structures.\n\n"
+            "  'hidden' — Not rendered in the UI.\n"
+            "    Use for: internal metadata, IDs used for linking but not display.\n\n"
+            "## Rules\n"
+            "1. Always include a 'message' property (type string, widget 'markdown') for the main response.\n"
+            "2. Always include 'referenced_tickets' (type array of strings, widget 'badge-list') listing ticket IDs looked at.\n"
+            "3. Add additional properties based on what the agent would logically produce.\n"
+            "4. Use descriptive property names (snake_case) and include 'description' for each.\n"
+            "5. Match widget to data shape: numbers→stat-card, lists of tickets→table, distributions→pie/bar-chart.\n"
+            "6. For table widgets, define 'columns' matching the object keys in the array items.\n\n"
+            "Respond with ONLY a valid JSON object (no markdown fences, no explanation)."
         )
 
         from langchain_core.messages import HumanMessage
