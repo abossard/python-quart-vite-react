@@ -42,16 +42,24 @@ class AgentDefinition(SQLModel, table=True):
         description="LLM temperature (0.0 = deterministic, 1.0 = creative)",
     )
     recursion_limit: int = SField(
-        default=10,
+        default=3,
         description="Max ReAct loop iterations before stopping",
     )
     max_tokens: int = SField(
-        default=0,
-        description="Max LLM response tokens (0 = unlimited)",
+        default=4096,
+        description="Max LLM response tokens",
     )
     output_instructions: str = SField(
         default="",
         description="Custom output format instructions (empty = default markdown)",
+    )
+    # Structured output schema — JSON Schema stored as JSON string.
+    # When set, the LLM is constrained to produce output matching this schema.
+    # Example: {"type":"object","properties":{"breaches":{"type":"array","items":{"type":"object","properties":{"ticket_id":{"type":"string"},"breach_reason":{"type":"string"}}}}}}
+    output_schema_json: str = SField(
+        default="{}",
+        description="JSON Schema for structured output (empty object = no constraint)",
+        sa_column=Column(String, name="output_schema"),
     )
     tool_names_json: str = SField(
         default="[]",
@@ -89,6 +97,27 @@ class AgentDefinition(SQLModel, table=True):
     def success_criteria(self, value: list[SuccessCriteria]) -> None:
         self.success_criteria_json = json.dumps([c.model_dump() for c in value])
 
+    @property
+    def output_schema(self) -> dict[str, Any]:
+        """Parsed JSON Schema for structured output. Empty dict = no constraint."""
+        try:
+            raw = json.loads(self.output_schema_json)
+            if isinstance(raw, dict):
+                return raw
+            return {}
+        except (json.JSONDecodeError, TypeError):
+            return {}
+
+    @output_schema.setter
+    def output_schema(self, value: dict[str, Any]) -> None:
+        self.output_schema_json = json.dumps(value)
+
+    @property
+    def has_output_schema(self) -> bool:
+        """True when a non-empty output schema is configured."""
+        schema = self.output_schema
+        return bool(schema and schema.get("properties"))
+
     def to_dict(self) -> dict[str, Any]:
         return {
             "id": self.id,
@@ -102,6 +131,7 @@ class AgentDefinition(SQLModel, table=True):
             "recursion_limit": self.recursion_limit,
             "max_tokens": self.max_tokens,
             "output_instructions": self.output_instructions,
+            "output_schema": self.output_schema,
             "tool_names": self.tool_names,
             "success_criteria": [c.model_dump() for c in self.success_criteria],
             "created_at": self.created_at.isoformat(),
@@ -117,9 +147,13 @@ class AgentDefinitionCreate(BaseModel):
     required_input_description: str = Field(default="")
     model: str = Field(default="", description="LLM model override (empty = service default)")
     temperature: float = Field(default=0.0, ge=0.0, le=2.0, description="LLM temperature")
-    recursion_limit: int = Field(default=10, ge=1, le=100, description="Max ReAct iterations")
-    max_tokens: int = Field(default=0, ge=0, description="Max response tokens (0 = unlimited)")
+    recursion_limit: int = Field(default=3, ge=1, le=100, description="Max ReAct iterations")
+    max_tokens: int = Field(default=4096, ge=0, description="Max response tokens")
     output_instructions: str = Field(default="", description="Custom output format instructions")
+    output_schema: dict[str, Any] = Field(
+        default_factory=dict,
+        description="JSON Schema for structured output (empty = no constraint)",
+    )
     tool_names: list[str] = Field(default_factory=list)
     success_criteria: list[SuccessCriteria] = Field(default_factory=list)
 
@@ -135,5 +169,6 @@ class AgentDefinitionUpdate(BaseModel):
     recursion_limit: Optional[int] = Field(default=None, ge=1, le=100)
     max_tokens: Optional[int] = Field(default=None, ge=0)
     output_instructions: Optional[str] = Field(default=None)
+    output_schema: Optional[dict[str, Any]] = Field(default=None)
     tool_names: Optional[list[str]] = Field(default=None)
     success_criteria: Optional[list[SuccessCriteria]] = Field(default=None)

@@ -94,9 +94,10 @@ class TestAgentDefinitionCreate:
         data = AgentDefinitionCreate(name="x", system_prompt="y")
         assert data.model == ""
         assert data.temperature == 0.0
-        assert data.recursion_limit == 10
-        assert data.max_tokens == 0
+        assert data.recursion_limit == 3
+        assert data.max_tokens == 4096
         assert data.output_instructions == ""
+        assert data.output_schema == {}
 
     def test_llm_config_custom(self):
         data = AgentDefinitionCreate(
@@ -149,6 +150,40 @@ class TestAgentDefinitionUpdate:
         upd = AgentDefinitionUpdate(name="New Name")
         assert upd.name == "New Name"
         assert upd.system_prompt is None
+
+    def test_update_output_schema(self):
+        upd = AgentDefinitionUpdate(output_schema={"type": "object", "properties": {"count": {"type": "integer"}}})
+        assert upd.output_schema["properties"]["count"]["type"] == "integer"
+
+
+# ---------------------------------------------------------------------------
+# AgentDefinition output_schema property
+# ---------------------------------------------------------------------------
+
+class TestAgentDefinitionOutputSchema:
+    def test_empty_schema(self):
+        agent = AgentDefinition(name="test", system_prompt="x")
+        assert agent.output_schema == {}
+        assert agent.has_output_schema is False
+
+    def test_schema_roundtrip(self):
+        agent = AgentDefinition(name="test", system_prompt="x")
+        schema = {"type": "object", "properties": {"tickets": {"type": "array"}}}
+        agent.output_schema = schema
+        assert agent.output_schema == schema
+        assert agent.has_output_schema is True
+
+    def test_schema_in_to_dict(self):
+        agent = AgentDefinition(name="test", system_prompt="x")
+        schema = {"type": "object", "properties": {"count": {"type": "integer"}}}
+        agent.output_schema = schema
+        d = agent.to_dict()
+        assert d["output_schema"] == schema
+
+    def test_no_properties_not_active(self):
+        agent = AgentDefinition(name="test", system_prompt="x")
+        agent.output_schema = {"type": "object"}
+        assert agent.has_output_schema is False
 
 
 # ---------------------------------------------------------------------------
@@ -206,9 +241,10 @@ class TestAgentDefinitionJsonProperties:
         assert "created_at" in d
         assert d["model"] == ""
         assert d["temperature"] == 0.0
-        assert d["recursion_limit"] == 10
-        assert d["max_tokens"] == 0
+        assert d["recursion_limit"] == 3
+        assert d["max_tokens"] == 4096
         assert d["output_instructions"] == ""
+        assert d["output_schema"] == {}
 
 
 class TestAgentRunJsonProperties:

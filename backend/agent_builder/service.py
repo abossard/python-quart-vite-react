@@ -86,7 +86,7 @@ class WorkbenchService:
         uses_defaults = (
             not agent_model
             and agent_def.temperature == 0.0
-            and agent_def.max_tokens == 0
+            and agent_def.max_tokens == 4096
         )
         if uses_defaults:
             return self.llm
@@ -173,6 +173,7 @@ class WorkbenchService:
             "recursion_limit": agent.recursion_limit,
             "max_tokens": agent.max_tokens,
             "output_instructions": agent.output_instructions,
+            "output_schema": agent.output_schema,
             "tool_names": list(agent.tool_names),
             "success_criteria": [c.model_dump() for c in agent.success_criteria],
             "captured_at": datetime.now().isoformat(),
@@ -243,6 +244,7 @@ class WorkbenchService:
         )
         agent.tool_names = validated_tool_names
         agent.success_criteria = data.success_criteria
+        agent.output_schema = data.output_schema
         return self._repo.create_agent(agent)
 
     def get_agent(self, agent_id: str) -> Optional[AgentDefinition]:
@@ -286,6 +288,8 @@ class WorkbenchService:
             agent.max_tokens = data.max_tokens
         if data.output_instructions is not None:
             agent.output_instructions = data.output_instructions
+        if data.output_schema is not None:
+            agent.output_schema = data.output_schema
         agent.updated_at = datetime.now()
         return self._repo.update_agent(agent)
 
@@ -332,7 +336,9 @@ class WorkbenchService:
         try:
             tools = self._registry.resolve(validated_tool_names)
             runtime_system_prompt = append_output_instructions(
-                agent_def.system_prompt, agent_def.output_instructions,
+                agent_def.system_prompt,
+                agent_def.output_instructions,
+                agent_def.output_schema if agent_def.has_output_schema else None,
             )
 
             # Per-agent LLM: use agent's model/temperature/max_tokens if set, else service defaults

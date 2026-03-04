@@ -5,6 +5,9 @@ Pure calculations for composing system prompts.
 No I/O, no side effects — easily testable.
 """
 
+import json
+from typing import Any
+
 
 DEFAULT_MARKDOWN_INSTRUCTION = (
     "Format your final answer as GitHub-flavored Markdown. "
@@ -13,13 +16,43 @@ DEFAULT_MARKDOWN_INSTRUCTION = (
 )
 
 
-def append_output_instructions(system_prompt: str, output_instructions: str = "") -> str:
+def build_schema_instruction(output_schema: dict[str, Any]) -> str:
+    """
+    Build a prompt instruction from a JSON Schema.
+
+    Tells the LLM exactly what structure to produce. The schema is both
+    human-readable (in the prompt) and machine-enforced (via response_format).
+    """
+    if not output_schema or not output_schema.get("properties"):
+        return ""
+    schema_str = json.dumps(output_schema, indent=2)
+    return (
+        "You MUST respond with valid JSON matching this exact schema:\n"
+        f"```json\n{schema_str}\n```\n"
+        "Do not include any text outside the JSON object."
+    )
+
+
+def append_output_instructions(
+    system_prompt: str,
+    output_instructions: str = "",
+    output_schema: dict[str, Any] | None = None,
+) -> str:
     """Append output formatting instructions to a system prompt.
 
-    If custom output_instructions are provided, use those.
-    Otherwise, fall back to the default markdown instruction.
+    Priority:
+      1. output_schema → generates a strict JSON schema instruction
+      2. output_instructions → custom free-text instruction
+      3. neither → default markdown instruction
     """
-    instruction = output_instructions.strip() if output_instructions else DEFAULT_MARKDOWN_INSTRUCTION
+    schema_instruction = build_schema_instruction(output_schema or {})
+    if schema_instruction:
+        instruction = schema_instruction
+    elif output_instructions and output_instructions.strip():
+        instruction = output_instructions.strip()
+    else:
+        instruction = DEFAULT_MARKDOWN_INSTRUCTION
+
     base = (system_prompt or "").strip()
     if not base:
         return instruction

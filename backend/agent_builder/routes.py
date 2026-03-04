@@ -123,10 +123,10 @@ async def workbench_ui_config():
             "run_list_limit": 50,
             "max_run_list_limit": 500,
             "temperature": 0.0,
-            "recursion_limit": 10,
-            "max_tokens": 0,
+            "recursion_limit": 3,
+            "max_tokens": 4096,
         },
-        "llm_config_fields": ["model", "temperature", "recursion_limit", "max_tokens", "output_instructions"],
+        "llm_config_fields": ["model", "temperature", "recursion_limit", "max_tokens", "output_instructions", "output_schema"],
         "endpoints": endpoints,
     })
 

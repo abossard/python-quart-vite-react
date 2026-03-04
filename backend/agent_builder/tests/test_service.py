@@ -176,7 +176,28 @@ class TestWorkbenchServiceCRUD:
             assert d["temperature"] == 0.3
             assert d["output_instructions"] == "JSON only"
             assert d["model"] == ""
-            assert d["recursion_limit"] == 10
+            assert d["recursion_limit"] == 3
+
+    def test_create_agent_with_output_schema(self):
+        with TemporaryDirectory() as tmp:
+            svc = _make_service(Path(tmp))
+            schema = {
+                "type": "object",
+                "properties": {
+                    "breaches": {"type": "array", "items": {"type": "object", "properties": {"ticket_id": {"type": "string"}}}},
+                    "total": {"type": "integer"},
+                },
+            }
+            agent = svc.create_agent(AgentDefinitionCreate(
+                name="Schema Agent",
+                system_prompt="Analyze SLA",
+                tool_names=["csv_ticket_stats"],
+                output_schema=schema,
+            ))
+            assert agent.has_output_schema is True
+            assert agent.output_schema["properties"]["total"]["type"] == "integer"
+            d = agent.to_dict()
+            assert d["output_schema"]["properties"]["breaches"]["type"] == "array"
 
 
 class TestWorkbenchServiceToolIntrospection:

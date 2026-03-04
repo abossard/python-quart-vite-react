@@ -46,6 +46,22 @@ class TestAppendOutputInstructions:
         result = append_output_instructions("", "Respond in CSV")
         assert result == "Respond in CSV"
 
+    def test_schema_takes_priority_over_instructions(self):
+        schema = {"type": "object", "properties": {"count": {"type": "integer"}}}
+        result = append_output_instructions("Be helpful", "Use markdown", schema)
+        assert "MUST respond with valid JSON" in result
+        assert "count" in result
+        assert "Use markdown" not in result
+
+    def test_schema_without_properties_ignored(self):
+        schema = {"type": "object"}
+        result = append_output_instructions("Be helpful", "", schema)
+        assert "GitHub-flavored Markdown" in result
+
+    def test_empty_schema_ignored(self):
+        result = append_output_instructions("Be helpful", "", {})
+        assert "GitHub-flavored Markdown" in result
+
 
 class TestBuildChatSystemPrompt:
     def test_efficiency_mode_on(self):

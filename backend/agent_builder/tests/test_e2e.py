@@ -255,7 +255,10 @@ class AgentBuilderE2ETests(unittest.IsolatedAsyncioTestCase):
                 config = await resp.get_json()
                 self.assertIn("llm_config_fields", config)
                 self.assertIn("temperature", config["llm_config_fields"])
+                self.assertIn("output_schema", config["llm_config_fields"])
                 self.assertEqual(config["defaults"]["temperature"], 0.0)
+                self.assertEqual(config["defaults"]["recursion_limit"], 3)
+                self.assertEqual(config["defaults"]["max_tokens"], 4096)
 
 
 if __name__ == "__main__":
