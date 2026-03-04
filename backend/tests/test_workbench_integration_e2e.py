@@ -10,7 +10,8 @@ from unittest.mock import patch
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 import app as backend_app_module
-from agent_workbench import WorkbenchService
+from agent_builder import WorkbenchService
+from agent_builder.routes import configure_blueprint
 from workbench_integration import _tool_registry
 
 
@@ -66,20 +67,31 @@ class WorkbenchIntegrationE2ETests(unittest.IsolatedAsyncioTestCase):
         self._tmpdir = TemporaryDirectory()
         self._original_service = backend_app_module.workbench_service
 
-        backend_app_module.workbench_service = WorkbenchService(
+        test_service = WorkbenchService(
             tool_registry=_tool_registry,
             db_path=Path(self._tmpdir.name) / "workbench-e2e.db",
             openai_api_key="test-key",
         )
         # Avoid any real network/model dependency in this end-to-end API flow test.
-        backend_app_module.workbench_service._llm = object()
+        test_service._llm = object()
+
+        backend_app_module.workbench_service = test_service
+        configure_blueprint(
+            workbench_service=test_service,
+            get_operation_fn=backend_app_module.get_operation,
+        )
 
     async def asyncTearDown(self) -> None:
         backend_app_module.workbench_service = self._original_service
+        configure_blueprint(
+            workbench_service=self._original_service,
+            chat_service=getattr(backend_app_module, "chat_service", None),
+            get_operation_fn=backend_app_module.get_operation,
+        )
         self._tmpdir.cleanup()
 
     async def test_create_run_and_evaluate_agent_with_csv_tool(self) -> None:
-        with patch("agent_workbench.service._build_react_agent", new=_fake_build_react_agent):
+        with patch("agent_builder.service.build_react_agent", new=_fake_build_react_agent):
             async with backend_app_module.app.test_app() as test_app:
                 client = test_app.test_client()
 
@@ -151,7 +163,7 @@ class WorkbenchIntegrationE2ETests(unittest.IsolatedAsyncioTestCase):
                 self.assertEqual(evaluate_data["score"], 1.0)
 
     async def test_required_input_agent_run_validation_and_context(self) -> None:
-        with patch("agent_workbench.service._build_react_agent", new=_fake_build_react_agent):
+        with patch("agent_builder.service.build_react_agent", new=_fake_build_react_agent):
             async with backend_app_module.app.test_app() as test_app:
                 client = test_app.test_client()
 
