@@ -374,7 +374,13 @@ export default function WorkbenchPage() {
       const output = typeof run?.output === 'string' ? run.output : ''
       setRunOutput(output || '(no output)')
 
-      const preview = output.replace(/\s+/g, ' ').trim().slice(0, 90)
+      // For button preview, extract message from structured output
+      let previewText = output
+      try {
+        const parsed = JSON.parse(output)
+        if (parsed?.message) previewText = parsed.message
+      } catch { /* raw string is fine */ }
+      const preview = previewText.replace(/\s+/g, ' ').trim().slice(0, 90)
       if (!preview) {
         setRunButtonOutput('completed')
       } else {
@@ -390,6 +396,23 @@ export default function WorkbenchPage() {
       setIsRunningAgent(false)
     }
   }
+
+  /**
+   * Parse structured output: extract message + referenced_tickets from JSON,
+   * or fall back to raw string for non-JSON output.
+   */
+  const parsedOutput = (() => {
+    if (!runOutput) return null
+    try {
+      const parsed = JSON.parse(runOutput)
+      if (typeof parsed === 'object' && parsed !== null) {
+        return parsed
+      }
+    } catch {
+      // Not JSON — raw markdown string
+    }
+    return { message: runOutput }
+  })()
 
   const runButtonLabel = isRunningAgent
     ? (
@@ -634,14 +657,51 @@ export default function WorkbenchPage() {
           </Button>
 
           {runError && <Text data-testid="workbench-run-error">{runError}</Text>}
-          {runOutput && (
-            <Field label="Run output (Markdown)">
-              <div data-testid="workbench-run-output" className={styles.runOutputMarkdown}>
-                <ReactMarkdown remarkPlugins={[remarkGfm]}>
-                  {runOutput}
-                </ReactMarkdown>
-              </div>
-            </Field>
+          {parsedOutput && (
+            <>
+              <Field label="Run output">
+                <div data-testid="workbench-run-output" className={styles.runOutputMarkdown}>
+                  <ReactMarkdown remarkPlugins={[remarkGfm]}>
+                    {parsedOutput.message || '(no message)'}
+                  </ReactMarkdown>
+                </div>
+              </Field>
+              {parsedOutput.referenced_tickets?.length > 0 && (
+                <Field label="Referenced tickets">
+                  <div style={{ display: 'flex', gap: '4px', flexWrap: 'wrap' }}>
+                    {parsedOutput.referenced_tickets.map((t) => (
+                      <span key={t} style={{
+                        background: tokens.colorNeutralBackground3,
+                        padding: '2px 8px',
+                        borderRadius: tokens.borderRadiusMedium,
+                        fontSize: tokens.fontSizeBase200,
+                        fontFamily: 'monospace',
+                      }}>{t}</span>
+                    ))}
+                  </div>
+                </Field>
+              )}
+              {Object.keys(parsedOutput).filter((k) => k !== 'message' && k !== 'referenced_tickets').length > 0 && (
+                <Field label="Structured data">
+                  <pre style={{
+                    background: tokens.colorNeutralBackground3,
+                    padding: tokens.spacingHorizontalM,
+                    borderRadius: tokens.borderRadiusMedium,
+                    fontSize: tokens.fontSizeBase200,
+                    overflow: 'auto',
+                    maxHeight: '200px',
+                  }}>
+                    {JSON.stringify(
+                      Object.fromEntries(
+                        Object.entries(parsedOutput).filter(([k]) => k !== 'message' && k !== 'referenced_tickets')
+                      ),
+                      null,
+                      2
+                    )}
+                  </pre>
+                </Field>
+              )}
+            </>
           )}
         </div>
       </Card>

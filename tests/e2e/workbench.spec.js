@@ -282,7 +282,10 @@ test.describe("Agent Fabric UI", () => {
     await expect(output).toContainText("VPN", { timeout: 10000 });
     await expect(output).toContainText("INC-101");
     await expect(output).toContainText("INC-312");
-    await expect(output).toContainText("referenced_tickets");
+
+    // Referenced tickets rendered as badges (separate from markdown output)
+    await expect(page.getByText("Referenced tickets")).toBeVisible();
+    await expect(page.locator('span').filter({ hasText: 'INC-401' })).toBeVisible();
 
     // Verify button shows completion
     await expect(page.getByTestId("workbench-run-agent-button")).toContainText("Last output:", {
