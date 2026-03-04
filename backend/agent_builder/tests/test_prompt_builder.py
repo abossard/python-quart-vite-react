@@ -2,6 +2,7 @@
 
 from agent_builder.engine.prompt_builder import (
     append_markdown_instruction,
+    append_output_instructions,
     build_chat_system_prompt,
 )
 
@@ -24,6 +25,26 @@ class TestAppendMarkdownInstruction:
     def test_whitespace_only_returns_instruction(self):
         result = append_markdown_instruction("   ")
         assert "GitHub-flavored Markdown" in result
+
+
+class TestAppendOutputInstructions:
+    def test_custom_instructions(self):
+        result = append_output_instructions("Be helpful", "Always respond in JSON")
+        assert result.startswith("Be helpful")
+        assert "Always respond in JSON" in result
+        assert "GitHub-flavored Markdown" not in result
+
+    def test_empty_instructions_uses_default(self):
+        result = append_output_instructions("Be helpful", "")
+        assert "GitHub-flavored Markdown" in result
+
+    def test_none_instructions_uses_default(self):
+        result = append_output_instructions("Be helpful", None)
+        assert "GitHub-flavored Markdown" in result
+
+    def test_empty_prompt_with_custom_instructions(self):
+        result = append_output_instructions("", "Respond in CSV")
+        assert result == "Respond in CSV"
 
 
 class TestBuildChatSystemPrompt:

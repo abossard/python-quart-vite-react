@@ -126,6 +126,58 @@ class TestWorkbenchServiceCRUD:
             assert agent.requires_input is True
             assert agent.required_input_description == "Ticket number"
 
+    def test_create_agent_with_llm_config(self):
+        with TemporaryDirectory() as tmp:
+            svc = _make_service(Path(tmp))
+            agent = svc.create_agent(AgentDefinitionCreate(
+                name="Custom LLM",
+                system_prompt="Be creative",
+                tool_names=["csv_ticket_stats"],
+                model="gpt-4o",
+                temperature=0.8,
+                recursion_limit=20,
+                max_tokens=2048,
+                output_instructions="Respond in bullet points only",
+            ))
+            assert agent.model == "gpt-4o"
+            assert agent.temperature == 0.8
+            assert agent.recursion_limit == 20
+            assert agent.max_tokens == 2048
+            assert agent.output_instructions == "Respond in bullet points only"
+
+    def test_update_agent_llm_config(self):
+        with TemporaryDirectory() as tmp:
+            svc = _make_service(Path(tmp))
+            agent = svc.create_agent(AgentDefinitionCreate(
+                name="Default",
+                system_prompt="x",
+                tool_names=["csv_ticket_stats"],
+            ))
+            assert agent.temperature == 0.0
+            updated = svc.update_agent(agent.id, AgentDefinitionUpdate(
+                temperature=0.5, model="gpt-4o", max_tokens=1000,
+            ))
+            assert updated is not None
+            assert updated.temperature == 0.5
+            assert updated.model == "gpt-4o"
+            assert updated.max_tokens == 1000
+
+    def test_llm_config_in_to_dict(self):
+        with TemporaryDirectory() as tmp:
+            svc = _make_service(Path(tmp))
+            agent = svc.create_agent(AgentDefinitionCreate(
+                name="Dict Test",
+                system_prompt="x",
+                tool_names=["csv_ticket_stats"],
+                temperature=0.3,
+                output_instructions="JSON only",
+            ))
+            d = agent.to_dict()
+            assert d["temperature"] == 0.3
+            assert d["output_instructions"] == "JSON only"
+            assert d["model"] == ""
+            assert d["recursion_limit"] == 10
+
 
 class TestWorkbenchServiceToolIntrospection:
     def test_list_tools(self):

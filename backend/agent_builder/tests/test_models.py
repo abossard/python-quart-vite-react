@@ -90,6 +90,42 @@ class TestAgentDefinitionCreate:
         assert data.requires_input is False
         assert data.success_criteria == []
 
+    def test_llm_config_defaults(self):
+        data = AgentDefinitionCreate(name="x", system_prompt="y")
+        assert data.model == ""
+        assert data.temperature == 0.0
+        assert data.recursion_limit == 10
+        assert data.max_tokens == 0
+        assert data.output_instructions == ""
+
+    def test_llm_config_custom(self):
+        data = AgentDefinitionCreate(
+            name="Custom",
+            system_prompt="y",
+            model="gpt-4o",
+            temperature=0.7,
+            recursion_limit=20,
+            max_tokens=4096,
+            output_instructions="Respond in JSON",
+        )
+        assert data.model == "gpt-4o"
+        assert data.temperature == 0.7
+        assert data.recursion_limit == 20
+        assert data.max_tokens == 4096
+        assert data.output_instructions == "Respond in JSON"
+
+    def test_temperature_validation(self):
+        with pytest.raises(ValidationError):
+            AgentDefinitionCreate(name="x", system_prompt="y", temperature=3.0)
+        with pytest.raises(ValidationError):
+            AgentDefinitionCreate(name="x", system_prompt="y", temperature=-0.1)
+
+    def test_recursion_limit_validation(self):
+        with pytest.raises(ValidationError):
+            AgentDefinitionCreate(name="x", system_prompt="y", recursion_limit=0)
+        with pytest.raises(ValidationError):
+            AgentDefinitionCreate(name="x", system_prompt="y", recursion_limit=101)
+
     def test_rejects_empty_name(self):
         with pytest.raises(ValidationError):
             AgentDefinitionCreate(name="", system_prompt="x")
@@ -105,6 +141,9 @@ class TestAgentDefinitionUpdate:
         assert upd.name is None
         assert upd.system_prompt is None
         assert upd.tool_names is None
+        assert upd.model is None
+        assert upd.temperature is None
+        assert upd.recursion_limit is None
 
     def test_partial_update(self):
         upd = AgentDefinitionUpdate(name="New Name")
@@ -165,6 +204,11 @@ class TestAgentDefinitionJsonProperties:
         assert d["name"] == "test"
         assert d["tool_names"] == ["csv_list_tickets"]
         assert "created_at" in d
+        assert d["model"] == ""
+        assert d["temperature"] == 0.0
+        assert d["recursion_limit"] == 10
+        assert d["max_tokens"] == 0
+        assert d["output_instructions"] == ""
 
 
 class TestAgentRunJsonProperties:

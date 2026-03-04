@@ -26,16 +26,25 @@ class RunResult:
     error: str | None = None
 
 
-def build_llm(model: str, api_key: str, base_url: str = "") -> Any:
-    """Construct a ChatOpenAI instance."""
+def build_llm(
+    model: str,
+    api_key: str,
+    base_url: str = "",
+    temperature: float = 0.0,
+    max_tokens: int = 0,
+) -> Any:
+    """Construct a ChatOpenAI instance with configurable parameters."""
     from langchain_openai import ChatOpenAI
 
-    return ChatOpenAI(
-        model=model,
-        api_key=api_key,
-        base_url=base_url or None,
-        temperature=0.0,
-    )
+    kwargs: dict[str, Any] = {
+        "model": model,
+        "api_key": api_key,
+        "base_url": base_url or None,
+        "temperature": temperature,
+    }
+    if max_tokens > 0:
+        kwargs["max_tokens"] = max_tokens
+    return ChatOpenAI(**kwargs)
 
 
 def build_react_agent(llm: Any, tools: list[Any], system_prompt: str) -> Any:

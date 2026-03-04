@@ -17,7 +17,7 @@ from pathlib import Path
 from time import perf_counter
 from typing import Any, Optional
 
-from .engine.prompt_builder import append_markdown_instruction
+from .engine.prompt_builder import append_output_instructions
 from .engine.react_runner import build_llm, build_react_agent, extract_tools_used, make_tool_logging_callback
 from .evaluator import compute_score
 from .evaluator import evaluate_run as _evaluate_criteria
@@ -79,6 +79,24 @@ class WorkbenchService:
                 )
             self._llm = build_llm(self._model, self._api_key, self._base_url)
         return self._llm
+
+    def _resolve_llm_for_agent(self, agent_def: "AgentDefinition") -> Any:
+        """Build an LLM instance using per-agent overrides or service defaults."""
+        agent_model = agent_def.model.strip() if agent_def.model else ""
+        uses_defaults = (
+            not agent_model
+            and agent_def.temperature == 0.0
+            and agent_def.max_tokens == 0
+        )
+        if uses_defaults:
+            return self.llm
+        return build_llm(
+            model=agent_model or self._model,
+            api_key=self._api_key,
+            base_url=self._base_url,
+            temperature=agent_def.temperature,
+            max_tokens=agent_def.max_tokens,
+        )
 
     # ------------------------------------------------------------------
     # Tool introspection
@@ -150,6 +168,11 @@ class WorkbenchService:
             "system_prompt": agent.system_prompt,
             "requires_input": agent.requires_input,
             "required_input_description": agent.required_input_description,
+            "model": agent.model,
+            "temperature": agent.temperature,
+            "recursion_limit": agent.recursion_limit,
+            "max_tokens": agent.max_tokens,
+            "output_instructions": agent.output_instructions,
             "tool_names": list(agent.tool_names),
             "success_criteria": [c.model_dump() for c in agent.success_criteria],
             "captured_at": datetime.now().isoformat(),
@@ -212,6 +235,11 @@ class WorkbenchService:
             system_prompt=data.system_prompt,
             requires_input=requires_input,
             required_input_description=required_input_description,
+            model=data.model,
+            temperature=data.temperature,
+            recursion_limit=data.recursion_limit,
+            max_tokens=data.max_tokens,
+            output_instructions=data.output_instructions,
         )
         agent.tool_names = validated_tool_names
         agent.success_criteria = data.success_criteria
@@ -248,6 +276,16 @@ class WorkbenchService:
             agent.tool_names = self._validate_tool_names(data.tool_names)
         if data.success_criteria is not None:
             agent.success_criteria = data.success_criteria
+        if data.model is not None:
+            agent.model = data.model
+        if data.temperature is not None:
+            agent.temperature = data.temperature
+        if data.recursion_limit is not None:
+            agent.recursion_limit = data.recursion_limit
+        if data.max_tokens is not None:
+            agent.max_tokens = data.max_tokens
+        if data.output_instructions is not None:
+            agent.output_instructions = data.output_instructions
         agent.updated_at = datetime.now()
         return self._repo.update_agent(agent)
 
@@ -293,19 +331,27 @@ class WorkbenchService:
 
         try:
             tools = self._registry.resolve(validated_tool_names)
-            runtime_system_prompt = append_markdown_instruction(agent_def.system_prompt)
-            react = build_react_agent(self.llm, tools, runtime_system_prompt)
+            runtime_system_prompt = append_output_instructions(
+                agent_def.system_prompt, agent_def.output_instructions,
+            )
+
+            # Per-agent LLM: use agent's model/temperature/max_tokens if set, else service defaults
+            run_llm = self._resolve_llm_for_agent(agent_def)
+            react = build_react_agent(run_llm, tools, runtime_system_prompt)
+
+            run_recursion_limit = agent_def.recursion_limit or self._recursion_limit
 
             logger.info(
-                "▶️  Agent run_id=%s agent=%s tools=%s prompt=%s",
-                run_id, agent_id, validated_tool_names, user_message[:120],
+                "▶️  Agent run_id=%s agent=%s model=%s temp=%s tools=%s prompt=%s",
+                run_id, agent_id, agent_def.model or self._model,
+                agent_def.temperature, validated_tool_names, user_message[:120],
             )
             t0 = perf_counter()
 
             result = await react.ainvoke(
                 {"messages": [("user", user_message)]},
                 config={
-                    "recursion_limit": self._recursion_limit,
+                    "recursion_limit": run_recursion_limit,
                     "callbacks": [make_tool_logging_callback()],
                 },
             )

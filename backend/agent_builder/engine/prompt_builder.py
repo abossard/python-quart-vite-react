@@ -6,17 +6,29 @@ No I/O, no side effects — easily testable.
 """
 
 
-def append_markdown_instruction(system_prompt: str) -> str:
-    """Append a markdown formatting instruction to a system prompt."""
-    instruction = (
-        "Format your final answer as GitHub-flavored Markdown. "
-        "Use headings, bullet lists, and tables when helpful. "
-        "Do not wrap the entire response in a code block."
-    )
+DEFAULT_MARKDOWN_INSTRUCTION = (
+    "Format your final answer as GitHub-flavored Markdown. "
+    "Use headings, bullet lists, and tables when helpful. "
+    "Do not wrap the entire response in a code block."
+)
+
+
+def append_output_instructions(system_prompt: str, output_instructions: str = "") -> str:
+    """Append output formatting instructions to a system prompt.
+
+    If custom output_instructions are provided, use those.
+    Otherwise, fall back to the default markdown instruction.
+    """
+    instruction = output_instructions.strip() if output_instructions else DEFAULT_MARKDOWN_INSTRUCTION
     base = (system_prompt or "").strip()
     if not base:
         return instruction
     return f"{base}\n\n{instruction}"
+
+
+def append_markdown_instruction(system_prompt: str) -> str:
+    """Append default markdown formatting instruction to a system prompt."""
+    return append_output_instructions(system_prompt, "")
 
 
 def build_chat_system_prompt(*, efficiency_mode: bool = True) -> str:

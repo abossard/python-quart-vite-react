@@ -23,7 +23,12 @@ def _run_migrations(engine) -> None:
     _ensure_column(engine, "workbench_agent_definitions", "requires_input", "BOOLEAN NOT NULL DEFAULT 0")
     _ensure_column(engine, "workbench_agent_definitions", "required_input_description", "TEXT NOT NULL DEFAULT ''")
     _ensure_column(engine, "workbench_agent_runs", "agent_snapshot", "TEXT NOT NULL DEFAULT '{}'")
-
+    # LLM configuration columns (added for per-agent overrides)
+    _ensure_column(engine, "workbench_agent_definitions", "model", "TEXT NOT NULL DEFAULT ''")
+    _ensure_column(engine, "workbench_agent_definitions", "temperature", "REAL NOT NULL DEFAULT 0.0")
+    _ensure_column(engine, "workbench_agent_definitions", "recursion_limit", "INTEGER NOT NULL DEFAULT 10")
+    _ensure_column(engine, "workbench_agent_definitions", "max_tokens", "INTEGER NOT NULL DEFAULT 0")
+    _ensure_column(engine, "workbench_agent_definitions", "output_instructions", "TEXT NOT NULL DEFAULT ''")
 
 def _ensure_column(engine, table_name: str, column_name: str, column_ddl: str) -> None:
     with Session(engine) as session:

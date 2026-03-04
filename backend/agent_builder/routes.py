@@ -116,10 +116,17 @@ async def workbench_ui_config():
 
     return jsonify({
         "module": "agent_fabric",
-        "version": "1",
+        "version": "2",
         "criteria_types": [c.value for c in CriteriaType],
         "run_statuses": [s.value for s in RunStatus],
-        "defaults": {"run_list_limit": 50, "max_run_list_limit": 500},
+        "defaults": {
+            "run_list_limit": 50,
+            "max_run_list_limit": 500,
+            "temperature": 0.0,
+            "recursion_limit": 10,
+            "max_tokens": 0,
+        },
+        "llm_config_fields": ["model", "temperature", "recursion_limit", "max_tokens", "output_instructions"],
         "endpoints": endpoints,
     })
 

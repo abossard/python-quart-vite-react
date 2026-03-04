@@ -195,5 +195,68 @@ class AgentBuilderE2ETests(unittest.IsolatedAsyncioTestCase):
                 self.assertIn("INC-12345", run_data["output"] or "")
 
 
+    async def test_llm_config_roundtrip(self) -> None:
+        """Config fields are persisted and returned in API responses."""
+        with patch("agent_builder.service.build_react_agent", new=_fake_build_react_agent):
+            async with backend_app_module.app.test_app() as test_app:
+                client = test_app.test_client()
+
+                # Create with config
+                resp = await client.post("/api/workbench/agents", json={
+                    "name": "Configured Agent",
+                    "system_prompt": "Use CSV tools.",
+                    "tool_names": ["csv_ticket_stats"],
+                    "model": "gpt-4o",
+                    "temperature": 0.7,
+                    "recursion_limit": 25,
+                    "max_tokens": 4096,
+                    "output_instructions": "Respond in JSON only",
+                })
+                data = await resp.get_json()
+                self.assertEqual(resp.status_code, 201, data)
+                self.assertEqual(data["model"], "gpt-4o")
+                self.assertEqual(data["temperature"], 0.7)
+                self.assertEqual(data["recursion_limit"], 25)
+                self.assertEqual(data["max_tokens"], 4096)
+                self.assertEqual(data["output_instructions"], "Respond in JSON only")
+                agent_id = data["id"]
+
+                # GET returns config
+                resp = await client.get(f"/api/workbench/agents/{agent_id}")
+                data = await resp.get_json()
+                self.assertEqual(data["temperature"], 0.7)
+                self.assertEqual(data["model"], "gpt-4o")
+
+                # Update config
+                resp = await client.put(f"/api/workbench/agents/{agent_id}", json={
+                    "temperature": 0.2,
+                    "max_tokens": 1000,
+                })
+                data = await resp.get_json()
+                self.assertEqual(resp.status_code, 200, data)
+                self.assertEqual(data["temperature"], 0.2)
+                self.assertEqual(data["max_tokens"], 1000)
+                self.assertEqual(data["model"], "gpt-4o")  # unchanged
+
+                # Config captured in run snapshot
+                resp = await client.post(
+                    f"/api/workbench/agents/{agent_id}/runs",
+                    json={"input_prompt": "test"},
+                )
+                run_data = await resp.get_json()
+                self.assertEqual(resp.status_code, 200, run_data)
+                snapshot = run_data["agent_snapshot"]
+                self.assertEqual(snapshot["model"], "gpt-4o")
+                self.assertEqual(snapshot["temperature"], 0.2)
+                self.assertEqual(snapshot["recursion_limit"], 25)
+
+                # UI config exposes new defaults
+                resp = await client.get("/api/workbench/ui-config")
+                config = await resp.get_json()
+                self.assertIn("llm_config_fields", config)
+                self.assertIn("temperature", config["llm_config_fields"])
+                self.assertEqual(config["defaults"]["temperature"], 0.0)
+
+
 if __name__ == "__main__":
     unittest.main()
