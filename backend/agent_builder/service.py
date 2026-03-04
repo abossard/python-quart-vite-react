@@ -153,7 +153,14 @@ class WorkbenchService:
             "Respond with ONLY a valid JSON Schema object (no markdown, no explanation). "
             "The schema must have \"type\": \"object\" at the root with a \"properties\" key. "
             "Use descriptive property names and appropriate types (string, number, integer, boolean, array, object). "
-            "Include a \"description\" for each property."
+            "Include a \"description\" for each property.\n\n"
+            "For each property, add an \"x-ui\" annotation with a \"widget\" field. "
+            "Available widgets: \"markdown\" (for text/analysis), \"table\" (for array of objects — "
+            "add \"columns\" listing the column names), \"badge-list\" (for array of strings like IDs), "
+            "\"stat-card\" (for a single number — add \"label\"), \"bar-chart\" (for categorical data — "
+            "add \"indexBy\" and \"keys\"), \"pie-chart\" (for proportional data), \"json\" (for raw objects), "
+            "\"hidden\" (for internal fields).\n\n"
+            "Always include a \"message\" property with widget \"markdown\" for the main response text."
         )
 
         from langchain_core.messages import HumanMessage

@@ -17,11 +17,13 @@ DEFAULT_OUTPUT_SCHEMA: dict[str, Any] = {
         "message": {
             "type": "string",
             "description": "The agent's response formatted as GitHub-flavored Markdown.",
+            "x-ui": {"widget": "markdown"},
         },
         "referenced_tickets": {
             "type": "array",
             "items": {"type": "string"},
             "description": "List of ticket IDs the agent looked at or referenced.",
+            "x-ui": {"widget": "badge-list"},
         },
     },
     "required": ["message", "referenced_tickets"],

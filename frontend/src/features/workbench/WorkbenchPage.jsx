@@ -13,8 +13,6 @@ import {
   tokens,
 } from '@fluentui/react-components'
 import { useEffect, useState } from 'react'
-import ReactMarkdown from 'react-markdown'
-import remarkGfm from 'remark-gfm'
 import {
   createWorkbenchAgent,
   deleteWorkbenchAgent,
@@ -24,6 +22,8 @@ import {
   runWorkbenchAgent,
   suggestOutputSchema,
 } from '../../services/api'
+import SchemaEditor from './SchemaEditor'
+import SchemaRenderer from './SchemaRenderer'
 
 const useStyles = makeStyles({
   container: {
@@ -85,47 +85,13 @@ const useStyles = makeStyles({
     backgroundColor: tokens.colorNeutralBackground1,
     color: tokens.colorNeutralForeground1,
   },
-  runOutputMarkdown: {
+  runOutputContainer: {
     border: `1px solid ${tokens.colorNeutralStroke1}`,
     borderRadius: tokens.borderRadiusMedium,
     padding: `${tokens.spacingVerticalS} ${tokens.spacingHorizontalM}`,
     backgroundColor: tokens.colorNeutralBackground1,
-    maxHeight: '320px',
+    maxHeight: '400px',
     overflowY: 'auto',
-    '& h1, & h2, & h3': {
-      margin: `${tokens.spacingVerticalXS} 0`,
-      fontWeight: tokens.fontWeightSemibold,
-    },
-    '& ul, & ol': {
-      margin: `${tokens.spacingVerticalXS} 0`,
-      paddingLeft: tokens.spacingHorizontalL,
-    },
-    '& table': {
-      width: '100%',
-      borderCollapse: 'collapse',
-      marginTop: tokens.spacingVerticalXS,
-    },
-    '& th, & td': {
-      border: `1px solid ${tokens.colorNeutralStroke1}`,
-      padding: tokens.spacingHorizontalXS,
-      textAlign: 'left',
-    },
-    '& pre': {
-      backgroundColor: tokens.colorNeutralBackground3,
-      padding: tokens.spacingHorizontalM,
-      borderRadius: tokens.borderRadiusSmall,
-      overflowX: 'auto',
-    },
-    '& code': {
-      fontFamily: 'monospace',
-      backgroundColor: tokens.colorNeutralBackground3,
-      padding: '0 4px',
-      borderRadius: tokens.borderRadiusSmall,
-    },
-    '& a': {
-      color: tokens.colorBrandForegroundLink,
-      textDecoration: 'underline',
-    },
   },
 })
 
@@ -520,15 +486,10 @@ export default function WorkbenchPage() {
               />
             </Field>
             {fieldErrors.systemPrompt && <Text>{fieldErrors.systemPrompt}</Text>}
-            <Field label="Output schema" hint="JSON Schema for structured output (optional — default is markdown)">
-              <Textarea
-                data-testid="workbench-agent-output-schema"
-                resize="vertical"
-                rows={4}
+            <Field label="Output schema" hint="Define the structured output format with display widgets">
+              <SchemaEditor
                 value={outputSchema}
-                onChange={(_, data) => setOutputSchema(data.value)}
-                placeholder='{"type":"object","properties":{"result":{"type":"string"}}}'
-                style={{ fontFamily: 'monospace', fontSize: '12px' }}
+                onChange={setOutputSchema}
               />
             </Field>
             <Button
@@ -658,50 +619,14 @@ export default function WorkbenchPage() {
 
           {runError && <Text data-testid="workbench-run-error">{runError}</Text>}
           {parsedOutput && (
-            <>
-              <Field label="Run output">
-                <div data-testid="workbench-run-output" className={styles.runOutputMarkdown}>
-                  <ReactMarkdown remarkPlugins={[remarkGfm]}>
-                    {parsedOutput.message || '(no message)'}
-                  </ReactMarkdown>
-                </div>
-              </Field>
-              {parsedOutput.referenced_tickets?.length > 0 && (
-                <Field label="Referenced tickets">
-                  <div style={{ display: 'flex', gap: '4px', flexWrap: 'wrap' }}>
-                    {parsedOutput.referenced_tickets.map((t) => (
-                      <span key={t} style={{
-                        background: tokens.colorNeutralBackground3,
-                        padding: '2px 8px',
-                        borderRadius: tokens.borderRadiusMedium,
-                        fontSize: tokens.fontSizeBase200,
-                        fontFamily: 'monospace',
-                      }}>{t}</span>
-                    ))}
-                  </div>
-                </Field>
-              )}
-              {Object.keys(parsedOutput).filter((k) => k !== 'message' && k !== 'referenced_tickets').length > 0 && (
-                <Field label="Structured data">
-                  <pre style={{
-                    background: tokens.colorNeutralBackground3,
-                    padding: tokens.spacingHorizontalM,
-                    borderRadius: tokens.borderRadiusMedium,
-                    fontSize: tokens.fontSizeBase200,
-                    overflow: 'auto',
-                    maxHeight: '200px',
-                  }}>
-                    {JSON.stringify(
-                      Object.fromEntries(
-                        Object.entries(parsedOutput).filter(([k]) => k !== 'message' && k !== 'referenced_tickets')
-                      ),
-                      null,
-                      2
-                    )}
-                  </pre>
-                </Field>
-              )}
-            </>
+            <Field label="Run output">
+              <div data-testid="workbench-run-output" className={styles.runOutputContainer}>
+                <SchemaRenderer
+                  data={parsedOutput}
+                  schema={selectedRunAgent?.output_schema?.properties ? selectedRunAgent.output_schema : undefined}
+                />
+              </div>
+            </Field>
           )}
         </div>
       </Card>

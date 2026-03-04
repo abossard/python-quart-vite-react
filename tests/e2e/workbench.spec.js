@@ -197,9 +197,11 @@ test.describe("Agent Fabric UI", () => {
     await page.getByTestId("workbench-suggest-schema-button").click();
 
     // Wait for schema to appear in the textarea
-    const schemaTextarea = page.getByTestId("workbench-agent-output-schema");
-    await expect(schemaTextarea).toContainText("total", { timeout: 5000 });
-    await expect(schemaTextarea).toContainText("status_breakdown");
+    // Wait for schema editor to populate with properties from suggestion
+    const editor = page.getByTestId("schema-editor");
+    await expect(editor).toBeVisible({ timeout: 5000 });
+    // Properties should appear as input fields in the editor
+    await expect(editor.locator('input[value="total"]')).toBeVisible({ timeout: 5000 });
 
     // Create the agent (schema should be included)
     await page.getByTestId("workbench-create-agent-button").click();
@@ -283,8 +285,8 @@ test.describe("Agent Fabric UI", () => {
     await expect(output).toContainText("INC-101");
     await expect(output).toContainText("INC-312");
 
-    // Referenced tickets rendered as badges (separate from markdown output)
-    await expect(page.getByText("Referenced tickets")).toBeVisible();
+    // Referenced tickets rendered as badges by SchemaRenderer
+    await expect(page.locator('[data-testid="schema-renderer"]')).toBeVisible();
     await expect(page.locator('span').filter({ hasText: 'INC-401' })).toBeVisible();
 
     // Verify button shows completion
@@ -378,5 +380,81 @@ test.describe("Agent Chat UI", () => {
     // Wait for response to render (use heading role to avoid matching user input)
     await expect(page.getByRole("heading", { name: "Ticket Stats" })).toBeVisible({ timeout: 10000 });
     await expect(page.getByText("csv_ticket_stats")).toBeVisible();
+  });
+});
+
+test.describe("SchemaRenderer widgets", () => {
+  test("renders structured output with table, stat-card, and badges", async ({ page }) => {
+    const agentName = `e2e-widgets-${Date.now()}`;
+
+    // Mock run with rich structured output containing multiple widget types
+    await page.route("**/api/workbench/agents/*/runs", async (route) => {
+      await route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify({
+          id: "run-widgets-1",
+          agent_id: "agent-widgets-1",
+          input_prompt: "Analyze VPN connectivity",
+          status: "completed",
+          output: JSON.stringify({
+            message: "## VPN Connectivity Report\n\nAnalyzed 3 VPN-related tickets.",
+            affected_users: [
+              { user: "Alice", issue: "VPN deaktivieren", status: "assigned" },
+              { user: "Bob", issue: "MS-VPN verbindet nicht", status: "in_progress" },
+            ],
+            total_issues: 3,
+            issue_types: ["VPN-001", "VPN-002", "VPN-003"],
+          }, null, 2),
+          agent_snapshot: { tool_names: ["csv_search_tickets"] },
+          tools_used: ["csv_search_tickets"],
+          error: null,
+          created_at: "2026-03-04T10:00:00Z",
+          completed_at: "2026-03-04T10:00:02Z",
+        }),
+      });
+    });
+
+    await page.goto(`${APP_URL}/workbench`, { waitUntil: "load" });
+    await expect(page.getByTestId("workbench-page-title")).toBeVisible();
+
+    // Create agent
+    await page.getByTestId("workbench-agent-name-input").fill(agentName);
+    await page.getByTestId("workbench-agent-system-prompt-input").fill("Analyze VPN issues");
+    await page.getByTestId("workbench-create-agent-button").click();
+
+    const createdRow = page.locator(
+      '[data-testid="workbench-agents-table"] tbody tr',
+      { hasText: agentName }
+    );
+    await expect(createdRow).toBeVisible({ timeout: 10000 });
+
+    // Run agent
+    await page.getByTestId("workbench-run-agent-button").click();
+
+    // Wait for SchemaRenderer to appear
+    const renderer = page.getByTestId("schema-renderer");
+    await expect(renderer).toBeVisible({ timeout: 10000 });
+
+    // Verify markdown widget rendered (message field)
+    await expect(renderer.getByRole("heading", { name: "VPN Connectivity Report" })).toBeVisible();
+
+    // Verify table widget auto-detected (affected_users is array of objects)
+    await expect(renderer.locator("table")).toBeVisible();
+    await expect(renderer.getByText("Alice")).toBeVisible();
+    await expect(renderer.getByText("Bob")).toBeVisible();
+    await expect(renderer.locator("th", { hasText: "user" })).toBeVisible();
+
+    // Verify stat-card auto-detected (total_issues is integer)
+    const statField = renderer.getByTestId("schema-field-total_issues");
+    await expect(statField).toBeVisible();
+    await expect(statField.getByText("3")).toBeVisible();
+
+    // Verify badge-list auto-detected (issue_types is array of strings)
+    await expect(renderer.getByText("VPN-001")).toBeVisible();
+    await expect(renderer.getByText("VPN-003")).toBeVisible();
+
+    // Clean up
+    await createdRow.getByRole("button", { name: "Delete" }).click();
   });
 });
