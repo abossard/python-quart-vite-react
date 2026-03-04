@@ -104,18 +104,18 @@ Gehen Sie den Fall durch und überlegen Sie sich Antworten zu folgenden Fragen:
 
 | Incident ID | Zusammenfassung |
 |-------------|-----------------|
-| INC000016301833 | Drucker Evolis Tattoo |
-| INC000016322757 | Druckerproblem aus dem Edge |
-| INC000016336638 | Etikettendrucker druckt nicht auf ZebraDesigner Pro |
-| INC000016337469 | Gekaufter Drucker mit Service Abo nicht in Betrieb |
-| INC000016340658 | Anzeige erscheint nicht auf zwei Bildschirmen nach Windows-Update |
-| INC000016344511 | Computer: wenn man ihn von der Dockingstation wegnimmt, schläft er ein |
-| INC000016344720 | Status Fehler, aber keine Fehlermeldung auf Drucker |
-| INC000016345027 | G11: Laptop friert ein beim Umschalten von Dockingstation |
-| INC000016346109 | Bildschirme schalten sich regelmässig kurz aus |
-| INC000016233438 | Monitor zeigt immer wieder keine Anzeige trotz eingeschaltetem Zustand |
-| INC000016233455 | Telefonat annehmen über Headset mit Teams nicht möglich |
-| INC000016299360 | G11: Probleme mit Laptop im Ruhezustand und mit Dockingstation |
+| INC...1833 | Drucker Evolis Tattoo |
+| INC...2757 | Druckerproblem aus dem Edge |
+| INC...6638 | Etikettendrucker druckt nicht auf ZebraDesigner Pro |
+| INC...7469 | Gekaufter Drucker mit Service Abo nicht in Betrieb |
+| INC...0658 | Anzeige erscheint nicht auf zwei Bildschirmen nach Windows-Update |
+| INC...4511 | Computer: wenn man ihn von der Dockingstation wegnimmt, schläft er ein |
+| INC...4720 | Status Fehler, aber keine Fehlermeldung auf Drucker |
+| INC...5027 | G11: Laptop friert ein beim Umschalten von Dockingstation |
+| INC...6109 | Bildschirme schalten sich regelmässig kurz aus |
+| INC...3438 | Monitor zeigt immer wieder keine Anzeige trotz eingeschaltetem Zustand |
+| INC...3455 | Telefonat annehmen über Headset mit Teams nicht möglich |
+| INC...9360 | G11: Probleme mit Laptop im Ruhezustand und mit Dockingstation |
 
 ---
 

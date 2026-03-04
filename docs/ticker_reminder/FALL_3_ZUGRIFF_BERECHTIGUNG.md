@@ -17,7 +17,7 @@
 
 | Feld | Wert |
 |------|------|
-| **Incident ID** | INC000016337079 |
+| **Incident ID** | INC00001633XXXX |
 | **Zusammenfassung** | Zugriff auf GitHub gestört |
 | **Priorität** | Medium |
 | **Dringlichkeit** | 3-Medium |
@@ -30,20 +30,20 @@
 
 | Feld | Wert |
 |------|------|
-| **Organisation** | WBF-SECO, Konjunktur |
+| **Organisation** | [Departement], [Abteilung] |
 | **Standort** | Bern |
 | **Gerät** | HP EliteBook 840 G8 |
 | **Service** | BS_GPL Git |
 
 ### Beschreibung (Original)
 
-> Rückruf unter → +41 58 46 59538
+> Rückruf unter → [Telefonnummer]
 >
 > Grund der Ticketeröffnung → GitHub Probleme
 >
 > Thema → Software/Applikation - Sonstiges
 >
-> Beim `git pull` auf `https://github.com/dpkj/tstools.git` erhalte ich
+> Beim `git pull` auf `https://github.com/[organisation]/[repo].git` erhalte ich
 > `schannel: SEC_E_UNTRUSTED_ROOT (0x80090325)`.
 > Das scheint mit dem TLS-Proxy der Bundesverwaltung zusammenzuhängen.
 > Können Sie bitte sicherstellen, dass das Root-Zertifikat des Proxys auf meinem
@@ -54,9 +54,9 @@
 
 | Zeitpunkt | Status | Bearbeiter |
 |-----------|--------|------------|
-| 14.11.2025 14:09 | New | U80839737 |
-| 14.11.2025 14:09 | Assigned | U80839737 |
-| 18.11.2025 08:56 | Pending | U80827226 (Boschung Sandro) |
+| 14.11.2025 14:09 | New | Bearbeiter A |
+| 14.11.2025 14:09 | Assigned | Bearbeiter A |
+| 18.11.2025 08:56 | Pending | Bearbeiter B |
 
 - **Gruppen-Transfers:** 1
 - **Gesamt-Transfers:** 2
@@ -114,17 +114,17 @@ Gehen Sie den Fall durch und überlegen Sie sich Antworten zu folgenden Fragen:
 
 | Incident ID | Zusammenfassung |
 |-------------|-----------------|
-| INC000016322354 | Account gesperrt: wird nach 20 Sek. gesperrt |
-| INC000016285115 | Account gesperrt |
-| INC000016341050 | Smartcard Login: PIN-Abfrage erscheint nicht |
-| INC000016333910 | G11: Windows Login Probleme / hängt sich vermehrt auf |
-| INC000016342088 | RDP-Verbindung wird sofort nach Login geschlossen |
-| INC000016343611 | DRINGEND: Kamera und Desktop Zugriff TÜV Süd |
-| INC000016346926 | Zugriff auf M... |
-| INC000016349483 | Windows-Login hängt und erfordert Neustart |
-| INC000016151058 | DataShure - Zugriff nicht mehr möglich |
-| INC000016314431 | Signieren von PDF Dokumenten nicht möglich |
-| INC000016303514 | Ungültige Signatur im Dokument |
+| INC...2354 | Account gesperrt: wird nach 20 Sek. gesperrt |
+| INC...5115 | Account gesperrt |
+| INC...1050 | Smartcard Login: PIN-Abfrage erscheint nicht |
+| INC...3910 | G11: Windows Login Probleme / hängt sich vermehrt auf |
+| INC...2088 | RDP-Verbindung wird sofort nach Login geschlossen |
+| INC...3611 | DRINGEND: Kamera und Desktop Zugriff TÜV Süd |
+| INC...6926 | Zugriff auf M... |
+| INC...9483 | Windows-Login hängt und erfordert Neustart |
+| INC...1058 | DataShure - Zugriff nicht mehr möglich |
+| INC...4431 | Signieren von PDF Dokumenten nicht möglich |
+| INC...3514 | Ungültige Signatur im Dokument |
 
 ---
 
