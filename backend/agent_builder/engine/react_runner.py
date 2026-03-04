@@ -41,7 +41,6 @@ def build_llm(
         "api_key": api_key,
         "base_url": base_url or None,
         "temperature": temperature,
-        "model_kwargs": {"response_format": {"type": "json_object"}},
     }
     if max_tokens > 0:
         kwargs["max_tokens"] = max_tokens
