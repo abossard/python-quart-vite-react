@@ -459,17 +459,14 @@ class WorkbenchService:
             # Per-agent LLM: use agent's model/temperature/max_tokens if set, else service defaults
             run_llm = self._resolve_llm_for_agent(agent_def)
 
-            # Always use structured output — custom schema or default (message + referenced_tickets)
-            effective_schema = resolve_output_schema(
-                agent_def.output_schema if agent_def.has_output_schema else None
-            )
-            react = build_react_agent(run_llm, tools, runtime_system_prompt, response_format=effective_schema)
+            # Build agent WITHOUT response_format — the prompt already instructs JSON output.
+            # LangGraph's response_format adds an extra LLM call (~5-10s) which doubles latency.
+            # Instead we parse the JSON from the final message ourselves.
+            react = build_react_agent(run_llm, tools, runtime_system_prompt)
 
-            # recursion_limit: agent's setting is "max tool iterations" (user-facing),
-            # but LangGraph counts all graph steps. response_format adds extra steps.
-            # Multiply by 4 for headroom (each tool call = ~2-3 graph steps + structured output step).
+            # recursion_limit: multiply user setting by 3 for graph step overhead
             user_recursion = agent_def.recursion_limit or self._recursion_limit
-            graph_recursion_limit = max(user_recursion * 4, 10)
+            graph_recursion_limit = max(user_recursion * 3, 10)
 
             logger.info(
                 "▶️  Agent run_id=%s agent=%s model=%s temp=%s tools=%s custom_schema=%s prompt=%s",
@@ -489,20 +486,9 @@ class WorkbenchService:
 
             total_ms = int((perf_counter() - t0) * 1000)
 
-            # Always extract structured_response (guaranteed by response_format)
-            structured_response = result.get("structured_response")
-            if structured_response is not None:
-                import json as json_mod
-                if hasattr(structured_response, "model_dump"):
-                    output = json_mod.dumps(structured_response.model_dump(), indent=2, default=str)
-                elif isinstance(structured_response, dict):
-                    output = json_mod.dumps(structured_response, indent=2, default=str)
-                else:
-                    output = str(structured_response)
-            else:
-                # Fallback if provider doesn't support structured output
-                final_msg = result["messages"][-1]
-                output = final_msg.content if hasattr(final_msg, "content") else str(final_msg)
+            # Extract output from final message (prompt-enforced JSON)
+            final_msg = result["messages"][-1]
+            output = final_msg.content if hasattr(final_msg, "content") else str(final_msg)
 
             tools_used = extract_tools_used(result["messages"])
 
