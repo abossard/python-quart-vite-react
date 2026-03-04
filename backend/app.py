@@ -106,6 +106,42 @@ app = cors(app, allow_origin="*")
 
 
 # ============================================================================
+# APPLICATION LIFECYCLE - Scheduler Management
+# ============================================================================
+
+@app.before_serving
+async def startup():
+    """Initialize scheduler on application startup"""
+    from scheduler import start_scheduler
+    import logging
+    
+    logger = logging.getLogger(__name__)
+    logger.info("Starting auto-generation scheduler...")
+    
+    try:
+        start_scheduler()
+        logger.info("Scheduler started successfully")
+    except Exception as e:
+        logger.error(f"Failed to start scheduler: {e}", exc_info=True)
+
+
+@app.after_serving
+async def shutdown():
+    """Cleanup scheduler on application shutdown"""
+    from scheduler import stop_scheduler
+    import logging
+    
+    logger = logging.getLogger(__name__)
+    logger.info("Stopping auto-generation scheduler...")
+    
+    try:
+        stop_scheduler()
+        logger.info("Scheduler stopped successfully")
+    except Exception as e:
+        logger.error(f"Failed to stop scheduler: {e}", exc_info=True)
+
+
+# ============================================================================
 # UTILITY FUNCTIONS
 # ============================================================================
 
@@ -1180,6 +1216,41 @@ async def rest_kba_health():
         "llm_provider": "openai",
         "model": llm.model
     })
+
+
+# ============================================================================
+# KBA AUTO-GENERATION ROUTES
+# ============================================================================
+
+@app.route("/api/kba/auto-gen/settings", methods=["GET"])
+async def rest_kba_get_auto_gen_settings():
+    """REST wrapper: get auto-generation settings."""
+    from operations import op_kba_get_auto_gen_settings
+    result = await op_kba_get_auto_gen_settings()
+    return jsonify(result.model_dump())
+
+
+@app.route("/api/kba/auto-gen/settings", methods=["PATCH"])
+async def rest_kba_update_auto_gen_settings():
+    """REST wrapper: update auto-generation settings."""
+    from operations import op_kba_update_auto_gen_settings
+    from auto_gen_models import AutoGenSettingsUpdate
+    
+    data = await request.get_json()
+    updates = AutoGenSettingsUpdate(**data)
+    result = await op_kba_update_auto_gen_settings(updates)
+    return jsonify(result.model_dump())
+
+
+@app.route("/api/kba/auto-gen/trigger", methods=["POST"])
+async def rest_kba_trigger_auto_gen():
+    """REST wrapper: manually trigger auto-generation."""
+    from operations import op_kba_trigger_auto_gen
+    
+    data = await request.get_json() or {}
+    user_id = data.get("user_id", "manual-trigger")
+    result = await op_kba_trigger_auto_gen(user_id)
+    return jsonify(result.model_dump())
 
 
 # ============================================================================

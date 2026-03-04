@@ -20,7 +20,7 @@ import { Warning24Regular } from "@fluentui/react-icons";
  * @param {string} props.message - Confirmation message
  * @param {string} props.confirmText - Text for confirm button (default: "Bestätigen")
  * @param {string} props.cancelText - Text for cancel button (default: "Abbrechen")
- * @param {string} props.intent - Intent for confirm button: "primary" | "danger" (default: "primary")
+ * @param {string} props.intent - Intent for confirm button: "primary" | "danger" | "warning" (default: "primary")
  * @param {Function} props.onConfirm - Called when user confirms
  * @param {Function} props.onCancel - Called when user cancels
  */
@@ -40,15 +40,21 @@ export default function ConfirmDialog({
         <DialogBody>
           <DialogTitle>
             <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
-              {intent === "danger" && (
-                <Warning24Regular style={{ color: tokens.colorPaletteRedForeground1 }} />
+              {(intent === "danger" || intent === "warning") && (
+                <Warning24Regular 
+                  style={{ 
+                    color: intent === "danger" 
+                      ? tokens.colorPaletteRedForeground1 
+                      : tokens.colorPaletteYellowForeground2 
+                  }} 
+                />
               )}
               {title}
             </div>
           </DialogTitle>
           
           <DialogContent>
-            <p style={{ margin: 0, lineHeight: "1.5" }}>{message}</p>
+            <p style={{ margin: 0, lineHeight: "1.5", whiteSpace: "pre-line" }}>{message}</p>
           </DialogContent>
           
           <DialogActions>
@@ -56,8 +62,17 @@ export default function ConfirmDialog({
               {cancelText}
             </Button>
             <Button 
-              appearance={intent === "danger" ? "primary" : "primary"}
-              style={intent === "danger" ? { backgroundColor: tokens.colorPaletteRedBackground3 } : {}}
+              appearance="primary"
+              style={
+                intent === "danger" 
+                  ? { backgroundColor: tokens.colorPaletteRedBackground3 }
+                  : intent === "warning"
+                  ? { 
+                      backgroundColor: tokens.colorPaletteYellowBackground3,
+                      color: tokens.colorNeutralForeground1
+                    }
+                  : {}
+              }
               onClick={onConfirm}
             >
               {confirmText}

@@ -419,3 +419,26 @@ export async function getKBAGuideline(category) {
 export async function checkKBAHealth() {
   return fetchJSON(`${API_BASE_URL}/kba/health`);
 }
+
+// ============================================================================
+// KBA Auto-Generation APIs
+// ============================================================================
+
+export async function getAutoGenSettings() {
+  return fetchJSON(`${API_BASE_URL}/kba/auto-gen/settings`);
+}
+
+export async function updateAutoGenSettings(updates) {
+  return fetchJSON(`${API_BASE_URL}/kba/auto-gen/settings`, {
+    method: "PATCH",
+    body: JSON.stringify(updates),
+  });
+}
+
+export async function triggerAutoGeneration(userId = "manual-trigger") {
+  return fetchJSON(`${API_BASE_URL}/kba/auto-gen/trigger`, {
+    method: "POST",
+    body: JSON.stringify({ user_id: userId }),
+  });
+}
+

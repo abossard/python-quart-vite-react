@@ -69,6 +69,7 @@ import EditableList from "./components/EditableList";
 import TagEditor from "./components/TagEditor";
 import DuplicateKBADialog from "./components/DuplicateKBADialog";
 import ConfirmDialog from "./components/ConfirmDialog";
+import AutoGenSettings from "./components/AutoGenSettings";
 
 const useStyles = makeStyles({
   container: {
@@ -208,6 +209,10 @@ export default function KBADrafterPage() {
   const [ticketData, setTicketData] = useState(null);
   const [loadingTicket, setLoadingTicket] = useState(false);
   
+  // Status Warning Dialog State
+  const [statusWarningOpen, setStatusWarningOpen] = useState(false);
+  const [pendingTicket, setPendingTicket] = useState(null);
+  
   // Filter state
   const [statusFilter, setStatusFilter] = useState("all");
 
@@ -264,12 +269,55 @@ export default function KBADrafterPage() {
     }
   }, []);
 
-  // Handler: Generate KBA Draft from Ticket
-  const handleGenerate = async (forceCreate = false) => {
+  // Handler: Check ticket status before generating KBA Draft
+  const handleGenerateClick = async () => {
     if (!validateTicketId(ticketId)) {
       return;
     }
 
+    setLoading(true);
+    setMessage(null);
+
+    try {
+      // Load ticket to check status
+      const trimmedId = ticketId.trim();
+      let ticket;
+      
+      // Check if it's UUID or Incident-ID format
+      if (UUID_REGEX.test(trimmedId)) {
+        ticket = await api.getCSVTicket(trimmedId);
+      } else if (INCIDENT_ID_REGEX.test(trimmedId)) {
+        ticket = await api.getCSVTicketByIncident(trimmedId);
+      }
+
+      if (!ticket) {
+        throw new Error("Ticket nicht gefunden");
+      }
+
+      // Check if ticket status is Resolved or Closed
+      const status = ticket.status?.toLowerCase();
+      if (status !== "resolved" && status !== "closed") {
+        // Show warning dialog
+        setPendingTicket(ticket);
+        setStatusWarningOpen(true);
+        setLoading(false);
+        return;
+      }
+
+      // Status is OK, proceed directly
+      await handleGenerate(false);
+      
+    } catch (error) {
+      setLoading(false);
+      setMessage({
+        type: "error",
+        text: error.message || "Fehler beim Laden des Tickets",
+      });
+    }
+  };
+
+  // Handler: Generate KBA Draft from Ticket (actual generation)
+  const handleGenerate = async (forceCreate = false) => {
     setLoading(true);
     setMessage(null);
 
@@ -337,6 +385,7 @@ export default function KBADrafterPage() {
   // Handler: Force create new draft (from duplicate dialog)
   const handleForceCreate = () => {
     setDuplicateDialogOpen(false);
+    setTicketId(pendingTicketId);
     handleGenerate(true);
   };
   
@@ -345,6 +394,20 @@ export default function KBADrafterPage() {
     setDuplicateDialogOpen(false);
     setExistingDrafts([]);
     setPendingTicketId(null);
+  };
+  
+  // Handler: Proceed with generation despite status warning
+  const handleProceedWithWarning = () => {
+    setStatusWarningOpen(false);
+    setPendingTicket(null);
+    handleGenerate(false);
+  };
+  
+  // Handler: Cancel generation from status warning
+  const handleCancelWarning = () => {
+    setStatusWarningOpen(false);
+    setPendingTicket(null);
+    setLoading(false);
   };
   
   // Handler: Replace/Regenerate draft
@@ -579,7 +642,7 @@ export default function KBADrafterPage() {
       
       // Refresh draft list
       const response = await api.listKBADrafts({ limit: 10 });
-      setDrafts(response.drafts);
+      setDrafts(response.items || []);
       
       // Close current draft if it was deleted
       if (currentDraft && currentDraft.id === draftToDelete.id) {
@@ -668,6 +731,9 @@ export default function KBADrafterPage() {
         </MessageBar>
       )}
 
+      {/* Auto-Generation Settings */}
+      <AutoGenSettings />
+
       {/* Input Section: Generate New Draft */}
       <Card>
         <CardHeader
@@ -691,7 +757,7 @@ export default function KBADrafterPage() {
                 }}
                 onKeyPress={(e) => {
                   if (e.key === "Enter" && !loading) {
-                    handleGenerate();
+                    handleGenerateClick();
                   }
                 }}
                 placeholder="INC000016349815 oder 550e8400-e29b-41d4-a716-446655440000"
@@ -701,7 +767,7 @@ export default function KBADrafterPage() {
             <Button
               appearance="primary"
               icon={<Send24Regular />}
-              onClick={() => handleGenerate(false)}
+              onClick={handleGenerateClick}
               disabled={loading || !llmAvailable || !ticketId.trim()}
             >
               {loading ? "Generiere..." : "Entwurf erstellen"}
@@ -729,6 +795,15 @@ export default function KBADrafterPage() {
                   >
                     {displayDraft.status}
                   </Badge>
+                  {displayDraft.is_auto_generated && (
+                    <Badge 
+                      appearance="tint" 
+                      color="informative"
+                      style={{ fontSize: "11px" }}
+                    >
+                      🤖 AutoGen
+                    </Badge>
+                  )}
                   {displayDraft.incident_id && (
                     <Badge appearance="outline" className={styles.statusBadge}>
                       {displayDraft.incident_id}
@@ -1205,7 +1280,7 @@ export default function KBADrafterPage() {
                   </div>
                   
                   {/* Right: Status Badge */}
-                  <div style={{ display: "flex", justifyContent: "flex-end", minWidth: "80px" }}>
+                  <div style={{ display: "flex", gap: tokens.spacingHorizontalXS, justifyContent: "flex-end", minWidth: "80px" }}>
                     <Badge 
                       appearance="filled" 
                       color={getStatusBadgeColor(draft.status)}
@@ -1213,6 +1288,16 @@ export default function KBADrafterPage() {
                     >
                       {draft.status}
                     </Badge>
+                    {draft.is_auto_generated && (
+                      <Badge 
+                        appearance="tint" 
+                        color="informative"
+                        size="small"
+                        style={{ fontSize: "10px" }}
+                      >
+                        🤖
+                      </Badge>
+                    )}
                   </div>
                   
                   {/* Right: Menu */}
@@ -1267,6 +1352,24 @@ export default function KBADrafterPage() {
         onCancel={handleCancelDuplicate}
         onViewExisting={handleViewExisting}
         onCreateNew={handleForceCreate}
+      />
+      
+      {/* Status Warning Dialog */}
+      <ConfirmDialog
+        open={statusWarningOpen}
+        title="Ticket-Status Warnung"
+        message={
+          pendingTicket 
+            ? `Das Ticket "${pendingTicket.incident_id || ticketId}" hat den Status "${pendingTicket.status}". ` +
+              `KBA-Drafts werden normalerweise nur für Tickets mit Status "Resolved" oder "Closed" erstellt.\n\n` +
+              `Möchten Sie trotzdem fortfahren?`
+            : ""
+        }
+        confirmText="Trotzdem erstellen"
+        cancelText="Abbrechen"
+        intent="warning"
+        onConfirm={handleProceedWithWarning}
+        onCancel={handleCancelWarning}
       />
       
       {/* Replace Confirm Dialog */}

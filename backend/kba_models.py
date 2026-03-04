@@ -132,6 +132,9 @@ class KBADraft(BaseModel):
     llm_model: str = "llama3.2:1b"
     llm_generation_time_ms: Optional[int] = None
     
+    # Auto-generation flag
+    is_auto_generated: bool = False
+    
     class Config:
         json_schema_extra = {
             "example": {
@@ -284,6 +287,9 @@ class KBADraftTable(SQLModel, table=True):
     # LLM
     llm_model: str = "llama3.2:1b"
     llm_generation_time_ms: Optional[int] = None
+    
+    # Auto-generation flag
+    is_auto_generated: bool = SQLField(default=False, index=True)
 
 
 # ============================================================================

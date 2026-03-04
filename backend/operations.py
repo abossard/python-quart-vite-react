@@ -11,6 +11,8 @@ from uuid import UUID
 
 from agent_workbench import AgentDefinitionCreate, AgentDefinitionUpdate, AgentRunCreate
 from api_decorators import operation
+from auto_gen_models import AutoGenRunResult, AutoGenSettings, AutoGenSettingsUpdate
+from auto_gen_service import AutoGenService
 from csv_data import get_csv_ticket_service
 from kba_audit import get_audit_service
 from kba_models import (
@@ -37,6 +39,7 @@ from tickets import (
 _task_service = TaskService()
 _csv_service = get_csv_ticket_service()
 _csv_loaded = False
+_auto_gen_service = None  # Initialized lazily
 
 # KBA service requires database session - initialized lazily
 _kba_db_engine = None
@@ -60,6 +63,14 @@ def _migrate_kba_schema(engine) -> None:
                 "ALTER TABLE kba_drafts ADD COLUMN search_questions TEXT DEFAULT '[]'"
             ))
             session.commit()
+        
+        # Check if is_auto_generated column exists
+        if 'is_auto_generated' not in columns:
+            # Add is_auto_generated column with default False
+            session.exec(text(
+                "ALTER TABLE kba_drafts ADD COLUMN is_auto_generated INTEGER DEFAULT 0"
+            ))
+            session.commit()
 
 
 def _get_kba_session() -> Session:
@@ -68,6 +79,7 @@ def _get_kba_session() -> Session:
     if _kba_db_engine is None:
         from pathlib import Path
         from kba_models import KBADraftTable, KBAAuditLog
+        from auto_gen_models import AutoGenSettingsTable
         from sqlmodel import SQLModel
         
         db_path = Path(__file__).parent / "data" / "kba.db"
@@ -81,6 +93,14 @@ def _get_kba_session() -> Session:
         _kba_session = Session(_kba_db_engine)
     
     return _kba_session
+
+
+def _get_auto_gen_service() -> AutoGenService:
+    """Get or create auto-generation service instance"""
+    global _auto_gen_service
+    if _auto_gen_service is None:
+        _auto_gen_service = AutoGenService()
+    return _auto_gen_service
 
 
 CSV_TICKET_FIELDS = [
@@ -661,6 +681,51 @@ async def op_kba_get_audit_trail(draft_id: str) -> list[dict[str, Any]]:
 
 
 @operation(
+    name="kba_get_auto_gen_settings",
+    description="Get automatic KBA generation settings",
+    http_method="GET",
+    http_path="/api/kba/auto-gen/settings",
+)
+async def op_kba_get_auto_gen_settings() -> AutoGenSettings:
+    """Get auto-generation configuration."""
+    auto_gen_service = _get_auto_gen_service()
+    return auto_gen_service.get_settings()
+
+
+@operation(
+    name="kba_update_auto_gen_settings",
+    description="Update automatic KBA generation settings",
+    http_method="PATCH",
+    http_path="/api/kba/auto-gen/settings",
+)
+async def op_kba_update_auto_gen_settings(data: AutoGenSettingsUpdate) -> AutoGenSettings:
+    """Update auto-generation configuration."""
+    auto_gen_service = _get_auto_gen_service()
+    updates = data.model_dump(exclude_unset=True)
+    settings = auto_gen_service.update_settings(updates)
+    
+    # Update scheduler if schedule_time changed
+    if "schedule_time" in updates:
+        from scheduler import get_scheduler
+        scheduler = get_scheduler()
+        scheduler.update_schedule(settings.schedule_time)
+    
+    return settings
+
+
+@operation(
+    name="kba_trigger_auto_gen",
+    description="Manually trigger automatic KBA generation",
+    http_method="POST",
+    http_path="/api/kba/auto-gen/trigger",
+)
+async def op_kba_trigger_auto_gen(user_id: str = "manual-trigger") -> AutoGenRunResult:
+    """Manually trigger automatic KBA draft generation."""
+    auto_gen_service = _get_auto_gen_service()
+    return await auto_gen_service.run_auto_generation(user_id=user_id)
+
+
+@operation(
     name="kba_list_guidelines",
     description="List available KBA guidelines",
     http_method="GET",
@@ -731,6 +796,9 @@ __all__ = [
     "op_kba_publish_draft",
     "op_kba_list_drafts",
     "op_kba_get_audit_trail",
+    "op_kba_get_auto_gen_settings",
+    "op_kba_update_auto_gen_settings",
+    "op_kba_trigger_auto_gen",
     "op_kba_list_guidelines",
     "op_kba_get_guideline",
     "CSV_TICKET_FIELDS",
