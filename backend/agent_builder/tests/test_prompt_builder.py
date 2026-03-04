@@ -13,7 +13,14 @@ from agent_builder.engine.prompt_builder import (
 class TestResolveOutputSchema:
     def test_custom_schema_returned(self):
         custom = {"type": "object", "properties": {"count": {"type": "integer"}}}
-        assert resolve_output_schema(custom) is custom
+        result = resolve_output_schema(custom)
+        assert result["properties"] == custom["properties"]
+        assert result["title"] == "AgentOutput"  # title auto-added
+
+    def test_custom_schema_with_title_preserved(self):
+        custom = {"title": "MySchema", "type": "object", "properties": {"x": {"type": "string"}}}
+        result = resolve_output_schema(custom)
+        assert result["title"] == "MySchema"
 
     def test_empty_schema_returns_default(self):
         assert resolve_output_schema({}) is DEFAULT_OUTPUT_SCHEMA

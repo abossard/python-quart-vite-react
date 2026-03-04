@@ -12,6 +12,7 @@ from typing import Any
 # Default output schema — always structured, even for "plain" agents.
 # Every agent returns a message (markdown) + list of referenced ticket IDs.
 DEFAULT_OUTPUT_SCHEMA: dict[str, Any] = {
+    "title": "AgentOutput",
     "type": "object",
     "properties": {
         "message": {
@@ -31,8 +32,13 @@ DEFAULT_OUTPUT_SCHEMA: dict[str, Any] = {
 
 
 def resolve_output_schema(custom_schema: dict[str, Any] | None) -> dict[str, Any]:
-    """Return the effective output schema: custom if it has properties, else default."""
+    """Return the effective output schema: custom if it has properties, else default.
+
+    Ensures the schema always has a 'title' key (required by OpenAI's structured output).
+    """
     if custom_schema and custom_schema.get("properties"):
+        if "title" not in custom_schema:
+            custom_schema = {**custom_schema, "title": "AgentOutput"}
         return custom_schema
     return DEFAULT_OUTPUT_SCHEMA
 

@@ -465,7 +465,11 @@ class WorkbenchService:
             )
             react = build_react_agent(run_llm, tools, runtime_system_prompt, response_format=effective_schema)
 
-            run_recursion_limit = agent_def.recursion_limit or self._recursion_limit
+            # recursion_limit: agent's setting is "max tool iterations" (user-facing),
+            # but LangGraph counts all graph steps. response_format adds extra steps.
+            # Multiply by 4 for headroom (each tool call = ~2-3 graph steps + structured output step).
+            user_recursion = agent_def.recursion_limit or self._recursion_limit
+            graph_recursion_limit = max(user_recursion * 4, 10)
 
             logger.info(
                 "▶️  Agent run_id=%s agent=%s model=%s temp=%s tools=%s custom_schema=%s prompt=%s",
@@ -478,7 +482,7 @@ class WorkbenchService:
             result = await react.ainvoke(
                 {"messages": [("user", user_message)]},
                 config={
-                    "recursion_limit": run_recursion_limit,
+                    "recursion_limit": graph_recursion_limit,
                     "callbacks": [make_tool_logging_callback()],
                 },
             )
