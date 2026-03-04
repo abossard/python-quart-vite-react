@@ -218,6 +218,128 @@ test.describe("Agent Fabric UI", () => {
       })
     ).toHaveCount(0, { timeout: 10000 });
   });
+
+  test("runs VPN troubleshooting agent and verifies structured output", async ({ page }) => {
+    const agentName = `e2e-vpn-agent-${Date.now()}`;
+
+    // Mock run endpoint with realistic VPN analysis structured output
+    await page.route("**/api/workbench/agents/*/runs", async (route) => {
+      const body = route.request().postDataJSON();
+      await route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify({
+          id: "run-vpn-1",
+          agent_id: "agent-vpn-1",
+          input_prompt: body?.input_prompt || "",
+          status: "completed",
+          output: JSON.stringify({
+            message: "## VPN-Probleme Analyse\n\nEs wurden **4 VPN-bezogene Tickets** gefunden:\n\n| Ticket | Problem | Status |\n|--------|---------|--------|\n| INC-101 | VPN deaktivieren | assigned |\n| INC-205 | MS-VPN verbindet nicht | in_progress |\n| INC-312 | VPN Slowdown Evenings | pending |\n| INC-401 | VPN im Homeoffice nicht vorhanden | assigned |\n\n**Empfehlung:** Die meisten VPN-Probleme betreffen die Abendstunden und Homeoffice-Verbindungen.",
+            referenced_tickets: ["INC-101", "INC-205", "INC-312", "INC-401"],
+          }, null, 2),
+          agent_snapshot: {
+            tool_names: ["csv_search_tickets", "csv_ticket_stats"],
+            system_prompt: "Analyze VPN issues in ticket data",
+          },
+          tools_used: ["csv_search_tickets", "csv_ticket_stats"],
+          error: null,
+          created_at: "2026-03-04T09:00:00Z",
+          completed_at: "2026-03-04T09:00:03Z",
+        }),
+      });
+    });
+
+    await page.goto(`${APP_URL}/workbench`, { waitUntil: "load" });
+    await expect(page.getByTestId("workbench-page-title")).toBeVisible();
+
+    // Create the VPN agent
+    await page.getByTestId("workbench-agent-name-input").fill(agentName);
+    await page
+      .getByTestId("workbench-agent-description-input")
+      .fill("Analyzes VPN connectivity issues in ticket data");
+    await page
+      .getByTestId("workbench-agent-system-prompt-input")
+      .fill("Search for VPN-related tickets using csv_search_tickets. Report findings with ticket IDs.");
+    await page.getByTestId("workbench-create-agent-button").click();
+
+    const createdRow = page.locator(
+      '[data-testid="workbench-agents-table"] tbody tr',
+      { hasText: agentName }
+    );
+    await expect(createdRow).toBeVisible({ timeout: 10000 });
+
+    // Run the agent with a VPN prompt
+    await page
+      .getByTestId("workbench-run-prompt-input")
+      .fill("Finde alle VPN-bezogenen Tickets und analysiere die Probleme");
+    await page.getByTestId("workbench-run-agent-button").click();
+
+    // Verify running state
+    await expect(page.getByTestId("workbench-run-agent-button")).toContainText("Running");
+
+    // Verify output renders with VPN content
+    const output = page.getByTestId("workbench-run-output");
+    await expect(output).toContainText("VPN", { timeout: 10000 });
+    await expect(output).toContainText("INC-101");
+    await expect(output).toContainText("INC-312");
+    await expect(output).toContainText("referenced_tickets");
+
+    // Verify button shows completion
+    await expect(page.getByTestId("workbench-run-agent-button")).toContainText("Last output:", {
+      timeout: 10000,
+    });
+
+    // Clean up
+    await createdRow.getByRole("button", { name: "Delete" }).click();
+  });
+
+  test("handles agent run failure gracefully", async ({ page }) => {
+    const agentName = `e2e-fail-agent-${Date.now()}`;
+
+    // Mock run endpoint that returns a failed run
+    await page.route("**/api/workbench/agents/*/runs", async (route) => {
+      await route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify({
+          id: "run-fail-1",
+          agent_id: "agent-fail-1",
+          input_prompt: "test",
+          status: "failed",
+          output: null,
+          agent_snapshot: { tool_names: ["csv_ticket_stats"] },
+          tools_used: [],
+          error: "OPENAI_API_KEY not configured",
+          created_at: "2026-03-04T09:00:00Z",
+          completed_at: "2026-03-04T09:00:01Z",
+        }),
+      });
+    });
+
+    await page.goto(`${APP_URL}/workbench`, { waitUntil: "load" });
+
+    await page.getByTestId("workbench-agent-name-input").fill(agentName);
+    await page
+      .getByTestId("workbench-agent-system-prompt-input")
+      .fill("Test failure handling");
+    await page.getByTestId("workbench-create-agent-button").click();
+
+    const createdRow = page.locator(
+      '[data-testid="workbench-agents-table"] tbody tr',
+      { hasText: agentName }
+    );
+    await expect(createdRow).toBeVisible({ timeout: 10000 });
+
+    await page.getByTestId("workbench-run-agent-button").click();
+
+    // Output should show even for failed runs (no output = shows fallback)
+    await expect(page.getByTestId("workbench-run-agent-button")).toContainText("Last output:", {
+      timeout: 10000,
+    });
+
+    // Clean up
+    await createdRow.getByRole("button", { name: "Delete" }).click();
+  });
 });
 
 test.describe("Agent Chat UI", () => {
