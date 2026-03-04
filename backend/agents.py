@@ -57,7 +57,6 @@ import operations  # noqa: F401
 # Local CSV service
 from csv_data import get_csv_ticket_service
 
-from langchain_core.callbacks import BaseCallbackHandler
 from langchain_core.tools import StructuredTool
 
 # Third-party - LangChain and LangGraph
@@ -408,7 +407,8 @@ class AgentService:
             
             invoke_config: dict[str, Any] = {"recursion_limit": REACT_AGENT_RECURSION_LIMIT}
             if OPENAI_CALL_LOGGING_ENABLED:
-                invoke_config["callbacks"] = [OpenAICallLoggingCallback()]
+                from agent_builder.engine.callbacks import make_llm_logging_callback
+                invoke_config["callbacks"] = [make_llm_logging_callback(OPENAI_MODEL)]
 
             result = await self._react_agent.ainvoke(
                 {"messages": [("system", self._system_prompt), ("user", request.prompt)]},
