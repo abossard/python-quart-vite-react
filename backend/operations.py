@@ -23,7 +23,7 @@ from kba_models import (
     KBAPublishResult,
 )
 from kba_service import get_kba_service
-from sqlmodel import Session, create_engine
+from sqlmodel import Session, create_engine, text
 from tasks import Task, TaskCreate, TaskFilter, TaskService, TaskStats, TaskUpdate
 from tickets import (
     SlaBreachReport,
@@ -43,6 +43,25 @@ _kba_db_engine = None
 _kba_session = None
 
 
+def _migrate_kba_schema(engine) -> None:
+    """Add missing columns to existing kba_drafts table.
+    
+    This ensures backward compatibility when new fields are added to KBADraftTable.
+    The function is idempotent - safe to run on every startup.
+    """
+    with Session(engine) as session:
+        # Check if search_questions column exists
+        rows = list(session.exec(text("PRAGMA table_info(kba_drafts)")).all())
+        columns = {row[1] for row in rows if len(row) > 1}
+        
+        if 'search_questions' not in columns:
+            # Add search_questions column with default empty JSON array
+            session.exec(text(
+                "ALTER TABLE kba_drafts ADD COLUMN search_questions TEXT DEFAULT '[]'"
+            ))
+            session.commit()
+
+
 def _get_kba_session() -> Session:
     """Get or create KBA database session"""
     global _kba_db_engine, _kba_session
@@ -56,6 +75,7 @@ def _get_kba_session() -> Session:
         
         _kba_db_engine = create_engine(f"sqlite:///{db_path}", echo=False)
         SQLModel.metadata.create_all(_kba_db_engine)
+        _migrate_kba_schema(_kba_db_engine)
     
     if _kba_session is None:
         _kba_session = Session(_kba_db_engine)

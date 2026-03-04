@@ -107,9 +107,66 @@ Diese Guideline definiert die **pflichtmäßige Struktur** eines Knowledge Base 
 
 ---
 
+### 5. `search_questions` (array of strings, 5-15 items)
+**Purpose:** Natürliche Suchfragen, wie Benutzer nach diesem KBA suchen würden
+
+**Format:**
+- Mischung aus Fragestilen:
+  - Symptom-basiert: "VPN bricht ab", "Fehlermeldung XYZ erscheint"
+  - Problem-basiert: "Warum kann ich nicht...", "Was tun wenn..."
+  - Lösungs-basiert: "Wie behebe ich...", "Wie löse ich..."
+  - Kurze Suchphrasen: "VPN Timeout Windows 11"
+- Natürliche deutsche Sprache
+- Variationen in Formulierung und Detailgrad
+- **NUR aus Ticket-Inhalt ableiten - keine Erfindungen!**
+
+**Beispiele:**
+```json
+"search_questions": [
+  "Wie behebe ich VPN-Verbindungsprobleme unter Windows 11?",
+  "VPN bricht nach 30 Sekunden ab was tun?",
+  "OpenVPN Connection Timeout Error 10060",
+  "Warum verbindet sich mein VPN nicht?",
+  "Windows Firewall blockiert VPN-Verbindung",
+  "VPN Timeout Fehler beheben",
+  "Wie löse ich VPN-Abbrüche?",
+  "OpenVPN funktioniert nicht mehr"
+]
+```
+
+**Best Practices:**
+
+✅ **Gute Fragen:**
+- "Drucker druckt nur weiße Seiten"
+- "Wie behebe ich Outlook-Startprobleme nach Update?"
+- "Fehler 0x80070005 bei Windows Update"
+- "Teams Kamera wird nicht erkannt"
+
+❌ **Schlechte Fragen:**
+- "Computerprobleme" (zu vage)
+- "How to fix VPN using advanced network diagnostics and TCP/IP stack reset procedures" (zu technisch/lang)
+- "Quantencomputer-Verschränkung" (Halluzination - nicht im Ticket)
+- Duplikate
+
+**Regeln:**
+- Min. 5, max. 15 Fragen
+- Länge pro Frage: 10-200 Zeichen
+- Keine exakten Duplikate
+- Keine leeren Strings
+- Aus Endbenutzer-Perspektive (nicht IT-Techniker)
+- Nur Deutsch
+
+**Qualitätskriterien:**
+- **Präzise:** Frage passt exakt zu diesem KBA
+- **Divers:** Verschiedene Formulierungen, nicht nur Synonyme
+- **Natürlich:** Wie echte Benutzer suchen würden
+- **Ableitbar:** Jede Frage hat Bezug zum Ticket-Inhalt
+
+---
+
 ## Optionale Felder
 
-### 5. `cause` (string, optional)
+### 6. `cause` (string, optional)
 **Purpose:** Root Cause / technische Ursache des Problems
 
 **Wann ausfüllen:**
@@ -127,7 +184,7 @@ Diese Guideline definiert die **pflichtmäßige Struktur** eines Knowledge Base 
 
 ---
 
-### 6. `validation_checks` (array of strings, optional)
+### 7. `validation_checks` (array of strings, optional)
 **Purpose:** Verifikationsschritte nach der Lösung
 
 **Beispiel:**
@@ -141,7 +198,7 @@ Diese Guideline definiert die **pflichtmäßige Struktur** eines Knowledge Base 
 
 ---
 
-### 7. `warnings` (array of strings, optional)
+### 8. `warnings` (array of strings, optional)
 **Purpose:** Wichtige Hinweise, Risiken, bekannte Limitationen
 
 **Beispiel:**
@@ -155,7 +212,7 @@ Diese Guideline definiert die **pflichtmäßige Struktur** eines Knowledge Base 
 
 ---
 
-### 8. `confidence_notes` (string, optional)
+### 9. `confidence_notes` (string, optional)
 **Purpose:** LLM-Hinweise zu Unsicherheiten oder fehlenden Daten
 
 **Wann verwenden:**
@@ -178,6 +235,7 @@ Vor dem Senden eines KBA-Drafts prüfen:
 - [ ] `symptoms`: Min. 1 Symptom, aus Benutzer-Sicht?
 - [ ] `resolution_steps`: Min. 1 Schritt, konkret umsetzbar?
 - [ ] `tags`: Min. 1 Tag, lowercase, keine Sonderzeichen?
+- [ ] `search_questions`: 5-15 Fragen, natürliche Sprache, aus Ticket ableitbar?
 - [ ] `cause`: Nur wenn im Ticket dokumentiert
 - [ ] `validation_checks`: Falls vorhanden, konkrete Prüfschritte?
 - [ ] `warnings`: Falls vorhanden, kritische Hinweise?

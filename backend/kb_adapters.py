@@ -206,6 +206,18 @@ class FileSystemKBAdapter(BaseKBAdapter):
             ""
         ]
         
+        # Search Questions (after header, before symptoms)
+        if draft.get("search_questions"):
+            lines.extend([
+                "## Häufige Suchanfragen",
+                "",
+                "*Benutzer suchen häufig nach:*",
+                ""
+            ])
+            for question in draft["search_questions"]:
+                lines.append(f"- {question}")
+            lines.extend(["", "---", ""])
+        
         # Symptoms
         if draft.get("symptoms"):
             lines.extend([

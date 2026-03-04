@@ -81,6 +81,12 @@ class KBAOutputSchema(BaseModel):
         description="Related incident IDs in format INC0001234"
     )
     
+    # Search Questions (generated separately, not part of main draft generation)
+    search_questions: Optional[list[str]] = Field(
+        default_factory=list,
+        description="User search queries - generated in separate step"
+    )
+    
     # Legacy fields (optional for backward compatibility)
     problem_description: Optional[str] = Field(
         default="",
@@ -127,13 +133,14 @@ class KBAOutputSchema(BaseModel):
     @field_validator('related_tickets')
     @classmethod
     def validate_related_tickets(cls, v: list[str]) -> list[str]:
-        """Ensure ticket IDs match INC format - supports 12-digit format"""
+        """Ensure ticket IDs match INC format - supports 9-12 digit format"""
         import re
         for ticket in v:
-            # Support real format: INC000016312744 (12 digits)
-            if not re.match(r'^INC[0-9]{12}$', ticket):
+            # Support both short (INC000016346) and full format (INC000016312744)
+            # INC followed by 9-12 digits
+            if not re.match(r'^INC[0-9]{9,12}$', ticket):
                 raise ValueError(
-                    f"Ticket ID '{ticket}' must match format INC000012345678 (INC + 12 digits)"
+                    f"Ticket ID '{ticket}' must match format INC + 9-12 digits (e.g., INC000016346)"
                 )
         return v
     
@@ -185,8 +192,127 @@ class KBAOutputSchema(BaseModel):
                 "confidence_notes": "Lösung basiert auf häufigem Windows 11 Update-Problem",
                 "tags": ["vpn", "windows-11", "firewall", "openvpn", "timeout"],
                 "related_tickets": [],
+                "search_questions": [
+                    "Wie behebe ich VPN-Verbindungsprobleme unter Windows 11?",
+                    "VPN bricht nach 30 Sekunden ab was tun?",
+                    "OpenVPN Connection Timeout Error 10060 lösen",
+                    "Warum verbindet sich mein VPN nicht mehr?",
+                    "Windows Firewall blockiert VPN-Verbindung"
+                ],
                 "problem_description": "",
                 "additional_notes": ""
             }
         }
     }
+
+
+# ============================================================================
+# SEARCH QUESTIONS SCHEMA & VALIDATION
+# ============================================================================
+
+class SearchQuestionsSchema(BaseModel):
+    """
+    Schema for LLM-generated search questions (separate generation step).
+    
+    Used with OpenAI's beta.chat.completions.parse() for automatic validation.
+    """
+    
+    questions: list[str] = Field(
+        ...,
+        min_length=5,
+        max_length=15,
+        description="User search queries - how users might search for this KBA"
+    )
+    
+    @field_validator('questions')
+    @classmethod
+    def validate_questions_format(cls, v: list[str]) -> list[str]:
+        """Basic validation - detailed cleaning happens in service layer"""
+        if not v:
+            raise ValueError("Questions list cannot be empty")
+        
+        # Basic length checks
+        for q in v:
+            if not q or not q.strip():
+                raise ValueError("Empty question not allowed")
+            q_stripped = q.strip()
+            if len(q_stripped) < 10:
+                raise ValueError(f"Question too short (min 10 chars): '{q[:30]}...'")
+            if len(q_stripped) > 200:
+                raise ValueError(f"Question too long (max 200 chars): '{q[:50]}...'")
+        
+        return v
+    
+    model_config = {
+        "extra": "forbid",
+        "json_schema_extra": {
+            "example": {
+                "questions": [
+                    "Wie behebe ich VPN-Verbindungsprobleme unter Windows 11?",
+                    "VPN bricht nach 30 Sekunden ab was tun?",
+                    "OpenVPN Connection Timeout Error 10060",
+                    "Warum verbindet sich mein VPN nicht?",
+                    "Windows Firewall blockiert VPN"
+                ]
+            }
+        }
+    }
+
+
+def validate_and_clean_search_questions(
+    questions: list[str],
+    min_questions: int = 5,
+    max_questions: int = 15
+) -> list[str]:
+    """
+    Validate and clean search questions with deduplication.
+    
+    Args:
+        questions: Raw questions from LLM
+        min_questions: Minimum required questions
+        max_questions: Maximum allowed questions
+        
+    Returns:
+        Cleaned and deduplicated question list
+        
+    Raises:
+        ValueError: If validation fails
+    """
+    import re
+    
+    # Step 1: Trim and filter empty
+    cleaned = []
+    for q in questions:
+        q_stripped = q.strip()
+        if q_stripped:
+            cleaned.append(q_stripped)
+    
+    # Step 2: Validate length
+    valid = []
+    for q in cleaned:
+        if 10 <= len(q) <= 200:
+            valid.append(q)
+    
+    # Step 3: Deduplicate (case-insensitive, normalized)
+    seen = set()
+    deduplicated = []
+    for q in valid:
+        # Normalize: lowercase, remove extra whitespace
+        normalized = re.sub(r'\s+', ' ', q.lower())
+        if normalized not in seen:
+            seen.add(normalized)
+            deduplicated.append(q)  # Keep original casing
+    
+    # Step 4: Enforce min/max
+    if len(deduplicated) < min_questions:
+        raise ValueError(
+            f"Only {len(deduplicated)} valid questions after cleaning "
+            f"(required: {min_questions}). "
+            f"Raw count: {len(questions)}, after filtering: {len(valid)}"
+        )
+    
+    if len(deduplicated) > max_questions:
+        # Truncate to max
+        deduplicated = deduplicated[:max_questions]
+    
+    return deduplicated

@@ -1054,6 +1054,19 @@ async def rest_kba_update_draft(draft_id: str):
         return jsonify({"error": str(e)}), 400
 
 
+@app.route("/api/kba/drafts/<draft_id>/replace", methods=["POST"])
+async def rest_kba_replace_draft(draft_id: str):
+    """REST wrapper: replace/regenerate KBA draft."""
+    try:
+        from operations import op_kba_replace_draft
+        data = await request.get_json() if await request.data else {}
+        user_id = data.get("user_id", "anonymous")
+        draft = await op_kba_replace_draft(draft_id, user_id)
+        return jsonify(draft.model_dump())
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
 @app.route("/api/kba/drafts/<draft_id>", methods=["DELETE"])
 async def rest_kba_delete_draft(draft_id: str):
     """REST wrapper: delete KBA draft."""

@@ -107,6 +107,12 @@ class KBADraft(BaseModel):
     tags: list[str] = Field(default_factory=list, description="Search tags (lowercase)")
     related_tickets: list[str] = Field(default_factory=list, description="Related incident IDs")
     
+    # Search Questions
+    search_questions: list[str] = Field(
+        default_factory=list,
+        description="User search queries - how users might search for this KBA"
+    )
+    
     # Guidelines used during generation
     guidelines_used: list[str] = Field(default_factory=list, description="Guideline categories used")
     
@@ -187,6 +193,7 @@ class KBADraftUpdate(BaseModel):
     # Metadata
     tags: Optional[list[str]] = None
     related_tickets: Optional[list[str]] = None
+    search_questions: Optional[list[str]] = None
     status: Optional[KBADraftStatus] = None
     reviewed_by: Optional[str] = None  # Set when status → reviewed
 
@@ -259,6 +266,7 @@ class KBADraftTable(SQLModel, table=True):
     additional_notes: str = ""
     tags: list[str] = SQLField(sa_column=Column(JSON))
     related_tickets: list[str] = SQLField(sa_column=Column(JSON))
+    search_questions: list[str] = SQLField(sa_column=Column(JSON))
     guidelines_used: list[str] = SQLField(sa_column=Column(JSON))
     
     # Metadata

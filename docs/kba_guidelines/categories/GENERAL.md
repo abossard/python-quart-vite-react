@@ -128,7 +128,7 @@ Verwandte Tickets: INC0003456, INC0004567
 ## Spezielle Felder
 
 - **additional_notes**: Optional, für Kontext der nicht in andere Felder passt
-- **related_tickets**: Incident-IDs aus dem Ticket-System, Format: INC0001234
+- **related_tickets**: Incident-IDs aus dem Ticket-System (Format: INC + 9-12 Ziffern, z.B. INC000016346)
 - **guidelines_used**: Wird automatisch befüllt (z.B. ["GENERAL", "VPN"])
 
 ## LLM-Instruktionen

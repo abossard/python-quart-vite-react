@@ -124,6 +124,8 @@ Beispiel: "Lösung gilt nur für Windows 11. Bei Mac andere Schritte."
 
 **tags** (REQUIRED): Lowercase Suchbegriffe, 2-10 Tags
 
+**related_tickets** (OPTIONAL): Verwandte Incident-IDs (Format: INC + 9-12 Ziffern, z.B. INC000016346 oder INC000016312744). Verwende die EXAKTE Incident-ID aus dem Ticket ohne Änderungen.
+
 **Wichtig**:
 - Formuliere aus Sicht des Endbenutzers, nicht des Technikers
 - NUR JSON ausgeben, kein zusätzlicher Text oder Markdown-Wrapper!
@@ -218,5 +220,97 @@ Formatiere als Markdown mit folgender Struktur:
 
 ## Tags
 tag1, tag2, tag3"""
+    
+    return prompt
+
+
+def build_search_questions_prompt(draft_data: dict) -> str:
+    """
+    Build prompt for generating search questions from a KBA draft.
+    
+    Args:
+        draft_data: Dictionary with KBA draft fields (title, symptoms, resolution_steps, etc.)
+        
+    Returns:
+        Prompt string for search question generation
+    """
+    import json
+    
+    # Create clean JSON representation of KBA draft
+    kba_draft_json = json.dumps({
+        "title": draft_data.get("title", ""),
+        "symptoms": draft_data.get("symptoms", []),
+        "cause": draft_data.get("cause", ""),
+        "resolution_steps": draft_data.get("resolution_steps", []),
+        "tags": draft_data.get("tags", []),
+        "validation_checks": draft_data.get("validation_checks", []),
+        "warnings": draft_data.get("warnings", [])
+    }, ensure_ascii=False, indent=2)
+    
+    prompt = f"""Erstelle aus dem folgenden KBA-Draft eine Liste von Suchfragen, die Benutzer in einer Knowledge Base eingeben könnten, um genau diesen Artikel zu finden.
+
+Regeln:
+- Verwende nur Informationen aus dem KBA-Draft.
+- Keine erfundenen Details.
+- Fragen müssen klar, neutral und suchbar sein.
+- Erzeuge eine Mischung aus:
+  - symptom-orientierten Fragen
+  - problem-/ursachen-orientierten Fragen
+  - lösungsorientierten Fragen
+  - kurzen natürlichen Suchanfragen
+- Keine Duplikate oder fast identischen Fragen.
+- Sprache soll zur Sprache des KBA passen.
+- Gib nur das geforderte JSON zurück.
+
+KBA-Draft:
+{kba_draft_json}
+
+Erwartetes JSON-Schema:
+{{
+  "questions": ["...", "..."]
+}}
+
+BEGINNE MIT DEM JSON:"""
+    
+    return prompt
+
+
+def build_search_questions_correction_prompt(
+    original_prompt: str,
+    failed_output: str,
+    validation_error: str
+) -> str:
+    """
+    Build correction prompt for search questions retry.
+    
+    Args:
+        original_prompt: Original prompt that was sent
+        failed_output: Output that failed validation
+        validation_error: Error message from validation
+        
+    Returns:
+        Correction prompt with error feedback
+    """
+    prompt = f"""{original_prompt}
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+FEHLER IN DEINEM VORHERIGEN OUTPUT:
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Dein Output:
+{failed_output[:500]}...
+
+Validierungsfehler:
+{validation_error}
+
+KORREKTUR:
+- Stelle sicher, dass mindestens 5 valide Fragen vorhanden sind
+- Jede Frage muss 10-200 Zeichen lang sein
+- Keine leeren Strings oder Duplikate
+- Format: {{"questions": ["...", "..."]}}
+- Nur Informationen aus dem KBA-Draft verwenden
+
+NUR JSON zurückgeben, kein zusätzlicher Text!
+BEGINNE MIT {{:"""
     
     return prompt

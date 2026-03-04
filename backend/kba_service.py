@@ -208,6 +208,26 @@ class KBAService:
             llm_generation_time_ms=llm_time_ms
         )
         
+        # 6b. Generate search questions (separate step with validation)
+        try:
+            logger.info(
+                "Generating search questions",
+                extra={"draft_id": str(draft.id), "ticket_id": str(create_req.ticket_id)}
+            )
+            search_questions = await self._generate_search_questions(draft)
+            draft.search_questions = search_questions
+            logger.info(
+                f"Generated {len(search_questions)} search questions for draft",
+                extra={"draft_id": str(draft.id), "ticket_id": str(create_req.ticket_id)}
+            )
+        except Exception as e:
+            # Log error but continue - search questions are optional
+            logger.warning(
+                f"Failed to generate search questions: {str(e)}",
+                extra={"draft_id": str(draft.id), "error": str(e)}
+            )
+            draft.search_questions = []
+        
         # 7. Save to database
         draft_table = self._draft_to_table(draft)
         self.session.add(draft_table)
@@ -293,6 +313,119 @@ class KBAService:
             # Wrap unexpected errors as InvalidLLMOutputError
             logger.error(f"Unexpected error in structured output: {e}", exc_info=True)
             raise InvalidLLMOutputError(f"Failed to generate valid KBA: {e}")
+    
+    async def _generate_search_questions(
+        self,
+        draft: KBADraft,
+        max_retries: int = 1
+    ) -> list[str]:
+        """
+        Generate search questions for a KBA draft with validation and retry.
+        
+        Args:
+            draft: KBA draft to generate questions for
+            max_retries: Number of retry attempts on validation failure
+            
+        Returns:
+            List of validated and deduplicated search questions
+            
+        Raises:
+            ValueError: If validation fails after all retries
+            LLMError: If LLM generation fails
+        """
+        from kba_output_models import SearchQuestionsSchema, validate_and_clean_search_questions
+        from kba_prompts import build_search_questions_prompt, build_search_questions_correction_prompt
+        import time
+        
+        # Convert draft to dict for prompt
+        draft_data = {
+            "title": draft.title,
+            "symptoms": draft.symptoms,
+            "resolution_steps": draft.resolution_steps,
+            "tags": draft.tags,
+            "cause": draft.cause,
+            "validation_checks": draft.validation_checks
+        }
+        
+        # Build initial prompt
+        prompt = build_search_questions_prompt(draft_data)
+        
+        last_error = None
+        failed_output = None
+        
+        for attempt in range(max_retries + 1):
+            try:
+                logger.info(
+                    f"Generating search questions (attempt {attempt + 1}/{max_retries + 1})",
+                    extra={"draft_id": str(draft.id)}
+                )
+                
+                start_time = time.time()
+                
+                # Call LLM with structured output
+                result: SearchQuestionsSchema = await self.llm.structured_chat(
+                    messages=[{"role": "user", "content": prompt}],
+                    output_schema=SearchQuestionsSchema
+                )
+                
+                generation_time_ms = int((time.time() - start_time) * 1000)
+                
+                raw_questions = result.questions
+                logger.info(
+                    f"LLM generated {len(raw_questions)} raw questions in {generation_time_ms}ms",
+                    extra={"draft_id": str(draft.id), "raw_count": len(raw_questions)}
+                )
+                
+                # Validate and clean (deduplication, trimming, filtering)
+                cleaned_questions = validate_and_clean_search_questions(
+                    raw_questions,
+                    min_questions=5,
+                    max_questions=15
+                )
+                
+                logger.info(
+                    f"Search questions validated: {len(cleaned_questions)} questions "
+                    f"(deduplication removed {len(raw_questions) - len(cleaned_questions)})",
+                    extra={
+                        "draft_id": str(draft.id),
+                        "raw_count": len(raw_questions),
+                        "cleaned_count": len(cleaned_questions),
+                        "generation_time_ms": generation_time_ms
+                    }
+                )
+                
+                return cleaned_questions
+                
+            except Exception as e:
+                last_error = e
+                failed_output = str(getattr(result, 'questions', '')) if 'result' in locals() else "N/A"
+                
+                logger.warning(
+                    f"Search question generation failed (attempt {attempt + 1}): {str(e)}",
+                    extra={"draft_id": str(draft.id), "error": str(e)}
+                )
+                
+                # If not last attempt, build correction prompt
+                if attempt < max_retries:
+                    prompt = build_search_questions_correction_prompt(
+                        original_prompt=prompt,
+                        failed_output=failed_output,
+                        validation_error=str(e)
+                    )
+                    logger.info(
+                        f"Retrying with correction prompt",
+                        extra={"draft_id": str(draft.id)}
+                    )
+        
+        # All retries failed
+        logger.error(
+            f"Search question generation failed after {max_retries + 1} attempts",
+            extra={"draft_id": str(draft.id), "last_error": str(last_error)}
+        )
+        raise ValueError(
+            f"Failed to generate valid search questions after {max_retries + 1} attempts. "
+            f"Last error: {str(last_error)}"
+        )
     
     def get_draft(self, draft_id: UUID) -> KBADraft:
         """
@@ -515,18 +648,18 @@ class KBAService:
         # 6. Update all content fields
         draft_table.title = kba_data["title"]
         draft_table.symptoms = kba_data.get("symptoms", [])
-        draft_table.cause = kba_data.get("cause")
+        draft_table.cause = kba_data.get("cause", "")
         draft_table.resolution_steps = kba_data.get("resolution_steps", [])
         draft_table.validation_checks = kba_data.get("validation_checks", [])
         draft_table.warnings = kba_data.get("warnings", [])
-        draft_table.confidence_notes = kba_data.get("confidence_notes")
+        draft_table.confidence_notes = kba_data.get("confidence_notes", "")
         draft_table.tags = kba_data["tags"]
         draft_table.related_tickets = kba_data.get("related_tickets", [])
         draft_table.guidelines_used = guidelines_used
         
-        # Legacy fields
-        draft_table.problem_description = kba_data.get("problem_description", "")
-        draft_table.additional_notes = kba_data.get("additional_notes", "")
+        # Legacy fields - ensure empty string instead of None
+        draft_table.problem_description = kba_data.get("problem_description") or ""
+        draft_table.additional_notes = kba_data.get("additional_notes") or ""
         
         # 7. Reset status to DRAFT and update metadata
         draft_table.status = KBADraftStatus.DRAFT.value
@@ -540,13 +673,36 @@ class KBAService:
         draft_table.published_url = None
         draft_table.published_id = None
         
+        # Convert to KBADraft for search questions generation
+        draft = self._table_to_draft(draft_table)
+        
+        # 8. Generate search questions
+        try:
+            logger.info(
+                "Generating search questions for replaced draft",
+                extra={"draft_id": str(draft_id), "ticket_id": str(ticket.id)}
+            )
+            search_questions = await self._generate_search_questions(draft)
+            draft_table.search_questions = search_questions
+            logger.info(
+                f"Generated {len(search_questions)} search questions",
+                extra={"draft_id": str(draft_id)}
+            )
+        except Exception as e:
+            logger.warning(
+                f"Failed to generate search questions: {str(e)}",
+                extra={"draft_id": str(draft_id), "error": str(e)}
+            )
+            draft_table.search_questions = []
+        
+        # 9. Save to database
         self.session.add(draft_table)
         self.session.commit()
         self.session.refresh(draft_table)
         
         total_time_ms = int((perf_counter() - start_time) * 1000)
         
-        # 8. Audit log
+        # 10. Audit log
         self.audit.log_event(
             draft_id=draft_id,
             event_type=KBAAuditEventType.DRAFT_EDITED,
@@ -696,6 +852,7 @@ class KBAService:
             "additional_notes": draft_table.additional_notes,
             "tags": draft_table.tags,
             "related_tickets": draft_table.related_tickets,
+            "search_questions": draft_table.search_questions,
         }
         
         # 6. Get KB adapter and publish
@@ -866,6 +1023,7 @@ class KBAService:
             additional_notes=draft.additional_notes or "",
             tags=draft.tags,
             related_tickets=draft.related_tickets,
+            search_questions=draft.search_questions if draft.search_questions is not None else [],
             guidelines_used=draft.guidelines_used,
             status=draft.status.value,
             created_at=draft.created_at,
@@ -896,6 +1054,7 @@ class KBAService:
             additional_notes=table.additional_notes,
             tags=table.tags,
             related_tickets=table.related_tickets,
+            search_questions=table.search_questions if hasattr(table, 'search_questions') and table.search_questions is not None else [],
             guidelines_used=table.guidelines_used,
             status=KBADraftStatus(table.status),
             created_at=table.created_at,

@@ -18,6 +18,7 @@ import {
   Input,
   Textarea,
   Label,
+  Text,
   makeStyles,
   Spinner,
   MessageBar,
@@ -99,6 +100,29 @@ const useStyles = makeStyles({
   pendingIndicator: {
     color: tokens.colorPaletteYellowForeground1,
     fontWeight: "bold",
+  },
+  loadingOverlay: {
+    position: "fixed",
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: "rgba(0, 0, 0, 0.3)",
+    backdropFilter: "blur(4px)",
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
+    zIndex: 9999,
+  },
+  loadingContent: {
+    backgroundColor: tokens.colorNeutralBackground1,
+    padding: tokens.spacingVerticalXXL,
+    borderRadius: tokens.borderRadiusLarge,
+    boxShadow: tokens.shadow64,
+    display: "flex",
+    flexDirection: "column",
+    alignItems: "center",
+    gap: tokens.spacingVerticalL,
   },
 });
 
@@ -821,6 +845,31 @@ export default function KBADrafterPage() {
               )}
             </div>
 
+            {/* Search Questions */}
+            <div>
+              <Label>Häufige Suchanfragen</Label>
+              <Text size={200} style={{ display: "block", marginBottom: tokens.spacingVerticalS }}>
+                Wie könnten Benutzer nach diesem KBA suchen?
+              </Text>
+              {editMode ? (
+                <EditableList
+                  items={displayDraft.search_questions || []}
+                  onChange={(newQuestions) => handleFieldChange("search_questions", newQuestions)}
+                  placeholder="z.B. Wie behebe ich VPN-Verbindungsprobleme?"
+                  minLength={10}
+                  maxLength={200}
+                />
+              ) : (
+                <ul style={{ marginTop: tokens.spacingVerticalXS, paddingLeft: tokens.spacingHorizontalL }}>
+                  {(displayDraft.search_questions || []).map((question, idx) => (
+                    <li key={idx} style={{ marginBottom: tokens.spacingVerticalXXS }}>
+                      {question}
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </div>
+
             {/* Action Buttons */}
             <div className={styles.actions}>
               {/* Replace Button (Draft/Reviewed Status, not in edit mode) */}
@@ -954,10 +1003,15 @@ export default function KBADrafterPage() {
         </Card>
       )}
 
-      {/* Loading Overlay */}
-      {loading && !currentDraft && (
-        <div style={{ textAlign: "center", padding: tokens.spacingVerticalXXL }}>
-          <Spinner size="large" label="Generiere KBA-Entwurf..." />
+      {/* Loading Overlay with Blur */}
+      {loading && (
+        <div className={styles.loadingOverlay}>
+          <div className={styles.loadingContent}>
+            <Spinner size="huge" />
+            <Text size={500} weight="semibold">
+              {currentDraft ? "Entwurf wird neu generiert..." : "Generiere KBA-Entwurf..."}
+            </Text>
+          </div>
         </div>
       )}
       
