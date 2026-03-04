@@ -17,7 +17,7 @@
 
 | Feld | Wert |
 |------|------|
-| **Incident ID** | INC000016338459 |
+| **Incident ID** | INC00001633XXXX |
 | **Zusammenfassung** | Anschluss Problem an Dockingstation |
 | **Priorität** | Medium |
 | **Dringlichkeit** | 3-Medium |
@@ -30,10 +30,10 @@
 
 | Feld | Wert |
 |------|------|
-| **Organisation** | EJPD-SEM, Finanzaufsicht |
+| **Organisation** | [Departement], [Abteilung] |
 | **Standort** | Bern |
-| **Gerät** | HP ZBook Fury 15 G8 i7 (CP001864) |
-| **Zweites Gerät** | CM072262 (funktioniert einwandfrei) |
+| **Gerät** | HP ZBook Fury 15 G8 i7 ([Client-A]) |
+| **Zweites Gerät** | [Client-B] (funktioniert einwandfrei) |
 | **Peripherie** | HP Thunderbolt G2 Dockingstation |
 | **Service** | BS_Dockingstation |
 
@@ -42,17 +42,17 @@
 > Anschluss Problem an Dockingstation
 >
 > User hat 2 Clients und eine HP Thunderbolt G2 Dockingstation.
-> An dieser Dockingstation wird mit dem CP001864 keine Peripherie erkannt.
-> Mit dem anderen Gerät des Users (CM072262) läuft alles problemlos.
+> An dieser Dockingstation wird mit dem [Client-A] keine Peripherie erkannt.
+> Mit dem anderen Gerät des Users ([Client-B]) läuft alles problemlos.
 > Die Dockingstation hat ein Kabel mit 2 Anschlüssen nebeneinander (1x rund und 1x USB-C).
 
 ### Verlauf
 
 | Zeitpunkt | Status | Bearbeiter |
 |-----------|--------|------------|
-| 17.11.2025 11:48 | New | U80799778 |
-| 18.11.2025 14:27 | Assigned | X60029849 |
-| 20.11.2025 08:18 | Pending | U80826666 (Stempfel Michael) |
+| 17.11.2025 11:48 | New | Bearbeiter A |
+| 18.11.2025 14:27 | Assigned | Bearbeiter B |
+| 20.11.2025 08:18 | Pending | Bearbeiter C |
 
 - **Gruppen-Transfers:** 1
 - **Gesamt-Transfers:** 3
@@ -72,12 +72,12 @@ Gehen Sie den Fall durch und überlegen Sie sich Antworten zu folgenden Fragen:
 ### 2. Analyse & Diagnose
 - [ ] Die Beschreibung enthält einen wichtigen Hinweis: Mit dem zweiten Gerät funktioniert die Dockingstation. Was schliesst das aus, was nicht?
 - [ ] Welche Diagnose-Schritte würden Sie durchführen?
-  - Thunderbolt-Treiber auf CP001864 prüfen
+  - Thunderbolt-Treiber auf [Client-A] prüfen
   - Firmware der Dockingstation prüfen
   - USB-C-Port auf dem ZBook testen
   - BIOS-Einstellungen (Thunderbolt Security Level) prüfen
 - [ ] Welche zusätzlichen Informationen würden Sie vom Melder anfordern?
-  - Wurde die Dockingstation je mit dem CP001864 verwendet?
+  - Wurde die Dockingstation je mit dem [Client-A] verwendet?
   - Wurde kürzlich ein Update durchgeführt?
   - Wird das richtige Kabel (USB-C, nicht rund) verwendet?
 

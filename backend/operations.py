@@ -277,6 +277,58 @@ async def op_csv_search_tickets(query: str, limit: int = 25) -> list[dict]:
     return _compact_tickets(matches)
 
 
+# Fields included in detailed search results (compact + notes/resolution for knowledgebase use)
+_DETAIL_TICKET_FIELDS = _COMPACT_TICKET_FIELDS | {"notes", "resolution", "description"}
+
+
+@operation(
+    name="csv_count_tickets",
+    description="Count how many tickets match a search query WITHOUT returning the data. Use this to check result size before fetching details. Fast and cheap.",
+    http_method="GET",
+)
+async def op_csv_count_tickets(query: str = "", status: str | None = None) -> dict:
+    """Count matching tickets without returning them."""
+    _ensure_csv_loaded()
+    parsed_status = _parse_status(status)
+    tickets = _csv_service.list_tickets(status=parsed_status)
+    if query.strip():
+        q = query.strip().lower()
+        tickets = [t for t in tickets if q in " ".join([
+            t.incident_id or "", t.summary or "", t.description or "",
+            t.notes or "", t.requester_name or "", t.assigned_group or "", t.city or "",
+        ]).lower()]
+    return {"count": len(tickets), "query": query, "status": status}
+
+
+@operation(
+    name="csv_search_tickets_with_details",
+    description="Search tickets AND return full details (notes, resolution, description) in one call. Use this when you need ticket content for analysis, knowledgebase articles, or detailed reports. Limit defaults to 10 to keep responses fast.",
+    http_method="GET",
+)
+async def op_csv_search_tickets_with_details(query: str, limit: int = 10) -> list[dict]:
+    """Search tickets with full details — avoids needing csv_get_ticket per result."""
+    _ensure_csv_loaded()
+    q = query.strip().lower()
+    if not q:
+        return []
+    normalized_limit = min(max(limit, 1), 25)
+    matches: list[Ticket] = []
+    for ticket in _csv_service.list_tickets():
+        haystack = " ".join([
+            ticket.incident_id or "", ticket.summary or "", ticket.description or "",
+            ticket.notes or "", ticket.resolution or "", ticket.requester_name or "",
+            ticket.assigned_group or "", ticket.city or "", ticket.service or "",
+        ]).lower()
+        if q in haystack:
+            matches.append(ticket)
+            if len(matches) >= normalized_limit:
+                break
+    return [
+        {k: v for k, v in t.model_dump(mode="json").items() if k in _DETAIL_TICKET_FIELDS}
+        for t in matches
+    ]
+
+
 @operation(
     name="csv_ticket_stats",
     description="Get aggregated statistics for tickets loaded from CSV",

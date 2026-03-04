@@ -17,8 +17,8 @@
 
 | Feld | Wert |
 |------|------|
-| **Incident ID** | INC000016323643 |
-| **Zusammenfassung** | CM032993 Windows Update läuft nicht durch |
+| **Incident ID** | INC00001632XXXX |
+| **Zusammenfassung** | Windows Update läuft nicht durch |
 | **Priorität** | Medium |
 | **Dringlichkeit** | 3-Medium |
 | **Auswirkung** | 3-Moderate/Limited |
@@ -30,29 +30,29 @@
 
 | Feld | Wert |
 |------|------|
-| **Organisation** | EDI-BAG, Sektion Medizinische Leistungen |
+| **Organisation** | [Departement], [Abteilung] |
 | **Standort** | Bern |
-| **Gerät** | HP EliteBook X360 830 G9 (CM032993) |
+| **Gerät** | HP EliteBook X360 830 G9 |
 | **Service** | BS_Microsoft SCCM |
 
 ### Beschreibung (Original)
 
-> Rückruf unter → +41 58 462 6987
+> Rückruf unter → [Telefonnummer]
 >
 > Grund der Ticketeröffnung → Störung
 >
 > Thema → Software/Applikation - Standard Software - Microsoft Windows
 >
-> Hallo Servicedesk, auf dem Notebook CM032993 von von Gunten Elisabeth schlägt das Windows Update fehl. Bitte prüfen.
+> Hallo Servicedesk, auf dem Notebook [Client-ID] von [Benutzername] schlägt das Windows Update fehl. Bitte prüfen.
 
 ### Verlauf
 
 | Zeitpunkt | Status | Bearbeiter |
 |-----------|--------|------------|
-| 04.11.2025 14:31 | New | U80747730 |
-| 05.11.2025 14:09 | Assigned | U80799778 |
-| 05.11.2025 17:32 | In Progress | U80797658 (Klee Jose Juan) |
-| 11.11.2025 13:14 | Pending | U80797658 |
+| 04.11.2025 14:31 | New | Bearbeiter A |
+| 05.11.2025 14:09 | Assigned | Bearbeiter B |
+| 05.11.2025 17:32 | In Progress | Bearbeiter C |
+| 11.11.2025 13:14 | Pending | Bearbeiter C |
 
 - **Gruppen-Transfers:** 1
 - **Gesamt-Transfers:** 3
@@ -98,16 +98,16 @@ Gehen Sie den Fall durch und überlegen Sie sich Antworten zu folgenden Fragen:
 
 | Incident ID | Zusammenfassung |
 |-------------|-----------------|
-| INC000016300803 | Es werden keine Updates angezeigt |
-| INC000016318424 | Update Windows nicht erfolgt |
-| INC000016322181 | Windows Update |
-| INC000016327819 | Microsoft SCCM: Win Update schlägt fehl |
-| INC000016327913 | Fehler bei Software Update-Installation |
-| INC000016328288 | Windows 11, version 24H2 x64 2025-10 Update |
-| INC000016338364 | Windows 11 Update kann nicht installiert werden |
-| INC000016344758 | Update W11 geht nicht |
-| INC000016346074 | SBA-O: Update Fehler |
-| INC000016325638 | Software wird nicht deinstalliert |
+| INC...0803 | Es werden keine Updates angezeigt |
+| INC...8424 | Update Windows nicht erfolgt |
+| INC...2181 | Windows Update |
+| INC...7819 | Microsoft SCCM: Win Update schlägt fehl |
+| INC...7913 | Fehler bei Software Update-Installation |
+| INC...8288 | Windows 11, version 24H2 x64 2025-10 Update |
+| INC...8364 | Windows 11 Update kann nicht installiert werden |
+| INC...4758 | Update W11 geht nicht |
+| INC...6074 | SBA-O: Update Fehler |
+| INC...5638 | Software wird nicht deinstalliert |
 
 ---
 

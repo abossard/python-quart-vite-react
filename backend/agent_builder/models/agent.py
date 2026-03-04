@@ -49,6 +49,10 @@ class AgentDefinition(SQLModel, table=True):
         default=4096,
         description="Max LLM response tokens",
     )
+    reasoning_effort: str = SField(
+        default="low",
+        description="Reasoning effort: low (fast), medium, high (deep thinking), default (model default)",
+    )
     output_instructions: str = SField(
         default="",
         description="Custom output format instructions (empty = default markdown)",
@@ -134,6 +138,7 @@ class AgentDefinition(SQLModel, table=True):
             "temperature": self.temperature,
             "recursion_limit": self.recursion_limit,
             "max_tokens": self.max_tokens,
+            "reasoning_effort": self.reasoning_effort,
             "output_instructions": self.output_instructions,
             "output_schema": self.output_schema,
             "show_in_menu": self.show_in_menu,
@@ -154,6 +159,7 @@ class AgentDefinitionCreate(BaseModel):
     temperature: float = Field(default=0.0, ge=0.0, le=2.0, description="LLM temperature")
     recursion_limit: int = Field(default=3, ge=1, le=100, description="Max ReAct iterations")
     max_tokens: int = Field(default=4096, ge=0, description="Max response tokens")
+    reasoning_effort: str = Field(default="low", description="Reasoning effort: low, medium, high, default")
     output_instructions: str = Field(default="", description="Custom output format instructions")
     output_schema: dict[str, Any] = Field(
         default_factory=dict,
@@ -174,6 +180,7 @@ class AgentDefinitionUpdate(BaseModel):
     temperature: Optional[float] = Field(default=None, ge=0.0, le=2.0)
     recursion_limit: Optional[int] = Field(default=None, ge=1, le=100)
     max_tokens: Optional[int] = Field(default=None, ge=0)
+    reasoning_effort: Optional[str] = Field(default=None)
     output_instructions: Optional[str] = Field(default=None)
     output_schema: Optional[dict[str, Any]] = Field(default=None)
     tool_names: Optional[list[str]] = Field(default=None)

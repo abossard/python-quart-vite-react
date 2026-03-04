@@ -77,25 +77,18 @@ class WorkbenchService:
                     "OPENAI_API_KEY is required to run agents. "
                     "Set it via environment variable or pass openai_api_key."
                 )
-            self._llm = build_llm(self._model, self._api_key, self._base_url)
+            self._llm = build_llm(self._model, self._api_key, self._base_url, reasoning_effort="low")
         return self._llm
 
     def _resolve_llm_for_agent(self, agent_def: "AgentDefinition") -> Any:
         """Build an LLM instance using per-agent overrides or service defaults."""
-        agent_model = agent_def.model.strip() if agent_def.model else ""
-        uses_defaults = (
-            not agent_model
-            and agent_def.temperature == 0.0
-            and agent_def.max_tokens == 4096
-        )
-        if uses_defaults:
-            return self.llm
         return build_llm(
-            model=agent_model or self._model,
+            model=(agent_def.model.strip() or self._model),
             api_key=self._api_key,
             base_url=self._base_url,
             temperature=agent_def.temperature,
             max_tokens=agent_def.max_tokens,
+            reasoning_effort=agent_def.reasoning_effort or "low",
         )
 
     # ------------------------------------------------------------------
@@ -287,6 +280,7 @@ class WorkbenchService:
             "temperature": agent.temperature,
             "recursion_limit": agent.recursion_limit,
             "max_tokens": agent.max_tokens,
+            "reasoning_effort": agent.reasoning_effort,
             "output_instructions": agent.output_instructions,
             "output_schema": agent.output_schema,
             "tool_names": list(agent.tool_names),
@@ -355,6 +349,7 @@ class WorkbenchService:
             temperature=data.temperature,
             recursion_limit=data.recursion_limit,
             max_tokens=data.max_tokens,
+            reasoning_effort=data.reasoning_effort,
             output_instructions=data.output_instructions,
             show_in_menu=data.show_in_menu,
         )
@@ -402,6 +397,8 @@ class WorkbenchService:
             agent.recursion_limit = data.recursion_limit
         if data.max_tokens is not None:
             agent.max_tokens = data.max_tokens
+        if data.reasoning_effort is not None:
+            agent.reasoning_effort = data.reasoning_effort
         if data.output_instructions is not None:
             agent.output_instructions = data.output_instructions
         if data.output_schema is not None:

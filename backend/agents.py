@@ -199,21 +199,19 @@ class AgentService:
                 "Please set OPENAI_API_KEY environment variable."
             )
         
-        # Initialize ChatOpenAI with JSON output mode
+        # Initialize ChatOpenAI with low reasoning effort for speed
         self.llm = ChatOpenAI(
             model=OPENAI_MODEL,
             api_key=OPENAI_API_KEY,
             base_url=OPENAI_BASE_URL or None,
             temperature=0.0,
-            model_kwargs={"response_format": {"type": "json_object"}},
+            reasoning_effort="low",
         )
         
         # CSV tools only
         self.tools = self._build_csv_tools()
         self._system_prompt = self._build_system_prompt()
-        # Pre-bind tools with strict=True for JSON mode compatibility
-        model_with_tools = self.llm.bind_tools(self.tools, strict=True) if self.tools else self.llm
-        self._react_agent = create_react_agent(model_with_tools, self.tools)
+        self._react_agent = create_react_agent(self.llm, self.tools)
     
     def _build_system_prompt(self) -> str:
         """Build a concise system prompt optimized for low-latency tool usage."""
@@ -334,6 +332,40 @@ class AgentService:
             stats = service.get_ticket_stats()
             return json.dumps(stats, default=str)
 
+        def _csv_count_tickets(query: str = "", status: str | None = None) -> str:
+            """Count matching tickets without returning data. Fast check before fetching details."""
+            tickets = service.list_tickets()
+            if status:
+                try:
+                    status_enum = TicketStatus(status.lower())
+                    tickets = [t for t in tickets if t.status == status_enum]
+                except Exception:
+                    pass
+            if query.strip():
+                q = query.strip().lower()
+                tickets = [t for t in tickets if q in " ".join([
+                    t.summary or "", t.description or "", t.notes or "",
+                    t.requester_name or "", t.assigned_group or "",
+                ]).lower()]
+            return json.dumps({"count": len(tickets), "query": query})
+
+        def _csv_search_with_details(query: str, limit: int = 10) -> str:
+            """Search tickets with full details (notes, resolution, description) in one call."""
+            q = query.lower()
+            detail_fields = compact_default_fields + ["notes", "resolution", "description", "incident_id"]
+            matched = []
+            for t in service.list_tickets():
+                text = " ".join([
+                    t.summary or "", t.description or "", t.notes or "",
+                    t.requester_name or "", t.assigned_group or "", t.city or "",
+                ]).lower()
+                if q in text:
+                    dump = t.model_dump()
+                    matched.append({k: v for k, v in dump.items() if k in detail_fields})
+                    if len(matched) >= min(max(limit, 1), 25):
+                        break
+            return json.dumps(matched, default=str)
+
         return [
             StructuredTool.from_function(
                 func=_csv_list_tickets,
@@ -380,6 +412,19 @@ class AgentService:
                 func=_csv_ticket_stats,
                 name="csv_ticket_stats",
                 description="Get aggregated statistics: total, by_status, by_priority, by_group, by_city.",
+            ),
+            StructuredTool.from_function(
+                func=_csv_count_tickets,
+                name="csv_count_tickets",
+                description="Count matching tickets WITHOUT returning data. Use to check result size before fetching details. Fast and cheap.",
+            ),
+            StructuredTool.from_function(
+                func=_csv_search_with_details,
+                name="csv_search_tickets_with_details",
+                description=(
+                    "Search tickets AND return full details (notes, resolution, description) in one call. "
+                    "Use for knowledgebase, analysis, or detailed reports. Limit defaults to 10, max 25."
+                ),
             ),
         ]
 

@@ -32,8 +32,9 @@ def build_llm(
     base_url: str = "",
     temperature: float = 0.0,
     max_tokens: int = 0,
+    reasoning_effort: str = "low",
 ) -> Any:
-    """Construct a ChatOpenAI instance with JSON output mode."""
+    """Construct a ChatOpenAI instance with configurable reasoning effort."""
     from langchain_openai import ChatOpenAI
 
     kwargs: dict[str, Any] = {
@@ -41,10 +42,11 @@ def build_llm(
         "api_key": api_key,
         "base_url": base_url or None,
         "temperature": temperature,
-        "model_kwargs": {"response_format": {"type": "json_object"}},
     }
     if max_tokens > 0:
         kwargs["max_tokens"] = max_tokens
+    if reasoning_effort and reasoning_effort != "default":
+        kwargs["reasoning_effort"] = reasoning_effort
     return ChatOpenAI(**kwargs)
 
 
