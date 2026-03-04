@@ -200,18 +200,21 @@ class AgentService:
                 "Please set OPENAI_API_KEY environment variable."
             )
         
-        # Initialize ChatOpenAI
+        # Initialize ChatOpenAI with JSON output mode
         self.llm = ChatOpenAI(
             model=OPENAI_MODEL,
             api_key=OPENAI_API_KEY,
             base_url=OPENAI_BASE_URL or None,
             temperature=0.0,
+            model_kwargs={"response_format": {"type": "json_object"}},
         )
         
         # CSV tools only
         self.tools = self._build_csv_tools()
         self._system_prompt = self._build_system_prompt()
-        self._react_agent = create_react_agent(self.llm, self.tools)
+        # Pre-bind tools with strict=True for JSON mode compatibility
+        model_with_tools = self.llm.bind_tools(self.tools, strict=True) if self.tools else self.llm
+        self._react_agent = create_react_agent(model_with_tools, self.tools)
     
     def _build_system_prompt(self) -> str:
         """Build a concise system prompt optimized for low-latency tool usage."""

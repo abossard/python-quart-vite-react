@@ -33,7 +33,7 @@ def build_llm(
     temperature: float = 0.0,
     max_tokens: int = 0,
 ) -> Any:
-    """Construct a ChatOpenAI instance with configurable parameters."""
+    """Construct a ChatOpenAI instance with JSON output mode."""
     from langchain_openai import ChatOpenAI
 
     kwargs: dict[str, Any] = {
@@ -41,6 +41,7 @@ def build_llm(
         "api_key": api_key,
         "base_url": base_url or None,
         "temperature": temperature,
+        "model_kwargs": {"response_format": {"type": "json_object"}},
     }
     if max_tokens > 0:
         kwargs["max_tokens"] = max_tokens
@@ -53,11 +54,18 @@ def build_react_agent(
     system_prompt: str,
     response_format: Any = None,
 ) -> Any:
-    """Construct a LangGraph ReAct agent, optionally with structured output."""
+    """Construct a LangGraph ReAct agent with strict tool schemas.
+
+    Pre-binds tools with strict=True so they're compatible with OpenAI's
+    JSON output mode (response_format: json_object).
+    """
     from langgraph.prebuilt import create_react_agent
 
+    # Pre-bind tools with strict=True for OpenAI JSON mode compatibility
+    model_with_tools = llm.bind_tools(tools, strict=True) if tools else llm
+
     kwargs: dict[str, Any] = {
-        "model": llm,
+        "model": model_with_tools,
         "tools": tools,
         "prompt": system_prompt,
     }
