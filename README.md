@@ -70,6 +70,7 @@ Open http://localhost:3001
 | Guide | Description |
 |-------|-------------|
 | **[Agent Builder](docs/AGENT_BUILDER.md)** | Architecture, mermaid diagrams, structured output, API reference |
+| **[MCP App](docs/MCP_APP.md)** | How this project works as an MCP server — protocol, tools, extensibility |
 | [Agents](docs/AGENTS.md) | LangGraph agent setup, config, tools |
 | [Quick Start](docs/QUICKSTART.md) | Fastest path from clone to running |
 | [Learning Guide](docs/LEARNING.md) | Grokking Simplicity + Philosophy of Software Design principles |
