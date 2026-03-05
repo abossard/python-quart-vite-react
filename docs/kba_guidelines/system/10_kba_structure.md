@@ -58,6 +58,49 @@ Diese Guideline definiert die **pflichtmäßige Struktur** eines Knowledge Base 
 
 ---
 
+### 2a. `target_audience` (string, required for QC)
+**Purpose:** Definiert Zielgruppe des Artikels
+
+**Werte:**
+- `"L0_enduser"` = Endnutzer ohne technisches Vorwissen (Standard)
+- `"L1_support"` = First-Level-Support-Mitarbeiter
+
+**Default:** `"L0_enduser"`
+
+**Hinweis:** Bestimmt Sprachniveau und Detailtiefe der Anleitung.
+
+---
+
+### 2b. `initial_question` (string, 10-200 chars, required for QC)
+**Purpose:** W-Frage, die das Problem aus Nutzersicht beschreibt
+
+**Format:**
+- Beginnt mit W-Wort (Warum, Wie, Was, Wann, Wo, Wer, Welche, Wieso, Weshalb)
+- Endet mit Fragezeichen
+- Spiegelt tatsächliches Nutzer-Bedürfnis
+
+**Beispiele:**
+- ✅ "Warum kann ich keine VPN-Verbindung herstellen?"
+- ✅ "Wie behebe ich den Druckerfehler \"Toner leer\"?"
+- ❌ "VPN-Problem" (keine Frage)
+- ❌ "Wie konfiguriert man DNS-Server?" (zu technisch für L0)
+
+**Unterschied zum Titel:** Titel = Aussage/Phrase, initial_question = Frage
+
+---
+
+### 2c. `article_layout_type` (string, enum)
+**Purpose:** Definiert Layout-Typ des Artikels
+
+**Werte:**
+- `"1_field"` = Nur Symptom + Lösung (Schnellanleitung)
+- `"2_field"` = + Ursache (Standard-KBA)
+- `"3_field"` = + Technical Notes für IT-Personal
+
+**Default:** `"2_field"`
+
+---
+
 ### 3. `resolution_steps` (array of strings, 1-15 items)
 **Purpose:** Schritt-für-Schritt-Anleitung zur Lösung
 
@@ -83,6 +126,41 @@ Diese Guideline definiert die **pflichtmäßige Struktur** eines Knowledge Base 
 - Eskalationspfad am Ende
 - Keine Annahmen ("vermutlich", "vielleicht") → nur validierte Schritte
 - Spezifische Befehle/Pfade/URLs verwenden
+- **Schritte beginnen mit Verb im Imperativ:** "Öffnen Sie...", "Klicken Sie..."
+
+---
+
+### 3a. `technical_notes` (string, optional, max 1000 chars)
+**Purpose:** Technische Hinweise für IT-Personal
+
+**Verwendung:**
+- Nur bei `article_layout_type = "3_field"`
+- Enthält technische Details, die Endnutzer nicht benötigen
+- Beispiel: Registry-Keys, Diagnose-Befehle, Backend-Logs
+
+**Getrennt von Endnutzer-Anleitung**
+
+---
+
+### 3b. `media_references` (array of strings, optional)
+**Purpose:** Liste von Bild-/Screenshot-Referenzen
+
+**Format:**
+- Dateinamen oder URLs von Bildern
+- Beispiel: `["vpn-settings-screenshot.png", "firewall-config.png"]`
+
+**QC-Hinweis:** Bilder müssen PII-frei sein (keine sichtbaren Namen, E-Mails, User-IDs)
+
+---
+
+### 3c. `privacy_checked` (boolean, default: false)
+**Purpose:** Bestätigung der PII-Prüfung
+
+**Werte:**
+- `false` = PII-Prüfung noch nicht durchgeführt
+- `true` = Bestätigung, dass Bilder/Text PII-frei sind
+
+**Wichtig für Publishing:** Bei Bildern muss PII-Prüfung erfolgen
 
 ---
 

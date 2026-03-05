@@ -29,6 +29,7 @@ from kba_audit import KBAAuditService
 from kba_exceptions import (
     DraftNotFoundError,
     DuplicateKBADraftError,
+    SimilarKBAsFoundError,
     InvalidLLMOutputError,
     InvalidStatusError,
     TicketNotFoundError,
@@ -48,11 +49,16 @@ from kba_models import (
     KBADraftUpdate,
     KBAPublishRequest,
     KBAPublishResult,
+    KBASimilarityResult,
+    KBACompareRequest,
+    KBACompareResult,
+    KBASimilarityMatch,
 )
 from kba_prompts import build_kba_prompt
 from kba_output_models import KBAOutputSchema
 from llm_service import LLMService, get_llm_service
 from kb_adapters import get_kb_adapter, KBPublishResult as AdapterPublishResult
+from kba_embeddings import EmbeddingService, get_embedding_service
 
 logger = logging.getLogger(__name__)
 
@@ -64,7 +70,8 @@ class KBAService:
         self,
         session: Session,
         llm_service: Optional[LLMService] = None,
-        audit_service: Optional[KBAAuditService] = None
+        audit_service: Optional[KBAAuditService] = None,
+        embedding_service: Optional[EmbeddingService] = None
     ):
         """
         Initialize KBA service
@@ -73,12 +80,15 @@ class KBAService:
             session: SQLModel database session
             llm_service: LLM service for draft generation (default: singleton)
             audit_service: Audit logging service
+            embedding_service: Embedding service for similarity search
         """
         self.session = session
         self.llm = llm_service or get_llm_service()
         self.audit = audit_service or KBAAuditService(session)
         self.csv_service = get_csv_ticket_service()
         self.guidelines_loader = get_guidelines_loader()
+        # Embedding service for similarity search (lazy init to avoid circular dependency)
+        self._embedding_service = embedding_service
     
     async def generate_draft(self, create_req: KBADraftCreate) -> KBADraft:
         """
@@ -127,7 +137,44 @@ class KBAService:
         # 2. Check for existing drafts (unless force_create is True)
         if not create_req.force_create:
             existing_drafts = self.check_existing_drafts(create_req.ticket_id)
-            if existing_drafts:
+            
+            # 2a. Check for similar KBAs (embedding-based similarity)
+            similar_matches_result = None
+            try:
+                # Get embedding service (lazy init)
+                if self._embedding_service is None:
+                    self._embedding_service = get_embedding_service(
+                        self.session,
+                        self.llm.openai_client
+                    )
+                
+                # Run similarity search on ticket summary
+                similar_matches_result = await self._embedding_service.find_similar_drafts(
+                    query_text=ticket.summary,
+                    top_k=5,
+                    min_score=0.5,
+                    status_filter=[KBADraftStatus.REVIEWED, KBADraftStatus.PUBLISHED]
+                )
+                
+                logger.info(
+                    f"Similarity check found {similar_matches_result.total_primary_matches} matches",
+                    extra={
+                        "ticket_id": str(create_req.ticket_id),
+                        "primary_matches": similar_matches_result.total_primary_matches,
+                        "used_fallback": similar_matches_result.used_fallback
+                    }
+                )
+                
+            except Exception as e:
+                # Log but don't fail draft generation if similarity check fails
+                logger.warning(
+                    f"Similarity check failed, continuing with generation: {e}",
+                    extra={"ticket_id": str(create_req.ticket_id)}
+                )
+                similar_matches_result = None
+            
+            # Raise exception if we have existing drafts OR similar matches
+            if existing_drafts or (similar_matches_result and similar_matches_result.primary_matches):
                 # Format existing drafts for error response
                 existing_summary = [
                     {
@@ -139,16 +186,38 @@ class KBAService:
                     }
                     for draft in existing_drafts
                 ]
+                
+                # Format similar matches
+                similar_summary = []
+                if similar_matches_result and similar_matches_result.primary_matches:
+                    similar_summary = [
+                        {
+                            "id": str(match.draft.id),
+                            "title": match.draft.title,
+                            "similarity_score": match.similarity_score,
+                            "match_reasons": match.match_reasons,
+                            "is_strong_match": match.is_strong_match,
+                            "status": match.draft.status.value,
+                            "tags": match.draft.tags,
+                            "created_at": match.draft.created_at.isoformat() if match.draft.created_at else None
+                        }
+                        for match in similar_matches_result.primary_matches
+                    ]
+                
                 logger.info(
-                    "KBA draft already exists",
+                    "Existing or similar KBA drafts found",
                     extra={
                         "ticket_id": str(create_req.ticket_id),
-                        "existing_count": len(existing_drafts)
+                        "existing_count": len(existing_drafts),
+                        "similar_count": len(similar_summary)
                     }
                 )
-                raise DuplicateKBADraftError(
-                    f"{len(existing_drafts)} KBA draft(s) already exist for ticket {create_req.ticket_id}",
-                    existing_summary
+                
+                # Raise with both existing and similar drafts
+                raise SimilarKBAsFoundError(
+                    f"{len(existing_drafts)} exact match(es) + {len(similar_summary)} similar KBA(s) found for ticket {create_req.ticket_id}",
+                    existing_summary,
+                    similar_summary
                 )
         
         # 3. Load guidelines
@@ -259,6 +328,22 @@ class KBAService:
                 "total_time_ms": total_time_ms
             }
         )
+        
+        # 9. Index draft for similarity search (async, non-blocking)
+        try:
+            if self._embedding_service is None:
+                self._embedding_service = get_embedding_service(
+                    self.session,
+                    self.llm.openai_client
+                )
+            
+            # Index in background (don't await - fire and forget)
+            import asyncio
+            asyncio.create_task(self._embedding_service.index_kba_draft(draft.id))
+            logger.info(f"Triggered async embedding indexing for draft {draft.id}")
+        except Exception as e:
+            # Log but don't fail draft creation if indexing fails
+            logger.warning(f"Failed to trigger embedding indexing: {e}")
         
         return draft
     
@@ -573,6 +658,131 @@ class KBAService:
             limit=filters.limit,
             offset=filters.offset
         )
+    
+    async def compare_with_ticket(
+        self,
+        draft_id: UUID,
+        ticket_id: Union[UUID, str]
+    ) -> KBACompareResult:
+        """
+        LLM-based comparison of existing KBA draft with ticket problem
+        
+        Uses OpenAI to analyze if the existing KBA adequately covers
+        the ticket's problem using structured criteria:
+        - Problem/symptom alignment
+        - Cause alignment
+        - Solution coverage
+        - Completeness, clarity, currency
+        - Redundancy risk
+        
+        Provides actionable recommendation: keep_existing, create_new, or merge_candidate
+        
+        Args:
+            draft_id: Existing KBA draft to compare
+            ticket_id: Ticket to compare against
+            
+        Returns:
+            Structured comparison result with detailed assessment
+            
+        Raises:
+            DraftNotFoundError: If draft doesn't exist
+            TicketNotFoundError: If ticket doesn't exist
+            LLMUnavailableError: If OpenAI unavailable
+        """
+        from kba_prompts import build_comparison_prompt
+        from pydantic import BaseModel, Field
+        
+        # Load draft
+        draft_table = self.session.exec(
+            select(KBADraftTable).where(KBADraftTable.id == draft_id)
+        ).first()
+        
+        if not draft_table:
+            raise DraftNotFoundError(f"Draft {draft_id} not found")
+        
+        draft = self._table_to_draft(draft_table)
+        
+        # Load ticket
+        ticket_id_str = str(ticket_id)
+        if ticket_id_str.startswith('INC') and len(ticket_id_str) == 15:
+            from csv_data import generate_uuid_from_incident_id
+            actual_uuid = generate_uuid_from_incident_id(ticket_id_str)
+            ticket = self.csv_service.get_ticket(actual_uuid)
+        else:
+            ticket = self.csv_service.get_ticket(ticket_id)
+        
+        if not ticket:
+            raise TicketNotFoundError(f"Ticket {ticket_id} not found")
+        
+        # Prepare data dictionaries for prompt builder
+        ticket_data = {
+            "summary": ticket.summary,
+            "notes": ticket.notes,
+            "resolution": ticket.resolution,
+            "status": ticket.status.value if ticket.status else "Unknown",
+            "priority": ticket.priority.value if ticket.priority else "Unknown",
+        }
+        
+        kba_data = {
+            "title": draft.title,
+            "symptoms": draft.symptoms,
+            "cause": draft.cause,
+            "resolution_steps": draft.resolution_steps,
+            "tags": draft.tags,
+            "validation_checks": draft.validation_checks or [],
+            "warnings": draft.warnings or [],
+            "status": draft.status.value if hasattr(draft.status, 'value') else str(draft.status),
+            "created_at": draft.created_at.isoformat() if draft.created_at else "Unknown",
+        }
+        
+        # Build structured comparison prompt
+        comparison_prompt = build_comparison_prompt(ticket_data, kba_data)
+        
+        # Define Pydantic schema for structured output
+        class ComparisonSchema(BaseModel):
+            duplicate_likelihood: float = Field(ge=0.0, le=1.0)
+            match_summary: str = Field(min_length=50)
+            strengths_existing_kba: list[str] = Field(min_length=0)
+            gaps_existing_kba: list[str] = Field(min_length=0)
+            recommendation: str = Field(pattern="^(keep_existing|create_new|merge_candidate)$")
+            recommendation_reason: str = Field(min_length=100)
+            confidence_notes: Optional[str] = Field(default=None)
+        
+        # Call LLM with retry logic
+        try:
+            messages = [
+                {"role": "system", "content": "Du bist ein Experte für IT-Support-Dokumentation und Knowledge Base Management."},
+                {"role": "user", "content": comparison_prompt}
+            ]
+            
+            # Call LLM and get structured output
+            llm_result = await self.llm.structured_chat(messages, ComparisonSchema)
+            
+            # Extract fields from LLM result (explicit to satisfy type checker)
+            duplicate_likelihood_val = getattr(llm_result, 'duplicate_likelihood', 0.0)
+            match_summary_val = getattr(llm_result, 'match_summary', '')
+            strengths_val = getattr(llm_result, 'strengths_existing_kba', [])
+            gaps_val = getattr(llm_result, 'gaps_existing_kba', [])
+            recommendation_val = getattr(llm_result, 'recommendation', 'create_new')
+            recommendation_reason_val = getattr(llm_result, 'recommendation_reason', '')
+            confidence_notes_val = getattr(llm_result, 'confidence_notes', None)
+            
+            # Build result with new fields (legacy fields auto-populated by model_post_init)
+            return KBACompareResult(
+                draft_id=draft_id,
+                ticket_id=ticket_id_str,
+                duplicate_likelihood=duplicate_likelihood_val,
+                match_summary=match_summary_val,
+                strengths_existing_kba=strengths_val,
+                gaps_existing_kba=gaps_val,
+                recommendation=recommendation_val,
+                recommendation_reason=recommendation_reason_val,
+                confidence_notes=confidence_notes_val,
+            )
+            
+        except Exception as e:
+            logger.error(f"Failed to compare draft {draft_id} with ticket {ticket_id}: {e}")
+            raise
     
     async def replace_draft(self, draft_id: UUID, user_id: str) -> KBADraft:
         """

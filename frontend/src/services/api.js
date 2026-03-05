@@ -421,6 +421,54 @@ export async function checkKBAHealth() {
 }
 
 // ============================================================================
+// KBA Similarity Check APIs
+// ============================================================================
+
+export async function checkSimilarKBAs(ticketId) {
+  return fetchJSON(`${API_BASE_URL}/kba/check-similar`, {
+    method: "POST",
+    body: JSON.stringify({ ticket_id: ticketId }),
+  });
+}
+
+export async function compareKBAWithTicket(draftId, ticketId) {
+  return fetchJSON(`${API_BASE_URL}/kba/compare`, {
+    method: "POST",
+    body: JSON.stringify({ draft_id: draftId, ticket_id: ticketId }),
+  });
+}
+
+export async function reindexKBAEmbeddings() {
+  return fetchJSON(`${API_BASE_URL}/kba/embeddings/reindex`, {
+    method: "POST",
+  });
+}
+
+/**
+ * Log a user's similarity check decision for audit trail
+ * @param {Object} decisionData - Decision details
+ * @param {string} decisionData.ticket_id - Ticket ID
+ * @param {string} decisionData.user_id - User ID
+ * @param {boolean} decisionData.similarity_check_performed - Was check performed
+ * @param {number} decisionData.match_count - Number of matches found
+ * @param {number} decisionData.threshold_used - Threshold used (e.g., 0.5)
+ * @param {boolean} decisionData.strong_match_found - Any matches >= 0.7
+ * @param {number} [decisionData.highest_similarity_score] - Best match score
+ * @param {"keep_existing"|"create_new"|"create_new_after_compare"|"cancelled"} decisionData.decision - User's decision
+ * @param {string} [decisionData.selected_existing_kba_id] - If keep_existing, which KBA ID
+ * @param {string} [decisionData.created_new_draft_id] - If create_new, the new draft ID
+ * @param {string} [decisionData.user_note] - Optional user reasoning/note
+ * @param {Object} [decisionData.context_data] - Additional context
+ * @returns {Promise<Object>} Logged decision response with ID and timestamp
+ */
+export async function logSimilarityDecision(decisionData) {
+  return fetchJSON(`${API_BASE_URL}/kba/similarity/decision`, {
+    method: "POST",
+    body: JSON.stringify(decisionData),
+  });
+}
+
+// ============================================================================
 // KBA Auto-Generation APIs
 // ============================================================================
 

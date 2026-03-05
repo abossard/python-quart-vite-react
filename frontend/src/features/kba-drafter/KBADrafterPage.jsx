@@ -70,6 +70,8 @@ import TagEditor from "./components/TagEditor";
 import DuplicateKBADialog from "./components/DuplicateKBADialog";
 import ConfirmDialog from "./components/ConfirmDialog";
 import AutoGenSettings from "./components/AutoGenSettings";
+import SimilarKBAsDialog from "./components/SimilarKBAsDialog";
+import KBACompareView from "./components/KBACompareView";
 
 const useStyles = makeStyles({
   container: {
@@ -215,6 +217,13 @@ export default function KBADrafterPage() {
   const [statusWarningOpen, setStatusWarningOpen] = useState(false);
   const [pendingTicket, setPendingTicket] = useState(null);
   
+  // Similarity Check State
+  const [similarDialogOpen, setSimilarDialogOpen] = useState(false);
+  const [similarityResult, setSimilarityResult] = useState(null);
+  const [compareViewOpen, setCompareViewOpen] = useState(false);
+  const [selectedKBAForCompare, setSelectedKBAForCompare] = useState(null);
+  const [compareTicketData, setCompareTicketData] = useState(null);
+  
   // Filter state
   const [statusFilter, setStatusFilter] = useState("all");
 
@@ -348,7 +357,19 @@ export default function KBADrafterPage() {
       setTicketIdError("");
       loadDrafts();
     } catch (error) {
-      // Handle duplicate draft error (409)
+      // Handle similar KBAs found (new 409 response)
+      if (error.status === 409 && error.data?.similar_matches) {
+        setSimilarityResult({
+          similar_matches: error.data.similar_matches,
+          existing_drafts: error.data.existing_drafts || [],
+        });
+        setPendingTicketId(ticketId.trim());
+        setSimilarDialogOpen(true);
+        setLoading(false);
+        return;
+      }
+      
+      // Handle duplicate draft error (409) - legacy format
       if (error.status === 409 && error.data?.existing_drafts) {
         // Show dialog with existing drafts
         setExistingDrafts(error.data.existing_drafts);
@@ -403,6 +424,193 @@ export default function KBADrafterPage() {
     setDuplicateDialogOpen(false);
     setExistingDrafts([]);
     setPendingTicketId(null);
+  };
+  
+  // Handler: Open comparison view from similar KBAs dialog
+  const handleCompareSimilar = async (kbaDraft) => {
+    setSimilarDialogOpen(false);
+    
+    // Load ticket data for comparison
+    try {
+      const trimmedId = pendingTicketId || ticketId.trim();
+      let ticket;
+      
+      if (UUID_REGEX.test(trimmedId)) {
+        ticket = await api.getCSVTicket(trimmedId);
+      } else if (INCIDENT_ID_REGEX.test(trimmedId)) {
+        ticket = await api.getCSVTicketByIncident(trimmedId);
+      }
+      
+      setCompareTicketData(ticket);
+      setSelectedKBAForCompare(kbaDraft);
+      setCompareViewOpen(true);
+    } catch (error) {
+      setMessage({
+        type: "error",
+        text: error.message || "Fehler beim Laden der Ticket-Daten",
+      });
+    }
+  };
+  
+  // Handler: Create new KBA from similar dialog (force create)
+  const handleCreateNewAfterSimilarity = async () => {
+    setSimilarDialogOpen(false);
+    
+    // Log decision to create new without comparison
+    try {
+      await api.logSimilarityDecision({
+        ticket_id: pendingTicketId || ticketId.trim(),
+        user_id: "user@example.com", // TODO: Get from auth context
+        similarity_check_performed: true,
+        match_count: similarityResult?.primary_matches?.length || 0 + similarityResult?.draft_matches?.length || 0,
+        threshold_used: 0.5,
+        strong_match_found: (similarityResult?.primary_matches || []).some(m => m.similarity_score >= 0.7) ||
+                          (similarityResult?.draft_matches || []).some(m => m.similarity_score >= 0.7),
+        highest_similarity_score: Math.max(
+          ...(similarityResult?.primary_matches || []).map(m => m.similarity_score),
+          ...(similarityResult?.draft_matches || []).map(m => m.similarity_score),
+          0
+        ),
+        decision: "create_new",
+        user_note: "User chose to create new KBA without detailed comparison",
+        context_data: {
+          comparison_used: false,
+          matches_ignored: true,
+        },
+      });
+    } catch (error) {
+      console.error("Failed to log similarity decision:", error);
+    }
+    
+    handleGenerate(true);
+  };
+  
+  // Handler: Cancel similarity dialog
+  const handleCancelSimilarity = async () => {
+    setSimilarDialogOpen(false);
+    
+    // Log cancellation for audit trail
+    try {
+      await api.logSimilarityDecision({
+        ticket_id: pendingTicketId || ticketId.trim(),
+        user_id: "user@example.com", // TODO: Get from auth context        similarity_check_performed: true,
+        match_count: similarityResult?.primary_matches?.length || 0 + similarityResult?.draft_matches?.length || 0,
+        threshold_used: 0.5,
+        strong_match_found: (similarityResult?.primary_matches || []).some(m => m.similarity_score >= 0.7) ||
+                          (similarityResult?.draft_matches || []).some(m => m.similarity_score >= 0.7),
+        highest_similarity_score: Math.max(
+          ...(similarityResult?.primary_matches || []).map(m => m.similarity_score),
+          ...(similarityResult?.draft_matches || []).map(m => m.similarity_score),
+          0
+        ),
+        decision: "cancelled",
+        user_note: "User cancelled the workflow",
+        context_data: {
+          comparison_used: false,
+        },
+      });
+    } catch (error) {
+      console.error("Failed to log similarity decision:", error);
+    }
+    
+    setSimilarityResult(null);
+    setPendingTicketId(null);
+  };
+  
+  // Handler: Use existing KBA from compare view
+  const handleUseExistingKBA = async (userNote = "") => {
+    setCompareViewOpen(false);
+    
+    // Log similarity decision for audit trail
+    try {
+      await api.logSimilarityDecision({
+        ticket_id: pendingTicketId || ticketId.trim(),
+        user_id: "user@example.com", // TODO: Get from auth context
+        similarity_check_performed: true,
+        match_count: similarityResult?.primary_matches?.length || 0 + similarityResult?.draft_matches?.length || 0,
+        threshold_used: 0.5,
+        strong_match_found: (similarityResult?.primary_matches || []).some(m => m.similarity_score >= 0.7) ||
+                          (similarityResult?.draft_matches || []).some(m => m.similarity_score >= 0.7),
+        highest_similarity_score: Math.max(
+          ...(similarityResult?.primary_matches || []).map(m => m.similarity_score),
+          ...(similarityResult?.draft_matches || []).map(m => m.similarity_score),
+          0
+        ),
+        decision: "keep_existing",
+        selected_existing_kba_id: selectedKBAForCompare?.id,
+        user_note: userNote || undefined,
+        context_data: {
+          comparison_used: true,
+          llm_recommendation: similarityResult?.recommendation || null,
+        },
+      });
+    } catch (error) {
+      console.error("Failed to log similarity decision:", error);
+      // Continue anyway - logging failure shouldn't block workflow
+    }
+    
+    if (selectedKBAForCompare) {
+      await handleViewExisting(selectedKBAForCompare.id);
+    }
+    
+    setSelectedKBAForCompare(null);
+    setCompareTicketData(null);
+    setSimilarityResult(null);
+  };
+  
+  // Handler: Create new KBA from compare view
+  const handleCreateNewFromCompare = async (userNote = "") => {
+    setCompareViewOpen(false);
+    setSelectedKBAForCompare(null);
+    setCompareTicketData(null);
+    
+    // Log decision before creating new draft
+    try {
+      await api.logSimilarityDecision({
+        ticket_id: pendingTicketId || ticketId.trim(),
+        user_id: "user@example.com", // TODO: Get from auth context
+        similarity_check_performed: true,
+        match_count: similarityResult?.primary_matches?.length || 0 + similarityResult?.draft_matches?.length || 0,
+        threshold_used: 0.5,
+        strong_match_found: (similarityResult?.primary_matches || []).some(m => m.similarity_score >= 0.7) ||
+                          (similarityResult?.draft_matches || []).some(m => m.similarity_score >= 0.7),
+        highest_similarity_score: Math.max(
+          ...(similarityResult?.primary_matches || []).map(m => m.similarity_score),
+          ...(similarityResult?.draft_matches || []).map(m => m.similarity_score),
+          0
+        ),
+        decision: "create_new_after_compare",
+        user_note: userNote || undefined,
+        context_data: {
+          comparison_used: true,
+          compared_with_kba_id: selectedKBAForCompare?.id,
+        },
+      });
+    } catch (error) {
+      console.error("Failed to log similarity decision:", error);
+    }
+    
+    // Now create the new draft
+    handleGenerate(true);
+  };
+  
+  // Handler: Go back from compare view to similar KBAs dialog
+  const handleBackToSimilarDialog = () => {
+    setCompareViewOpen(false);
+    setSelectedKBAForCompare(null);
+    setCompareTicketData(null);
+    setSimilarDialogOpen(true);
+  };
+  
+  // Handler: Fetch LLM comparison analysis
+  const handleFetchCompareAnalysis = async (draftId, ticketId) => {
+    try {
+      const result = await api.compareKBAWithTicket(draftId, ticketId);
+      return result;
+    } catch (error) {
+      console.error("Failed to fetch compare analysis:", error);
+      throw error;
+    }
   };
   
   // Handler: Proceed with generation despite status warning
@@ -1584,6 +1792,43 @@ export default function KBADrafterPage() {
         onConfirm={handleDiscardChanges}
         onCancel={handleCancelDiscard}
       />
+
+      {/* Similar KBAs Dialog */}
+      <SimilarKBAsDialog
+        open={similarDialogOpen}
+        similarityResult={similarityResult}
+        loading={false}
+        onCancel={handleCancelSimilarity}
+        onCompare={handleCompareSimilar}
+        onCreateNew={handleCreateNewAfterSimilarity}
+      />
+
+      {/* KBA Compare View - mounts as full page overlay */}
+      {compareViewOpen && (
+        <div
+          style={{
+            position: "fixed",
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            backgroundColor: tokens.colorNeutralBackground1,
+            zIndex: 10000,
+            overflow: "auto",
+            padding: tokens.spacingVerticalXL,
+          }}
+        >
+          <KBACompareView
+            ticketData={compareTicketData}
+            kbaDraft={selectedKBAForCompare}
+            ticketId={pendingTicketId || ticketId.trim()}
+            onBack={handleBackToSimilarDialog}
+            onUseExisting={handleUseExistingKBA}
+            onCreateNew={handleCreateNewFromCompare}
+            onCompareAPI={handleFetchCompareAnalysis}
+          />
+        </div>
+      )}
     </div>
   );
 }

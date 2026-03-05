@@ -98,6 +98,44 @@ Diese Guideline definiert den **sprachlichen Stil** für alle KBA-Texte.
 
 **Gut:**
 - "Ursache unbekannt" (ehrlich)
+
+---
+
+## Sprach- und Stilregeln (QC-prüfbar)
+
+### Sie-Form (verpflichtend)
+- **Immer "Sie"**, nie "du", "ihr", "man"
+- Direkte Anrede: "Öffnen **Sie**...", nicht "Man öffnet..."
+- Ausnahme: Zitate oder UI-Elemente ("Klicken Sie auf 'Anmelden'")
+
+**Beispiele:**
+- ✅ "Öffnen Sie die Systemsteuerung"
+- ✅ "Klicken Sie auf den Button"
+- ❌ "Öffne die Systemsteuerung" (du-Form)
+- ❌ "Man öffnet die Systemsteuerung" (unpersönlich)
+
+### Satzstruktur
+- **Kurze, klare Sätze** (Richtwert: max. 20 Wörter)
+- Keine Schachtelsätze mit mehreren Nebensätzen
+- Ein Gedanke pro Satz
+
+### Arbeitsschritte
+**Beginnen mit Verb im Imperativ:**
+- ✅ "Öffnen Sie..."
+- ✅ "Klicken Sie..."
+- ✅ "Geben Sie ein..."
+- ❌ "Sie müssen öffnen..." (umständlich)
+- ❌ "Nun wird geklickt..." (passiv)
+
+### Formatierung (Verbote)
+- **Keine GROSSSCHRIFT** zur Betonung (stattdessen **Fettschrift**)
+- **Keine Ausrufezeichen** in Anleitungsschritten (sachlich bleiben)
+- **Keine unnötigen Klammern** (Infos in Fließtext integrieren oder weglassen)
+
+### Fachjargon
+- Minimieren, nur wenn nötig
+- Bei Verwendung **direkt erklären:** "DNS-Cache (Zwischenspeicher für Webadressen)"
+- Keine Abkürzungen ohne erste Auflösung
 - "Falls Problem weiterhin besteht: Ticket eskalieren" (klar)
 
 **Schlecht:**

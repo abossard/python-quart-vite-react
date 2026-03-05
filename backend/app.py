@@ -1095,10 +1095,19 @@ async def rest_kba_generate_draft():
     """REST wrapper: generate KBA draft from ticket."""
     try:
         from operations import op_kba_generate_draft
+        from kba_exceptions import SimilarKBAsFoundError
         data = await request.get_json()
         draft_data = KBADraftCreate(**data)
         draft = await op_kba_generate_draft(draft_data)
         return jsonify(draft.model_dump()), 201
+    except SimilarKBAsFoundError as e:
+        # Return 409 Conflict with existing + similar drafts
+        return jsonify({
+            "error": str(e),
+            "error_type": "similar_kbas_found",
+            "existing_drafts": e.existing_drafts,
+            "similar_matches": e.similar_matches
+        }), 409
     except ValidationError as e:
         return jsonify({"error": str(e)}), 400
 
@@ -1216,6 +1225,55 @@ async def rest_kba_health():
         "llm_provider": "openai",
         "model": llm.model
     })
+
+
+# ============================================================================
+# KBA SIMILARITY/DUPLICATE CHECK ROUTES
+# ============================================================================
+
+@app.route("/api/kba/check-similar", methods=["POST"])
+async def rest_kba_check_similar():
+    """REST wrapper: check for similar KBAs before draft creation."""
+    try:
+        from operations import op_kba_check_similar
+        data = await request.get_json()
+        ticket_id = data.get("ticket_id")
+        
+        if not ticket_id:
+            return jsonify({"error": "ticket_id is required"}), 400
+        
+        result = await op_kba_check_similar(ticket_id)
+        return jsonify(result.model_dump())
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+@app.route("/api/kba/compare", methods=["POST"])
+async def rest_kba_compare():
+    """REST wrapper: LLM-based comparison of ticket with existing KBA."""
+    try:
+        from operations import op_kba_compare
+        from kba_models import KBACompareRequest
+        
+        data = await request.get_json()
+        compare_data = KBACompareRequest(**data)
+        result = await op_kba_compare(compare_data)
+        return jsonify(result.model_dump())
+    except ValidationError as e:
+        return jsonify({"error": str(e)}), 400
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+@app.route("/api/kba/embeddings/reindex", methods=["POST"])
+async def rest_kba_reindex_embeddings():
+    """REST wrapper: batch reindex all KBA embeddings (admin operation)."""
+    try:
+        from operations import op_kba_reindex_embeddings
+        stats = await op_kba_reindex_embeddings()
+        return jsonify(stats)
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
 
 
 # ============================================================================

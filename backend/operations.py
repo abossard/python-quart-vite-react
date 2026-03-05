@@ -23,6 +23,11 @@ from kba_models import (
     KBADraftUpdate,
     KBAPublishRequest,
     KBAPublishResult,
+    KBASimilarityResult,
+    KBACompareRequest,
+    KBACompareResult,
+    SimilarityDecisionRequest,
+    SimilarityDecisionResponse,
 )
 from kba_service import get_kba_service
 from sqlmodel import Session, create_engine, text
@@ -70,6 +75,60 @@ def _migrate_kba_schema(engine) -> None:
             session.exec(text(
                 "ALTER TABLE kba_drafts ADD COLUMN is_auto_generated INTEGER DEFAULT 0"
             ))
+            session.commit()
+        
+        # Check if kba_embeddings table exists
+        tables_result = list(session.exec(text(
+            "SELECT name FROM sqlite_master WHERE type='table' AND name='kba_embeddings'"
+        )).all())
+        
+        if not tables_result:
+            # Create kba_embeddings table for similarity search
+            session.exec(text("""
+                CREATE TABLE kba_embeddings (
+                    id TEXT PRIMARY KEY,
+                    draft_id TEXT UNIQUE NOT NULL,
+                    embedding_json TEXT NOT NULL,
+                    indexed_at TEXT NOT NULL,
+                    model_name TEXT DEFAULT 'text-embedding-3-small',
+                    searchable_text TEXT
+                )
+            """))
+            session.exec(text("CREATE INDEX idx_kba_embeddings_draft_id ON kba_embeddings(draft_id)"))
+            session.exec(text("CREATE INDEX idx_kba_embeddings_indexed_at ON kba_embeddings(indexed_at)"))
+            session.commit()
+        
+        # Check if kba_similarity_decisions table exists
+        decisions_result = list(session.exec(text(
+            "SELECT name FROM sqlite_master WHERE type='table' AND name='kba_similarity_decisions'"
+        )).all())
+        
+        if not decisions_result:
+            # Create kba_similarity_decisions table for audit logging
+            session.exec(text("""
+                CREATE TABLE kba_similarity_decisions (
+                    id TEXT PRIMARY KEY,
+                    ticket_id TEXT NOT NULL,
+                    user_id TEXT NOT NULL,
+                    similarity_check_performed INTEGER DEFAULT 1,
+                    match_count INTEGER DEFAULT 0,
+                    threshold_used REAL DEFAULT 0.5,
+                    strong_match_found INTEGER DEFAULT 0,
+                    highest_similarity_score REAL,
+                    decision TEXT NOT NULL,
+                    selected_existing_kba_id TEXT,
+                    created_new_draft_id TEXT,
+                    user_note TEXT,
+                    decision_timestamp TEXT NOT NULL,
+                    context_data TEXT DEFAULT '{}'
+                )
+            """))
+            session.exec(text("CREATE INDEX idx_similarity_decisions_ticket_id ON kba_similarity_decisions(ticket_id)"))
+            session.exec(text("CREATE INDEX idx_similarity_decisions_user_id ON kba_similarity_decisions(user_id)"))
+            session.exec(text("CREATE INDEX idx_similarity_decisions_decision ON kba_similarity_decisions(decision)"))
+            session.exec(text("CREATE INDEX idx_similarity_decisions_timestamp ON kba_similarity_decisions(decision_timestamp)"))
+            session.exec(text("CREATE INDEX idx_similarity_decisions_existing_kba ON kba_similarity_decisions(selected_existing_kba_id)"))
+            session.exec(text("CREATE INDEX idx_similarity_decisions_new_draft ON kba_similarity_decisions(created_new_draft_id)"))
             session.commit()
 
 
@@ -678,6 +737,112 @@ async def op_kba_get_audit_trail(draft_id: str) -> list[dict[str, Any]]:
     audit_service = get_audit_service(session)
     events = audit_service.get_audit_trail(UUID(draft_id))
     return [event.model_dump() for event in events]
+
+
+@operation(
+    name="kba_check_similar",
+    description="Check for similar KBAs before creating draft",
+    http_method="POST",
+    http_path="/api/kba/check-similar",
+)
+async def op_kba_check_similar(ticket_id: str) -> KBASimilarityResult:
+    """Find similar KBAs for a ticket (similarity check before draft generation)."""
+    from uuid import UUID
+    from csv_data import generate_uuid_from_incident_id
+    from kba_embeddings import get_embedding_service
+    
+    session = _get_kba_session()
+    csv_service = get_csv_ticket_service()
+    
+    # Convert Incident-ID to UUID if needed
+    if ticket_id.startswith('INC') and len(ticket_id) == 15:
+        actual_uuid = generate_uuid_from_incident_id(ticket_id)
+        ticket = csv_service.get_ticket(actual_uuid)
+    else:
+        ticket = csv_service.get_ticket(UUID(ticket_id))
+    
+    if not ticket:
+        from kba_exceptions import TicketNotFoundError
+        raise TicketNotFoundError(f"Ticket {ticket_id} not found")
+    
+    # Get LLM service for OpenAI client
+    from llm_service import get_llm_service
+    llm_service = get_llm_service()
+    
+    # Get embedding service and run similarity search
+    embedding_service = get_embedding_service(session, llm_service.openai_client)
+    result = await embedding_service.find_similar_drafts(
+        query_text=ticket.summary,
+        top_k=5,
+        min_score=0.5
+    )
+    
+    return result
+
+
+@operation(
+    name="kba_compare",
+    description="Compare ticket with existing KBA (LLM-based)",
+    http_method="POST",
+    http_path="/api/kba/compare",
+)
+async def op_kba_compare(data: KBACompareRequest) -> KBACompareResult:
+    """Use LLM to compare ticket problem with existing KBA."""
+    session = _get_kba_session()
+    kba_service = get_kba_service(session)
+    return await kba_service.compare_with_ticket(data.draft_id, data.ticket_id)
+
+
+@operation(
+    name="kba_reindex_embeddings",
+    description="Batch reindex all KBA embeddings (admin)",
+    http_method="POST",
+    http_path="/api/kba/embeddings/reindex",
+)
+async def op_kba_reindex_embeddings() -> dict[str, int]:
+    """Batch reindex all KBA drafts for similarity search."""
+    from kba_embeddings import get_embedding_service
+    from llm_service import get_llm_service
+    from kba_models import KBADraftStatus
+    
+    session = _get_kba_session()
+    llm_service = get_llm_service()
+    embedding_service = get_embedding_service(session, llm_service.openai_client)
+    
+    # Reindex only reviewed and published KBAs
+    stats = await embedding_service.reindex_all_kbas(
+        status_filter=[KBADraftStatus.REVIEWED, KBADraftStatus.PUBLISHED]
+    )
+    
+    return stats
+
+
+@operation(
+    name="kba_log_similarity_decision",
+    description="Log a user's decision after similarity check (audit logging)",
+    http_method="POST",
+    http_path="/api/kba/similarity/decision",
+)
+async def op_kba_log_similarity_decision(data: SimilarityDecisionRequest) -> SimilarityDecisionResponse:
+    """
+    Log user decision after viewing similarity matches.
+    
+    Records whether user chose to:
+    - Keep existing KBA (reuse)
+    - Create new KBA (with or without comparison)
+    - Cancel workflow
+    
+    Enables full audit trail for KBA reuse decisions.
+    """
+    from kba_audit import get_audit_service
+    
+    session = _get_kba_session()
+    audit_service = get_audit_service(session)
+    
+    # Log the decision
+    response = audit_service.log_similarity_decision(data)
+    
+    return response
 
 
 @operation(

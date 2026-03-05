@@ -21,9 +21,17 @@ from datetime import datetime
 from typing import Optional
 from uuid import UUID
 
-from sqlmodel import Session, select
+from sqlmodel import Session, select, asc, desc
 
-from kba_models import KBAAuditEvent, KBAAuditEventType, KBAAuditLog
+from kba_models import (
+    KBAAuditEvent,
+    KBAAuditEventType,
+    KBAAuditLog,
+    SimilarityDecisionLog,
+    SimilarityDecisionRequest,
+    SimilarityDecisionResponse,
+    SimilarityDecisionType,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -109,7 +117,7 @@ class KBAAuditService:
         """
         statement = select(KBAAuditLog).where(
             KBAAuditLog.draft_id == draft_id
-        ).order_by(KBAAuditLog.timestamp.asc())
+        ).order_by(asc(KBAAuditLog.timestamp))
         
         audit_logs = self.session.exec(statement).all()
         
@@ -153,7 +161,7 @@ class KBAAuditService:
         Returns:
             List of recent audit events ordered by timestamp (descending)
         """
-        statement = select(KBAAuditLog).order_by(KBAAuditLog.timestamp.desc()).limit(limit)
+        statement = select(KBAAuditLog).order_by(desc(KBAAuditLog.timestamp)).limit(limit)
         
         if event_type:
             statement = statement.where(KBAAuditLog.event_type == event_type.value)
@@ -176,6 +184,125 @@ class KBAAuditService:
         ]
         
         return events
+    
+    def log_similarity_decision(
+        self,
+        decision_request: SimilarityDecisionRequest
+    ) -> SimilarityDecisionResponse:
+        """
+        Log a user's decision after similarity check
+        
+        Records detailed information about whether the user chose to:
+        - Keep an existing KBA
+        - Create a new KBA (with or without comparison)
+        - Cancel the workflow
+        
+        This enables full audit trail for KBA reuse vs. creation decisions.
+        
+        Args:
+            decision_request: Complete decision context
+            
+        Returns:
+            Response with logged decision ID and timestamp
+        """
+        # Create decision log entry
+        decision_log = SimilarityDecisionLog(
+            ticket_id=decision_request.ticket_id,
+            user_id=decision_request.user_id,
+            similarity_check_performed=decision_request.similarity_check_performed,
+            match_count=decision_request.match_count,
+            threshold_used=decision_request.threshold_used,
+            strong_match_found=decision_request.strong_match_found,
+            highest_similarity_score=decision_request.highest_similarity_score,
+            decision=decision_request.decision.value,
+            selected_existing_kba_id=decision_request.selected_existing_kba_id,
+            created_new_draft_id=decision_request.created_new_draft_id,
+            user_note=decision_request.user_note,
+            decision_timestamp=datetime.now(),
+            context_data=decision_request.context_data
+        )
+        
+        # Save to database
+        self.session.add(decision_log)
+        self.session.commit()
+        self.session.refresh(decision_log)
+        
+        # Also log a general audit event (for backwards compatibility)
+        if decision_request.created_new_draft_id:
+            self.log_event(
+                draft_id=decision_request.created_new_draft_id,
+                event_type=KBAAuditEventType.SIMILARITY_DECISION,
+                user_id=decision_request.user_id,
+                details={
+                    "ticket_id": decision_request.ticket_id,
+                    "decision": decision_request.decision.value,
+                    "match_count": decision_request.match_count,
+                    "strong_match_found": decision_request.strong_match_found,
+                    "user_note": decision_request.user_note
+                }
+            )
+        
+        # Application logging
+        logger.info(
+            f"Similarity decision logged: {decision_request.decision.value}",
+            extra={
+                "ticket_id": decision_request.ticket_id,
+                "user_id": decision_request.user_id,
+                "decision": decision_request.decision.value,
+                "match_count": decision_request.match_count,
+                "selected_existing_kba": str(decision_request.selected_existing_kba_id) if decision_request.selected_existing_kba_id else None,
+                "created_new_draft": str(decision_request.created_new_draft_id) if decision_request.created_new_draft_id else None,
+            }
+        )
+        
+        # Build response
+        return SimilarityDecisionResponse(
+            id=decision_log.id,
+            ticket_id=decision_log.ticket_id,
+            decision=SimilarityDecisionType(decision_log.decision),
+            timestamp=decision_log.decision_timestamp,
+            message="Decision logged successfully"
+        )
+    
+    def get_similarity_decisions(
+        self,
+        ticket_id: Optional[str] = None,
+        user_id: Optional[str] = None,
+        limit: int = 50
+    ) -> list[SimilarityDecisionLog]:
+        """
+        Retrieve similarity decisions from audit log
+        
+        Args:
+            ticket_id: Optional filter by ticket ID
+            user_id: Optional filter by user
+            limit: Maximum number of results
+            
+        Returns:
+            List of decision log entries
+        """
+        statement = select(SimilarityDecisionLog).order_by(
+            desc(SimilarityDecisionLog.decision_timestamp)
+        ).limit(limit)
+        
+        if ticket_id:
+            statement = statement.where(SimilarityDecisionLog.ticket_id == ticket_id)
+        
+        if user_id:
+            statement = statement.where(SimilarityDecisionLog.user_id == user_id)
+        
+        decisions = self.session.exec(statement).all()
+        
+        logger.debug(
+            f"Retrieved similarity decisions",
+            extra={
+                "count": len(decisions),
+                "ticket_id": ticket_id,
+                "user_id": user_id
+            }
+        )
+        
+        return list(decisions)
 
 
 # Singleton instance (will be initialized with session in operations.py)

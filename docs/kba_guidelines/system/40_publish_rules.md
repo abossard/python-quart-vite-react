@@ -98,6 +98,44 @@ draft → reviewed → published
          ▼                       ▼
     ✅ Approved             ❌ Rejected
          │                       │
+
+---
+
+## Quality Check & Publishing
+
+### Workflow mit QC
+
+1. **Draft erstellen** (`mode=draft`)
+2. **Quality Check durchführen** (`mode=quality_check`)
+3. Bei Mängeln: **Überarbeiten** → erneut QC (iterativ)
+4. **Publizieren** (empfohlen erst bei "geeignet")
+
+### Publishing-Empfehlungen nach QC-Verdict
+
+**nicht_geeignet:**
+- Publishing **nicht empfohlen**
+- Kritische Mängel beheben (insbesondere PII/Datenschutz)
+- Erneuter QC erforderlich
+- **Grund:** Score <60% oder ≥2 kritische Blocker oder PII-Verstoß
+
+**bedingt_geeignet:**
+- Publishing **mit Vorsicht** möglich
+- Manuelle Review **verpflichtend**
+- Verbesserungsvorschläge beachten
+- **Grund:** Score 60-79% oder 1 nicht-PII-Blocker
+
+**geeignet:**
+- Publishing **empfohlen**
+- Manuelle Review trotzdem sinnvoll (technische Richtigkeit)
+- **Grund:** Score ≥80% ohne kritische Blocker
+
+### WICHTIG
+
+- **GPT macht keine finale Freigabe**
+- Technische Richtigkeit liegt bei verantwortlicher Person
+- PII-Prüfung bei Bildern manuell nochmals kontrollieren
+- QC-Resultat wird in Draft-Metadaten gespeichert
+- Bei PII-Verstoß: **IMMER** nicht_geeignet (auch bei hohem Score)
          ▼                       ▼
 ┌────────────────────┐  ┌────────────────────┐
 │ 3a. Mark Reviewed  │  │ 3b. Reject / Delete│

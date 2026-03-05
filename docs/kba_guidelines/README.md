@@ -12,6 +12,7 @@ Dieses Dokument erklärt vollständig, wie der KBA Drafter funktioniert, wie Gui
 
 - [Überblick](#überblick)
 - [Kompletter Ablauf](#kompletter-ablauf)
+- [Quality Check System](#quality-check-system)
 - [Verzeichnisstruktur](#verzeichnisstruktur)
 - [Auto-Detection System](#auto-detection-system)
 - [Bestehende Guidelines](#bestehende-guidelines)
@@ -148,12 +149,179 @@ Der LLM erhält diese Guidelines als Kontext und generiert KBAs, die den definie
 |------------|-------|---------------|
 | **API Layer** | `backend/app.py` | REST Endpoints (10 KBA Routes) |
 | **Operations** | `backend/operations.py` | DTO-Validierung, DB-Session |
-| **KBA Service** | `backend/kba_service.py` | Hauptorchestrator, Business Logic |
+| **KBA Service** | `backend/kba_service.py` | Hauptorchestrator, Business Logic, QC-Pipeline |
 | **Guidelines Loader** | `backend/guidelines_loader.py` | Auto-Detection, Guidelines laden |
-| **Prompt Builder** | `backend/kba_prompts.py` | LLM-Prompt konstruieren |
+| **Prompt Builder** | `backend/kba_prompts.py` | LLM-Prompt konstruieren (Draft + QC) |
 | **LLM Service** | `backend/llm_service.py` | OpenAI API Client |
-| **Output Models** | `backend/kba_output_models.py` | Pydantic Schema, Validierung |
+| **Output Models** | `backend/kba_output_models.py` | Pydantic Schema, Validierung, QC-Models |
+| **Quality Validators** | `backend/kba_quality_validators.py` | Deterministische QC-Checks |
+| **QC Scoring** | `backend/kba_qc_scoring.py` | Score-Berechnung, Verdict-Logik |
 | **Audit Service** | `backend/kba_audit.py` | Event-Logging |
+
+---
+
+## Quality Check System
+
+### Überblick
+
+Zusätzlich zum **KBA Drafting** unterstützt das System einen **Quality Check Modus**, der fertige KBA-Drafts gegen inhaltliche und formale Qualitätskriterien prüft.
+
+**Zwei Modi:**
+- **`mode=draft`** (Standard): Erstellt neuen KBA-Draft aus Ticket
+- **`mode=quality_check`**: Führt Quality Check auf bestehendem Draft durch
+
+### QC-Workflow
+
+```
+┌─────────────────────────────────────────────────────────────────┐
+│ 1. Draft erstellen (mode=draft)                                 │
+│    POST /api/kba/generate { ticket_id, mode: "draft" }         │
+└────────────────────────┬────────────────────────────────────────┘
+                         │
+                         ▼
+┌─────────────────────────────────────────────────────────────────┐
+│ 2. Quality Check durchführen (mode=quality_check)               │
+│    POST /api/kba/generate { draft_id, mode: "quality_check" }  │
+│                                                                 │
+│    Pipeline:                                                    │
+│    ├─ Deterministische Checks (kba_quality_validators.py)      │
+│    │  └─ PII, Sie-Form, Ausrufezeichen, GROSSSCHRIFT           │
+│    ├─ LLM-Checks (35_kba_quality_check.md)                     │
+│    │  └─ Zielgruppe, Verständlichkeit, Problemverständnis      │
+│    ├─ Score-Berechnung (kba_qc_scoring.py)                     │
+│    └─ Verdict-Bestimmung                                       │
+└────────────────────────┬────────────────────────────────────────┘
+                         │
+                         ▼
+┌─────────────────────────────────────────────────────────────────┐
+│ 3. QC-Resultat analysieren                                      │
+│    {                                                            │
+│      "overall_verdict": "bedingt_geeignet",                     │
+│      "score_percent": 72.5,                                     │
+│      "categories": [...],                                       │
+│      "improvement_suggestions": [...],                          │
+│      "critical_blockers": [...]                                 │
+│    }                                                            │
+└────────────────────────┬────────────────────────────────────────┘
+                         │
+                         ▼
+┌─────────────────────────────────────────────────────────────────┐
+│ 4. Bei Mängeln: Überarbeiten → Erneut QC (iterativ)            │
+│    PATCH /api/kba/drafts/{id} → QC wiederholen                 │
+└────────────────────────┬────────────────────────────────────────┘
+                         │
+                         ▼
+┌─────────────────────────────────────────────────────────────────┐
+│ 5. Publishing (empfohlen erst bei "geeignet")                   │
+│    POST /api/kba/drafts/{id}/publish                            │
+└─────────────────────────────────────────────────────────────────┘
+```
+
+### QC-Kriterien (9 Kategorien)
+
+Die vollständigen Kriterien sind in **[35_kba_quality_check.md](system/35_kba_quality_check.md)** definiert:
+
+1. **Zielgruppengerechtigkeit** - L0 Endnutzer vs. L1 Support, Verständlichkeit
+2. **Sprache & Stil** - Sie-Form, kurze Sätze, kein Fachjargon
+3. **Struktur** - Nummerierte Schritte, keine GROSSSCHRIFT/Ausrufezeichen
+4. **Titel & Keywords** - Produktname, realistische Suchanfragen
+5. **W-Fragen & Problemverständnis** - W-Frage, tatsächliches Bedürfnis
+6. **Bild- und Mediennutzung** - Datenschutz, PII-Redaktion
+7. **Technische Umsetzung** - 1-/2-/3-Feld-Artikel-Layout, Technical Notes
+8. **Verbesserungsvorschläge** - Konkret, handlungsorientiert
+9. **Nicht-Zuständigkeiten** - Keine finale Freigabe durch GPT
+
+### Scoring-Regeln (Version 1.0)
+
+**Punktevergabe:**
+- **erfüllt** = 1.0 Punkt
+- **teilweise_erfüllt** = 0.5 Punkte
+- **nicht_erfüllt** = 0.0 Punkte
+
+**Gesamturteil-Logik:**
+1. **PII-Blocker** → IMMER `nicht_geeignet` (Datenschutz geht vor!)
+2. Sonst Score-basiert:
+   - Score < 60% → `nicht_geeignet`
+   - Score 60-79% → `bedingt_geeignet`
+   - Score ≥80%:
+     - 0 Blocker → `geeignet`
+     - 1 nicht-PII-Blocker → `bedingt_geeignet`
+     - ≥2 Blocker → `nicht_geeignet`
+
+**Kritische Blocker:**
+- **Datenschutz (höchste Priorität):** PII in Bildern/Text (E-Mail, Telefon, Namen)
+- **Inhaltlich:** Sie-Form >50% verletzt, W-Frage fehlt, Problem verfehlt
+
+### Deterministische vs. LLM-Checks
+
+**Deterministisch (schnell, automatisch):**
+- ✓ Pflichtfelder vorhanden
+- ✓ PII-Patterns (E-Mail, Telefon)
+- ✓ Sie-Form (Heuristik: 'du', 'ihr')
+- ✓ Ausrufezeichen, GROSSSCHRIFT
+- ✓ Schritte beginnen mit Verb
+
+**LLM-basiert (inhaltlich):**
+- ✓ Zielgruppengerechtigkeit
+- ✓ Verständlichkeit (Fachjargon, Komplexität)
+- ✓ Problemverständnis (W-Frage passend?)
+- ✓ Titel-Relevanz
+- ✓ Qualität der Formulierungen
+
+### Neue Datamodels für QC
+
+```python
+# In kba_output_models.py
+
+class GenerationMode(str, Enum):
+    DRAFT = "draft"
+    QUALITY_CHECK = "quality_check"
+
+class CriterionStatus(str, Enum):
+    ERFUELLT = "erfüllt"
+    TEILWEISE_ERFUELLT = "teilweise_erfüllt"
+    NICHT_ERFUELLT = "nicht_erfüllt"
+
+class OverallVerdict(str, Enum):
+    GEEIGNET = "geeignet"
+    BEDINGT_GEEIGNET = "bedingt_geeignet"
+    NICHT_GEEIGNET = "nicht_geeignet"
+
+class QualityCheckResult(BaseModel):
+    overall_verdict: OverallVerdict
+    score_percent: float  # 0.0-100.0
+    categories: list[QualityCategoryResult]
+    improvement_suggestions: list[str]
+    critical_blockers: list[str]
+    deterministic_findings: list[str]
+    qc_version: str = "1.0"
+    guideline_version: Optional[str]
+```
+
+### API-Response-Wrapper
+
+Der `/api/kba/generate` Endpunkt liefert je nach Modus unterschiedliche Resultate:
+
+```python
+class GenerateResponse(BaseModel):
+    mode: GenerationMode
+    draft_result: Optional[KBADraft] = None  # bei mode=draft
+    quality_check_result: Optional[QualityCheckResult] = None  # bei mode=quality_check
+    warnings: list[str] = []
+    
+    # XOR-Validierung: Genau ein Resultat muss gesetzt sein
+```
+
+**Vorteil:** Stabiler API-Contract, maschinenlesbar, keine Breaking Changes für bestehenden Draft-Modus.
+
+### Versionierung
+
+QC-Resultate enthalten Versionsinformationen für Nachvollziehbarkeit:
+
+- **`qc_version`**: Version der Scoring-Regeln (z.B. "1.0")
+- **`guideline_version`**: Hash der `35_kba_quality_check.md` (erste 12 Zeichen)
+
+→ Ermöglicht Vergleich alter/neuer Bewertungen bei Regeländerungen
 
 ---
 
@@ -164,11 +332,12 @@ docs/kba_guidelines/
 ├── README.md                    # Diese Datei
 │
 ├── system/                      # System Guidelines (IMMER geladen)
-│   ├── 00_system_role.md       # LLM Persona & Grundprinzipien
-│   ├── 10_kba_structure.md     # Feldformat & Struktur
-│   ├── 20_writing_style.md     # Sprache & Ton
-│   ├── 30_quality_checks.md    # Validierungskriterien
-│   └── 40_publish_rules.md     # Workflow & Status-Lifecycle
+│   ├── 00_system_role.md       # LLM Persona & Grundprinzipien (+ QC-Rolle)
+│   ├── 10_kba_structure.md     # Feldformat & Struktur (+ QC-Metadaten)
+│   ├── 20_writing_style.md     # Sprache & Ton (+ QC-Stilregeln)
+│   ├── 30_quality_checks.md    # Strukturelle Validierungskriterien
+│   ├── 35_kba_quality_check.md # ⭐ Inhaltliche QC-Kriterien (NEU)
+│   └── 40_publish_rules.md     # Workflow & Status-Lifecycle (+ QC-Publishing)
 │
 └── categories/                  # Category Guidelines (AUTO-DETEKTIERT)
     ├── GENERAL.md              # Basis-Regeln (immer dabei)

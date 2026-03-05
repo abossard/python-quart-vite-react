@@ -72,3 +72,16 @@ class DuplicateKBADraftError(KBAError):
     def __init__(self, message: str, existing_drafts: list[dict]):
         super().__init__(message)
         self.existing_drafts = existing_drafts
+
+
+class SimilarKBAsFoundError(KBAError):
+    """Similar KBA(s) found during duplicate check"""
+    def __init__(
+        self,
+        message: str,
+        existing_drafts: list[dict],
+        similar_matches: list[dict]
+    ):
+        super().__init__(message)
+        self.existing_drafts = existing_drafts  # Exact ticket_id matches
+        self.similar_matches = similar_matches  # Similarity-based matches

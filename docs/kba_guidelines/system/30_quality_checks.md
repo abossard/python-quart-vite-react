@@ -7,7 +7,11 @@ priority: 30
 
 # Qualitätsprüfung und Validierung
 
-Diese Guideline definiert die **Qualitätskriterien** für KBA-Drafts vor der Veröffentlichung.
+Diese Guideline definiert die **strukturellen/deterministischen Qualitätskriterien** für KBA-Drafts vor der Veröffentlichung.
+
+**Hinweis: Trennung strukturell/inhaltlich**
+- Diese Datei = **Strukturelle/deterministische** Checks (schnell prüfbar, automatisierbar)
+- `35_kba_quality_check.md` = **Inhaltliche** QC-Kriterien (LLM-basiert)
 
 ## Kritisch: Blockt Publishing (Status ≠ reviewed)
 
@@ -94,9 +98,67 @@ Diese Fehler führen dazu, dass der KBA **nicht** veröffentlicht werden darf:
 
 ---
 
+---
+
+### 6. ❌ PII im Content (höchste Priorität - Datenschutz)
+
+**Personenbezogene Daten im Artikeltext:**
+- E-Mail-Adressen (muster@domain.ch)
+- Telefonnummern (+41 xx xxx xx xx)
+- AHV-/Kundennummern
+- Vollständige Namen von Personen
+- Interne User-IDs
+
+**Blocker-Regel:** PII-Verstoß → **IMMER "nicht_geeignet"**
+
+Selbst bei 95% Score → Datenschutz geht vor allem!
+
+**Fix:**
+- PII vollständig entfernen oder anonymisieren
+- Bei Beispielen: Platzhalter verwenden ("max.muster@beispiel.ch")
+
+**Beispiel:**
+```json
+❌ "resolution_steps": ["E-Mail an support@firma.ch mit Betreff 'Problem von Hans Meier (hmeier@firma.ch)' senden"]
+✅ "resolution_steps": ["E-Mail an Support-Team mit Problembeschreibung senden"]
+```
+
+---
+
+### 7. ❌ Missing initial_question
+W-Frage fehlt oder ist keine W-Frage (Warum, Wie, Was, Wann, Wo, Wer, Welche).
+
+**Fix:** Ergänzen Sie `initial_question` mit realistischer W-Frage.
+
+---
+
+### 8. ❌ Missing target_audience
+Zielgruppe nicht definiert (L0_enduser oder L1_support).
+
+**Fix:** Setzen Sie `target_audience` entsprechend der Zielgruppe.
+
+---
+
 ## Warnungen: Blockiert nicht, aber manuell prüfen
 
 Diese Probleme sollten vor Publishing manuell geprüft werden:
+
+### ⚠️ Steps ohne Verb am Anfang
+Arbeitsschritte beginnen nicht mit Verb im Imperativ (heuristisch prüfbar).
+
+**Fix:** Formulieren Sie Schritte im Imperativ: "Öffnen Sie...", "Klicken Sie..."
+
+### ⚠️ GROSSSCHRIFT oder Ausrufezeichen
+GROSSCHRIFT zur Betonung oder Ausrufezeichen in Anleitungsschritten.
+
+**Fix:** 
+- GROSSSCHRIFT → **Fettschrift**
+- Ausrufezeichen entfernen, sachlich bleiben
+
+### ⚠️ Sie-Form-Verletzung
+Verwendung von "du", "ihr", "man" statt "Sie" (heuristisch erkannt).
+
+**Fix:** Ersetzen Sie durchgehend durch "Sie".
 
 ### 6. ⚠️ Fehlende Root Cause
 - `cause` ist leer oder `null`
