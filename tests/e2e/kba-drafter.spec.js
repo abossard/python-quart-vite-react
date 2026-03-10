@@ -691,6 +691,353 @@ test.describe("KBA Drafter - Duplicate Handling", () => {
 });
 
 // ============================================================================
+// DRAFT PUBLISHING
+// ============================================================================
+
+test.describe("KBA Drafter - Draft Publishing", () => {
+  test("publishes a reviewed draft to knowledge base", async ({ page }) => {
+    const reviewedDraft = { ...MOCK_DRAFT, status: "reviewed", reviewed_by: "test-user" };
+    const publishedDraft = {
+      ...reviewedDraft,
+      status: "published",
+      published_at: "2026-03-04T12:00:00",
+      published_url: "/kb/articles/VPN-001",
+      published_id: "KBA-001",
+    };
+
+    // Health check
+    await page.route("**/api/kba/health", async (route) => {
+      await route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify({ status: "ok", llm_available: true, llm_model: "gpt-4o-mini" }),
+      });
+    });
+
+    // Guidelines
+    await page.route("**/api/kba/guidelines", async (route) => {
+      await route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify({ categories: ["GENERAL", "VPN"] }),
+      });
+    });
+
+    // Auto-gen settings
+    await page.route("**/api/kba/auto-gen/settings", async (route) => {
+      await route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify({ enabled: false, schedule_time: "12:00", max_tickets_per_run: 5 }),
+      });
+    });
+
+    await page.route("**/api/csv-tickets/by-incident/INC000016349815*", async (route) => {
+      await route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify(MOCK_TICKET),
+      });
+    });
+
+    // Single handler for ALL /api/kba/drafts URLs — route by method + URL
+    await page.route("**/api/kba/drafts**", async (route) => {
+      const method = route.request().method();
+      const url = route.request().url();
+
+      // Publish endpoint: POST .../drafts/{id}/publish
+      if (method === "POST" && url.includes("/publish")) {
+        await route.fulfill({
+          status: 200,
+          contentType: "application/json",
+          body: JSON.stringify(publishedDraft),
+        });
+        return;
+      }
+
+      // Generate endpoint: POST .../drafts
+      if (method === "POST") {
+        await route.fulfill({
+          status: 201,
+          contentType: "application/json",
+          body: JSON.stringify(reviewedDraft),
+        });
+        return;
+      }
+
+      // List endpoint: GET
+      if (method === "GET") {
+        await route.fulfill({
+          status: 200,
+          contentType: "application/json",
+          body: JSON.stringify({ items: [reviewedDraft], total: 1, limit: 10, offset: 0 }),
+        });
+        return;
+      }
+
+      await route.fallback();
+    });
+
+    await visitKBADrafter(page);
+
+    // Generate
+    const input = page.getByPlaceholder("INC000016349815 oder 550e8400-e29b-41d4-a716-446655440000");
+    await input.fill("INC000016349815");
+    await page.getByRole("button", { name: "Entwurf erstellen" }).click();
+    await expect(page.getByText("VPN-Verbindungsprobleme unter Windows 11 beheben")).toBeVisible({ timeout: 10000 });
+
+    // Publish button should be visible for reviewed drafts
+    const publishButton = page.getByRole("button", { name: "In Knowledge Base übernehmen" });
+    await expect(publishButton).toBeVisible();
+    await publishButton.click();
+
+    // Should show success message with published ID/URL
+    await expect(page.getByText(/KBA veröffentlicht/)).toBeVisible({ timeout: 5000 });
+  });
+});
+
+// ============================================================================
+// DRAFT DELETION
+// ============================================================================
+
+test.describe("KBA Drafter - Draft Deletion", () => {
+  test("deletes a draft via delete button", async ({ page }) => {
+    let deleteCalled = false;
+
+    // Health check
+    await page.route("**/api/kba/health", async (route) => {
+      await route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify({ status: "ok", llm_available: true, llm_model: "gpt-4o-mini" }),
+      });
+    });
+
+    // Guidelines
+    await page.route("**/api/kba/guidelines", async (route) => {
+      await route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify({ categories: ["GENERAL", "VPN"] }),
+      });
+    });
+
+    // Auto-gen settings
+    await page.route("**/api/kba/auto-gen/settings", async (route) => {
+      await route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify({ enabled: false, schedule_time: "12:00", max_tickets_per_run: 5 }),
+      });
+    });
+
+    await page.route("**/api/csv-tickets/by-incident/INC000016349815*", async (route) => {
+      await route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify(MOCK_TICKET),
+      });
+    });
+
+    // Single handler for ALL /api/kba/drafts URLs
+    await page.route("**/api/kba/drafts**", async (route) => {
+      const method = route.request().method();
+      const url = route.request().url();
+
+      // DELETE .../drafts/{id}
+      if (method === "DELETE") {
+        deleteCalled = true;
+        await route.fulfill({
+          status: 200,
+          contentType: "application/json",
+          body: JSON.stringify({ success: true }),
+        });
+        return;
+      }
+
+      // POST .../drafts (generate)
+      if (method === "POST") {
+        await route.fulfill({
+          status: 201,
+          contentType: "application/json",
+          body: JSON.stringify(MOCK_DRAFT),
+        });
+        return;
+      }
+
+      // GET (list) — return empty after delete
+      if (method === "GET") {
+        await route.fulfill({
+          status: 200,
+          contentType: "application/json",
+          body: JSON.stringify({
+            items: deleteCalled ? [] : [MOCK_DRAFT],
+            total: deleteCalled ? 0 : 1,
+            limit: 10,
+            offset: 0,
+          }),
+        });
+        return;
+      }
+
+      await route.fallback();
+    });
+
+    await visitKBADrafter(page);
+
+    // Generate a draft
+    const input = page.getByPlaceholder("INC000016349815 oder 550e8400-e29b-41d4-a716-446655440000");
+    await input.fill("INC000016349815");
+    await page.getByRole("button", { name: "Entwurf erstellen" }).click();
+    await expect(page.getByText("VPN-Verbindungsprobleme unter Windows 11 beheben")).toBeVisible({ timeout: 10000 });
+
+    // Close the current draft to go back to the list view (use the X icon via title attribute)
+    await page.getByTitle("Schließen").click();
+
+    // Wait for the draft list to appear
+    await expect(page.getByText("Letzte Entwürfe")).toBeVisible({ timeout: 5000 });
+
+    // Click the 3-dot menu on the draft card (the MenuTrigger button with aria-haspopup)
+    await page.locator('button[aria-haspopup="menu"]').click();
+
+    // Click the "Löschen" menu item
+    const deleteMenuItem = page.getByRole("menuitem", { name: "Löschen" });
+    await expect(deleteMenuItem).toBeVisible();
+    await deleteMenuItem.click();
+
+    // Confirm deletion in the dialog
+    await expect(page.getByText("Entwurf löschen")).toBeVisible();
+    await page.getByRole("button", { name: "Löschen" }).click();
+
+    // Draft list should now be empty — verify success message appeared
+    await expect(page.getByText("Entwurf erfolgreich gelöscht")).toBeVisible({ timeout: 5000 });
+  });
+});
+
+// ============================================================================
+// STATUS FILTER
+// ============================================================================
+
+test.describe("KBA Drafter - Status Filter", () => {
+  test("filters draft list by status", async ({ page }) => {
+    const draftsList = [
+      { ...MOCK_DRAFT, id: "d1", title: "Draft-Artikel VPN", incident_id: "INC001", status: "draft" },
+      { ...MOCK_DRAFT, id: "d2", title: "Geprüfter Artikel Outlook", incident_id: "INC002", status: "reviewed" },
+      { ...MOCK_DRAFT, id: "d3", title: "Publizierter Artikel Netzwerk", incident_id: "INC003", status: "published" },
+    ];
+
+    await page.route("**/api/kba/health", async (route) => {
+      await route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify({ status: "ok", llm_available: true, llm_model: "gpt-4o-mini" }),
+      });
+    });
+
+    await page.route("**/api/kba/drafts*", async (route) => {
+      if (route.request().method() === "GET") {
+        const url = route.request().url();
+        const statusMatch = url.match(/status=(\w+)/);
+        const filterStatus = statusMatch ? statusMatch[1] : null;
+        const filtered = filterStatus ? draftsList.filter((d) => d.status === filterStatus) : draftsList;
+        await route.fulfill({
+          status: 200,
+          contentType: "application/json",
+          body: JSON.stringify({ items: filtered, total: filtered.length, limit: 10, offset: 0 }),
+        });
+      }
+    });
+
+    await page.route("**/api/kba/auto-gen/settings", async (route) => {
+      await route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify({ enabled: false, schedule_time: "12:00", max_tickets_per_run: 5 }),
+      });
+    });
+
+    await visitKBADrafter(page);
+
+    // All drafts should be visible initially
+    await expect(page.getByText("Draft-Artikel VPN")).toBeVisible();
+    await expect(page.getByText("Geprüfter Artikel Outlook")).toBeVisible();
+    await expect(page.getByText("Publizierter Artikel Netzwerk")).toBeVisible();
+
+    // Filter by draft status using Fluent UI Dropdown (combobox)
+    const statusFilter = page.getByRole("combobox").first();
+    await expect(statusFilter).toBeVisible();
+    await statusFilter.click();
+
+    // Select "draft" option
+    await page.getByRole("option", { name: "draft" }).click();
+
+    // Only draft items should remain visible
+    await expect(page.getByText("Draft-Artikel VPN")).toBeVisible();
+    await expect(page.getByText("Geprüfter Artikel Outlook")).not.toBeVisible();
+    await expect(page.getByText("Publizierter Artikel Netzwerk")).not.toBeVisible();
+  });
+});
+
+// ============================================================================
+// TICKET VIEWER
+// ============================================================================
+
+test.describe("KBA Drafter - Ticket Viewer", () => {
+  test("opens ticket viewer dialog from draft", async ({ page }) => {
+    await setupBaseMocks(page);
+
+    await page.route("**/api/csv-tickets/by-incident/INC000016349815*", async (route) => {
+      await route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify(MOCK_TICKET),
+      });
+    });
+
+    await page.route(`**/api/csv-tickets/${MOCK_TICKET.id}*`, async (route) => {
+      await route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify(MOCK_TICKET),
+      });
+    });
+
+    await page.route("**/api/kba/drafts", async (route) => {
+      if (route.request().method() === "POST") {
+        await route.fulfill({
+          status: 201,
+          contentType: "application/json",
+          body: JSON.stringify(MOCK_DRAFT),
+        });
+        return;
+      }
+      await route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify({ items: [MOCK_DRAFT], total: 1, limit: 10, offset: 0 }),
+      });
+    });
+
+    await visitKBADrafter(page);
+
+    // Generate a draft
+    const input = page.getByPlaceholder("INC000016349815 oder 550e8400-e29b-41d4-a716-446655440000");
+    await input.fill("INC000016349815");
+    await page.getByRole("button", { name: "Entwurf erstellen" }).click();
+    await expect(page.getByText("VPN-Verbindungsprobleme unter Windows 11 beheben")).toBeVisible({ timeout: 10000 });
+
+    // Click the "Ticket" button to open the ticket viewer dialog
+    const ticketButton = page.getByRole("button", { name: "Ticket" });
+    await expect(ticketButton).toBeVisible();
+    await ticketButton.click();
+
+    // Ticket viewer dialog should show "Ticket Details" title and ticket data
+    await expect(page.getByText("Ticket Details")).toBeVisible({ timeout: 5000 });
+    await expect(page.getByText("VPN Failure on Remote Access")).toBeVisible();
+  });
+});
+
+// ============================================================================
 // BACKEND API INTEGRATION (live, not mocked)
 // ============================================================================
 

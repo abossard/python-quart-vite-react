@@ -14,3 +14,5 @@ langchain-openai>=0.3.0
 jsonschema>=4.20.0
 pandas>=2.0.0
 APScheduler>=3.10.4
+litellm>=1.50.0
+langchain-litellm>=0.3.0

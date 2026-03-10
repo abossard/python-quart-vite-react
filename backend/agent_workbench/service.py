@@ -75,13 +75,21 @@ def _make_tool_logging_callback() -> Any:
 # ============================================================================
 
 def _build_llm(model: str, api_key: str, base_url: str = "") -> Any:
-    from langchain_openai import ChatOpenAI
-    return ChatOpenAI(
-        model=model,
-        api_key=api_key,
-        base_url=base_url or None,
-        temperature=0.0,
-    )
+    if api_key:
+        from langchain_openai import ChatOpenAI
+        return ChatOpenAI(
+            model=model,
+            api_key=api_key,
+            base_url=base_url or None,
+            temperature=0.0,
+        )
+    else:
+        from langchain_litellm import ChatLiteLLM
+        litellm_model = os.getenv("LITELLM_MODEL", "github_copilot/gpt-4o")
+        return ChatLiteLLM(
+            model=litellm_model,
+            temperature=0.0,
+        )
 
 
 def _build_react_agent(llm: Any, tools: list[Any], system_prompt: str) -> Any:
@@ -147,11 +155,6 @@ class WorkbenchService:
     @property
     def llm(self) -> Any:
         if self._llm is None:
-            if not self._api_key:
-                raise ValueError(
-                    "OPENAI_API_KEY is required to run agents. "
-                    "Set it via environment variable or pass openai_api_key."
-                )
             self._llm = _build_llm(self._model, self._api_key, self._base_url)
         return self._llm
 
