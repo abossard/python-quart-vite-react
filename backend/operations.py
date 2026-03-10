@@ -41,9 +41,8 @@ _csv_service = get_csv_ticket_service()
 _csv_loaded = False
 _auto_gen_service = None  # Initialized lazily
 
-# KBA service requires database session - initialized lazily
+# KBA database engine - initialized lazily; store only the engine, not a shared Session
 _kba_db_engine = None
-_kba_session = None
 
 
 def _migrate_kba_schema(engine) -> None:
@@ -81,25 +80,34 @@ def _migrate_kba_schema(engine) -> None:
 
 
 def _get_kba_session() -> Session:
-    """Get or create KBA database session"""
-    global _kba_db_engine, _kba_session
+    """Return a new KBA database Session.
+
+    Each call returns a fresh :class:`~sqlmodel.Session` bound to the shared
+    engine.  Callers are responsible for closing the session, preferably via
+    the context-manager protocol::
+
+        with _get_kba_session() as session:
+            ...
+
+    Only the engine is cached globally; no Session is ever stored globally,
+    which prevents cross-request state leakage and avoids returning a
+    previously closed session.
+    """
+    global _kba_db_engine
     if _kba_db_engine is None:
         from pathlib import Path
         from kba_models import KBADraftTable, KBAAuditLog
         from auto_gen_models import AutoGenSettingsTable
         from sqlmodel import SQLModel
-        
+
         db_path = Path(__file__).parent / "data" / "kba.db"
         db_path.parent.mkdir(parents=True, exist_ok=True)
-        
+
         _kba_db_engine = create_engine(f"sqlite:///{db_path}", echo=False)
         SQLModel.metadata.create_all(_kba_db_engine)
         _migrate_kba_schema(_kba_db_engine)
-    
-    if _kba_session is None:
-        _kba_session = Session(_kba_db_engine)
-    
-    return _kba_session
+
+    return Session(_kba_db_engine)
 
 
 def _get_auto_gen_service() -> AutoGenService:
@@ -576,9 +584,9 @@ async def op_workbench_get_evaluation(run_id: str) -> dict[str, Any] | None:
 )
 async def op_kba_generate_draft(data: KBADraftCreate) -> KBADraft:
     """Generate a new KBA draft from a ticket."""
-    session = _get_kba_session()
-    kba_service = get_kba_service(session)
-    return await kba_service.generate_draft(data)
+    with _get_kba_session() as session:
+        kba_service = get_kba_service(session)
+        return await kba_service.generate_draft(data)
 
 
 @operation(
@@ -590,9 +598,9 @@ async def op_kba_generate_draft(data: KBADraftCreate) -> KBADraft:
 async def op_kba_get_draft(draft_id: str) -> KBADraft:
     """Get a KBA draft by ID."""
     from uuid import UUID
-    session = _get_kba_session()
-    kba_service = get_kba_service(session)
-    return kba_service.get_draft(UUID(draft_id))
+    with _get_kba_session() as session:
+        kba_service = get_kba_service(session)
+        return kba_service.get_draft(UUID(draft_id))
 
 
 @operation(
@@ -608,9 +616,9 @@ async def op_kba_update_draft(
 ) -> KBADraft:
     """Update a KBA draft."""
     from uuid import UUID
-    session = _get_kba_session()
-    kba_service = get_kba_service(session)
-    return kba_service.update_draft(UUID(draft_id), data, user_id)
+    with _get_kba_session() as session:
+        kba_service = get_kba_service(session)
+        return kba_service.update_draft(UUID(draft_id), data, user_id)
 
 
 @operation(
@@ -625,9 +633,9 @@ async def op_kba_replace_draft(
 ) -> KBADraft:
     """Replace a KBA draft with newly generated content."""
     from uuid import UUID
-    session = _get_kba_session()
-    kba_service = get_kba_service(session)
-    return await kba_service.replace_draft(UUID(draft_id), user_id)
+    with _get_kba_session() as session:
+        kba_service = get_kba_service(session)
+        return await kba_service.replace_draft(UUID(draft_id), user_id)
 
 
 @operation(
@@ -642,9 +650,9 @@ async def op_kba_delete_draft(
 ) -> bool:
     """Delete a KBA draft."""
     from uuid import UUID
-    session = _get_kba_session()
-    kba_service = get_kba_service(session)
-    return kba_service.delete_draft(UUID(draft_id), user_id)
+    with _get_kba_session() as session:
+        kba_service = get_kba_service(session)
+        return kba_service.delete_draft(UUID(draft_id), user_id)
 
 
 @operation(
@@ -659,9 +667,9 @@ async def op_kba_publish_draft(
 ) -> KBAPublishResult:
     """Publish a KBA draft to the target knowledge base system."""
     from uuid import UUID
-    session = _get_kba_session()
-    kba_service = get_kba_service(session)
-    return await kba_service.publish_draft(UUID(draft_id), data)
+    with _get_kba_session() as session:
+        kba_service = get_kba_service(session)
+        return await kba_service.publish_draft(UUID(draft_id), data)
 
 
 @operation(
@@ -672,9 +680,9 @@ async def op_kba_publish_draft(
 )
 async def op_kba_list_drafts(filters: KBADraftFilter) -> KBADraftListResponse:
     """List KBA drafts with optional filtering."""
-    session = _get_kba_session()
-    kba_service = get_kba_service(session)
-    return kba_service.list_drafts(filters)
+    with _get_kba_session() as session:
+        kba_service = get_kba_service(session)
+        return kba_service.list_drafts(filters)
 
 
 @operation(
@@ -686,10 +694,10 @@ async def op_kba_list_drafts(filters: KBADraftFilter) -> KBADraftListResponse:
 async def op_kba_get_audit_trail(draft_id: str) -> list[dict[str, Any]]:
     """Get complete audit trail for a KBA draft."""
     from uuid import UUID
-    session = _get_kba_session()
-    audit_service = get_audit_service(session)
-    events = audit_service.get_audit_trail(UUID(draft_id))
-    return [event.model_dump() for event in events]
+    with _get_kba_session() as session:
+        audit_service = get_audit_service(session)
+        events = audit_service.get_audit_trail(UUID(draft_id))
+        return [event.model_dump() for event in events]
 
 
 @operation(

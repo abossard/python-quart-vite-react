@@ -30,12 +30,6 @@ class AutoGenService:
         self.ticket_service = CSVTicketService()
         self._lock = asyncio.Lock()  # Prevent concurrent runs
     
-    def _get_kba_service(self) -> KBAService:
-        """Get KBA service with session (lazy initialization)"""
-        from operations import _get_kba_session
-        session = _get_kba_session()
-        return KBAService(session)
-    
     # ========================================================================
     # SETTINGS MANAGEMENT
     # ========================================================================
@@ -218,12 +212,12 @@ class AutoGenService:
                     )
                     
                     # Generate draft (async method)
-                    kba_service = self._get_kba_service()
-                    draft = await kba_service.generate_draft(draft_request)
+                    from operations import _get_kba_session
+                    with _get_kba_session() as session:
+                        kba_service = KBAService(session)
+                        draft = await kba_service.generate_draft(draft_request)
                     
                     # Mark as auto-generated
-                    from operations import _get_kba_session
-                    
                     with _get_kba_session() as session:
                         statement = select(KBADraftTable).where(
                             KBADraftTable.id == draft.id
