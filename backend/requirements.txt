@@ -8,7 +8,7 @@ sqlmodel>=0.0.27
 python-dotenv==1.2.1
 fastmcp>=2.4.0
 langchain==1.1.0
-langgraph==1.0.4
+langgraph==1.0.10rc1
 openai==2.8.1
 langchain-openai>=0.3.0
 jsonschema>=4.20.0
