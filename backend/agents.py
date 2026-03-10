@@ -59,8 +59,7 @@ from csv_data import get_csv_ticket_service
 
 from langchain_core.tools import StructuredTool
 
-# Third-party - LangChain and LangGraph
-from langchain_openai import ChatOpenAI
+# Third-party - LangGraph
 from langgraph.prebuilt import create_react_agent
 
 # Third-party - Pydantic for validation
@@ -148,12 +147,13 @@ class AgentResponse(BaseModel):
 
 
 # ============================================================================
-# CONFIGURATION - OpenAI settings
+# CONFIGURATION - LLM settings (LiteLLM default, OpenAI optional)
 # ============================================================================
 
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY", "")
 OPENAI_MODEL = os.getenv("OPENAI_MODEL", "gpt-4o-mini")
 OPENAI_BASE_URL = os.getenv("OPENAI_BASE_URL", "")  # optional override
+LITELLM_MODEL = os.getenv("LITELLM_MODEL", "github_copilot/gpt-4o")
 OPENAI_CALL_LOGGING_ENABLED = _env_flag("OPENAI_CALL_LOGGING_ENABLED", "true")
 AGENT_EFFICIENCY_MODE = _env_flag("AGENT_EFFICIENCY_MODE", "true")
 AGENT_TRACE_ENABLED = _env_flag("AGENT_TRACE_ENABLED", "false")
@@ -184,29 +184,27 @@ class AgentService:
     
     def __init__(self):
         """
-        Initialize the agent service with OpenAI.
+        Initialize the agent service.
         
-        Validates that required environment variables are set and creates
-        the LLM client for agent execution.
-        
-        Raises:
-            ValueError: If OpenAI configuration is incomplete
+        Uses OpenAI when OPENAI_API_KEY is set, otherwise falls back
+        to LiteLLM (supports GitHub Copilot, Ollama, etc.).
         """
-        # Validate configuration
-        if not OPENAI_API_KEY:
-            raise ValueError(
-                "OpenAI API key not set. "
-                "Please set OPENAI_API_KEY environment variable."
+        if OPENAI_API_KEY:
+            from langchain_openai import ChatOpenAI
+            self.llm = ChatOpenAI(
+                model=OPENAI_MODEL,
+                api_key=OPENAI_API_KEY,
+                base_url=OPENAI_BASE_URL or None,
+                temperature=0.0,
             )
-        
-        # Initialize ChatOpenAI with low reasoning effort for speed
-        self.llm = ChatOpenAI(
-            model=OPENAI_MODEL,
-            api_key=OPENAI_API_KEY,
-            base_url=OPENAI_BASE_URL or None,
-            temperature=0.0,
-            reasoning_effort="low",
-        )
+            logger.info(f"AgentService using OpenAI: {OPENAI_MODEL}")
+        else:
+            from langchain_litellm import ChatLiteLLM
+            self.llm = ChatLiteLLM(
+                model=LITELLM_MODEL,
+                temperature=0.0,
+            )
+            logger.info(f"AgentService using LiteLLM: {LITELLM_MODEL}")
         
         # CSV tools only
         self.tools = self._build_csv_tools()
@@ -324,13 +322,22 @@ class AgentService:
             """Return tickets at SLA breach risk with pre-computed age and breach status."""
             from tickets import get_sla_breach_report
             tickets = service.list_tickets(has_assignee=False if unassigned_only else None)
-            report = get_sla_breach_report(tickets)
-            return json.dumps(report.model_dump(mode="json"), default=str)
+            report = get_sla_breach_report(tickets, reference_time=None, include_ok=include_ok)
+            return json.dumps(report.model_dump() if hasattr(report, 'model_dump') else report, default=str)
 
         def _csv_ticket_stats() -> str:
-            """Get aggregated ticket statistics."""
-            stats = service.get_ticket_stats()
-            return json.dumps(stats, default=str)
+            """Get aggregated statistics for CSV tickets."""
+            from collections import Counter
+            tickets = service.list_tickets()
+            by_status = Counter(t.status.value for t in tickets)
+            by_priority = Counter(t.priority.value for t in tickets)
+            by_group = Counter(t.assigned_group for t in tickets if t.assigned_group)
+            unassigned = sum(1 for t in tickets if t.assignee is None and t.assigned_group is not None)
+            return json.dumps({
+                "total": len(tickets), "unassigned": unassigned,
+                "by_status": dict(by_status), "by_priority": dict(by_priority),
+                "by_group": dict(by_group.most_common(10)),
+            }, default=str)
 
         def _csv_count_tickets(query: str = "", status: str | None = None) -> str:
             """Count matching tickets without returning data. Fast check before fetching details."""
@@ -400,18 +407,19 @@ class AgentService:
                 description="List available ticket fields (schema) as JSON array of field names.",
             ),
             StructuredTool.from_function(
+                func=_csv_ticket_stats,
+                name="csv_ticket_stats",
+                description="Get aggregated statistics: total, unassigned, by_status, by_priority, by_group. Returns JSON.",
+            ),
+            StructuredTool.from_function(
                 func=_csv_sla_breach_tickets,
                 name="csv_sla_breach_tickets",
                 description=(
-                    "Return tickets at SLA breach risk. Pre-computed age_hours, sla_threshold_hours, "
-                    "breach_status. SLA thresholds: critical=4h, high=24h, medium=72h, low=120h. "
-                    "Default: unassigned_only=true, include_ok=false. Returns compact JSON."
+                    "Return tickets at SLA breach risk. Pre-computed age_hours, sla_threshold_hours, breach_status. "
+                    "SLA thresholds: critical=4h, high=24h, medium=72h, low=120h. "
+                    "unassigned_only (default true) filters to group-assigned but no individual. "
+                    "include_ok (default false) adds tickets within SLA window. Returns JSON."
                 ),
-            ),
-            StructuredTool.from_function(
-                func=_csv_ticket_stats,
-                name="csv_ticket_stats",
-                description="Get aggregated statistics: total, by_status, by_priority, by_group, by_city.",
             ),
             StructuredTool.from_function(
                 func=_csv_count_tickets,
