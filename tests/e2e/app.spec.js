@@ -24,6 +24,13 @@ test.describe("App shell", () => {
   test("navigates across current tabs", async ({ page }) => {
     await visit(page);
 
+    await page.getByTestId("tab-kba-drafter").click();
+    await expect(page.getByTestId("tab-kba-drafter")).toHaveAttribute(
+      "aria-selected",
+      "true",
+    );
+    await expect(page.getByRole("heading", { name: "KBA Drafter" })).toBeVisible();
+
     await page.getByTestId("tab-usecase-demo").click();
     await expect(page.getByTestId("tab-usecase-demo")).toHaveAttribute(
       "aria-selected",
@@ -67,6 +74,12 @@ test.describe("App shell", () => {
   });
 
   test("supports direct URL navigation", async ({ page }) => {
+    await visit(page, "/kba-drafter");
+    await expect(page.getByTestId("tab-kba-drafter")).toHaveAttribute(
+      "aria-selected",
+      "true",
+    );
+
     await visit(page, "/fields");
     await expect(page.getByTestId("tab-fields")).toHaveAttribute(
       "aria-selected",
