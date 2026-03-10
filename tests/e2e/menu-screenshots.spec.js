@@ -1,8 +1,9 @@
-import { test } from "@playwright/test";
+import { expect, test } from "@playwright/test";
 
 test("menu page screenshots", async ({ page }, testInfo) => {
   const pages = [
     { name: "tickets", url: "/csvtickets" },
+    { name: "kba-drafter", tab: "tab-kba-drafter" },
     { name: "usecase-demo", tab: "tab-usecase-demo" },
     { name: "ops-demo", tab: "tab-usecase-demo-ops" },
     { name: "sla-breach-risk", tab: "tab-usecase-demo-sla-breach" },
@@ -20,6 +21,7 @@ test("menu page screenshots", async ({ page }, testInfo) => {
 
   for (const entry of pages.slice(1)) {
     await page.getByTestId(entry.tab).click();
+    await expect(page.getByTestId(entry.tab)).toHaveAttribute("aria-selected", "true");
     await page.screenshot({
       path: testInfo.outputPath(`menu-${entry.name}.png`),
       fullPage: true,
