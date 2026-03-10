@@ -131,7 +131,7 @@ class LLMService:
                 "fallback_models": getattr(self, '_fallback_models', []),
                 "base_url": self.base_url or "default",
                 "timeout": self.timeout,
-                "api_key_set": bool(self.api_key),
+                "api_key_configured": bool(self.api_key),
             }
         )
     
