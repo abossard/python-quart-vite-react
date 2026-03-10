@@ -10,6 +10,12 @@ const BACKEND_URL = APP_URL.replace("3001", "5001");
 /** Mock the runs list endpoint so the RunsSidePanel doesn't fail to load. */
 function mockEmptyRuns(page) {
   return page.route("**/api/workbench/runs", async (route) => {
+    const url = route.request().url();
+    // Only intercept the exact /api/workbench/runs endpoint, not /agents/*/runs
+    if (url.includes("/agents/") ) {
+      await route.continue();
+      return;
+    }
     if (route.request().method() === "GET") {
       await route.fulfill({
         status: 200,
@@ -433,7 +439,10 @@ test.describe("SchemaRenderer widgets", () => {
     });
     const agentId = agent.id;
 
-    // Mock run endpoint
+    // Mock empty runs list first (for initial page load)
+    await mockEmptyRuns(page);
+
+    // Mock run endpoint (registered after, so it takes priority for POST to agents/*/runs)
     await page.route("**/api/workbench/agents/*/runs", async (route) => {
       if (route.request().method() !== "POST") { await route.continue(); return; }
       await route.fulfill({
@@ -449,7 +458,6 @@ test.describe("SchemaRenderer widgets", () => {
         }),
       });
     });
-    await mockEmptyRuns(page);
 
     await page.goto(`${APP_URL}/workbench`, { waitUntil: "load" });
     await expect(page.getByTestId("workbench-page-title")).toBeVisible();

@@ -1,0 +1,332 @@
+import {
+  Button,
+  Card,
+  Checkbox,
+  Field,
+  Input,
+  Text,
+  Textarea,
+  makeStyles,
+  tokens,
+} from '@fluentui/react-components'
+import { useEffect, useState } from 'react'
+import {
+  createWorkbenchAgent,
+  suggestOutputSchema,
+  updateWorkbenchAgent,
+} from '../../services/api'
+import SchemaEditor from './SchemaEditor'
+
+const useStyles = makeStyles({
+  cardBody: {
+    display: 'flex',
+    flexDirection: 'column',
+    gap: tokens.spacingVerticalM,
+  },
+  toolsList: {
+    display: 'flex',
+    flexDirection: 'column',
+    gap: tokens.spacingVerticalXS,
+    maxHeight: '260px',
+    overflowY: 'auto',
+    padding: `${tokens.spacingVerticalXS} 0`,
+  },
+  grid: {
+    display: 'grid',
+    gridTemplateColumns: '1fr 1fr',
+    gap: tokens.spacingHorizontalL,
+    alignItems: 'start',
+  },
+})
+
+const EMPTY_FORM = {
+  name: '',
+  description: '',
+  systemPrompt: '',
+  requiresInput: false,
+  requiredInputDescription: '',
+  showInMenu: false,
+}
+
+const EMPTY_ERRORS = {
+  name: '',
+  systemPrompt: '',
+  tools: '',
+  requiredInputDescription: '',
+}
+
+function formDataFromAgent(agent) {
+  return {
+    name: agent.name || '',
+    description: agent.description || '',
+    systemPrompt: agent.system_prompt || '',
+    requiresInput: Boolean(agent.requires_input),
+    requiredInputDescription: agent.required_input_description || '',
+    showInMenu: Boolean(agent.show_in_menu),
+  }
+}
+
+export default function AgentCreateForm({ tools, onAgentCreated, initialData }) {
+  const styles = useStyles()
+  const isEditing = Boolean(initialData?.id)
+
+  const [formData, setFormData] = useState(
+    initialData ? formDataFromAgent(initialData) : EMPTY_FORM,
+  )
+  const [fieldErrors, setFieldErrors] = useState({ ...EMPTY_ERRORS })
+  const [selectedToolNames, setSelectedToolNames] = useState(() => {
+    if (initialData?.tool_names) {
+      return [...initialData.tool_names]
+    }
+    return tools.map((t) => t.name)
+  })
+  const [outputSchema, setOutputSchema] = useState(() => {
+    if (initialData?.output_schema && Object.keys(initialData.output_schema).length > 0) {
+      return JSON.stringify(initialData.output_schema, null, 2)
+    }
+    return ''
+  })
+  const [suggestingSchema, setSuggestingSchema] = useState(false)
+  const [submitting, setSubmitting] = useState(false)
+  const [error, setError] = useState('')
+
+  // Sync tool selection when tools list changes (only for create mode)
+  useEffect(() => {
+    if (isEditing) return
+    const availableNames = tools.map((t) => t.name)
+    setSelectedToolNames((prev) => {
+      if (prev.length === 0) return availableNames
+      const filtered = prev.filter((name) => availableNames.includes(name))
+      return filtered.length > 0 ? filtered : availableNames
+    })
+  }, [tools, isEditing])
+
+  const toggleTool = (toolName) => {
+    setSelectedToolNames((prev) => (
+      prev.includes(toolName)
+        ? prev.filter((item) => item !== toolName)
+        : [...prev, toolName]
+    ))
+    setFieldErrors((prev) => ({ ...prev, tools: '' }))
+  }
+
+  const validateForm = () => {
+    const nextErrors = {
+      name: '',
+      systemPrompt: '',
+      tools: '',
+      requiredInputDescription: '',
+    }
+    if (!formData.name.trim()) {
+      nextErrors.name = 'Agent name is required'
+    }
+    if (!formData.systemPrompt.trim()) {
+      nextErrors.systemPrompt = 'System prompt is required'
+    }
+    if (formData.requiresInput && !formData.requiredInputDescription.trim()) {
+      nextErrors.requiredInputDescription = 'Input description is required when input is required'
+    }
+    if (selectedToolNames.length === 0) {
+      nextErrors.tools = 'Select at least one tool'
+    }
+    setFieldErrors(nextErrors)
+    return !nextErrors.name && !nextErrors.systemPrompt && !nextErrors.tools && !nextErrors.requiredInputDescription
+  }
+
+  const handleSuggestSchema = async () => {
+    setSuggestingSchema(true)
+    setError('')
+    try {
+      const resp = await suggestOutputSchema({
+        name: formData.name.trim(),
+        description: formData.description.trim(),
+        systemPrompt: formData.systemPrompt.trim(),
+      })
+      setOutputSchema(JSON.stringify(resp.schema, null, 2))
+    } catch (err) {
+      setError(err?.message || 'Failed to suggest schema')
+    } finally {
+      setSuggestingSchema(false)
+    }
+  }
+
+  const handleSubmit = async () => {
+    setError('')
+    if (!validateForm()) return
+
+    let parsedSchema = {}
+    if (outputSchema.trim()) {
+      try {
+        parsedSchema = JSON.parse(outputSchema)
+      } catch {
+        setError('Output schema is not valid JSON')
+        return
+      }
+    }
+
+    const payload = {
+      name: formData.name.trim(),
+      description: formData.description.trim(),
+      system_prompt: formData.systemPrompt.trim(),
+      requires_input: formData.requiresInput,
+      required_input_description: formData.requiresInput
+        ? formData.requiredInputDescription.trim()
+        : '',
+      tool_names: selectedToolNames,
+      output_schema: parsedSchema,
+      success_criteria: [],
+      show_in_menu: formData.showInMenu,
+    }
+
+    setSubmitting(true)
+    try {
+      let result
+      if (isEditing) {
+        result = await updateWorkbenchAgent(initialData.id, payload)
+      } else {
+        result = await createWorkbenchAgent(payload)
+      }
+
+      if (!isEditing) {
+        setFormData({ ...EMPTY_FORM })
+        setOutputSchema('')
+        setSelectedToolNames(tools.map((t) => t.name))
+        setFieldErrors({ ...EMPTY_ERRORS })
+      }
+
+      if (onAgentCreated) {
+        onAgentCreated(result)
+      }
+    } catch (err) {
+      setError(err?.message || `Failed to ${isEditing ? 'update' : 'create'} agent`)
+    } finally {
+      setSubmitting(false)
+    }
+  }
+
+  const submitLabel = isEditing
+    ? (submitting ? 'Saving...' : 'Save Agent')
+    : (submitting ? 'Creating...' : 'Create Agent')
+
+  return (
+    <div className={styles.grid}>
+      <Card>
+        <div className={styles.cardBody}>
+          {error && <Text>{error}</Text>}
+          <Field label="Agent name" required>
+            <Input
+              data-testid="workbench-agent-name-input"
+              value={formData.name}
+              onChange={(_, data) => {
+                setFormData((prev) => ({ ...prev, name: data.value }))
+                setFieldErrors((prev) => ({ ...prev, name: '' }))
+              }}
+              placeholder="e.g. CSV triage assistant"
+              aria-invalid={fieldErrors.name ? 'true' : 'false'}
+            />
+          </Field>
+          {fieldErrors.name && <Text>{fieldErrors.name}</Text>}
+          <Field label="Description">
+            <Input
+              data-testid="workbench-agent-description-input"
+              value={formData.description}
+              onChange={(_, data) => setFormData((prev) => ({ ...prev, description: data.value }))}
+              placeholder="optional"
+            />
+          </Field>
+          <Checkbox
+            data-testid="workbench-agent-requires-input-checkbox"
+            label="Require input?"
+            checked={formData.requiresInput}
+            onChange={(_, data) => {
+              const checked = Boolean(data.checked)
+              setFormData((prev) => ({
+                ...prev,
+                requiresInput: checked,
+                requiredInputDescription: checked ? prev.requiredInputDescription : '',
+              }))
+              setFieldErrors((prev) => ({ ...prev, requiredInputDescription: '' }))
+            }}
+          />
+          <Checkbox
+            data-testid="workbench-agent-show-in-menu-checkbox"
+            label="Show in menu"
+            checked={formData.showInMenu}
+            onChange={(_, data) => setFormData((prev) => ({ ...prev, showInMenu: Boolean(data.checked) }))}
+          />
+          {formData.requiresInput && (
+            <>
+              <Field label="Input description" required>
+                <Input
+                  data-testid="workbench-agent-required-input-description"
+                  value={formData.requiredInputDescription}
+                  onChange={(_, data) => {
+                    setFormData((prev) => ({ ...prev, requiredInputDescription: data.value }))
+                    setFieldErrors((prev) => ({ ...prev, requiredInputDescription: '' }))
+                  }}
+                  placeholder="e.g. Ticket INC number"
+                  aria-invalid={fieldErrors.requiredInputDescription ? 'true' : 'false'}
+                />
+              </Field>
+              {fieldErrors.requiredInputDescription && <Text>{fieldErrors.requiredInputDescription}</Text>}
+            </>
+          )}
+          <Field label="System prompt" required>
+            <Textarea
+              data-testid="workbench-agent-system-prompt-input"
+              resize="vertical"
+              rows={6}
+              value={formData.systemPrompt}
+              onChange={(_, data) => {
+                setFormData((prev) => ({ ...prev, systemPrompt: data.value }))
+                setFieldErrors((prev) => ({ ...prev, systemPrompt: '' }))
+              }}
+              placeholder="Use csv_ticket_stats and explain findings."
+              aria-invalid={fieldErrors.systemPrompt ? 'true' : 'false'}
+            />
+          </Field>
+          {fieldErrors.systemPrompt && <Text>{fieldErrors.systemPrompt}</Text>}
+          <Field label="Output schema" hint="Define the structured output format with display widgets">
+            <SchemaEditor
+              value={outputSchema}
+              onChange={setOutputSchema}
+            />
+          </Field>
+          <Button
+            data-testid="workbench-suggest-schema-button"
+            disabled={suggestingSchema || (!formData.name.trim() && !formData.systemPrompt.trim())}
+            onClick={handleSuggestSchema}
+          >
+            {suggestingSchema ? 'Suggesting...' : '✨ Suggest Schema'}
+          </Button>
+          <Button
+            appearance="primary"
+            data-testid={isEditing ? 'workbench-save-agent-button' : 'workbench-create-agent-button'}
+            onClick={handleSubmit}
+            disabled={submitting}
+          >
+            {submitLabel}
+          </Button>
+        </div>
+      </Card>
+
+      <Card>
+        <div className={styles.cardBody}>
+          <Text weight="semibold">Tools</Text>
+          <div className={styles.toolsList}>
+            {tools.map((tool) => (
+              <Checkbox
+                key={tool.name}
+                data-testid={`workbench-tool-${tool.name}`}
+                label={`${tool.name}${tool.description ? ` — ${tool.description}` : ''}`}
+                checked={selectedToolNames.includes(tool.name)}
+                onChange={() => toggleTool(tool.name)}
+              />
+            ))}
+          </div>
+          {fieldErrors.tools && <Text>{fieldErrors.tools}</Text>}
+        </div>
+      </Card>
+    </div>
+  )
+}

@@ -359,6 +359,25 @@ export async function suggestOutputSchema({ name = "", description = "", systemP
   });
 }
 
+export async function updateWorkbenchAgent(agentId, agentData) {
+  return fetchJSON(`${API_BASE_URL}/workbench/agents/${agentId}`, {
+    method: "PUT",
+    body: JSON.stringify(agentData),
+  });
+}
+
+export async function listAgentRuns(agentId) {
+  return fetchJSON(`${API_BASE_URL}/workbench/agents/${agentId}/runs`);
+}
+
+export async function listAllRuns() {
+  return fetchJSON(`${API_BASE_URL}/workbench/runs`);
+}
+
+export async function getRun(runId) {
+  return fetchJSON(`${API_BASE_URL}/workbench/runs/${runId}`);
+}
+
 // ============================================================================
 // KBA Drafter APIs
 // ============================================================================
