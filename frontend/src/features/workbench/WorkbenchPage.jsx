@@ -37,7 +37,8 @@ const useStyles = makeStyles({
   agentsLayout: {
     display: 'flex',
     gap: tokens.spacingHorizontalL,
-    alignItems: 'flex-start',
+    alignItems: 'stretch',
+    minHeight: '500px',
   },
   agentsMain: {
     flex: 1,
