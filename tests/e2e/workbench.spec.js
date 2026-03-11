@@ -211,7 +211,10 @@ test.describe("Agent Fabric UI", () => {
     await expect(runDetail).toBeVisible({ timeout: 10000 });
     await expect(runDetail).toContainText("Ticket trend summary");
 
-    // Clean up
+    // Close result dialog if open, then clean up
+    const closeBtn = page.locator("[role=dialog] button").first();
+    if (await closeBtn.isVisible({ timeout: 1000 }).catch(() => false)) await closeBtn.click();
+    await page.waitForTimeout(300);
     const deleteBtn = card.locator('[data-testid^="agent-card-delete-"]');
     await deleteBtn.click();
   });
@@ -285,7 +288,10 @@ test.describe("Agent Fabric UI", () => {
     await expect(runDetail).toBeVisible({ timeout: 10000 });
     await expect(runDetail).toContainText("Processed required input: INC-987654");
 
-    // Clean up
+    // Close result dialog if open, then clean up
+    const closeBtn = page.locator("[role=dialog] button").first();
+    if (await closeBtn.isVisible({ timeout: 1000 }).catch(() => false)) await closeBtn.click();
+    await page.waitForTimeout(300);
     const deleteBtn = card.locator('[data-testid^="agent-card-delete-"]');
     await deleteBtn.click();
   });
@@ -353,7 +359,10 @@ test.describe("Agent Fabric UI", () => {
     const card = page.getByTestId(new RegExp(`^agent-card-`)).filter({ hasText: agentName });
     await expect(card).toBeVisible({ timeout: 10000 });
 
-    // Clean up
+    // Close result dialog if open, then clean up
+    const closeBtn = page.locator("[role=dialog] button").first();
+    if (await closeBtn.isVisible({ timeout: 1000 }).catch(() => false)) await closeBtn.click();
+    await page.waitForTimeout(300);
     const deleteBtn = card.locator('[data-testid^="agent-card-delete-"]');
     await deleteBtn.click();
     await expect(card).toHaveCount(0, { timeout: 10000 });
@@ -401,7 +410,10 @@ test.describe("Agent Fabric UI", () => {
     await expect(runDetail).toBeVisible({ timeout: 10000 });
     await expect(runDetail).toContainText("OPENAI_API_KEY not configured");
 
-    // Clean up
+    // Close result dialog if open, then clean up
+    const closeBtn = page.locator("[role=dialog] button").first();
+    if (await closeBtn.isVisible({ timeout: 1000 }).catch(() => false)) await closeBtn.click();
+    await page.waitForTimeout(300);
     const deleteBtn = card.locator('[data-testid^="agent-card-delete-"]');
     await deleteBtn.click();
   });
@@ -480,7 +492,7 @@ test.describe("Suggest & Widget Rendering (live)", () => {
 
     // Click to show detail
     await runEntry.click();
-    const runDetail = runsPanel.locator('[data-testid^="run-detail-"]').first();
+    const runDetail = page.locator('[data-testid^="run-detail-"]').first();
     await expect(runDetail).toBeVisible({ timeout: 5000 });
 
     // 3. Verify the output rendered with actual data
@@ -500,7 +512,9 @@ test.describe("Suggest & Widget Rendering (live)", () => {
       fullPage: true,
     });
 
-    // 4. Delete agent
+    // 4. Close dialog, then delete agent
+    await page.locator("[role=dialog] button").first().click();
+    await page.waitForTimeout(300);
     await card.locator('[data-testid^="agent-card-delete-"]').click();
     await expect(card).not.toBeVisible({ timeout: 10000 });
   });
@@ -544,16 +558,16 @@ test.describe("Agent Lifecycle (live)", () => {
     const runsPanel = page.getByTestId("runs-side-panel");
     const runEntries = runsPanel.locator('[data-testid^="run-entry-"]');
     const initialRunCount = await runEntries.count();
-    const firstRunEntry = runEntries.first();
-    await expect(firstRunEntry).toBeVisible({ timeout: 60000 });
-    await expect(firstRunEntry).toContainText("completed", { timeout: 60000 });
 
-    // Click the run entry to see its detail
-    await firstRunEntry.click();
-    const firstRunDetail = runsPanel.locator('[data-testid^="run-detail-"]').first();
-    await expect(firstRunDetail).toBeVisible({ timeout: 5000 });
+    // Wait for run to complete — the dialog auto-opens when the run finishes
+    const firstRunDetail = page.locator('[data-testid^="run-detail-"]').first();
+    await expect(firstRunDetail).toBeVisible({ timeout: 60000 });
     // First run should mention VPN-related content
     await expect(firstRunDetail).toContainText(/VPN|vpn|Ticket/i, { timeout: 5000 });
+
+    // Close the result dialog before interacting with the page
+    await page.locator("[role=dialog] button").first().click();
+    await page.waitForTimeout(300);
 
     // --- 3. Edit the agent — change prompt + add requires_input ---
     const editBtn = card.locator('[data-testid^="agent-card-edit-"]');
@@ -594,25 +608,25 @@ test.describe("Agent Lifecycle (live)", () => {
     // Wait for second run to appear (at least one more than after first run)
     await expect(runEntries).toHaveCount(initialRunCount + 2, { timeout: 60000 });
 
-    // The newest run (first in list) should complete
-    const secondRunEntry = runEntries.first();
-    await expect(secondRunEntry).toContainText("completed", { timeout: 60000 });
-
-    // --- 5. Verify run history — both runs visible with different output ---
-    // Click first run (newest = Outlook)
-    await secondRunEntry.click();
-    const secondRunDetail = runsPanel.locator('[data-testid^="run-detail-"]').first();
-    await expect(secondRunDetail).toBeVisible();
+    // The newest run auto-opens in the dialog
+    const secondRunDetail = page.locator('[data-testid^="run-detail-"]').first();
+    await expect(secondRunDetail).toBeVisible({ timeout: 60000 });
     await expect(secondRunDetail).toContainText(/Outlook|outlook|Ticket/i, { timeout: 5000 });
+
+    // Close dialog before clicking the older run
+    await page.locator("[role=dialog] button").first().click();
+    await page.waitForTimeout(300);
 
     // Click second run (older = VPN)
     const olderRunEntry = runEntries.nth(1);
     await olderRunEntry.click();
     await page.waitForTimeout(300);
-    const olderRunDetail = runsPanel.locator('[data-testid^="run-detail-"]').first();
+    const olderRunDetail = page.locator('[data-testid^="run-detail-"]').first();
     await expect(olderRunDetail).toContainText(/VPN|vpn|Ticket/i, { timeout: 5000 });
 
-    // --- 6. Delete the agent ---
+    // --- 6. Close dialog and delete the agent ---
+    await page.locator("[role=dialog] button").first().click();
+    await page.waitForTimeout(300);
     const deleteBtn = card.locator('[data-testid^="agent-card-delete-"]');
     await deleteBtn.click();
 

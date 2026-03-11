@@ -78,7 +78,8 @@ const useStyles = makeStyles({
     marginTop: tokens.spacingVerticalXS,
   },
   chartContainer: {
-    height: '250px',
+    height: '300px',
+    maxWidth: '600px',
     width: '100%',
   },
   table: {
@@ -193,26 +194,32 @@ function StatCardWidget({ value, ui }) {
 
 function BarChartWidget({ value, ui }) {
   const styles = useStyles()
-  if (!Array.isArray(value) || value.length === 0) return <Text italic>No chart data</Text>
-  // Expect array of objects with at least one string key (category) and one numeric key
-  const keys = Object.keys(value[0] || {})
-  const indexKey = ui?.indexBy || keys.find((k) => typeof value[0][k] === 'string') || keys[0]
-  const valueKeys = ui?.keys || keys.filter((k) => typeof value[0][k] === 'number')
-  if (valueKeys.length === 0) {
-    console.warn('[SchemaRenderer] bar-chart: no numeric keys found in data', value[0])
-    return <Text italic>No numeric data for chart</Text>
+  // Accept array of objects OR an object {key: number} (auto-convert)
+  let chartData = value
+  if (!Array.isArray(value) && typeof value === 'object' && value !== null) {
+    chartData = Object.entries(value)
+      .filter(([, v]) => typeof v === 'number')
+      .map(([k, v]) => ({ category: k, value: v }))
   }
+  if (!Array.isArray(chartData) || chartData.length === 0) return <Text italic>No chart data</Text>
+
+  const keys = Object.keys(chartData[0] || {})
+  const indexKey = ui?.indexBy || keys.find((k) => typeof chartData[0][k] === 'string') || keys[0]
+  const valueKeys = ui?.keys || keys.filter((k) => typeof chartData[0][k] === 'number')
+  if (valueKeys.length === 0) return <Text italic>No numeric data for chart</Text>
+
   return (
     <div className={styles.chartContainer}>
       <ResponsiveBar
-        data={value}
+        data={chartData}
         keys={valueKeys}
         indexBy={indexKey}
-        margin={{ top: 10, right: 20, bottom: 40, left: 50 }}
+        margin={{ top: 10, right: 20, bottom: 60, left: 50 }}
         padding={0.3}
         colors={{ scheme: 'nivo' }}
-        axisBottom={{ tickRotation: -30 }}
+        axisBottom={{ tickRotation: -45, truncateTickAt: 15 }}
         axisLeft={{ tickSize: 5 }}
+        labelTextColor={{ from: 'color', modifiers: [['darker', 1.6]] }}
       />
     </div>
   )
@@ -223,25 +230,30 @@ function PieChartWidget({ value, ui }) {
   // Accept: array of {id, value} or object {key: number}
   let pieData = []
   if (Array.isArray(value)) {
-    pieData = value.map((item) => ({
-      id: item[ui?.idKey || 'id'] || item.label || item.name || String(item),
-      value: item[ui?.valueKey || 'value'] || item.count || 0,
-    }))
+    pieData = value
+      .filter((item) => typeof (item[ui?.valueKey || 'value'] ?? item.count) === 'number')
+      .map((item) => ({
+        id: String(item[ui?.idKey || 'id'] || item.label || item.name || item),
+        value: item[ui?.valueKey || 'value'] || item.count || 0,
+      }))
   } else if (typeof value === 'object' && value !== null) {
-    pieData = Object.entries(value).map(([k, v]) => ({ id: k, value: v }))
+    pieData = Object.entries(value)
+      .filter(([, v]) => typeof v === 'number')
+      .map(([k, v]) => ({ id: String(k), value: v }))
   }
   if (pieData.length === 0) return <Text italic>No chart data</Text>
   return (
     <div className={styles.chartContainer}>
       <ResponsivePie
         data={pieData}
-        margin={{ top: 10, right: 80, bottom: 40, left: 80 }}
+        margin={{ top: 20, right: 100, bottom: 40, left: 100 }}
         innerRadius={0.4}
         padAngle={0.7}
         cornerRadius={3}
         colors={{ scheme: 'nivo' }}
         arcLinkLabelsSkipAngle={10}
         arcLabelsSkipAngle={10}
+        arcLinkLabel={(d) => `${d.id} (${d.value})`}
       />
     </div>
   )
