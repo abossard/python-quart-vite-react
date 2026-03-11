@@ -82,6 +82,34 @@ export function connectToTimeStream(onMessage, onError) {
   };
 }
 
+/**
+ * Connect to Server-Sent Events stream for real-time agent activity
+ * @param {Function} onEvent - Callback for each agent event
+ * @param {Function} onError - Callback for errors
+ * @returns {Function} Cleanup function to close the connection
+ */
+export function connectToAgentEvents(onEvent, onError) {
+  const eventSource = new EventSource(`${API_BASE_URL}/workbench/events`);
+
+  eventSource.onmessage = (event) => {
+    try {
+      const data = JSON.parse(event.data);
+      onEvent(data);
+    } catch (error) {
+      if (onError) onError(error);
+    }
+  };
+
+  eventSource.onerror = (error) => {
+    if (onError) onError(error);
+    eventSource.close();
+  };
+
+  return () => {
+    eventSource.close();
+  };
+}
+
 // ============================================================================
 // Task CRUD APIs
 // ============================================================================

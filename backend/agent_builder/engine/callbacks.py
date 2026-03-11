@@ -2,13 +2,15 @@
 Agent Builder — LLM Callbacks
 
 Logging callbacks for OpenAI LLM calls and tool invocations.
-Actions (I/O): write to logger.
+Actions (I/O): write to logger and event bus.
 """
 
 import logging
 from time import perf_counter
 from typing import Any
 from uuid import UUID
+
+from .event_bus import AgentEvent, AgentEventBus
 
 logger = logging.getLogger(__name__)
 
@@ -148,3 +150,103 @@ def _extract_llm_call_metadata(
                     finish_reason = finish_reason or maybe_finish
 
     return token_usage, model_name, finish_reason
+
+
+# ---------------------------------------------------------------------------
+# SSE Streaming Callback — publishes events to EventBus
+# ---------------------------------------------------------------------------
+
+def make_streaming_callback(run_id: str, event_bus: AgentEventBus) -> Any:
+    """Create a callback handler that publishes agent events to the SSE event bus."""
+    from langchain_core.callbacks import BaseCallbackHandler
+
+    class StreamingCallbackHandler(BaseCallbackHandler):
+        def __init__(self) -> None:
+            super().__init__()
+            self._start_times: dict[Any, float] = {}
+
+        def on_tool_start(
+            self,
+            serialized: dict[str, Any],
+            input_str: str,
+            *,
+            run_id: Any = None,
+            **kwargs: Any,
+        ) -> None:
+            self._start_times[run_id] = perf_counter()
+            name = serialized.get("name", "unknown")
+            preview = input_str[:500] if isinstance(input_str, str) else str(input_str)[:500]
+            event_bus.publish(AgentEvent(
+                run_id=run_id_outer,
+                event_type="tool_start",
+                data={"tool_name": name, "input": preview},
+            ))
+
+        def on_tool_end(self, output: str, *, run_id: Any = None, **kwargs: Any) -> None:
+            started = self._start_times.pop(run_id, None)
+            duration_ms = int((perf_counter() - started) * 1000) if started is not None else None
+            preview = output[:500] if isinstance(output, str) else str(output)[:500]
+            event_bus.publish(AgentEvent(
+                run_id=run_id_outer,
+                event_type="tool_end",
+                data={"tool_name": kwargs.get("name", ""), "output": preview, "duration_ms": duration_ms},
+            ))
+
+        def on_tool_error(self, error: BaseException, *, run_id: Any = None, **kwargs: Any) -> None:
+            started = self._start_times.pop(run_id, None)
+            duration_ms = int((perf_counter() - started) * 1000) if started is not None else None
+            event_bus.publish(AgentEvent(
+                run_id=run_id_outer,
+                event_type="tool_error",
+                data={"error": str(error), "duration_ms": duration_ms},
+            ))
+
+        def on_llm_start(
+            self,
+            serialized: dict[str, Any],
+            prompts: list[str],
+            *,
+            run_id: UUID = None,
+            **kwargs: Any,
+        ) -> None:
+            self._start_times[run_id] = perf_counter()
+            model_name = None
+            if isinstance(serialized, dict):
+                model_name = (
+                    serialized.get("kwargs", {}).get("model")
+                    if isinstance(serialized.get("kwargs"), dict)
+                    else None
+                )
+            event_bus.publish(AgentEvent(
+                run_id=run_id_outer,
+                event_type="llm_start",
+                data={"model": model_name or ""},
+            ))
+
+        def on_llm_end(self, response: Any, *, run_id: UUID = None, **kwargs: Any) -> None:
+            started_at = self._start_times.pop(run_id, None)
+            duration_ms = int((perf_counter() - started_at) * 1000) if started_at is not None else None
+            token_usage, model_name, finish_reason = _extract_llm_call_metadata(response)
+            event_bus.publish(AgentEvent(
+                run_id=run_id_outer,
+                event_type="llm_end",
+                data={
+                    "model": model_name or "",
+                    "duration_ms": duration_ms,
+                    "token_usage": token_usage or {},
+                    "finish_reason": finish_reason or "",
+                },
+            ))
+
+        def on_llm_error(self, error: BaseException, *, run_id: UUID = None, **kwargs: Any) -> None:
+            started_at = self._start_times.pop(run_id, None)
+            duration_ms = int((perf_counter() - started_at) * 1000) if started_at is not None else None
+            event_bus.publish(AgentEvent(
+                run_id=run_id_outer,
+                event_type="llm_error",
+                data={"error": str(error), "duration_ms": duration_ms},
+            ))
+
+    # Closure captures run_id as run_id_outer to avoid shadowing with LangChain's run_id param
+    run_id_outer = run_id
+    return StreamingCallbackHandler()

@@ -2,8 +2,10 @@ import {
   Button,
   Card,
   Checkbox,
+  Combobox,
   Field,
   Input,
+  Option,
   Text,
   Textarea,
   makeStyles,
@@ -38,6 +40,81 @@ const useStyles = makeStyles({
     alignItems: 'start',
   },
 })
+
+// ---------------------------------------------------------------------------
+// Pre-built agent templates
+// ---------------------------------------------------------------------------
+
+const AGENT_TEMPLATES = [
+  {
+    id: 'kba-from-tickets',
+    name: 'KBA from Multiple Tickets',
+    description: 'Create a Knowledge Base article by analyzing patterns across related tickets',
+    system_prompt: `You are a Knowledge Base author. Your job is to create a clear, reusable Knowledge Base Article (KBA) from ticket data.
+
+Steps:
+1. Use csv_search_tickets_with_details to find tickets related to the topic the user provides.
+2. Analyze the tickets: identify common symptoms, root causes, and resolution steps.
+3. Synthesize the findings into a structured KBA with these sections:
+   - **Title**: A concise, searchable title
+   - **Symptoms**: What the user experiences
+   - **Cause**: The underlying root cause
+   - **Resolution**: Step-by-step fix instructions
+   - **Related Tickets**: List the INC numbers you analyzed
+
+Write the KBA in clear language that a support agent can follow.`,
+    tool_names: ['csv_search_tickets_with_details', 'csv_search_tickets', 'csv_get_ticket', 'csv_ticket_stats'],
+    requires_input: true,
+    required_input_description: 'Topic or keyword to search tickets for (e.g. "VPN timeout", "password reset")',
+    show_in_menu: false,
+  },
+  {
+    id: 'worklog-statistics',
+    name: 'Activity Statistics from Worklogs',
+    description: 'Analyze ticket worklogs and notes to produce statistics on what activities are being performed',
+    system_prompt: `You are a data analyst specializing in IT support operations. Your job is to analyze ticket worklogs and notes to understand what activities support teams are performing.
+
+Steps:
+1. Use csv_ticket_stats to get an overview of the ticket landscape.
+2. Use csv_search_tickets_with_details to retrieve tickets (focus on ones with notes and resolution data).
+3. Analyze the notes and resolution fields to categorize activities (e.g. troubleshooting, escalation, configuration change, user education, monitoring, etc.)
+4. Produce a summary with:
+   - **Activity breakdown**: What types of work are being done and how often
+   - **Time patterns**: Which activities appear in which statuses
+   - **Group analysis**: Which assigned groups do which activities
+   - **Recommendations**: Suggestions for process improvement based on patterns
+
+Present findings with counts and percentages where possible.`,
+    tool_names: ['csv_ticket_stats', 'csv_search_tickets_with_details', 'csv_list_tickets', 'csv_count_tickets'],
+    requires_input: false,
+    required_input_description: '',
+    show_in_menu: false,
+  },
+  {
+    id: 'next-step-advisor',
+    name: 'Next Step Advisor',
+    description: 'Figure out the next action to solve or continue work on a ticket or topic',
+    system_prompt: `You are a senior support advisor. Given a ticket or topic, you determine the best next steps to resolve or make progress on the issue.
+
+Steps:
+1. If the user provides an INC number, use csv_get_ticket to get full details.
+2. If the user provides a topic, use csv_search_tickets_with_details to find relevant tickets.
+3. Analyze the current state: status, priority, existing notes, resolution attempts, assigned group.
+4. Look for similar resolved tickets using csv_search_tickets to find proven solutions.
+5. Produce actionable recommendations:
+   - **Current Situation**: Brief summary of where things stand
+   - **Immediate Next Step**: The single most impactful action to take now
+   - **Alternative Approaches**: 2-3 other options if the first doesn't work
+   - **Escalation Path**: When and to whom to escalate if needed
+   - **Similar Resolved Tickets**: Reference tickets that had similar issues and how they were solved
+
+Be specific and actionable — avoid vague advice.`,
+    tool_names: ['csv_get_ticket', 'csv_search_tickets_with_details', 'csv_search_tickets', 'csv_ticket_stats'],
+    requires_input: true,
+    required_input_description: 'Ticket INC number (e.g. INC000016349327) or topic description',
+    show_in_menu: false,
+  },
+]
 
 const EMPTY_FORM = {
   name: '',
@@ -89,6 +166,23 @@ export default function AgentCreateForm({ tools, onAgentCreated, initialData }) 
   const [suggestingSchema, setSuggestingSchema] = useState(false)
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState('')
+
+  const applyTemplate = (templateId) => {
+    const tpl = AGENT_TEMPLATES.find((t) => t.id === templateId)
+    if (!tpl) return
+    setFormData({
+      name: tpl.name,
+      description: tpl.description,
+      systemPrompt: tpl.system_prompt,
+      requiresInput: Boolean(tpl.requires_input),
+      requiredInputDescription: tpl.required_input_description || '',
+      showInMenu: Boolean(tpl.show_in_menu),
+    })
+    setSelectedToolNames([...tpl.tool_names])
+    setOutputSchema('')
+    setFieldErrors({ ...EMPTY_ERRORS })
+    setError('')
+  }
 
   // Keep tool selection in sync when tools list changes (remove stale names)
   useEffect(() => {
@@ -216,6 +310,29 @@ export default function AgentCreateForm({ tools, onAgentCreated, initialData }) 
       <Card>
         <div className={styles.cardBody}>
           {error && <Text>{error}</Text>}
+          {!isEditing && (
+            <Field label="Start from a template" hint="Pre-fills the form with a ready-to-use agent configuration">
+              <Combobox
+                data-testid="workbench-template-select"
+                placeholder="Choose a template..."
+                onOptionSelect={(_, data) => {
+                  if (data.optionValue) applyTemplate(data.optionValue)
+                }}
+              >
+                {AGENT_TEMPLATES.map((tpl) => (
+                  <Option key={tpl.id} value={tpl.id} text={tpl.name}>
+                    <div>
+                      <Text weight="semibold">{tpl.name}</Text>
+                      <br />
+                      <Text size={200} style={{ color: tokens.colorNeutralForeground4 }}>
+                        {tpl.description}
+                      </Text>
+                    </div>
+                  </Option>
+                ))}
+              </Combobox>
+            </Field>
+          )}
           <Field label="Agent name" required>
             <Input
               data-testid="workbench-agent-name-input"

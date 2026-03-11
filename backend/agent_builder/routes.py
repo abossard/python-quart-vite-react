@@ -10,6 +10,9 @@ Action layer: marshals HTTP ↔ service, no business logic.
 from pydantic import ValidationError
 from quart import Blueprint, jsonify, request
 
+import asyncio
+import json
+
 from .models import (
     AgentDefinitionCreate,
     AgentDefinitionUpdate,
@@ -18,6 +21,7 @@ from .models import (
     RunStatus,
 )
 from .engine.prompt_builder import DEFAULT_OUTPUT_SCHEMA
+from .engine.event_bus import agent_event_bus
 
 agent_builder_bp = Blueprint("agent_builder", __name__)
 
@@ -255,6 +259,37 @@ async def workbench_get_run(run_id: str):
     if run is None:
         return jsonify({"error": "Run not found"}), 404
     return jsonify(run.to_dict())
+
+
+# ---------------------------------------------------------------------------
+# SSE: Agent Activity Stream
+# ---------------------------------------------------------------------------
+
+@agent_builder_bp.route("/api/workbench/events", methods=["GET"])
+async def workbench_event_stream():
+    """Server-Sent Events endpoint for real-time agent activity."""
+    queue = agent_event_bus.subscribe()
+
+    async def generate():
+        try:
+            # Send history buffer as catch-up
+            for event in agent_event_bus.get_history():
+                yield f"data: {json.dumps(event.to_sse_dict())}\n\n"
+
+            # Stream new events
+            while True:
+                event = await queue.get()
+                yield f"data: {json.dumps(event.to_sse_dict())}\n\n"
+        except asyncio.CancelledError:
+            pass
+        finally:
+            agent_event_bus.unsubscribe(queue)
+
+    return generate(), {
+        "Content-Type": "text/event-stream",
+        "Cache-Control": "no-cache",
+        "X-Accel-Buffering": "no",
+    }
 
 
 # ---------------------------------------------------------------------------

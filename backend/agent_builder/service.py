@@ -19,6 +19,8 @@ from typing import Any, Optional
 
 from .engine.prompt_builder import append_output_instructions, resolve_output_schema
 from .engine.react_runner import build_llm, build_react_agent, extract_tools_used, make_tool_logging_callback
+from .engine.callbacks import make_streaming_callback
+from .engine.event_bus import AgentEvent, agent_event_bus
 from .evaluator import compute_score
 from .evaluator import evaluate_run as _evaluate_criteria
 from .models import (
@@ -448,6 +450,17 @@ class WorkbenchService:
         run = self._repo.create_run(run)
         run_id = run.id
 
+        # Publish run_started event
+        agent_event_bus.publish(AgentEvent(
+            run_id=run_id,
+            event_type="run_started",
+            data={
+                "agent_id": agent_id,
+                "agent_name": agent_def.name,
+                "input_preview": user_message[:200],
+            },
+        ))
+
         try:
             tools = self._registry.resolve(validated_tool_names)
             runtime_system_prompt = append_output_instructions(
@@ -480,7 +493,10 @@ class WorkbenchService:
                 {"messages": [("user", user_message)]},
                 config={
                     "recursion_limit": graph_recursion_limit,
-                    "callbacks": [make_tool_logging_callback()],
+                    "callbacks": [
+                        make_tool_logging_callback(),
+                        make_streaming_callback(run_id, agent_event_bus),
+                    ],
                 },
             )
 
@@ -497,6 +513,16 @@ class WorkbenchService:
                 run_id, total_ms, tools_used, len(result["messages"]),
             )
 
+            agent_event_bus.publish(AgentEvent(
+                run_id=run_id,
+                event_type="run_completed",
+                data={
+                    "output_preview": output[:300],
+                    "tools_used": tools_used,
+                    "duration_ms": total_ms,
+                },
+            ))
+
             updated = self._repo.update_run(run_id,
                 status=RunStatus.COMPLETED.value,
                 output=output,
@@ -508,6 +534,11 @@ class WorkbenchService:
             return updated or run
 
         except Exception as exc:
+            agent_event_bus.publish(AgentEvent(
+                run_id=run_id,
+                event_type="run_failed",
+                data={"error": str(exc)},
+            ))
             updated = self._repo.update_run(run_id,
                 status=RunStatus.FAILED.value,
                 error=str(exc),
