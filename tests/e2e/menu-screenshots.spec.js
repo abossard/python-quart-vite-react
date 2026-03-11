@@ -11,6 +11,9 @@ test("menu page screenshots", async ({ page }, testInfo) => {
     { name: "fields", tab: "tab-fields" },
     { name: "agent-fabric", tab: "tab-workbench" },
     { name: "agent", tab: "tab-agent" },
+    { name: "activity", tab: "tab-activity" },
+    { name: "workflow", tab: "tab-workflow" },
+    { name: "settings", tab: "tab-settings" },
   ];
 
   await page.goto(pages[0].url);
@@ -22,6 +25,7 @@ test("menu page screenshots", async ({ page }, testInfo) => {
   for (const entry of pages.slice(1)) {
     await page.getByTestId(entry.tab).click();
     await expect(page.getByTestId(entry.tab)).toHaveAttribute("aria-selected", "true");
+    await page.waitForTimeout(500); // let canvas / SSE settle
     await page.screenshot({
       path: testInfo.outputPath(`menu-${entry.name}.png`),
       fullPage: true,

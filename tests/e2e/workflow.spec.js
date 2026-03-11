@@ -46,12 +46,15 @@ test.describe("Workflow page", () => {
     await visit(page, "/workflow");
     await expect(page.getByText("10 nodes")).toBeVisible();
     await page.getByTestId("workflow-add-node").click();
+    await page.getByText("Done").click();
     await expect(page.getByText("11 nodes")).toBeVisible();
   });
 
   test("reset restores default workflow", async ({ page }) => {
     await visit(page, "/workflow");
     await page.getByTestId("workflow-add-node").click();
+    // Close dialog that opens for the new node
+    await page.getByText("Done").click();
     await expect(page.getByText("11 nodes")).toBeVisible();
     await page.getByTestId("workflow-reset").click();
     await expect(page.getByText("10 nodes")).toBeVisible();

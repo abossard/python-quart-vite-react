@@ -34,6 +34,7 @@ import {
   Add24Regular,
   ArrowReset24Regular,
   Dismiss24Regular,
+  Link24Regular,
   Play24Regular,
 } from '@fluentui/react-icons'
 import { useCallback, useEffect, useRef, useState } from 'react'
@@ -151,7 +152,7 @@ function edgePt(node, tx, ty) {
   return { x: node.x + (dx / d) * (NODE_R + 2), y: node.y + (dy / d) * (NODE_R + 2) }
 }
 
-function renderCanvas(ctx, canvas, nodes, edges, selectedId, hoveredId, connecting, mousePos, animProgress) {
+function renderCanvas(ctx, canvas, nodes, edges, selectedId, hoveredId, connecting, mousePos, animProgress, connectMode) {
   const dpr = window.devicePixelRatio || 1
   const W = canvas.width / dpr, H = canvas.height / dpr
   ctx.clearRect(0, 0, canvas.width, canvas.height)
@@ -211,6 +212,13 @@ function renderCanvas(ctx, canvas, nodes, edges, selectedId, hoveredId, connecti
     ctx.font = 'bold 12px Inter, system-ui, sans-serif'
     ctx.fillStyle = '#1e293b'; ctx.textAlign = 'center'; ctx.textBaseline = 'top'
     lines.forEach((line, i) => ctx.fillText(line, node.x, node.y + NODE_R + 10 + i * 15))
+
+    // Connect mode: show a small "+" on hovered non-selected nodes
+    if (connectMode && connecting && node.id !== connecting && isHov) {
+      ctx.font = 'bold 18px Inter, system-ui, sans-serif'
+      ctx.fillStyle = '#16a34a'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'
+      ctx.fillText('+', node.x, node.y)
+    }
   })
   ctx.restore()
 }
@@ -257,6 +265,8 @@ export default function WorkflowPage() {
   const [animProgress, setAnimProgress] = useState(null)
   const [nodeDialog, setNodeDialog] = useState(null)
   const [canvasReady, setCanvasReady] = useState(0)
+  const [connectMode, setConnectMode] = useState(false)
+  const dragStartPos = useRef(null) // track if mouse actually moved (to distinguish click vs drag)
 
   const switchWf = (key) => {
     const wf = WORKFLOWS[key]; if (!wf) return
@@ -273,19 +283,64 @@ export default function WorkflowPage() {
   }, [])
 
   useEffect(() => { resize(); window.addEventListener('resize', resize); return () => window.removeEventListener('resize', resize) }, [resize])
-  useEffect(() => { const c = canvasRef.current; if (!c || !canvasReady) return; renderCanvas(c.getContext('2d'), c, nodes, edges, selectedId, hoveredId, connecting, mousePos, animProgress) }, [nodes, edges, selectedId, hoveredId, connecting, mousePos, animProgress, canvasReady])
+  useEffect(() => { const c = canvasRef.current; if (!c || !canvasReady) return; renderCanvas(c.getContext('2d'), c, nodes, edges, selectedId, hoveredId, connecting, mousePos, animProgress, connectMode) }, [nodes, edges, selectedId, hoveredId, connecting, mousePos, animProgress, canvasReady, connectMode])
   useEffect(() => { if (!animating) { setAnimProgress(null); return }; let ok = true; const t = () => { if (!ok) return; setAnimProgress((p) => ((p || 0) + 0.003) % 1); animRef.current = requestAnimationFrame(t) }; animRef.current = requestAnimationFrame(t); return () => { ok = false; cancelAnimationFrame(animRef.current) } }, [animating])
 
   const gp = (e) => { const r = canvasRef.current.getBoundingClientRect(); return { x: e.clientX - r.left, y: e.clientY - r.top } }
   const fn = (x, y) => { for (let i = nodes.length - 1; i >= 0; i--) if (pointInNode(x, y, nodes[i])) return nodes[i]; return null }
 
-  const onDown = (e) => { const p = gp(e), n = fn(p.x, p.y); if (n) { setSelectedId(n.id); e.shiftKey ? (setConnecting(n.id), setMousePos(p)) : setDragging({ id: n.id, ox: p.x - n.x, oy: p.y - n.y }) } else setSelectedId(null) }
+  const onDown = (e) => {
+    const p = gp(e), n = fn(p.x, p.y)
+    dragStartPos.current = p
+    if (n) {
+      setSelectedId(n.id)
+      if (connectMode || e.shiftKey) {
+        setConnecting(n.id); setMousePos(p)
+      } else {
+        setDragging({ id: n.id, ox: p.x - n.x, oy: p.y - n.y })
+      }
+    } else {
+      setSelectedId(null)
+    }
+  }
   const onMove = (e) => { const p = gp(e); setMousePos(p); dragging ? setNodes((prev) => prev.map((n) => n.id === dragging.id ? { ...n, x: p.x - dragging.ox, y: p.y - dragging.oy } : n)) : setHoveredId(fn(p.x, p.y)?.id || null) }
-  const onUp = (e) => { if (connecting) { const t = fn(gp(e).x, gp(e).y); if (t && t.id !== connecting && !edges.some((x) => x.from === connecting && x.to === t.id)) setEdges((p) => [...p, { from: connecting, to: t.id }]); setConnecting(null) }; setDragging(null) }
-  const onClick = (e) => { if (!dragging) { const n = fn(gp(e).x, gp(e).y); if (n) setNodeDialog(n.id) } }
-  const onDbl = (e) => { const p = gp(e), n = fn(p.x, p.y); if (n) { const r = canvasRef.current.getBoundingClientRect(); setEditing({ nodeId: n.id, x: e.clientX - r.left, y: e.clientY - r.top }); setEditText(n.label.replace(/\n/g, ' ')) } }
+  const onUp = (e) => {
+    if (connecting) {
+      const t = fn(gp(e).x, gp(e).y)
+      if (t && t.id !== connecting && !edges.some((x) => x.from === connecting && x.to === t.id)) {
+        setEdges((p) => [...p, { from: connecting, to: t.id }])
+      }
+      setConnecting(null)
+    }
+    setDragging(null)
+  }
+  const onClick = (e) => {
+    // Only open dialog if mouse didn't move (not a drag)
+    const p = gp(e)
+    const start = dragStartPos.current
+    if (start && Math.abs(p.x - start.x) + Math.abs(p.y - start.y) > 5) return
+    if (!connectMode) {
+      const n = fn(p.x, p.y)
+      if (n) setNodeDialog(n.id)
+    }
+  }
+  // Double-click: rename if on node, add new node if on empty canvas
+  const onDbl = (e) => {
+    const p = gp(e), n = fn(p.x, p.y)
+    if (n) {
+      const r = canvasRef.current.getBoundingClientRect()
+      setEditing({ nodeId: n.id, x: e.clientX - r.left, y: e.clientY - r.top })
+      setEditText(n.label.replace(/\n/g, ' '))
+    } else {
+      // Add new node where user double-clicked
+      const id = 'n' + (_nid++)
+      setNodes((prev) => [...prev, { id, x: p.x, y: p.y, label: 'New Step', color: '#475569', agent: 'none' }])
+      setSelectedId(id)
+      setNodeDialog(id)
+    }
+  }
   const commitEdit = () => { if (editing && editText.trim()) setNodes((p) => p.map((n) => n.id === editing.nodeId ? { ...n, label: editText.trim() } : n)); setEditing(null) }
-  const addNode = () => { const id = 'n' + (_nid++); setNodes((p) => [...p, { id, x: 150 + Math.random() * 300, y: 150 + Math.random() * 150, label: 'New Step', color: '#475569', agent: 'none' }]); setSelectedId(id) }
+  const addNode = () => { const id = 'n' + (_nid++); setNodes((p) => [...p, { id, x: 200 + Math.random() * 300, y: 100 + Math.random() * 250, label: 'New Step', color: '#475569', agent: 'none' }]); setSelectedId(id); setNodeDialog(id) }
   const delSel = () => { if (!selectedId) return; setNodes((p) => p.filter((n) => n.id !== selectedId)); setEdges((p) => p.filter((e) => e.from !== selectedId && e.to !== selectedId)); setSelectedId(null); setNodeDialog(null) }
 
   const dNode = nodeDialog ? nodes.find((n) => n.id === nodeDialog) : null
@@ -296,10 +351,15 @@ export default function WorkflowPage() {
       <div className={styles.header}>
         <div>
           <Subtitle2>Support Workflow</Subtitle2>
-          <Caption1 style={{ display: 'block', marginTop: '2px' }}>Click node to configure · Drag to move · Shift+drag to connect · Double-click to rename</Caption1>
+          <Caption1 style={{ display: 'block', marginTop: '2px' }}>
+            {connectMode
+              ? '🔗 Connect mode: click a node, then click another to draw an edge. Press Esc or toggle off to exit.'
+              : 'Click node to configure · Drag to move · Double-click empty area to add node'}
+          </Caption1>
         </div>
         <div className={styles.toolbar}>
           <Button appearance={animating ? 'primary' : 'outline'} icon={<Play24Regular />} onClick={() => setAnimating(!animating)} data-testid="workflow-animate">{animating ? 'Stop' : 'Animate'}</Button>
+          <Button appearance={connectMode ? 'primary' : 'outline'} icon={<Link24Regular />} onClick={() => setConnectMode(!connectMode)} data-testid="workflow-connect-mode">{connectMode ? 'Connecting…' : 'Connect'}</Button>
           <Button appearance="subtle" icon={<Add24Regular />} onClick={addNode} data-testid="workflow-add-node">Add Node</Button>
           <Button appearance="subtle" icon={<ArrowReset24Regular />} onClick={() => switchWf(activeWf)} data-testid="workflow-reset">Reset</Button>
         </div>
@@ -319,7 +379,11 @@ export default function WorkflowPage() {
       <div className={styles.canvasWrap} ref={wrapRef}>
         <canvas ref={canvasRef} onMouseDown={onDown} onMouseMove={onMove} onMouseUp={onUp}
           onMouseLeave={() => { setDragging(null); setConnecting(null); setHoveredId(null) }}
-          onClick={onClick} onDoubleClick={onDbl} style={{ display: 'block' }} data-testid="workflow-canvas" />
+          onClick={onClick} onDoubleClick={onDbl}
+          onKeyDown={(e) => { if (e.key === 'Escape') { setConnectMode(false); setConnecting(null) } }}
+          tabIndex={0}
+          style={{ display: 'block', cursor: connectMode ? 'crosshair' : 'default', outline: 'none' }}
+          data-testid="workflow-canvas" />
         {editing && (
           <div className={styles.editOverlay} style={{ left: editing.x - 80, top: editing.y - 16 }}>
             <Input autoFocus value={editText} onChange={(_, d) => setEditText(d.value)}
@@ -367,6 +431,20 @@ export default function WorkflowPage() {
                     </Option>
                   ))}
                 </Combobox>
+              </Field>
+              <Field label="Connect to…">
+                <div style={{ display: 'flex', gap: '4px', flexWrap: 'wrap' }}>
+                  {nodes.filter((n) => n.id !== dNode.id && !edges.some((e) => e.from === dNode.id && e.to === n.id)).map((n) => (
+                    <Button key={n.id} size="small" appearance="outline"
+                      onClick={() => { setEdges((p) => [...p, { from: dNode.id, to: n.id }]) }}
+                      data-testid={'connect-to-' + n.id}>
+                      → {n.label.replace(/\n/g, ' ')}
+                    </Button>
+                  ))}
+                  {nodes.filter((n) => n.id !== dNode.id && !edges.some((e) => e.from === dNode.id && e.to === n.id)).length === 0 && (
+                    <Caption1>Already connected to all nodes</Caption1>
+                  )}
+                </div>
               </Field>
               {dNode.agent && dNode.agent !== 'none' && (
                 <Badge appearance="filled" color="brand" style={{ alignSelf: 'flex-start' }}>
