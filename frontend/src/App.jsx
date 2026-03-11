@@ -19,6 +19,7 @@ import {
     Bot24Regular,
     DataHistogram24Regular,
     DocumentEdit24Regular,
+    Flow24Regular,
     Info24Regular,
     Pulse24Regular,
     Settings24Regular,
@@ -37,6 +38,7 @@ import KitchenSink from './features/kitchensink/KitchenSink'
 import AgentRunPage from './features/workbench/AgentRunPage'
 import KBADrafterPage from './features/kba-drafter/KBADrafterPage'
 import WorkbenchPage from './features/workbench/WorkbenchPage'
+import WorkflowPage from './features/workflow/WorkflowPage'
 import SettingsPage from './features/settings/SettingsPage'
 import useTabPreferences from './features/settings/useTabPreferences'
 import { listWorkbenchAgents } from './services/api'
@@ -119,6 +121,7 @@ export default function App() {
     { value: 'workbench', label: 'Agent Fabric', icon: <Wrench24Regular />, defaultIconName: 'Wrench24Regular', path: '/workbench', testId: 'tab-workbench' },
     { value: 'agent', label: 'Agent', icon: <Bot24Regular />, defaultIconName: 'Bot24Regular', path: '/agent', testId: 'tab-agent' },
     { value: 'activity', label: 'Activity', icon: <Pulse24Regular />, defaultIconName: 'Pulse24Regular', path: '/activity', testId: 'tab-activity' },
+    { value: 'workflow', label: 'Support Workflow', icon: <Flow24Regular />, defaultIconName: 'Flow24Regular', path: '/workflow', testId: 'tab-workflow' },
   ], [usecaseTabs.length, agentMenuTabs.length]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const settingsTab = { value: 'settings', label: 'Settings', icon: <Settings24Regular />, defaultIconName: 'Settings24Regular', path: '/settings', testId: 'tab-settings' }
@@ -185,6 +188,7 @@ export default function App() {
           ))}
           <Route path="/agent" element={<AgentChat />} />
           <Route path="/activity" element={<ActivityPage />} />
+          <Route path="/workflow" element={<WorkflowPage />} />
           <Route path="/settings" element={<SettingsPage tabPrefs={tabPrefs} />} />
           <Route path="*" element={<Navigate to="/csvtickets" replace />} />
         </Routes>
