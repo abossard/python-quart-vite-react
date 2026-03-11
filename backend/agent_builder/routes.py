@@ -175,6 +175,7 @@ async def workbench_improve_prompt():
             name=data.get("name", ""),
             description=data.get("description", ""),
             system_prompt=data.get("system_prompt", ""),
+            tool_names=data.get("tool_names"),
         )
         return jsonify(result), 200
     except Exception as exc:

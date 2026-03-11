@@ -257,6 +257,7 @@ export default function AgentCreateForm({ tools, onAgentCreated, initialData }) 
         name: formData.name.trim(),
         description: formData.description.trim(),
         systemPrompt: formData.systemPrompt.trim(),
+        toolNames: selectedToolNames,
       })
       if (resp.improved_prompt) {
         setFormData((prev) => ({ ...prev, systemPrompt: resp.improved_prompt }))

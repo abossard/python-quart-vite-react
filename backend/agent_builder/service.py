@@ -65,7 +65,7 @@ def _build_improve_prompt_request(
         "You are an expert prompt engineer. Improve the following system prompt for an AI agent.\n\n"
         "## Agent Context\n"
         f"{agent_context}\n\n"
-        "## Available Tools\n"
+        "## Tools This Agent Will Use\n"
         f"{tool_descriptions}\n\n"
         "## Current Prompt\n"
         f"{system_prompt}\n\n"
@@ -74,7 +74,7 @@ def _build_improve_prompt_request(
         "1. Start with a clear role definition (\"You are a...\").\n"
         "2. State the goal in one sentence.\n"
         "3. List concrete steps the agent should follow (numbered).\n"
-        "4. Reference specific tool names the agent should use and when.\n"
+        "4. Reference the specific tools listed above — explain when and why to use each.\n"
         "5. Add constraints: what NOT to do, edge cases to handle.\n"
         "6. Keep it concise — reasoning models work best with clear, direct instructions.\n"
         "7. Do NOT define output format — that is handled separately by the system.\n"
@@ -273,6 +273,7 @@ class WorkbenchService:
         name: str,
         description: str,
         system_prompt: str,
+        tool_names: list[str] | None = None,
     ) -> dict[str, str]:
         """
         Ask the LLM to improve an agent's system prompt.
@@ -280,7 +281,12 @@ class WorkbenchService:
         Action: calls LLM. Returns { improved_prompt: str }.
         """
         all_tools = self.list_tools()
-        prompt = _build_improve_prompt_request(name, description, system_prompt, all_tools)
+        # Only include tools the user selected, or all if none specified
+        if tool_names:
+            selected_tools = [t for t in all_tools if t["name"] in tool_names]
+        else:
+            selected_tools = all_tools
+        prompt = _build_improve_prompt_request(name, description, system_prompt, selected_tools)
 
         from langchain_core.messages import HumanMessage
         response = await self.llm.ainvoke([HumanMessage(content=prompt)])
