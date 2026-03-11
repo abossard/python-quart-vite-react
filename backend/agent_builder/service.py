@@ -75,10 +75,10 @@ def _build_improve_prompt_request(
         "2. State the goal in one sentence.\n"
         "3. List concrete steps the agent should follow (numbered).\n"
         "4. Reference specific tool names the agent should use and when.\n"
-        "5. Define the expected output format clearly.\n"
-        "6. Add constraints: what NOT to do, edge cases to handle.\n"
-        "7. Keep it concise — reasoning models work best with clear, direct instructions.\n"
-        "8. Use structured sections (##) for readability.\n\n"
+        "5. Add constraints: what NOT to do, edge cases to handle.\n"
+        "6. Keep it concise — reasoning models work best with clear, direct instructions.\n"
+        "7. Do NOT define output format — that is handled separately by the system.\n"
+        "8. Focus on the reasoning process, not the presentation.\n\n"
         "Return ONLY the improved prompt text. No wrapping, no explanation, no markdown fences."
     )
 
