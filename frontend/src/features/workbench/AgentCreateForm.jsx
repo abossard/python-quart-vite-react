@@ -30,8 +30,6 @@ const useStyles = makeStyles({
     display: 'flex',
     flexDirection: 'column',
     gap: tokens.spacingVerticalXS,
-    maxHeight: '260px',
-    overflowY: 'auto',
     padding: `${tokens.spacingVerticalXS} 0`,
   },
   grid: {
