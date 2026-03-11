@@ -60,8 +60,6 @@ class ChatService:
     @property
     def llm(self) -> Any:
         if self._llm is None:
-            if not self._api_key:
-                raise ValueError("OPENAI_API_KEY is required.")
             self._llm = build_llm(self._model, self._api_key, self._base_url)
         return self._llm
 

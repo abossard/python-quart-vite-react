@@ -72,11 +72,6 @@ class WorkbenchService:
     @property
     def llm(self) -> Any:
         if self._llm is None:
-            if not self._api_key:
-                raise ValueError(
-                    "OPENAI_API_KEY is required to run agents. "
-                    "Set it via environment variable or pass openai_api_key."
-                )
             self._llm = build_llm(self._model, self._api_key, self._base_url, reasoning_effort="low")
         return self._llm
 

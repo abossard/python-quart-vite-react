@@ -381,6 +381,125 @@ test.describe("Agent Fabric UI", () => {
 });
 
 // ---------------------------------------------------------------------------
+// Full Agent Lifecycle — Live LLM integration test
+// ---------------------------------------------------------------------------
+
+test.describe("Agent Lifecycle (live)", () => {
+  test("creates, runs, edits, re-runs, checks history, and deletes an agent", async ({ page }) => {
+    test.setTimeout(120_000); // LLM calls can be slow
+
+    const agentName = `e2e-lifecycle-${Date.now()}`;
+    const initialPrompt =
+      "Suche VPN-bezogene Tickets mit csv_search_tickets. Liste die gefundenen Ticket-IDs und eine kurze Zusammenfassung. Antworte auf Deutsch.";
+    const editedPrompt =
+      "Nutze csv_search_tickets um Tickets zum Thema 'Outlook' zu finden. Gib die Anzahl und die Ticket-IDs zurück. Antworte auf Deutsch.";
+
+    // Clean up any leftover e2e agents from previous runs
+    const existingAgents = await page.request.get(`${BACKEND_URL}/api/workbench/agents`);
+    const agentsList = (await existingAgents.json()).agents || [];
+    for (const a of agentsList) {
+      if (a.name.includes("e2e-lifecycle")) {
+        await page.request.delete(`${BACKEND_URL}/api/workbench/agents/${a.id}`);
+      }
+    }
+
+    // --- 1. Create agent ---
+    await createAgent(page, {
+      name: agentName,
+      description: "E2E lifecycle test — VPN search agent",
+      systemPrompt: initialPrompt,
+    });
+
+    // Verify agent card is visible
+    const card = page.locator(`[data-testid^="agent-card-"]`, { hasText: agentName });
+    await expect(card).toBeVisible({ timeout: 10000 });
+
+    // --- 2. Run the agent (first run — VPN search) ---
+    const runBtn = card.locator('button', { hasText: "Run" });
+    await runBtn.click();
+
+    // Wait for the run to appear in the Runs side panel
+    const runsPanel = page.getByTestId("runs-side-panel");
+    const runEntries = runsPanel.locator('[data-testid^="run-entry-"]');
+    const initialRunCount = await runEntries.count();
+    const firstRunEntry = runEntries.first();
+    await expect(firstRunEntry).toBeVisible({ timeout: 60000 });
+    await expect(firstRunEntry).toContainText("completed", { timeout: 60000 });
+
+    // Click the run entry to see its detail
+    await firstRunEntry.click();
+    const firstRunDetail = runsPanel.locator('[data-testid^="run-detail-"]').first();
+    await expect(firstRunDetail).toBeVisible({ timeout: 5000 });
+    // First run should mention VPN-related content
+    await expect(firstRunDetail).toContainText(/VPN|vpn|Ticket/i, { timeout: 5000 });
+
+    // --- 3. Edit the agent — change prompt + add requires_input ---
+    const editBtn = card.locator('[data-testid^="agent-card-edit-"]');
+    await editBtn.click();
+
+    // Wait for edit dialog
+    const dialog = page.getByTestId("agent-edit-dialog");
+    await expect(dialog).toBeVisible({ timeout: 5000 });
+
+    // Change system prompt
+    const promptField = dialog.getByTestId("edit-agent-system-prompt");
+    await promptField.clear();
+    await promptField.fill(editedPrompt);
+
+    // Enable requires_input
+    const requiresInputCheckbox = dialog.getByTestId("edit-agent-requires-input");
+    await requiresInputCheckbox.click();
+    const inputDescField = dialog.getByTestId("edit-agent-required-input-desc");
+    await expect(inputDescField).toBeVisible();
+    await inputDescField.fill("Suchbegriff");
+
+    // Save
+    await dialog.getByTestId("edit-agent-save").click();
+    await expect(dialog).not.toBeVisible({ timeout: 10000 });
+
+    // --- 4. Run the edited agent (second run — Outlook search with input) ---
+    // Card should now show an input field when clicking Run
+    await page.waitForTimeout(500); // Let card refresh
+    const runBtn2 = card.locator('button', { hasText: "Run" });
+    await runBtn2.click();
+
+    // Should show input field (requires_input is now true)
+    const inputField = card.locator('input[placeholder]');
+    await expect(inputField).toBeVisible({ timeout: 5000 });
+    await inputField.fill("Outlook");
+    await card.locator('button', { hasText: "Go" }).click();
+
+    // Wait for second run to appear (at least one more than after first run)
+    await expect(runEntries).toHaveCount(initialRunCount + 2, { timeout: 60000 });
+
+    // The newest run (first in list) should complete
+    const secondRunEntry = runEntries.first();
+    await expect(secondRunEntry).toContainText("completed", { timeout: 60000 });
+
+    // --- 5. Verify run history — both runs visible with different output ---
+    // Click first run (newest = Outlook)
+    await secondRunEntry.click();
+    const secondRunDetail = runsPanel.locator('[data-testid^="run-detail-"]').first();
+    await expect(secondRunDetail).toBeVisible();
+    await expect(secondRunDetail).toContainText(/Outlook|outlook|Ticket/i, { timeout: 5000 });
+
+    // Click second run (older = VPN)
+    const olderRunEntry = runEntries.nth(1);
+    await olderRunEntry.click();
+    await page.waitForTimeout(300);
+    const olderRunDetail = runsPanel.locator('[data-testid^="run-detail-"]').first();
+    await expect(olderRunDetail).toContainText(/VPN|vpn|Ticket/i, { timeout: 5000 });
+
+    // --- 6. Delete the agent ---
+    const deleteBtn = card.locator('[data-testid^="agent-card-delete-"]');
+    await deleteBtn.click();
+
+    // Agent card should disappear
+    await expect(card).not.toBeVisible({ timeout: 10000 });
+  });
+});
+
+// ---------------------------------------------------------------------------
 // Agent Chat UI (unchanged — tests /agent page, not workbench)
 // ---------------------------------------------------------------------------
 

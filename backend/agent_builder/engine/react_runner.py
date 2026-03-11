@@ -9,6 +9,7 @@ the "build → invoke → extract" pattern.
 """
 
 import logging
+import os
 from dataclasses import dataclass, field
 from typing import Any
 
@@ -34,20 +35,24 @@ def build_llm(
     max_tokens: int = 0,
     reasoning_effort: str = "low",
 ) -> Any:
-    """Construct a ChatOpenAI instance with configurable reasoning effort."""
-    from langchain_openai import ChatOpenAI
-
-    kwargs: dict[str, Any] = {
-        "model": model,
-        "api_key": api_key,
-        "base_url": base_url or None,
-        "temperature": temperature,
-    }
-    if max_tokens > 0:
-        kwargs["max_tokens"] = max_tokens
-    if reasoning_effort and reasoning_effort != "default":
-        kwargs["reasoning_effort"] = reasoning_effort
-    return ChatOpenAI(**kwargs)
+    """Construct an LLM instance — ChatOpenAI when api_key is provided, ChatLiteLLM otherwise."""
+    if api_key:
+        from langchain_openai import ChatOpenAI
+        kwargs: dict[str, Any] = {
+            "model": model,
+            "api_key": api_key,
+            "base_url": base_url or None,
+            "temperature": temperature,
+        }
+        if max_tokens > 0:
+            kwargs["max_tokens"] = max_tokens
+        if reasoning_effort and reasoning_effort != "default":
+            kwargs["reasoning_effort"] = reasoning_effort
+        return ChatOpenAI(**kwargs)
+    else:
+        from langchain_litellm import ChatLiteLLM
+        litellm_model = os.getenv("LITELLM_MODEL", "github_copilot/gpt-4o")
+        return ChatLiteLLM(model=litellm_model, temperature=temperature)
 
 
 def build_react_agent(

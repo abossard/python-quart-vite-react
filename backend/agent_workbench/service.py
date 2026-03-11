@@ -77,6 +77,7 @@ def _make_tool_logging_callback() -> Any:
 def _build_llm(model: str, api_key: str, base_url: str = "") -> Any:
     if api_key:
         from langchain_openai import ChatOpenAI
+        logger.info("Workbench LLM: using ChatOpenAI (model=%s)", model)
         return ChatOpenAI(
             model=model,
             api_key=api_key,
@@ -86,6 +87,7 @@ def _build_llm(model: str, api_key: str, base_url: str = "") -> Any:
     else:
         from langchain_litellm import ChatLiteLLM
         litellm_model = os.getenv("LITELLM_MODEL", "github_copilot/gpt-4o")
+        logger.info("Workbench LLM: using ChatLiteLLM (model=%s)", litellm_model)
         return ChatLiteLLM(
             model=litellm_model,
             temperature=0.0,
