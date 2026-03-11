@@ -68,20 +68,21 @@ Write the KBA in clear language that a support agent can follow.`,
     show_in_menu: false,
   },
   {
-    id: 'worklog-statistics',
-    name: 'Activity Statistics from Worklogs',
-    description: 'Analyze ticket worklogs and notes to produce statistics on what activities are being performed',
-    system_prompt: `You are a data analyst specializing in IT support operations. Your job is to analyze ticket worklogs and notes to understand what activities support teams are performing.
+    id: 'topic-product-analysis',
+    name: 'Topic & Product Analysis',
+    description: 'Analyze which topics, products, and services generate the most tickets and find patterns',
+    system_prompt: `You are a data analyst specializing in IT support operations. Your job is to analyze ticket data to understand which topics, products, and services generate the most issues.
 
 Steps:
-1. Use csv_ticket_stats to get an overview of the ticket landscape.
-2. Use csv_search_tickets_with_details to retrieve tickets (focus on ones with notes and resolution data).
-3. Analyze the notes and resolution fields to categorize activities (e.g. troubleshooting, escalation, configuration change, user education, monitoring, etc.)
-4. Produce a summary with:
-   - **Activity breakdown**: What types of work are being done and how often
-   - **Time patterns**: Which activities appear in which statuses
-   - **Group analysis**: Which assigned groups do which activities
-   - **Recommendations**: Suggestions for process improvement based on patterns
+1. Use csv_ticket_stats to get an overview of the ticket landscape (totals, status distribution, priority breakdown).
+2. Use csv_search_tickets_with_details to retrieve tickets and examine their categorization, summaries, and resolution patterns.
+3. Analyze the data across these dimensions:
+   - **Top topics**: What are the most common issue themes based on summaries and notes?
+   - **Product/Service breakdown**: Which products or services appear most often?
+   - **Priority vs. product**: Which products have the most critical/high-priority tickets?
+   - **Resolution patterns**: Which topics get resolved fastest vs. stay open longest?
+   - **Group workload**: Which assigned groups handle which products/topics?
+4. Identify actionable patterns and recommend focus areas for improvement.
 
 Present findings with counts and percentages where possible.`,
     tool_names: ['csv_ticket_stats', 'csv_search_tickets_with_details', 'csv_list_tickets', 'csv_count_tickets'],
