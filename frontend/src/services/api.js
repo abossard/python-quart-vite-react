@@ -387,6 +387,17 @@ export async function suggestOutputSchema({ name = "", description = "", systemP
   });
 }
 
+export async function improvePrompt({ name = "", description = "", systemPrompt = "" } = {}) {
+  return fetchJSON(`${API_BASE_URL}/workbench/improve-prompt`, {
+    method: "POST",
+    body: JSON.stringify({
+      name,
+      description,
+      system_prompt: systemPrompt,
+    }),
+  });
+}
+
 export async function updateWorkbenchAgent(agentId, agentData) {
   return fetchJSON(`${API_BASE_URL}/workbench/agents/${agentId}`, {
     method: "PUT",

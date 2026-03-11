@@ -14,6 +14,7 @@ import {
 import { useEffect, useState } from 'react'
 import {
   createWorkbenchAgent,
+  improvePrompt,
   suggestOutputSchema,
   updateWorkbenchAgent,
 } from '../../services/api'
@@ -164,6 +165,7 @@ export default function AgentCreateForm({ tools, onAgentCreated, initialData }) 
     return ''
   })
   const [suggestingSchema, setSuggestingSchema] = useState(false)
+  const [improvingPrompt, setImprovingPrompt] = useState(false)
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState('')
 
@@ -244,6 +246,25 @@ export default function AgentCreateForm({ tools, onAgentCreated, initialData }) 
       setError(err?.message || 'Failed to suggest schema and tools')
     } finally {
       setSuggestingSchema(false)
+    }
+  }
+
+  const handleImprovePrompt = async () => {
+    setImprovingPrompt(true)
+    setError('')
+    try {
+      const resp = await improvePrompt({
+        name: formData.name.trim(),
+        description: formData.description.trim(),
+        systemPrompt: formData.systemPrompt.trim(),
+      })
+      if (resp.improved_prompt) {
+        setFormData((prev) => ({ ...prev, systemPrompt: resp.improved_prompt }))
+      }
+    } catch (err) {
+      setError(err?.message || 'Failed to improve prompt')
+    } finally {
+      setImprovingPrompt(false)
     }
   }
 
@@ -406,6 +427,13 @@ export default function AgentCreateForm({ tools, onAgentCreated, initialData }) 
             />
           </Field>
           {fieldErrors.systemPrompt && <Text>{fieldErrors.systemPrompt}</Text>}
+          <Button
+            data-testid="workbench-improve-prompt-button"
+            disabled={improvingPrompt || !formData.systemPrompt.trim()}
+            onClick={handleImprovePrompt}
+          >
+            {improvingPrompt ? '✨ Improving...' : '✨ Improve my Prompt'}
+          </Button>
           <Field label="Output schema" hint="Define the structured output format with display widgets">
             <SchemaEditor
               value={outputSchema}

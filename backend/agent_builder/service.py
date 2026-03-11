@@ -45,6 +45,44 @@ logger = logging.getLogger(__name__)
 # CALCULATIONS (pure — no side effects, no I/O)
 # ============================================================================
 
+def _build_improve_prompt_request(
+    name: str, description: str, system_prompt: str,
+    all_tools: list[dict[str, Any]],
+) -> str:
+    """Build the LLM prompt for improving an agent system prompt. Pure calculation."""
+    context_parts = []
+    if name:
+        context_parts.append(f"Agent name: {name}")
+    if description:
+        context_parts.append(f"Description: {description}")
+    agent_context = "\n".join(context_parts) if context_parts else "(not provided)"
+
+    tool_descriptions = "\n".join(
+        f"  - {t['name']}: {t['description'][:120]}" for t in all_tools
+    )
+
+    return (
+        "You are an expert prompt engineer. Improve the following system prompt for an AI agent.\n\n"
+        "## Agent Context\n"
+        f"{agent_context}\n\n"
+        "## Available Tools\n"
+        f"{tool_descriptions}\n\n"
+        "## Current Prompt\n"
+        f"{system_prompt}\n\n"
+        "## Instructions\n"
+        "Rewrite the prompt following these modern best practices:\n"
+        "1. Start with a clear role definition (\"You are a...\").\n"
+        "2. State the goal in one sentence.\n"
+        "3. List concrete steps the agent should follow (numbered).\n"
+        "4. Reference specific tool names the agent should use and when.\n"
+        "5. Define the expected output format clearly.\n"
+        "6. Add constraints: what NOT to do, edge cases to handle.\n"
+        "7. Keep it concise — reasoning models work best with clear, direct instructions.\n"
+        "8. Use structured sections (##) for readability.\n\n"
+        "Return ONLY the improved prompt text. No wrapping, no explanation, no markdown fences."
+    )
+
+
 def _build_suggest_prompt(
     name: str, description: str, system_prompt: str,
     all_tools: list[dict[str, Any]], tool_names_list: list[str],
@@ -225,6 +263,35 @@ class WorkbenchService:
         raw = (response.content or "").strip()
 
         return _parse_suggest_response(raw, tool_names_list)
+
+    # ------------------------------------------------------------------
+    # Prompt improvement (LLM call)
+    # ------------------------------------------------------------------
+
+    async def improve_prompt(
+        self,
+        name: str,
+        description: str,
+        system_prompt: str,
+    ) -> dict[str, str]:
+        """
+        Ask the LLM to improve an agent's system prompt.
+
+        Action: calls LLM. Returns { improved_prompt: str }.
+        """
+        all_tools = self.list_tools()
+        prompt = _build_improve_prompt_request(name, description, system_prompt, all_tools)
+
+        from langchain_core.messages import HumanMessage
+        response = await self.llm.ainvoke([HumanMessage(content=prompt)])
+        improved = (response.content or "").strip()
+
+        # Strip markdown fences if LLM wraps it anyway
+        if improved.startswith("```"):
+            lines = improved.split("\n")
+            improved = "\n".join(lines[1:-1] if lines[-1].strip() == "```" else lines[1:])
+
+        return {"improved_prompt": improved}
 
     # ------------------------------------------------------------------
     # Validation helpers (calculations)
