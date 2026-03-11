@@ -18,6 +18,7 @@ import {
 } from '@fluentui/react-components'
 import { useEffect, useState } from 'react'
 import { runWorkbenchAgent } from '../../services/api'
+import { parseRunOutput } from './outputUtils'
 import SchemaRenderer from './SchemaRenderer'
 
 const useStyles = makeStyles({
@@ -26,7 +27,7 @@ const useStyles = makeStyles({
     display: 'flex',
     flexDirection: 'column',
     gap: tokens.spacingVerticalL,
-    maxWidth: '800px',
+    maxWidth: '900px',
   },
   outputContainer: {
     border: `1px solid ${tokens.colorNeutralStroke1}`,
@@ -50,14 +51,7 @@ export default function AgentRunPage({ agent }) {
     return <Spinner label="Loading agent..." />
   }
 
-  const parsedOutput = (() => {
-    if (!output) return null
-    try {
-      const parsed = JSON.parse(output)
-      if (typeof parsed === 'object' && parsed !== null) return parsed
-    } catch { /* not JSON */ }
-    return { message: output }
-  })()
+  const parsedOutput = parseRunOutput(output)
 
   const handleRun = async () => {
     setError('')

@@ -243,6 +243,12 @@ async def workbench_list_all_runs():
     return jsonify({"runs": [r.to_dict() for r in runs]})
 
 
+@agent_builder_bp.route("/api/workbench/runs", methods=["DELETE"])
+async def workbench_delete_all_runs():
+    count = _workbench_service.delete_all_runs()
+    return jsonify({"deleted": count})
+
+
 @agent_builder_bp.route("/api/workbench/runs/<run_id>", methods=["GET"])
 async def workbench_get_run(run_id: str):
     run = _workbench_service.get_run(run_id)

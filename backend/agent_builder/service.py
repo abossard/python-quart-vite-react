@@ -417,6 +417,10 @@ class WorkbenchService:
     def list_runs(self, agent_id: Optional[str] = None, limit: int = 50) -> list[AgentRun]:
         return self._repo.list_runs(agent_id=agent_id, limit=limit)
 
+    def delete_all_runs(self) -> int:
+        """Delete all runs from the database. Returns count deleted."""
+        return self._repo.delete_all_runs()
+
     # ------------------------------------------------------------------
     # Core: run an agent
     # ------------------------------------------------------------------

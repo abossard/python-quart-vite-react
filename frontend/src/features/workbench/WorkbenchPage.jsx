@@ -12,6 +12,7 @@ import { Apps24Regular, Add24Regular } from '@fluentui/react-icons'
 import { useEffect, useState, useCallback } from 'react'
 import {
   deleteWorkbenchAgent,
+  deleteAllRuns,
   getWorkbenchUiConfig,
   listWorkbenchAgents,
   listWorkbenchTools,
@@ -89,6 +90,14 @@ export default function WorkbenchPage() {
     try {
       const runsPayload = await listAllRuns()
       setRuns(runsPayload.runs || [])
+    } catch { /* ignore */ }
+  }, [])
+
+  const handleDeleteAllRuns = useCallback(async () => {
+    try {
+      await deleteAllRuns()
+      setRuns([])
+      setSelectedRunId(null)
     } catch { /* ignore */ }
   }, [])
 
@@ -175,6 +184,7 @@ export default function WorkbenchPage() {
               selectedRunId={selectedRunId}
               onSelectRun={setSelectedRunId}
               onRefresh={refreshRuns}
+              onDeleteAll={handleDeleteAllRuns}
             />
           </div>
         </div>

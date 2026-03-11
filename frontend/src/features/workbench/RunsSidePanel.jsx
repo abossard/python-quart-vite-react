@@ -22,7 +22,8 @@ import {
   makeStyles,
   tokens,
 } from '@fluentui/react-components'
-import { ArrowClockwise24Regular, Dismiss24Regular } from '@fluentui/react-icons'
+import { ArrowClockwise24Regular, Delete24Regular, Dismiss24Regular } from '@fluentui/react-icons'
+import { parseRunOutput } from './outputUtils'
 import SchemaRenderer from './SchemaRenderer'
 
 const useStyles = makeStyles({
@@ -148,22 +149,6 @@ function resolveAgentName(agentMap, run) {
   return agentMap[run.agent_id]?.name ?? run.agent_snapshot?.name ?? 'Unknown Agent'
 }
 
-function parseRunOutput(output) {
-  if (!output) return null
-  if (typeof output !== 'string') return output
-
-  // Strip markdown code fences (```json ... ```) that LLMs often wrap output in
-  let cleaned = output.trim()
-  const fenceMatch = cleaned.match(/^```(?:json)?\s*\n?([\s\S]*?)\n?```\s*$/)
-  if (fenceMatch) cleaned = fenceMatch[1].trim()
-
-  try {
-    const parsed = JSON.parse(cleaned)
-    if (typeof parsed === 'object' && parsed !== null) return parsed
-  } catch { /* not JSON */ }
-  return { message: output }
-}
-
 function formatRelativeTime(dateStr, now = Date.now()) {
   if (!dateStr) return ''
   const diffSec = Math.max(0, Math.floor((now - new Date(dateStr).getTime()) / 1000))
@@ -192,7 +177,7 @@ function StatusBadge({ status }) {
   )
 }
 
-export default function RunsSidePanel({ runs = [], agents = [], selectedRunId, onSelectRun, onRefresh }) {
+export default function RunsSidePanel({ runs = [], agents = [], selectedRunId, onSelectRun, onRefresh, onDeleteAll }) {
   const styles = useStyles()
 
   const agentMap = buildAgentMap(agents)
@@ -208,14 +193,26 @@ export default function RunsSidePanel({ runs = [], agents = [], selectedRunId, o
       <div className={styles.panel} data-testid="runs-side-panel">
         <div className={styles.header}>
           <Text weight="semibold" size={400}>Runs</Text>
-          <Button
-            appearance="subtle"
-            icon={<ArrowClockwise24Regular />}
-            size="small"
-            onClick={onRefresh}
-            data-testid="runs-panel-refresh"
-            title="Refresh runs"
-          />
+          <div style={{ display: 'flex', gap: '4px' }}>
+            {sortedRuns.length > 0 && (
+              <Button
+                appearance="subtle"
+                icon={<Delete24Regular />}
+                size="small"
+                onClick={onDeleteAll}
+                data-testid="runs-panel-delete-all"
+                title="Delete all runs"
+              />
+            )}
+            <Button
+              appearance="subtle"
+              icon={<ArrowClockwise24Regular />}
+              size="small"
+              onClick={onRefresh}
+              data-testid="runs-panel-refresh"
+              title="Refresh runs"
+            />
+          </div>
         </div>
 
         <div className={styles.runList}>

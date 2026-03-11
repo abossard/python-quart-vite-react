@@ -94,6 +94,15 @@ class AgentRepository:
             session.refresh(db_run)
             return db_run
 
+    def delete_all_runs(self) -> int:
+        """Delete all runs. Returns count deleted."""
+        from sqlmodel import delete as sql_delete
+        with Session(self._engine) as session:
+            count = session.exec(select(AgentRun)).all().__len__()
+            session.exec(sql_delete(AgentRun))
+            session.commit()
+            return count
+
     # ----- Evaluations -----
 
     def get_evaluation(self, run_id: str) -> Optional[AgentEvaluation]:

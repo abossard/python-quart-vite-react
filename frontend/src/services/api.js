@@ -378,6 +378,10 @@ export async function getRun(runId) {
   return fetchJSON(`${API_BASE_URL}/workbench/runs/${runId}`);
 }
 
+export async function deleteAllRuns() {
+  return fetchJSON(`${API_BASE_URL}/workbench/runs`, { method: "DELETE" });
+}
+
 // ============================================================================
 // KBA Drafter APIs
 // ============================================================================
