@@ -45,6 +45,14 @@ async function goToAgentsTab(page) {
   );
 }
 
+/** Select csv_ticket_stats tool (required since tools default to empty). */
+async function selectDefaultTool(page) {
+  const cb = page.getByTestId("workbench-tool-csv_ticket_stats");
+  if (await cb.isVisible({ timeout: 2000 }).catch(() => false)) {
+    if (!(await cb.isChecked())) await cb.click();
+  }
+}
+
 /**
  * Create an agent via the UI form on the Create Agent tab.
  * Fills the form, submits, and returns to the Agents tab.
@@ -67,6 +75,9 @@ async function createAgent(
     await page.getByTestId("workbench-agent-description-input").fill(description);
   }
   await page.getByTestId("workbench-agent-system-prompt-input").fill(systemPrompt);
+
+  // Select at least one tool (tools default to none)
+  await selectDefaultTool(page);
 
   if (requiresInput) {
     await page.getByTestId("workbench-agent-requires-input-checkbox").click();
@@ -237,6 +248,7 @@ test.describe("Agent Fabric UI", () => {
     await page
       .getByTestId("workbench-agent-system-prompt-input")
       .fill("Use csv_ticket_stats and summarize.");
+    await selectDefaultTool(page);
     await page.getByTestId("workbench-agent-requires-input-checkbox").click();
     await page.getByTestId("workbench-create-agent-button").click();
     await expect(
@@ -278,10 +290,10 @@ test.describe("Agent Fabric UI", () => {
     await deleteBtn.click();
   });
 
-  test("creates agent with output schema via suggest button", async ({ page }) => {
+  test("creates agent with output schema and tools via suggest button", async ({ page }) => {
     const agentName = `e2e-schema-${Date.now()}`;
 
-    // Mock the suggest-schema endpoint
+    // Mock the suggest-schema endpoint — now returns schema + tool_names
     await page.route("**/api/workbench/suggest-schema", async (route) => {
       await route.fulfill({
         status: 200,
@@ -290,10 +302,11 @@ test.describe("Agent Fabric UI", () => {
           schema: {
             type: "object",
             properties: {
-              total: { type: "integer", description: "Total ticket count" },
-              status_breakdown: { type: "object", description: "Count per status" },
+              total: { type: "integer", description: "Total ticket count", "x-ui": { widget: "stat-card", label: "Total" } },
+              status_breakdown: { type: "object", description: "Count per status", "x-ui": { widget: "pie-chart" } },
             },
           },
+          tool_names: ["csv_ticket_stats"],
         }),
       });
     });
@@ -308,7 +321,12 @@ test.describe("Agent Fabric UI", () => {
       .getByTestId("workbench-agent-system-prompt-input")
       .fill("Analyze ticket stats and report totals.");
 
-    // Click suggest schema
+    // Verify no tools selected by default
+    const statsCheckbox = page.getByTestId("workbench-tool-csv_ticket_stats");
+    await expect(statsCheckbox).toBeVisible();
+    await expect(statsCheckbox).not.toBeChecked();
+
+    // Click suggest schema & tools
     await page.getByTestId("workbench-suggest-schema-button").click();
 
     // Wait for schema editor to populate with properties from suggestion
@@ -316,7 +334,16 @@ test.describe("Agent Fabric UI", () => {
     await expect(editor).toBeVisible({ timeout: 5000 });
     await expect(editor.locator('input[value="total"]')).toBeVisible({ timeout: 5000 });
 
-    // Create the agent (schema should be included)
+    // Verify tools got auto-selected by the suggestion
+    await expect(statsCheckbox).toBeChecked();
+
+    // Other tools should remain unchecked
+    const searchCheckbox = page.getByTestId("workbench-tool-csv_search_tickets");
+    if (await searchCheckbox.isVisible({ timeout: 1000 }).catch(() => false)) {
+      await expect(searchCheckbox).not.toBeChecked();
+    }
+
+    // Create the agent (schema + tools should be included)
     await page.getByTestId("workbench-create-agent-button").click();
 
     // Should switch to agents tab
@@ -381,8 +408,103 @@ test.describe("Agent Fabric UI", () => {
 });
 
 // ---------------------------------------------------------------------------
-// Full Agent Lifecycle — Live LLM integration test
+// Suggested schema → run → widget verification (LIVE LLM)
 // ---------------------------------------------------------------------------
+
+test.describe("Suggest & Widget Rendering (live)", () => {
+  test("suggest populates schema and tools, run renders widgets from real output", async ({ page }) => {
+    test.setTimeout(120_000);
+    const agentName = `e2e-widget-live-${Date.now()}`;
+
+    // Clean up any leftover agents
+    const existing = await page.request.get(`${BACKEND_URL}/api/workbench/agents`);
+    for (const a of ((await existing.json()).agents || [])) {
+      if (a.name.includes("e2e-widget-live")) {
+        await page.request.delete(`${BACKEND_URL}/api/workbench/agents/${a.id}`);
+      }
+    }
+
+    // 1. Create agent — use a prompt that reliably produces structured data
+    //    csv_ticket_stats always returns {total, unassigned, by_status, by_priority, by_group}
+    //    so the LLM WILL have concrete numbers to put into the schema fields.
+    await goToCreateTab(page);
+    await page.getByTestId("workbench-agent-name-input").fill(agentName);
+    await page.getByTestId("workbench-agent-description-input").fill(
+      "Dashboard: Ticket-Statistiken mit Gesamtzahl, Status-Verteilung und Prioritäten"
+    );
+    await page.getByTestId("workbench-agent-system-prompt-input").fill(
+      "Du bist ein Ticket-Dashboard-Agent.\n\n" +
+      "1. Rufe csv_ticket_stats auf um die aktuellen Statistiken zu holen.\n" +
+      "2. Gib die Ergebnisse EXAKT im vorgegebenen Output-Schema zurück.\n" +
+      "3. Das 'message' Feld soll eine Markdown-Zusammenfassung sein mit Überschrift und den wichtigsten Zahlen.\n" +
+      "4. total_tickets = die Gesamtanzahl aus den Stats.\n" +
+      "5. status_breakdown = das by_status Objekt direkt übernehmen.\n" +
+      "6. priority_breakdown = das by_priority Objekt direkt übernehmen.\n\n" +
+      "Antworte auf Deutsch. Erfinde KEINE Daten — nutze nur die echten Zahlen aus csv_ticket_stats."
+    );
+
+    // Click "Suggest Schema & Tools" — real LLM call
+    await page.getByTestId("workbench-suggest-schema-button").click();
+
+    // Wait for suggestion to complete (schema editor populates)
+    const editor = page.getByTestId("schema-editor");
+    await expect(editor).toBeVisible({ timeout: 30000 });
+    await expect(editor.locator('input[value="message"]')).toBeVisible({ timeout: 30000 });
+
+    // Verify csv_ticket_stats was auto-selected (the prompt explicitly uses it)
+    const statsCheckbox = page.getByTestId("workbench-tool-csv_ticket_stats");
+    await expect(statsCheckbox).toBeChecked({ timeout: 5000 });
+
+    // Take screenshot of populated form
+    await page.screenshot({
+      path: "test-results/screenshot-suggest-schema-tools.png",
+      fullPage: true,
+    });
+
+    // Create the agent
+    await page.getByTestId("workbench-create-agent-button").click();
+    await expect(page.getByTestId("workbench-tab-agents")).toHaveAttribute(
+      "aria-selected", "true", { timeout: 10000 },
+    );
+
+    // 2. Run the agent — real LLM call with real csv_ticket_stats data
+    const card = page.locator('[data-testid^="agent-card-"]').filter({ hasText: agentName });
+    await expect(card).toBeVisible({ timeout: 10000 });
+    await card.locator('[data-testid^="agent-card-run-"]').click();
+
+    // Wait for run to complete
+    const runsPanel = page.getByTestId("runs-side-panel");
+    const runEntry = runsPanel.locator('[data-testid^="run-entry-"]').first();
+    await expect(runEntry).toBeVisible({ timeout: 60000 });
+    await expect(runEntry).toContainText("completed", { timeout: 60000 });
+
+    // Click to show detail
+    await runEntry.click();
+    const runDetail = runsPanel.locator('[data-testid^="run-detail-"]').first();
+    await expect(runDetail).toBeVisible({ timeout: 5000 });
+
+    // 3. Verify the output rendered with actual data
+    const renderer = runDetail.getByTestId("schema-renderer");
+    await expect(renderer).toBeVisible({ timeout: 10000 });
+
+    // The real CSV has 206 tickets — the output MUST contain this number
+    // (csv_ticket_stats returns total:206, and the prompt says to use it)
+    await expect(renderer).toContainText("206", { timeout: 5000 });
+
+    // Should also contain status names from the real data
+    await expect(renderer).toContainText(/pending|assigned|in_progress/i, { timeout: 5000 });
+
+    // Take screenshot of the rendered result
+    await page.screenshot({
+      path: "test-results/screenshot-widget-rendering.png",
+      fullPage: true,
+    });
+
+    // 4. Delete agent
+    await card.locator('[data-testid^="agent-card-delete-"]').click();
+    await expect(card).not.toBeVisible({ timeout: 10000 });
+  });
+});
 
 test.describe("Agent Lifecycle (live)", () => {
   test("creates, runs, edits, re-runs, checks history, and deletes an agent", async ({ page }) => {

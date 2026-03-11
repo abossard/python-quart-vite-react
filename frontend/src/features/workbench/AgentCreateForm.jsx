@@ -78,7 +78,7 @@ export default function AgentCreateForm({ tools, onAgentCreated, initialData }) 
     if (initialData?.tool_names) {
       return [...initialData.tool_names]
     }
-    return tools.map((t) => t.name)
+    return []  // No tools selected by default — use "Suggest Schema & Tools"
   })
   const [outputSchema, setOutputSchema] = useState(() => {
     if (initialData?.output_schema && Object.keys(initialData.output_schema).length > 0) {
@@ -90,15 +90,13 @@ export default function AgentCreateForm({ tools, onAgentCreated, initialData }) 
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState('')
 
-  // Sync tool selection when tools list changes (only for create mode)
+  // Keep tool selection in sync when tools list changes (remove stale names)
   useEffect(() => {
     if (isEditing) return
     const availableNames = tools.map((t) => t.name)
-    setSelectedToolNames((prev) => {
-      if (prev.length === 0) return availableNames
-      const filtered = prev.filter((name) => availableNames.includes(name))
-      return filtered.length > 0 ? filtered : availableNames
-    })
+    setSelectedToolNames((prev) =>
+      prev.filter((name) => availableNames.includes(name)),
+    )
   }, [tools, isEditing])
 
   const toggleTool = (toolName) => {
@@ -133,7 +131,7 @@ export default function AgentCreateForm({ tools, onAgentCreated, initialData }) 
     return !nextErrors.name && !nextErrors.systemPrompt && !nextErrors.tools && !nextErrors.requiredInputDescription
   }
 
-  const handleSuggestSchema = async () => {
+  const handleSuggestSchemaAndTools = async () => {
     setSuggestingSchema(true)
     setError('')
     try {
@@ -142,9 +140,14 @@ export default function AgentCreateForm({ tools, onAgentCreated, initialData }) 
         description: formData.description.trim(),
         systemPrompt: formData.systemPrompt.trim(),
       })
-      setOutputSchema(JSON.stringify(resp.schema, null, 2))
+      if (resp.schema) {
+        setOutputSchema(JSON.stringify(resp.schema, null, 2))
+      }
+      if (resp.tool_names && Array.isArray(resp.tool_names)) {
+        setSelectedToolNames(resp.tool_names)
+      }
     } catch (err) {
-      setError(err?.message || 'Failed to suggest schema')
+      setError(err?.message || 'Failed to suggest schema and tools')
     } finally {
       setSuggestingSchema(false)
     }
@@ -295,9 +298,9 @@ export default function AgentCreateForm({ tools, onAgentCreated, initialData }) 
           <Button
             data-testid="workbench-suggest-schema-button"
             disabled={suggestingSchema || (!formData.name.trim() && !formData.systemPrompt.trim())}
-            onClick={handleSuggestSchema}
+            onClick={handleSuggestSchemaAndTools}
           >
-            {suggestingSchema ? 'Suggesting...' : '✨ Suggest Schema'}
+            {suggestingSchema ? 'Suggesting...' : '✨ Suggest Schema & Tools'}
           </Button>
           <Button
             appearance="primary"

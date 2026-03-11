@@ -118,10 +118,60 @@ const useStyles = makeStyles({
   },
 })
 
-/** Format a date string as a relative time label (e.g. "2m ago"). */
-function formatRelativeTime(dateStr) {
+// ============================================================================
+// CALCULATIONS (pure — no side effects, no I/O)
+// ============================================================================
+
+/** Build a lookup map from agent id → agent object. */
+function buildAgentMap(agents) {
+  const map = {}
+  for (const a of agents) {
+    map[a.id] = a
+  }
+  return map
+}
+
+/** Sort runs by created_at descending (newest first). */
+function sortRunsNewestFirst(runs) {
+  return [...runs].sort(
+    (a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime(),
+  )
+}
+
+/**
+ * Resolve the output schema for a run.
+ * Prefers the agent definition's schema; falls back to the run snapshot's schema.
+ * Returns null if neither has properties.
+ */
+function resolveOutputSchema(agent, run) {
+  const agentSchema = agent?.output_schema
+  if (agentSchema && agentSchema.properties) return agentSchema
+
+  const snapshotSchema = run?.agent_snapshot?.output_schema
+  if (snapshotSchema && snapshotSchema.properties) return snapshotSchema
+
+  return null
+}
+
+/** Look up the display name for a run's agent. */
+function resolveAgentName(agentMap, run) {
+  return agentMap[run.agent_id]?.name ?? run.agent_snapshot?.name ?? 'Unknown Agent'
+}
+
+/** Parse run output into an object suitable for SchemaRenderer. */
+function parseRunOutput(output) {
+  if (!output) return null
+  if (typeof output !== 'string') return output
+  try {
+    const parsed = JSON.parse(output)
+    if (typeof parsed === 'object' && parsed !== null) return parsed
+  } catch { /* not JSON */ }
+  return { message: output }
+}
+
+/** Format a date string as a relative time label (e.g. "2m ago"). Pure if given a fixed `now`. */
+function formatRelativeTime(dateStr, now = Date.now()) {
   if (!dateStr) return ''
-  const now = Date.now()
   const then = new Date(dateStr).getTime()
   const diffSec = Math.max(0, Math.floor((now - then) / 1000))
 
@@ -133,6 +183,10 @@ function formatRelativeTime(dateStr) {
   const diffDay = Math.floor(diffHr / 24)
   return `${diffDay}d ago`
 }
+
+// ============================================================================
+// COMPONENTS (actions — render UI, handle events)
+// ============================================================================
 
 function StatusBadge({ status }) {
   const styles = useStyles()
@@ -162,18 +216,12 @@ function StatusBadge({ status }) {
 export default function RunsSidePanel({ runs = [], agents = [], selectedRunId, onSelectRun, onRefresh }) {
   const styles = useStyles()
 
-  const agentMap = {}
-  for (const a of agents) {
-    agentMap[a.id] = a
-  }
-
-  const sortedRuns = [...runs].sort(
-    (a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime(),
-  )
-
+  // Pure calculations — derived from props, no side effects
+  const agentMap = buildAgentMap(agents)
+  const sortedRuns = sortRunsNewestFirst(runs)
   const selectedRun = selectedRunId ? runs.find((r) => r.id === selectedRunId) : null
   const selectedAgent = selectedRun ? agentMap[selectedRun.agent_id] : null
-  const outputSchema = selectedAgent?.output_schema ?? selectedRun?.agent_snapshot?.output_schema ?? null
+  const outputSchema = resolveOutputSchema(selectedAgent, selectedRun)
 
   return (
     <div className={styles.panel} data-testid="runs-side-panel">
@@ -196,7 +244,6 @@ export default function RunsSidePanel({ runs = [], agents = [], selectedRunId, o
           <Text className={styles.empty} italic>No runs yet</Text>
         )}
         {sortedRuns.map((run) => {
-          const agent = agentMap[run.agent_id]
           const isSelected = run.id === selectedRunId
           return (
             <div
@@ -207,7 +254,7 @@ export default function RunsSidePanel({ runs = [], agents = [], selectedRunId, o
             >
               <div className={styles.runRow}>
                 <span className={styles.agentName}>
-                  {agent?.name ?? run.agent_snapshot?.name ?? 'Unknown Agent'}
+                  {resolveAgentName(agentMap, run)}
                 </span>
                 <span className={styles.timestamp}>{formatRelativeTime(run.created_at)}</span>
               </div>
@@ -224,7 +271,7 @@ export default function RunsSidePanel({ runs = [], agents = [], selectedRunId, o
         <div className={styles.detailSection} data-testid={`run-detail-${selectedRun.id}`}>
           <Divider />
           <Text weight="semibold" size={200} block style={{ marginBottom: tokens.spacingVerticalS, marginTop: tokens.spacingVerticalS }}>
-            {agentMap[selectedRun.agent_id]?.name ?? selectedRun.agent_snapshot?.name ?? 'Run'} — Result
+            {resolveAgentName(agentMap, selectedRun)} — Result
           </Text>
 
           {selectedRun.error && (
@@ -237,7 +284,7 @@ export default function RunsSidePanel({ runs = [], agents = [], selectedRunId, o
             <Card className={styles.detailCard}>
               <SchemaRenderer
                 data={parseRunOutput(selectedRun.output)}
-                schema={outputSchema?.properties ? outputSchema : undefined}
+                schema={outputSchema || undefined}
               />
             </Card>
           )}
@@ -249,26 +296,4 @@ export default function RunsSidePanel({ runs = [], agents = [], selectedRunId, o
       )}
     </div>
   )
-}
-
-/** Parse run output into an object suitable for SchemaRenderer. */
-function parseRunOutput(output) {
-  if (!output) return null
-  if (typeof output !== 'string') return output
-  try {
-    const parsed = JSON.parse(output)
-    if (typeof parsed === 'object' && parsed !== null) return parsed
-  } catch { /* not JSON */ }
-  // Raw string (markdown) — wrap for SchemaRenderer
-  return { message: output }
-}
-
-/** Safely parse a JSON string; returns the original value if parsing fails. */
-function tryParseJSON(value) {
-  if (typeof value !== 'string') return value
-  try {
-    return JSON.parse(value)
-  } catch {
-    return value
-  }
 }

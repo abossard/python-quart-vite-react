@@ -39,6 +39,95 @@ from .tools import ToolRegistry
 logger = logging.getLogger(__name__)
 
 
+# ============================================================================
+# CALCULATIONS (pure — no side effects, no I/O)
+# ============================================================================
+
+def _build_suggest_prompt(
+    name: str, description: str, system_prompt: str,
+    all_tools: list[dict[str, Any]], tool_names_list: list[str],
+) -> str:
+    """Build the LLM prompt for schema + tool suggestion. Pure calculation."""
+    context_parts = []
+    if name:
+        context_parts.append(f"Agent name: {name}")
+    if description:
+        context_parts.append(f"Description: {description}")
+    if system_prompt:
+        context_parts.append(f"System prompt: {system_prompt}")
+    agent_context = "\n".join(context_parts)
+
+    tool_descriptions = "\n".join(
+        f"  - {t['name']}: {t['description'][:150]}" for t in all_tools
+    )
+
+    return (
+        "You are a JSON Schema designer AND tool selector for an AI agent.\n\n"
+        "## Agent Definition\n"
+        f"{agent_context}\n\n"
+        "## Data Domain\n"
+        "The agent works with IT support/helpdesk ticket data (BMC Remedy/ITSM export). "
+        "Each ticket has fields: incident_id, summary, status, priority, assignee, "
+        "assigned_group, requester_name, city, created_at, updated_at, notes, resolution, description.\n\n"
+        "## Available Tools\n"
+        f"{tool_descriptions}\n\n"
+        "## UI Widget System\n"
+        "Each property MUST have an 'x-ui' annotation with a 'widget' field:\n"
+        "  'markdown' — GFM text. 'table' — array of objects ({\"columns\": [...]}).\n"
+        "  'badge-list' — array of strings. 'stat-card' — single number ({\"label\": \"...\"}).\n"
+        "  'bar-chart' — array of objects ({\"indexBy\": \"...\", \"keys\": [\"...\"]}).\n"
+        "  'pie-chart' — object or [{\"id\":...,\"value\":...}]. 'json' — raw. 'hidden' — skip.\n\n"
+        "## Your Task\n"
+        "Return a JSON object with exactly two keys:\n"
+        "1. \"schema\" — JSON Schema with 'type', 'properties', x-ui annotations.\n"
+        "2. \"tool_names\" — array of tool names the agent needs.\n\n"
+        "## Rules\n"
+        "1. Always include 'message' (string, widget 'markdown').\n"
+        "2. Always include 'referenced_tickets' (array of strings, widget 'badge-list').\n"
+        "3. Match widget to data shape: numbers→stat-card, ticket lists→table, distributions→pie/bar-chart.\n"
+        "4. For tool_names, select ONLY tools the agent actually needs.\n"
+        f"5. Valid tool names: {tool_names_list}\n\n"
+        "Respond with ONLY valid JSON (no markdown fences)."
+    )
+
+
+def _parse_suggest_response(raw: str, valid_tool_names: list[str]) -> dict[str, Any]:
+    """Parse LLM response into {schema, tool_names}. Pure calculation."""
+    import json as json_mod
+    import re
+
+    json_match = re.search(r"```(?:json)?\s*(\{.*?\})\s*```", raw, re.DOTALL)
+    json_str = json_match.group(1) if json_match else raw
+
+    fallback = {
+        "schema": {"type": "object", "properties": {"result": {"type": "string", "description": "Agent output"}}},
+        "tool_names": valid_tool_names,
+    }
+
+    try:
+        result = json_mod.loads(json_str)
+        if not isinstance(result, dict):
+            return fallback
+
+        if "schema" in result and "tool_names" in result:
+            schema, suggested_tools = result["schema"], result["tool_names"]
+        elif "properties" in result:
+            schema, suggested_tools = result, valid_tool_names
+        else:
+            return fallback
+
+        if not isinstance(schema, dict) or "properties" not in schema:
+            return fallback
+
+        return {"schema": schema, "tool_names": [t for t in suggested_tools if t in valid_tool_names]}
+    except (json_mod.JSONDecodeError, ValueError):
+        return fallback
+
+
+# ============================================================================
+# SERVICE (actions — I/O, database, LLM calls)
+# ============================================================================
+
 class WorkbenchService:
     """
     Manages the full lifecycle of agent definitions, runs, and evaluations.
@@ -119,109 +208,21 @@ class WorkbenchService:
         system_prompt: str,
     ) -> dict[str, Any]:
         """
-        Ask the LLM to propose a JSON Schema for the agent's output.
-
-        Provides full context about available data, tools, and UI widgets
-        so the LLM can make informed schema suggestions.
+        Ask the LLM to propose a JSON Schema AND recommended tools.
+        
+        Action: calls LLM. Delegates prompt building and response
+        parsing to pure functions (_build_suggest_prompt, _parse_suggest_response).
         """
-        context_parts = []
-        if name:
-            context_parts.append(f"Agent name: {name}")
-        if description:
-            context_parts.append(f"Description: {description}")
-        if system_prompt:
-            context_parts.append(f"System prompt: {system_prompt}")
-        agent_context = "\n".join(context_parts)
+        all_tools = self.list_tools()
+        tool_names_list = [t["name"] for t in all_tools]
 
-        # Gather available tool descriptions for context
-        tool_descriptions = "\n".join(
-            f"  - {t['name']}: {t['description'][:150]}"
-            for t in self.list_tools()
-        )
-
-        suggest_prompt = (
-            "You are a JSON Schema designer for an AI agent output format.\n\n"
-            "## Agent Definition\n"
-            f"{agent_context}\n\n"
-            "## Data Domain\n"
-            "The agent works with IT support/helpdesk ticket data (BMC Remedy/ITSM export). "
-            "Each ticket has these fields:\n"
-            "  - incident_id (string, e.g. 'INC000016349327')\n"
-            "  - summary (string, short description of the issue)\n"
-            "  - status (enum: new, assigned, in_progress, pending, resolved, closed, cancelled)\n"
-            "  - priority (enum: critical, high, medium, low)\n"
-            "  - assignee (string or null, person assigned)\n"
-            "  - assigned_group (string, e.g. 'WOS - Workplace & Software')\n"
-            "  - requester_name (string, who reported it)\n"
-            "  - city (string, e.g. 'Bern', 'Zollikofen', 'Ittigen')\n"
-            "  - created_at / updated_at (datetime)\n"
-            "  - notes, resolution, description (longer text fields)\n"
-            "  - operational_category_1/2/3 (categorization tiers)\n\n"
-            "## Available Tools\n"
-            f"{tool_descriptions}\n\n"
-            "## UI Widget System\n"
-            "Each property MUST have an 'x-ui' annotation with a 'widget' field. "
-            "The frontend renders each property using the specified widget:\n\n"
-            "  'markdown' — Renders text as GitHub-flavored Markdown (headings, tables, bold, lists).\n"
-            "    Use for: analysis text, recommendations, summaries, explanations.\n\n"
-            "  'table' — Renders array of objects as an HTML table.\n"
-            "    Use for: ticket lists, comparison data, multi-row results.\n"
-            "    Options: {\"columns\": [\"col1\", \"col2\"]} to control visible columns and order.\n"
-            "    The array items must be objects with consistent keys.\n\n"
-            "  'badge-list' — Renders array of strings as monospace badge chips.\n"
-            "    Use for: ticket IDs, tags, categories, short labels.\n\n"
-            "  'stat-card' — Renders a single number as a large prominent card.\n"
-            "    Use for: totals, counts, percentages, KPIs.\n"
-            "    Options: {\"label\": \"Total Tickets\"} for the display label.\n\n"
-            "  'bar-chart' — Renders array of objects as a Nivo bar chart.\n"
-            "    Use for: counts by category (status, priority, city, group).\n"
-            "    Options: {\"indexBy\": \"category_key\", \"keys\": [\"value_key\"]}.\n"
-            "    Data must be array of objects like [{\"status\": \"open\", \"count\": 42}, ...].\n\n"
-            "  'pie-chart' — Renders object or array as a Nivo pie chart.\n"
-            "    Use for: proportional breakdowns (status distribution, priority split).\n"
-            "    Can accept {\"open\": 42, \"closed\": 18} or [{\"id\": \"open\", \"value\": 42}].\n\n"
-            "  'json' — Renders as formatted JSON in a code block.\n"
-            "    Use for: raw data, debug output, complex nested structures.\n\n"
-            "  'hidden' — Not rendered in the UI.\n"
-            "    Use for: internal metadata, IDs used for linking but not display.\n\n"
-            "## Rules\n"
-            "1. Always include a 'message' property (type string, widget 'markdown') for the main response.\n"
-            "2. Always include 'referenced_tickets' (type array of strings, widget 'badge-list') listing ticket IDs looked at.\n"
-            "3. Add additional properties based on what the agent would logically produce.\n"
-            "4. Use descriptive property names (snake_case) and include 'description' for each.\n"
-            "5. Match widget to data shape: numbers→stat-card, lists of tickets→table, distributions→pie/bar-chart.\n"
-            "6. For table widgets, define 'columns' matching the object keys in the array items.\n\n"
-            "Respond with ONLY a valid JSON object (no markdown fences, no explanation)."
-        )
+        prompt = _build_suggest_prompt(name, description, system_prompt, all_tools, tool_names_list)
 
         from langchain_core.messages import HumanMessage
-        response = await self.llm.ainvoke([HumanMessage(content=suggest_prompt)])
+        response = await self.llm.ainvoke([HumanMessage(content=prompt)])
         raw = (response.content or "").strip()
 
-        # Extract JSON from response (strip markdown fences if present)
-        import re
-        json_match = re.search(r"```(?:json)?\s*(\{.*?\})\s*```", raw, re.DOTALL)
-        json_str = json_match.group(1) if json_match else raw
-
-        import json as json_mod
-        try:
-            schema = json_mod.loads(json_str)
-            if not isinstance(schema, dict) or "properties" not in schema:
-                raise ValueError("Schema must have 'properties'")
-            return schema
-        except (json_mod.JSONDecodeError, ValueError):
-            return {
-                "type": "object",
-                "properties": {
-                    "result": {"type": "string", "description": "Agent output"},
-                },
-            }
-            result.append({
-                "name": t.name,
-                "description": (t.description or "")[:200],
-                "input_schema": input_schema,
-            })
-        return result
+        return _parse_suggest_response(raw, tool_names_list)
 
     # ------------------------------------------------------------------
     # Validation helpers (calculations)
