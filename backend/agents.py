@@ -56,7 +56,6 @@ import operations  # noqa: F401
 
 # Local CSV service
 from csv_data import get_csv_ticket_service
-
 from langchain_core.tools import StructuredTool
 
 # Third-party - LangGraph
@@ -186,10 +185,11 @@ class AgentService:
         """
         Initialize the agent service.
         
-        Uses OpenAI when OPENAI_API_KEY is set, otherwise falls back
-        to LiteLLM (supports GitHub Copilot, Ollama, etc.).
+        Defaults to LiteLLM with GitHub Copilot backend.
+        Set AGENT_BACKEND=openai to force OpenAI SDK (requires OPENAI_API_KEY).
         """
-        if OPENAI_API_KEY:
+        force_openai = os.getenv("AGENT_BACKEND", "").lower() == "openai"
+        if force_openai and OPENAI_API_KEY:
             from langchain_openai import ChatOpenAI
             self.llm = ChatOpenAI(
                 model=OPENAI_MODEL,

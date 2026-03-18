@@ -30,14 +30,13 @@ import logging
 import os
 from typing import Any, Optional, Type
 
-from pydantic import BaseModel
-
 from kba_exceptions import (
-    LLMUnavailableError,
-    LLMTimeoutError,
+    LLMAuthenticationError,
     LLMRateLimitError,
-    LLMAuthenticationError
+    LLMTimeoutError,
+    LLMUnavailableError,
 )
+from pydantic import BaseModel
 
 logger = logging.getLogger(__name__)
 
@@ -89,7 +88,8 @@ class LLMService:
         """
         self.timeout = timeout
         
-        # Determine backend: LiteLLM is the default, OpenAI only when forced
+        # Determine backend: LiteLLM with Copilot is the default.
+        # OpenAI only when explicitly forced via backend="openai".
         resolved_api_key = api_key or OPENAI_API_KEY
         if backend == "openai":
             self._backend = "openai"
@@ -112,9 +112,9 @@ class LLMService:
                 client_kwargs["base_url"] = self.base_url
             self._client = AsyncOpenAI(**client_kwargs)
         else:
-            # LiteLLM backend
+            # LiteLLM backend — always default to Copilot model
             self.api_key = resolved_api_key or None
-            self.model = model or (OPENAI_MODEL if resolved_api_key else LITELLM_MODEL)
+            self.model = model or LITELLM_MODEL
             self.base_url = base_url or OPENAI_BASE_URL or None
             self._client = None
             # Build fallback chain: primary model + configured fallbacks (deduplicated)
@@ -295,9 +295,9 @@ class LLMService:
         from openai import (
             APIConnectionError,
             APITimeoutError,
-            RateLimitError,
             AuthenticationError,
-            BadRequestError
+            BadRequestError,
+            RateLimitError,
         )
         
         if isinstance(error, APITimeoutError):
