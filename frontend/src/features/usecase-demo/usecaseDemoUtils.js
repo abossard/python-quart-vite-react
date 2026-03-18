@@ -1,58 +1,69 @@
 const UUID_PATTERN =
-  /[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}/gi
+  /[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}/gi;
+
+const INC_PATTERN = /INC\d{12,15}/gi;
 
 export function formatDateTime(value) {
-  if (!value) return '—'
-  const parsed = new Date(value)
-  if (Number.isNaN(parsed.getTime())) return value
-  return parsed.toLocaleString()
+  if (!value) return "—";
+  const parsed = new Date(value);
+  if (Number.isNaN(parsed.getTime())) return value;
+  return parsed.toLocaleString();
 }
 
 export function upsertRun(runs, updatedRun, maxSize = 25) {
-  const index = runs.findIndex((item) => item.id === updatedRun.id)
+  const index = runs.findIndex((item) => item.id === updatedRun.id);
   if (index === -1) {
-    return [updatedRun, ...runs].slice(0, maxSize)
+    return [updatedRun, ...runs].slice(0, maxSize);
   }
 
-  const next = [...runs]
-  next[index] = updatedRun
-  next.sort((a, b) => new Date(b.created_at) - new Date(a.created_at))
-  return next
+  const next = [...runs];
+  next[index] = updatedRun;
+  next.sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
+  return next;
 }
 
 export function parseTicketIds(rawValue) {
-  if (rawValue == null) return []
+  if (rawValue == null) return [];
 
   const asText = Array.isArray(rawValue)
-    ? rawValue.join(',')
-    : String(rawValue)
+    ? rawValue.join(",")
+    : String(rawValue);
 
-  const uuidMatches = asText.match(UUID_PATTERN)
+  // Try INC numbers first (primary identifier)
+  const incMatches = asText.match(INC_PATTERN);
+  if (incMatches?.length) {
+    return incMatches.map((value) => value.toUpperCase());
+  }
+
+  const uuidMatches = asText.match(UUID_PATTERN);
   if (uuidMatches?.length) {
-    return uuidMatches.map((value) => value.toLowerCase())
+    return uuidMatches.map((value) => value.toLowerCase());
   }
 
   return asText
     .split(/[\n,;\s]+/)
     .map((value) => value.trim())
-    .filter(Boolean)
+    .filter(Boolean);
 }
 
-export function extractTicketIdsFromRows(rows, ticketIdFields = ['ticket_ids', 'ticket_id', 'ticketIds']) {
-  const ids = new Set()
+export function extractTicketIdsFromRows(
+  rows,
+  ticketIdFields = ["ticket_ids", "ticket_id", "ticketIds"],
+) {
+  const ids = new Set();
   for (const row of rows || []) {
-    if (!row || typeof row !== 'object') continue
+    if (!row || typeof row !== "object") continue;
     for (const field of ticketIdFields) {
-      const fieldValue = row[field]
+      const fieldValue = row[field];
       for (const parsedId of parseTicketIds(fieldValue)) {
-        ids.add(parsedId)
+        ids.add(parsedId);
       }
     }
   }
-  return Array.from(ids)
+  return Array.from(ids);
 }
 
 export function sanitizeMarkdownForDisplay(markdown) {
-  if (!markdown) return ''
-  return markdown.replace(/```json[\s\S]*?```/gi, '').trim()
+  if (!markdown) return "";
+  return markdown.replace(/```json[\s\S]*?```/gi, "").trim();
 }

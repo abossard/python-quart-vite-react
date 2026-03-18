@@ -1,37 +1,19 @@
 """
 Agent Management Module with OpenAI and LangGraph
 
-Provides LangGraph-based agents for task automation:
+Provides LangGraph-based agents for CSV ticket analysis:
 - Type-safe data models with Pydantic
-- Self-documenting schemas for REST and MCP
 - OpenAI integration via langchain-openai
-- ReAct agent pattern with automatic tool discovery
+- ReAct agent pattern with CSV ticket tools
 
-Following "Grokking Simplicity" and "A Philosophy of Software Design":
-- Deep module: Simple interface, complex implementation
-- Separation of calculations from I/O
-- Clear separation: Data models, Service layer, Agent logic
-
-Example usage:
-    from agents import AgentService, AgentRequest
-    
-    service = AgentService()
-    result = await service.run_agent(
-        AgentRequest(
-            prompt="Create a task to learn LangGraph",
-            agent_type="task_assistant"
-        )
-    )
-    print(result.result)
-
-Advanced StateGraph example (for learning):
-    See the docstring in AgentService._build_state_graph() for a custom
-    LangGraph workflow with nodes, edges, and conditional routing.
+Note: The configurable agent builder lives in agent_builder/.
+This module provides the simple chat agent used by /api/agents/run.
 """
 
 # Standard library
 import os
 from datetime import datetime
+from time import perf_counter
 from typing import Any, Literal, Optional
 
 # Load environment variables before anything else
@@ -39,27 +21,48 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
+import logging
+
+from langchain_core.globals import set_verbose
+
+
+def _env_flag(name: str, default: str = "false") -> bool:
+    """Parse environment boolean flags with common truthy values."""
+    return os.getenv(name, default).strip().lower() in {"1", "true", "yes", "on"}
+
+
+def _env_int(name: str, default: int) -> int:
+    """Parse integer env var with fallback."""
+    raw = os.getenv(name)
+    if raw is None:
+        return default
+    try:
+        return int(raw)
+    except ValueError:
+        return default
+
+
+LANGCHAIN_VERBOSE = _env_flag("LANGCHAIN_VERBOSE", "false")
+set_verbose(LANGCHAIN_VERBOSE)
+
+logging.basicConfig(level=logging.INFO)
+logging.getLogger("langchain").setLevel(logging.INFO if LANGCHAIN_VERBOSE else logging.WARNING)
+logger = logging.getLogger(__name__)
+
 from uuid import UUID
 
 # Ensure operations register before we request LangChain tools
 import operations  # noqa: F401
 
-# Local - Import operations registry for automatic tool discovery
-from api_decorators import get_langchain_tools
-
 # Local CSV service
 from csv_data import get_csv_ticket_service
-
-# Third-party - FastMCP client for external MCP servers
-from fastmcp import Client as MCPClient
 from langchain_core.tools import StructuredTool
 
-# Third-party - LangChain and LangGraph
-from langchain_openai import ChatOpenAI
+# Third-party - LangGraph
 from langgraph.prebuilt import create_react_agent
 
 # Third-party - Pydantic for validation
-from pydantic import BaseModel, Field, create_model, field_validator
+from pydantic import BaseModel, Field, field_validator
 from tickets import TicketStatus
 
 # ============================================================================
@@ -76,7 +79,7 @@ class AgentRequest(BaseModel):
     prompt: str = Field(
         ...,
         min_length=1,
-        max_length=2000,
+        max_length=5000,
         description="User prompt for the agent to process"
     )
     agent_type: Literal["task_assistant"] = Field(
@@ -143,101 +146,20 @@ class AgentResponse(BaseModel):
 
 
 # ============================================================================
-# CONFIGURATION - OpenAI settings
+# CONFIGURATION - LLM settings (LiteLLM default, OpenAI optional)
 # ============================================================================
 
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY", "")
 OPENAI_MODEL = os.getenv("OPENAI_MODEL", "gpt-4o-mini")
 OPENAI_BASE_URL = os.getenv("OPENAI_BASE_URL", "")  # optional override
+LITELLM_MODEL = os.getenv("LITELLM_MODEL", "github_copilot/gpt-4o")
+OPENAI_CALL_LOGGING_ENABLED = _env_flag("OPENAI_CALL_LOGGING_ENABLED", "true")
+AGENT_EFFICIENCY_MODE = _env_flag("AGENT_EFFICIENCY_MODE", "true")
+AGENT_TRACE_ENABLED = _env_flag("AGENT_TRACE_ENABLED", "false")
+REACT_AGENT_RECURSION_LIMIT = max(3, _env_int("REACT_AGENT_RECURSION_LIMIT", 8))
 
 # External MCP server URL for ticket management (hardcoded)
 TICKET_MCP_SERVER_URL = "https://yodrrscbpxqnslgugwow.supabase.co/functions/v1/mcp/a7f2b8c4-d3e9-4f1a-b5c6-e8d9f0123456"
-
-
-# ============================================================================
-# MCP TOOL CONVERSION HELPERS
-# ============================================================================
-
-def _json_type_to_python(json_type: str) -> type:
-    """Map JSON schema type to Python type."""
-    mapping = {
-        "string": str,
-        "integer": int,
-        "number": float,
-        "boolean": bool,
-        "array": list,
-        "object": dict,
-    }
-    return mapping.get(json_type, str)
-
-
-def _schema_to_pydantic(name: str, schema: dict) -> type[BaseModel]:
-    """Convert JSON schema to Pydantic model for LangChain tool args."""
-    properties = schema.get("properties", {})
-    required = set(schema.get("required", []))
-    
-    fields: dict[str, Any] = {}
-    for field_name, field_schema in properties.items():
-        field_type = _json_type_to_python(field_schema.get("type", "string"))
-        field_desc = field_schema.get("description", f"{field_name} parameter")
-        
-        if field_name in required:
-            fields[field_name] = (field_type, Field(description=field_desc))
-        else:
-            default = field_schema.get("default")
-            fields[field_name] = (Optional[field_type], Field(default=default, description=field_desc))
-    
-    model_name = f"{name.title().replace('_', '').replace('-', '')}Args"
-    return create_model(model_name, **fields)
-
-
-def _mcp_tool_to_langchain(mcp_client: MCPClient, tool: Any) -> StructuredTool:
-    """
-    Convert MCP tool to LangChain StructuredTool.
-    
-    Creates a wrapper that calls the external MCP server via the persistent client.
-    """
-    tool_name = tool.name
-    tool_desc = tool.description or f"MCP tool: {tool_name}"
-    input_schema = tool.inputSchema if hasattr(tool, 'inputSchema') else {}
-    
-    # Create async wrapper that calls MCP server
-    async def call_mcp_tool(**kwargs) -> str:
-        import json as _json
-        print(f"\n{'='*60}")
-        print(f"🔧 MCP TOOL CALL: {tool_name}")
-        print(f"{'='*60}")
-        print(f"📤 REQUEST:")
-        print(f"   Tool: {tool_name}")
-        print(f"   Args: {_json.dumps(kwargs, indent=6, default=str)}")
-        
-        result = await mcp_client.call_tool(tool_name, kwargs)
-        
-        print(f"\n📥 RESPONSE:")
-        # Extract text from MCP response
-        if hasattr(result, 'content') and result.content:
-            texts = [c.text for c in result.content if hasattr(c, 'text')]
-            response_text = "\n".join(texts) if texts else str(result)
-            # Truncate for display if too long
-            display_text = response_text[:500] + "..." if len(response_text) > 500 else response_text
-            print(f"   Content items: {len(result.content)}")
-            print(f"   Text preview: {display_text}")
-        else:
-            response_text = str(result)
-            print(f"   Raw: {response_text[:500]}")
-        
-        print(f"{'='*60}\n")
-        return response_text
-    
-    # Build Pydantic model from input schema
-    args_model = _schema_to_pydantic(tool_name, input_schema)
-    
-    return StructuredTool(
-        name=tool_name,
-        description=tool_desc,
-        coroutine=call_mcp_tool,
-        args_schema=args_model,
-    )
 
 
 # ============================================================================
@@ -261,58 +183,80 @@ class AgentService:
     
     def __init__(self):
         """
-        Initialize the agent service with OpenAI.
+        Initialize the agent service.
         
-        Validates that required environment variables are set and creates
-        the LLM client for agent execution.
-        
-        Raises:
-            ValueError: If OpenAI configuration is incomplete
+        Defaults to LiteLLM with GitHub Copilot backend.
+        Set AGENT_BACKEND=openai to force OpenAI SDK (requires OPENAI_API_KEY).
         """
-        # Validate configuration
-        if not OPENAI_API_KEY:
-            raise ValueError(
-                "OpenAI API key not set. "
-                "Please set OPENAI_API_KEY environment variable."
+        force_openai = os.getenv("AGENT_BACKEND", "").lower() == "openai"
+        if force_openai and OPENAI_API_KEY:
+            from langchain_openai import ChatOpenAI
+            self.llm = ChatOpenAI(
+                model=OPENAI_MODEL,
+                api_key=OPENAI_API_KEY,
+                base_url=OPENAI_BASE_URL or None,
+                temperature=0.0,
             )
+            logger.info(f"AgentService using OpenAI: {OPENAI_MODEL}")
+        else:
+            from langchain_litellm import ChatLiteLLM
+            self.llm = ChatLiteLLM(
+                model=LITELLM_MODEL,
+                temperature=0.0,
+            )
+            logger.info(f"AgentService using LiteLLM: {LITELLM_MODEL}")
         
-        # Initialize ChatOpenAI
-        self.llm = ChatOpenAI(
-            model=OPENAI_MODEL,
-            api_key=OPENAI_API_KEY,
-            base_url=OPENAI_BASE_URL or None,
-            temperature=0.0,
-        )
-        
-        # CSV tools only (do not expose operations or external MCP)
+        # CSV tools only
         self.tools = self._build_csv_tools()
-
-        # Ticket MCP client state (unused)
-        self._ticket_mcp_client: Optional[MCPClient] = None
-        self._ticket_mcp_tools_loaded = False
+        self._system_prompt = self._build_system_prompt()
+        self._react_agent = create_react_agent(self.llm, self.tools)
     
-    async def _ensure_ticket_mcp_connection(self):
-        """No-op: external MCP tools not exposed."""
-        return
-    
-    async def close(self):
-        """Close the ticket MCP client connection."""
-        if self._ticket_mcp_client:
-            try:
-                await self._ticket_mcp_client.__aexit__(None, None, None)
-            except Exception:
-                pass
-            self._ticket_mcp_client = None
+    def _build_system_prompt(self) -> str:
+        """Build a concise system prompt optimized for low-latency tool usage."""
+        efficiency_rules = (
+            "- Plane möglichst einen einzelnen Tool-Aufruf und stoppe früh, sobald die Antwort klar ist.\n"
+            "- Nutze kleine Payloads: setze sinnvolle limits und kompakte fields.\n"
+            "- Fordere notes/resolution nur bei explizitem Bedarf an.\n"
+        ) if AGENT_EFFICIENCY_MODE else ""
+        return (
+            "Du bist ein präziser CSV-Ticket-Assistent. Sprich Deutsch.\n\n"
+            "Verhalten:\n"
+            "- Verwende ausschließlich csv_* Tools für Ticketdaten.\n"
+            f"{efficiency_rules}"
+            "- Erfinde keine Daten; markiere fehlende Daten klar.\n"
+            "- Gib eine kurze Antwort und bei strukturierten Ergebnissen einen JSON-Codeblock "
+            "mit {\"rows\": [...]}."
+        )
 
     def _build_csv_tools(self) -> list[StructuredTool]:
         """Build LangChain tools backed by CSVTicketService."""
         import json
         service = get_csv_ticket_service()
+        compact_default_fields = [
+            "id",
+            "summary",
+            "status",
+            "priority",
+            "assignee",
+            "assigned_group",
+            "created_at",
+            "updated_at",
+        ]
+
+        def _select_fields(fields: str | None) -> list[str] | None:
+            if not fields:
+                return compact_default_fields
+            normalized = fields.strip()
+            if normalized in {"*", "all"}:
+                return None
+            parsed = [f.strip() for f in normalized.split(",") if f.strip()]
+            return parsed or compact_default_fields
 
         def _csv_list_tickets(
             status: str | None = None,
             assigned_group: str | None = None,
             has_assignee: bool | None = None,
+            fields: str | None = None,
             limit: int = 50,
         ) -> str:
             try:
@@ -321,9 +265,16 @@ class AgentService:
                 status_enum = None
             tickets = service.list_tickets(status=status_enum, assigned_group=assigned_group, has_assignee=has_assignee)
             bounded_limit = max(1, min(limit, 100))
-            return json.dumps([t.model_dump() for t in tickets[:bounded_limit]], default=str)
+            items = tickets[:bounded_limit]
+            selected_fields = _select_fields(fields)
+            if selected_fields is None:
+                return json.dumps([t.model_dump() for t in items], default=str)
+            return json.dumps([
+                {k: v for k, v in t.model_dump().items() if k in selected_fields}
+                for t in items
+            ], default=str)
 
-        def _csv_get_ticket(ticket_id: str) -> str:
+        def _csv_get_ticket(ticket_id: str, fields: str | None = None) -> str:
             try:
                 tid = UUID(ticket_id)
             except Exception:
@@ -331,12 +282,18 @@ class AgentService:
             ticket = service.get_ticket(tid)
             if not ticket:
                 return json.dumps({"error": "not found"})
-            return json.dumps(ticket.model_dump(), default=str)
+            dump = ticket.model_dump()
+            selected_fields = _select_fields(fields)
+            if selected_fields is None:
+                return json.dumps(dump, default=str)
+            return json.dumps({k: v for k, v in dump.items() if k in selected_fields}, default=str)
 
-        def _csv_search_tickets(query: str, limit: int = 25) -> str:
+        def _csv_search_tickets(query: str, fields: str | None = None, limit: int = 25) -> str:
             q = query.lower()
             tickets = service.list_tickets()
+            selected_fields = _select_fields(fields)
             matched = []
+            bounded_limit = max(1, min(limit, 100))
             for t in tickets:
                 text = " ".join([
                     t.summary or "",
@@ -348,8 +305,11 @@ class AgentService:
                     t.city or "",
                 ]).lower()
                 if q in text:
-                    matched.append(t.model_dump())
-                    if len(matched) >= limit:
+                    dump = t.model_dump()
+                    if selected_fields is not None:
+                        dump = {k: v for k, v in dump.items() if k in selected_fields}
+                    matched.append(dump)
+                    if len(matched) >= bounded_limit:
                         break
             return json.dumps(matched, default=str)
 
@@ -358,6 +318,61 @@ class AgentService:
             from tickets import Ticket
             return json.dumps(list(Ticket.model_fields.keys()))
 
+        def _csv_sla_breach_tickets(unassigned_only: bool = True, include_ok: bool = False) -> str:
+            """Return tickets at SLA breach risk with pre-computed age and breach status."""
+            from tickets import get_sla_breach_report
+            tickets = service.list_tickets(has_assignee=False if unassigned_only else None)
+            report = get_sla_breach_report(tickets, reference_time=None, include_ok=include_ok)
+            return json.dumps(report.model_dump() if hasattr(report, 'model_dump') else report, default=str)
+
+        def _csv_ticket_stats() -> str:
+            """Get aggregated statistics for CSV tickets."""
+            from collections import Counter
+            tickets = service.list_tickets()
+            by_status = Counter(t.status.value for t in tickets)
+            by_priority = Counter(t.priority.value for t in tickets)
+            by_group = Counter(t.assigned_group for t in tickets if t.assigned_group)
+            unassigned = sum(1 for t in tickets if t.assignee is None and t.assigned_group is not None)
+            return json.dumps({
+                "total": len(tickets), "unassigned": unassigned,
+                "by_status": dict(by_status), "by_priority": dict(by_priority),
+                "by_group": dict(by_group.most_common(10)),
+            }, default=str)
+
+        def _csv_count_tickets(query: str = "", status: str | None = None) -> str:
+            """Count matching tickets without returning data. Fast check before fetching details."""
+            tickets = service.list_tickets()
+            if status:
+                try:
+                    status_enum = TicketStatus(status.lower())
+                    tickets = [t for t in tickets if t.status == status_enum]
+                except Exception:
+                    pass
+            if query.strip():
+                q = query.strip().lower()
+                tickets = [t for t in tickets if q in " ".join([
+                    t.summary or "", t.description or "", t.notes or "",
+                    t.requester_name or "", t.assigned_group or "",
+                ]).lower()]
+            return json.dumps({"count": len(tickets), "query": query})
+
+        def _csv_search_with_details(query: str, limit: int = 10) -> str:
+            """Search tickets with full details (notes, resolution, description) in one call."""
+            q = query.lower()
+            detail_fields = compact_default_fields + ["notes", "resolution", "description", "incident_id"]
+            matched = []
+            for t in service.list_tickets():
+                text = " ".join([
+                    t.summary or "", t.description or "", t.notes or "",
+                    t.requester_name or "", t.assigned_group or "", t.city or "",
+                ]).lower()
+                if q in text:
+                    dump = t.model_dump()
+                    matched.append({k: v for k, v in dump.items() if k in detail_fields})
+                    if len(matched) >= min(max(limit, 1), 25):
+                        break
+            return json.dumps(matched, default=str)
+
         return [
             StructuredTool.from_function(
                 func=_csv_list_tickets,
@@ -365,24 +380,59 @@ class AgentService:
                 description=(
                     "List tickets from CSV with optional filters: status "
                     "(new, assigned, in_progress, pending, resolved, closed, cancelled), "
-                    "assigned_group, has_assignee (true/false), and limit (default 50, max 100). "
-                    "Returns JSON array."
+                    "assigned_group, has_assignee (true/false), limit (default 50, max 100), "
+                    "and fields (comma-separated field names). "
+                    "Default response is compact for speed. Returns JSON array."
                 ),
             ),
             StructuredTool.from_function(
                 func=_csv_get_ticket,
                 name="csv_get_ticket",
-                description="Get a ticket by UUID (id). Returns JSON object including notes/resolution.",
+                description=(
+                    "Get full ticket details by UUID (id). Supports optional fields. "
+                    "Use for drill-down after list/search."
+                ),
             ),
             StructuredTool.from_function(
                 func=_csv_search_tickets,
                 name="csv_search_tickets",
-                description="Search tickets by text across summary, description, notes, resolution, requester, group, city. Returns JSON array.",
+                description=(
+                    "Search tickets by text across summary, description, notes, requester, group, city. "
+                    "Returns compact fields. Use csv_get_ticket for full details."
+                ),
             ),
             StructuredTool.from_function(
                 func=_csv_ticket_fields,
                 name="csv_ticket_fields",
                 description="List available ticket fields (schema) as JSON array of field names.",
+            ),
+            StructuredTool.from_function(
+                func=_csv_ticket_stats,
+                name="csv_ticket_stats",
+                description="Get aggregated statistics: total, unassigned, by_status, by_priority, by_group. Returns JSON.",
+            ),
+            StructuredTool.from_function(
+                func=_csv_sla_breach_tickets,
+                name="csv_sla_breach_tickets",
+                description=(
+                    "Return tickets at SLA breach risk. Pre-computed age_hours, sla_threshold_hours, breach_status. "
+                    "SLA thresholds: critical=4h, high=24h, medium=72h, low=120h. "
+                    "unassigned_only (default true) filters to group-assigned but no individual. "
+                    "include_ok (default false) adds tickets within SLA window. Returns JSON."
+                ),
+            ),
+            StructuredTool.from_function(
+                func=_csv_count_tickets,
+                name="csv_count_tickets",
+                description="Count matching tickets WITHOUT returning data. Use to check result size before fetching details. Fast and cheap.",
+            ),
+            StructuredTool.from_function(
+                func=_csv_search_with_details,
+                name="csv_search_tickets_with_details",
+                description=(
+                    "Search tickets AND return full details (notes, resolution, description) in one call. "
+                    "Use for knowledgebase, analysis, or detailed reports. Limit defaults to 10, max 25."
+                ),
             ),
         ]
 
@@ -411,72 +461,46 @@ class AgentService:
             ValueError: If agent execution fails
         """
         try:
-            # Create ReAct agent with LangGraph tools
-            # The tools are the actual Python functions with @tool decorator
-            agent = create_react_agent(self.llm, self.tools)
-            
-            # System message to guide the agent's behavior
-            tool_lines = []
-            for t in self.tools:
-                name = t.name if hasattr(t, 'name') else str(t)
-                desc = (t.description if hasattr(t, 'description') else "") or ""
-                tool_lines.append(f"- `{name}`: {desc}".strip())
-            tools_md = "\n".join(tool_lines) if tool_lines else "- (none)"
-
-            system_msg = f"""
-Du bist ein freundlicher CSV-Ticket-Assistent. Sprich **Deutsch**.
-
-Antwortstil:
-- Starte immer mit einer kurzen Begrüßung.
-- Liste sofort die verfügbaren Tools (Markdown-Bullets).
-- Nutze **Markdown** mit klaren Überschriften (##), Bullet-Listen und Tabellen, wenn sinnvoll.
-- Für JSON-Daten nutze fenced Code-Blöcke:
-  ```json
-  {{"example": "value"}}
-  ```
-- Halte Antworten knapp und gut strukturiert.
-
-Verfügbare Tools:
-{tools_md}
-
-Verhalten:
-- Verwende ausschließlich die csv_* Tools für Ticket-Informationen. Keine Daten erfinden.
-- Falls Daten fehlen, sage das explizit.
-- Fasse Ergebnisse klar zusammen; für Listen sind kompakte Tabellen ideal.
-"""
-            
             # Execute agent with user prompt
-            print(f"\n{'='*60}")
-            print(f"🤖 AGENT EXECUTION START")
-            print(f"{'='*60}")
-            print(f"   Prompt: {request.prompt[:100]}{'...' if len(request.prompt) > 100 else ''}")
-            print(f"   Agent type: {request.agent_type}")
-            print(f"   Available tools ({len(self.tools)}):")
-            for t in self.tools:
-                name = t.name if hasattr(t, 'name') else str(t)
-                print(f"      • {name}")
-            print(f"{'='*60}\n")
+            if AGENT_TRACE_ENABLED:
+                print(f"\n{'='*60}")
+                print(f"🤖 AGENT EXECUTION START")
+                print(f"{'='*60}")
+                print(f"   Prompt: {request.prompt[:100]}{'...' if len(request.prompt) > 100 else ''}")
+                print(f"   Agent type: {request.agent_type}")
+                print(f"   Available tools ({len(self.tools)}):")
+                for t in self.tools:
+                    name = t.name if hasattr(t, 'name') else str(t)
+                    print(f"      • {name}")
+                print(f"{'='*60}\n")
             
-            result = await agent.ainvoke(
-                {"messages": [("system", system_msg), ("user", request.prompt)]}
+            invoke_config: dict[str, Any] = {"recursion_limit": REACT_AGENT_RECURSION_LIMIT}
+            if OPENAI_CALL_LOGGING_ENABLED:
+                from agent_builder.engine.callbacks import make_llm_logging_callback
+                invoke_config["callbacks"] = [make_llm_logging_callback(OPENAI_MODEL)]
+
+            result = await self._react_agent.ainvoke(
+                {"messages": [("system", self._system_prompt), ("user", request.prompt)]},
+                config=invoke_config,
             )
             
-            print(f"\n{'='*60}")
-            print(f"📋 AGENT EXECUTION COMPLETE")
-            print(f"{'='*60}")
-            print(f"   Total messages: {len(result['messages'])}")
-            for i, msg in enumerate(result["messages"]):
-                msg_type = type(msg).__name__
-                has_tool_calls = hasattr(msg, 'tool_calls') and msg.tool_calls
-                content_preview = ""
-                if hasattr(msg, 'content') and msg.content:
-                    content_preview = str(msg.content)[:80] + "..." if len(str(msg.content)) > 80 else str(msg.content)
-                print(f"   [{i}] {msg_type}: {content_preview}")
-                if has_tool_calls:
-                    for tc in msg.tool_calls:
-                        tc_name = tc.get('name', tc) if isinstance(tc, dict) else str(tc)
-                        print(f"       🔧 Tool call: {tc_name}")
-            print(f"{'='*60}\n")
+            if AGENT_TRACE_ENABLED:
+                print(f"\n{'='*60}")
+                print(f"📋 AGENT EXECUTION COMPLETE")
+                print(f"{'='*60}")
+                print(f"   Total messages: {len(result['messages'])}")
+                for i, msg in enumerate(result["messages"]):
+                    msg_type = type(msg).__name__
+                    has_tool_calls = hasattr(msg, 'tool_calls') and msg.tool_calls
+                    content_preview = ""
+                    if hasattr(msg, 'content') and msg.content:
+                        content_preview = str(msg.content)[:80] + "..." if len(str(msg.content)) > 80 else str(msg.content)
+                    print(f"   [{i}] {msg_type}: {content_preview}")
+                    if has_tool_calls:
+                        for tc in msg.tool_calls:
+                            tc_name = tc.get('name', tc) if isinstance(tc, dict) else str(tc)
+                            print(f"       🔧 Tool call: {tc_name}")
+                print(f"{'='*60}\n")
             
             # Extract the agent's final response
             final_message = result["messages"][-1]
@@ -513,61 +537,6 @@ Verhalten:
                 created_at=datetime.now()
             )
     
-    def _build_state_graph(self):
-        """
-        Example: Build a custom StateGraph for advanced workflows.
-        
-        This is a learning example showing how to build a custom LangGraph
-        workflow instead of using the prebuilt create_react_agent.
-        
-        A StateGraph allows you to:
-        - Define custom nodes (functions that process state)
-        - Add conditional edges (routing logic)
-        - Create multi-step workflows with loops
-        - Handle complex agent architectures
-        
-        Example usage (not used in current implementation):
-        
-            from langgraph.graph import StateGraph, END
-            from typing import TypedDict
-            
-            class AgentState(TypedDict):
-                messages: list
-                next_action: str
-            
-            # Define nodes
-            def plan_node(state: AgentState):
-                # Agent plans what to do
-                return {"next_action": "execute"}
-            
-            def execute_node(state: AgentState):
-                # Agent executes tools
-                return {"next_action": "review"}
-            
-            def review_node(state: AgentState):
-                # Agent reviews results
-                return {"next_action": END}
-            
-            # Build graph
-            workflow = StateGraph(AgentState)
-            workflow.add_node("plan", plan_node)
-            workflow.add_node("execute", execute_node)
-            workflow.add_node("review", review_node)
-            
-            # Add edges
-            workflow.set_entry_point("plan")
-            workflow.add_edge("plan", "execute")
-            workflow.add_edge("execute", "review")
-            workflow.add_edge("review", END)
-            
-            # Compile
-            agent = workflow.compile()
-        
-        For this playground, we use create_react_agent for simplicity.
-        Implement StateGraph when you need custom multi-step workflows.
-        """
-        pass
-
 
 # ============================================================================
 # CONVENIENCE EXPORTS

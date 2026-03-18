@@ -290,6 +290,7 @@ def csv_row_to_ticket(row: CSVTicketRow) -> Ticket:
     
     return Ticket(
         id=ticket_id,
+        incident_id=row.incident_id or row.entry_id or None,
         summary=row.summary or "No summary",
         description=row.notes or row.summary or "No description",
         status=map_status(row.status or row.status_ppl),
@@ -439,6 +440,7 @@ class CSVTicketService:
     
     def __init__(self):
         self._tickets: dict[UUID, Ticket] = {}
+        self._tickets_by_incident_id: dict[str, Ticket] = {}
         self._loaded_files: set[str] = set()
     
     def load_csv(self, file_path: str | Path) -> int:
@@ -454,13 +456,27 @@ class CSVTicketService:
         
         for ticket in tickets:
             self._tickets[ticket.id] = ticket
+            if ticket.incident_id:
+                self._tickets_by_incident_id[ticket.incident_id] = ticket
         
         self._loaded_files.add(file_key)
         return len(tickets)
     
     def get_ticket(self, ticket_id: UUID) -> Optional[Ticket]:
-        """Get ticket by ID."""
+        """Get ticket by UUID."""
         return self._tickets.get(ticket_id)
+
+    def get_ticket_by_incident_id(self, incident_id: str) -> Optional[Ticket]:
+        """Get ticket by INC number (e.g. INC000016349327).
+        
+        Uses direct dictionary lookup first, falls back to UUID-based lookup.
+        """
+        ticket = self._tickets_by_incident_id.get(incident_id)
+        if ticket is not None:
+            return ticket
+        # Fallback: deterministic UUID generation
+        ticket_uuid = generate_uuid_from_incident_id(incident_id)
+        return self._tickets.get(ticket_uuid)
     
     def list_tickets(
         self,

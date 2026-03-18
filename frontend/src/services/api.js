@@ -23,10 +23,19 @@ async function fetchJSON(url, options = {}) {
   });
 
   if (!response.ok) {
-    const error = await response
+    const errorData = await response
       .json()
       .catch(() => ({ error: "Request failed" }));
-    throw new Error(error.error || `HTTP ${response.status}`);
+    
+    // For 409 Conflict (duplicate), include full error data
+    if (response.status === 409) {
+      const error = new Error(errorData.error || `HTTP ${response.status}`);
+      error.status = 409;
+      error.data = errorData;
+      throw error;
+    }
+    
+    throw new Error(errorData.error || `HTTP ${response.status}`);
   }
 
   return response.json();
@@ -68,6 +77,34 @@ export function connectToTimeStream(onMessage, onError) {
   };
 
   // Return cleanup function
+  return () => {
+    eventSource.close();
+  };
+}
+
+/**
+ * Connect to Server-Sent Events stream for real-time agent activity
+ * @param {Function} onEvent - Callback for each agent event
+ * @param {Function} onError - Callback for errors
+ * @returns {Function} Cleanup function to close the connection
+ */
+export function connectToAgentEvents(onEvent, onError) {
+  const eventSource = new EventSource(`${API_BASE_URL}/workbench/events`);
+
+  eventSource.onmessage = (event) => {
+    try {
+      const data = JSON.parse(event.data);
+      onEvent(data);
+    } catch (error) {
+      if (onError) onError(error);
+    }
+  };
+
+  eventSource.onerror = (error) => {
+    if (onError) onError(error);
+    eventSource.close();
+  };
+
   return () => {
     eventSource.close();
   };
@@ -210,8 +247,8 @@ export async function getCSVTicketStats() {
 }
 
 /**
- * Get one CSV ticket by ID.
- * @param {string} ticketId - Ticket UUID
+ * Get one CSV ticket by INC number (e.g. INC000016349327) or UUID.
+ * @param {string} ticketId - INC number or UUID
  * @param {string[]} fields - Optional field selection
  * @returns {Promise<Object>} Ticket details
  */
@@ -224,6 +261,24 @@ export async function getCSVTicket(ticketId, fields = []) {
   const url = query
     ? `${API_BASE_URL}/csv-tickets/${ticketId}?${query}`
     : `${API_BASE_URL}/csv-tickets/${ticketId}`;
+  return fetchJSON(url);
+}
+
+/**
+ * Get one CSV ticket by Incident ID (e.g., INC000016346).
+ * @param {string} incidentId - Incident ID from tickets
+ * @param {string[]} fields - Optional field selection
+ * @returns {Promise<Object>} Ticket details
+ */
+export async function getCSVTicketByIncident(incidentId, fields = []) {
+  const params = new URLSearchParams();
+  if (fields.length) {
+    params.set("fields", fields.join(","));
+  }
+  const query = params.toString();
+  const url = query
+    ? `${API_BASE_URL}/csv-tickets/by-incident/${incidentId}?${query}`
+    : `${API_BASE_URL}/csv-tickets/by-incident/${incidentId}`;
   return fetchJSON(url);
 }
 
@@ -259,4 +314,204 @@ export async function getUsecaseDemoAgentRun(runId) {
  */
 export async function listUsecaseDemoAgentRuns(limit = 20) {
   return fetchJSON(`${API_BASE_URL}/usecase-demo/agent-runs?limit=${limit}`);
+}
+
+/**
+ * Get pre-computed SLA breach report for unassigned tickets.
+ * @param {Object} options
+ * @param {boolean} [options.unassignedOnly=true] - Only unassigned tickets
+ * @param {boolean} [options.includeOk=false] - Include non-breached tickets
+ * @returns {Promise<{reference_timestamp: string, total_breached: number, total_at_risk: number, tickets: Array}>}
+ */
+export async function getSlaBreach({
+  unassignedOnly = true,
+  includeOk = false,
+} = {}) {
+  const params = new URLSearchParams({
+    unassigned_only: unassignedOnly.toString(),
+    include_ok: includeOk.toString(),
+  });
+  return fetchJSON(`${API_BASE_URL}/csv-tickets/sla-breach?${params}`);
+}
+
+// ============================================================================
+// Agent Fabric APIs
+// ============================================================================
+
+export async function getWorkbenchUiConfig() {
+  return fetchJSON(`${API_BASE_URL}/workbench/ui-config`);
+}
+
+export async function listWorkbenchTools() {
+  return fetchJSON(`${API_BASE_URL}/workbench/tools`);
+}
+
+export async function listWorkbenchAgents() {
+  return fetchJSON(`${API_BASE_URL}/workbench/agents`);
+}
+
+export async function createWorkbenchAgent(agentData) {
+  return fetchJSON(`${API_BASE_URL}/workbench/agents`, {
+    method: "POST",
+    body: JSON.stringify(agentData),
+  });
+}
+
+export async function deleteWorkbenchAgent(agentId) {
+  return fetchJSON(`${API_BASE_URL}/workbench/agents/${agentId}`, {
+    method: "DELETE",
+  });
+}
+
+export async function runWorkbenchAgent(
+  agentId,
+  { inputPrompt = "", requiredInputValue = "" } = {},
+) {
+  return fetchJSON(`${API_BASE_URL}/workbench/agents/${agentId}/runs`, {
+    method: "POST",
+    body: JSON.stringify({
+      input_prompt: inputPrompt,
+      required_input_value: requiredInputValue || undefined,
+    }),
+  });
+}
+
+export async function suggestOutputSchema({ name = "", description = "", systemPrompt = "" } = {}) {
+  return fetchJSON(`${API_BASE_URL}/workbench/suggest-schema`, {
+    method: "POST",
+    body: JSON.stringify({
+      name,
+      description,
+      system_prompt: systemPrompt,
+    }),
+  });
+}
+
+export async function improvePrompt({ name = "", description = "", systemPrompt = "", toolNames = [] } = {}) {
+  return fetchJSON(`${API_BASE_URL}/workbench/improve-prompt`, {
+    method: "POST",
+    body: JSON.stringify({
+      name,
+      description,
+      system_prompt: systemPrompt,
+      tool_names: toolNames,
+    }),
+  });
+}
+
+export async function updateWorkbenchAgent(agentId, agentData) {
+  return fetchJSON(`${API_BASE_URL}/workbench/agents/${agentId}`, {
+    method: "PUT",
+    body: JSON.stringify(agentData),
+  });
+}
+
+export async function listAgentRuns(agentId) {
+  return fetchJSON(`${API_BASE_URL}/workbench/agents/${agentId}/runs`);
+}
+
+export async function listAllRuns() {
+  return fetchJSON(`${API_BASE_URL}/workbench/runs`);
+}
+
+export async function getRun(runId) {
+  return fetchJSON(`${API_BASE_URL}/workbench/runs/${runId}`);
+}
+
+export async function deleteAllRuns() {
+  return fetchJSON(`${API_BASE_URL}/workbench/runs`, { method: "DELETE" });
+}
+
+// ============================================================================
+// KBA Drafter APIs
+// ============================================================================
+
+export async function generateKBADraft(data) {
+  return fetchJSON(`${API_BASE_URL}/kba/drafts`, {
+    method: "POST",
+    body: JSON.stringify(data),
+  });
+}
+
+export async function getKBADraft(draftId) {
+  return fetchJSON(`${API_BASE_URL}/kba/drafts/${draftId}`);
+}
+
+export async function updateKBADraft(draftId, updates, userId = "anonymous") {
+  return fetchJSON(`${API_BASE_URL}/kba/drafts/${draftId}`, {
+    method: "PATCH",
+    body: JSON.stringify({ ...updates, user_id: userId }),
+  });
+}
+
+export async function replaceKBADraft(draftId, userId = "anonymous") {
+  return fetchJSON(`${API_BASE_URL}/kba/drafts/${draftId}/replace`, {
+    method: "POST",
+    body: JSON.stringify({ user_id: userId }),
+  });
+}
+
+export async function deleteKBADraft(draftId, userId = "anonymous") {
+  return fetchJSON(`${API_BASE_URL}/kba/drafts/${draftId}`, {
+    method: "DELETE",
+    body: JSON.stringify({ user_id: userId }),
+  });
+}
+
+export async function publishKBADraft(draftId, publishData) {
+  return fetchJSON(`${API_BASE_URL}/kba/drafts/${draftId}/publish`, {
+    method: "POST",
+    body: JSON.stringify(publishData),
+  });
+}
+
+export async function listKBADrafts(filters = {}) {
+  const params = new URLSearchParams();
+  if (filters.status) params.set("status", filters.status);
+  if (filters.created_by) params.set("created_by", filters.created_by);
+  if (filters.ticket_id) params.set("ticket_id", filters.ticket_id);
+  if (filters.incident_id) params.set("incident_id", filters.incident_id);
+  if (filters.limit) params.set("limit", filters.limit.toString());
+  if (filters.offset) params.set("offset", filters.offset.toString());
+  
+  const queryString = params.toString();
+  return fetchJSON(`${API_BASE_URL}/kba/drafts${queryString ? `?${queryString}` : ""}`);
+}
+
+export async function getKBAAuditTrail(draftId) {
+  return fetchJSON(`${API_BASE_URL}/kba/drafts/${draftId}/audit`);
+}
+
+export async function listKBAGuidelines() {
+  return fetchJSON(`${API_BASE_URL}/kba/guidelines`);
+}
+
+export async function getKBAGuideline(category) {
+  return fetchJSON(`${API_BASE_URL}/kba/guidelines/${category}`);
+}
+
+export async function checkKBAHealth() {
+  return fetchJSON(`${API_BASE_URL}/kba/health`);
+}
+
+// ============================================================================
+// KBA Auto-Generation APIs
+// ============================================================================
+
+export async function getAutoGenSettings() {
+  return fetchJSON(`${API_BASE_URL}/kba/auto-gen/settings`);
+}
+
+export async function updateAutoGenSettings(updates) {
+  return fetchJSON(`${API_BASE_URL}/kba/auto-gen/settings`, {
+    method: "PATCH",
+    body: JSON.stringify(updates),
+  });
+}
+
+export async function triggerAutoGeneration(userId = "manual-trigger") {
+  return fetchJSON(`${API_BASE_URL}/kba/auto-gen/trigger`, {
+    method: "POST",
+    body: JSON.stringify({ user_id: userId }),
+  });
 }

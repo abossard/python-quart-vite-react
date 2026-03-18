@@ -124,28 +124,6 @@ else
 fi
 
 echo ""
-echo "🤖 Checking Ollama installation..."
-if command -v ollama >/dev/null 2>&1; then
-    OLLAMA_VERSION="$(ollama --version 2>&1 | head -n 1)"
-    info "Found ${OLLAMA_VERSION}"
-
-    echo "Pulling llama3.2:1b model (this may take a few minutes)..."
-    if ollama pull llama3.2:1b; then
-        info "Model llama3.2:1b ready"
-    else
-        warn "Failed to pull model - you can do this manually later: ollama pull llama3.2:1b"
-    fi
-else
-    warn "Ollama is not installed."
-    echo ""
-    echo "Ollama provides local LLM inference for AI features."
-    echo "Install Ollama:"
-    echo "  curl -fsSL https://ollama.com/install.sh | sh"
-    echo "Then pull a model:"
-    echo "  ollama pull llama3.2:1b"
-fi
-
-echo ""
 info "Setup complete"
 echo ""
 echo "🚀 Next steps:"
@@ -156,10 +134,10 @@ echo ""
 echo "Option 2 - Run manually in separate terminals:"
 echo "  Terminal 1: source .venv/bin/activate && cd backend && python app.py"
 echo "  Terminal 2: cd frontend && npm run dev"
-if command -v ollama >/dev/null 2>&1; then
-    echo "  Terminal 3: ollama serve  (if not already running)"
-fi
 echo ""
 echo "Then open:"
 echo "  http://localhost:3001/usecase_demo_1"
+echo ""
+echo "LLM backend: LiteLLM with GitHub Copilot (default, no config needed)"
+echo "To use OpenAI instead: set OPENAI_API_KEY in .env"
 echo ""

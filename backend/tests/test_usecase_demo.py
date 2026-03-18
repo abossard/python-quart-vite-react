@@ -1,10 +1,21 @@
+"""
+Tests for UsecaseDemoRunService.
+
+Run from backend directory:
+    python -m pytest tests/test_usecase_demo.py
+"""
+
 import asyncio
 import unittest
 from unittest.mock import AsyncMock, patch
 
-from agents import AgentResponse
-from usecase_demo import UsecaseDemoRunCreate, UsecaseDemoRunService, UsecaseDemoRunStatus
 import usecase_demo
+from agents import AgentResponse
+from usecase_demo import (
+    UsecaseDemoRunCreate,
+    UsecaseDemoRunService,
+    UsecaseDemoRunStatus,
+)
 
 
 class UsecaseDemoRunServiceTests(unittest.IsolatedAsyncioTestCase):
