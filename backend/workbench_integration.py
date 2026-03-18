@@ -1,11 +1,11 @@
 """
 Workbench Integration
 
-Wires the project's tools into the Agent Fabric module and exposes a
-singleton WorkbenchService ready to use in app.py.
+Wires the project's tools into the Agent Builder module and exposes
+singleton services ready to use in app.py.
 
 Separation of concerns:
-  agent_workbench/  - independent module, knows nothing about this project
+  agent_builder/  - independent module, knows nothing about this project
   workbench_integration.py - knows about both; bridges the gap
 """
 
@@ -15,7 +15,7 @@ from pathlib import Path
 # Ensure operations are loaded so @operation decorators run
 import operations  # noqa: F401
 
-from agent_workbench import ToolRegistry, WorkbenchService
+from agent_builder import ChatService, ToolRegistry, WorkbenchService
 from api_decorators import get_langchain_tools
 
 # ============================================================================
@@ -30,7 +30,7 @@ def _build_registry() -> ToolRegistry:
       1. All @operation-decorated functions via api_decorators.get_langchain_tools()
          Exposed to Agent Fabric: csv_* ticket operations only.
 
-    The registry is built once at startup and shared with WorkbenchService.
+    The registry is built once at startup and shared with services.
     """
     registry = ToolRegistry()
     try:
@@ -47,7 +47,7 @@ def _build_registry() -> ToolRegistry:
 
 
 # ============================================================================
-# SINGLETON SERVICE
+# SINGLETON SERVICES
 # ============================================================================
 
 _tool_registry = _build_registry()
@@ -60,4 +60,11 @@ workbench_service = WorkbenchService(
     openai_base_url=os.getenv("OPENAI_BASE_URL", ""),
 )
 
-__all__ = ["workbench_service", "_tool_registry"]
+chat_service = ChatService(
+    tool_registry=_tool_registry,
+    openai_api_key=os.getenv("OPENAI_API_KEY", ""),
+    openai_model=os.getenv("OPENAI_MODEL", "gpt-4o-mini"),
+    openai_base_url=os.getenv("OPENAI_BASE_URL", ""),
+)
+
+__all__ = ["workbench_service", "chat_service", "_tool_registry"]

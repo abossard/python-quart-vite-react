@@ -82,6 +82,34 @@ export function connectToTimeStream(onMessage, onError) {
   };
 }
 
+/**
+ * Connect to Server-Sent Events stream for real-time agent activity
+ * @param {Function} onEvent - Callback for each agent event
+ * @param {Function} onError - Callback for errors
+ * @returns {Function} Cleanup function to close the connection
+ */
+export function connectToAgentEvents(onEvent, onError) {
+  const eventSource = new EventSource(`${API_BASE_URL}/workbench/events`);
+
+  eventSource.onmessage = (event) => {
+    try {
+      const data = JSON.parse(event.data);
+      onEvent(data);
+    } catch (error) {
+      if (onError) onError(error);
+    }
+  };
+
+  eventSource.onerror = (error) => {
+    if (onError) onError(error);
+    eventSource.close();
+  };
+
+  return () => {
+    eventSource.close();
+  };
+}
+
 // ============================================================================
 // Task CRUD APIs
 // ============================================================================
@@ -348,6 +376,52 @@ export async function runWorkbenchAgent(
   });
 }
 
+export async function suggestOutputSchema({ name = "", description = "", systemPrompt = "" } = {}) {
+  return fetchJSON(`${API_BASE_URL}/workbench/suggest-schema`, {
+    method: "POST",
+    body: JSON.stringify({
+      name,
+      description,
+      system_prompt: systemPrompt,
+    }),
+  });
+}
+
+export async function improvePrompt({ name = "", description = "", systemPrompt = "", toolNames = [] } = {}) {
+  return fetchJSON(`${API_BASE_URL}/workbench/improve-prompt`, {
+    method: "POST",
+    body: JSON.stringify({
+      name,
+      description,
+      system_prompt: systemPrompt,
+      tool_names: toolNames,
+    }),
+  });
+}
+
+export async function updateWorkbenchAgent(agentId, agentData) {
+  return fetchJSON(`${API_BASE_URL}/workbench/agents/${agentId}`, {
+    method: "PUT",
+    body: JSON.stringify(agentData),
+  });
+}
+
+export async function listAgentRuns(agentId) {
+  return fetchJSON(`${API_BASE_URL}/workbench/agents/${agentId}/runs`);
+}
+
+export async function listAllRuns() {
+  return fetchJSON(`${API_BASE_URL}/workbench/runs`);
+}
+
+export async function getRun(runId) {
+  return fetchJSON(`${API_BASE_URL}/workbench/runs/${runId}`);
+}
+
+export async function deleteAllRuns() {
+  return fetchJSON(`${API_BASE_URL}/workbench/runs`, { method: "DELETE" });
+}
+
 // ============================================================================
 // KBA Drafter APIs
 // ============================================================================
@@ -441,4 +515,3 @@ export async function triggerAutoGeneration(userId = "manual-trigger") {
     body: JSON.stringify({ user_id: userId }),
   });
 }
-

@@ -1,20 +1,14 @@
 """
-Agent Workbench - Public API
+Agent Workbench — Backward-compatibility shim.
 
-Import everything you need from this package:
+All functionality has moved to the `agent_builder` package.
+This module re-exports everything so existing imports continue to work.
 
-    from agent_workbench import (
-        WorkbenchService,
-        ToolRegistry,
-        AgentDefinitionCreate,
-        AgentRunCreate,
-        SuccessCriteria,
-        CriteriaType,
-    )
+    from agent_workbench import WorkbenchService  # still works
 """
 
-from .evaluator import compute_score, evaluate_run
-from .models import (
+# Re-export everything from the new module
+from agent_builder import (  # noqa: F401
     AgentDefinition,
     AgentDefinitionCreate,
     AgentDefinitionUpdate,
@@ -25,15 +19,15 @@ from .models import (
     CriteriaType,
     RunStatus,
     SuccessCriteria,
+    WorkbenchService,
+    ToolRegistry,
+    compute_score,
+    evaluate_run,
 )
-from .service import WorkbenchService
-from .tool_registry import ToolRegistry
 
 __all__ = [
-    # Service
     "WorkbenchService",
     "ToolRegistry",
-    # Models
     "AgentDefinition",
     "AgentDefinitionCreate",
     "AgentDefinitionUpdate",
@@ -44,7 +38,6 @@ __all__ = [
     "CriteriaType",
     "RunStatus",
     "SuccessCriteria",
-    # Evaluator helpers (useful for tests)
     "compute_score",
     "evaluate_run",
 ]

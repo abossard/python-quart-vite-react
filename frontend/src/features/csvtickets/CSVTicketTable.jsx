@@ -15,6 +15,12 @@ import {
     Caption1,
     Card,
     CardHeader,
+    Dialog,
+    DialogActions,
+    DialogBody,
+    DialogContent,
+    DialogSurface,
+    DialogTitle,
     Dropdown,
     makeStyles,
     Option,
@@ -27,10 +33,11 @@ import {
     ArrowDown24Regular,
     ArrowSync24Regular,
     ArrowUp24Regular,
+    Dismiss24Regular,
     Filter24Regular,
 } from '@fluentui/react-icons'
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import { getCSVTicketFields, getCSVTickets, getCSVTicketStats } from '../../services/api'
+import { getCSVTicket, getCSVTicketFields, getCSVTickets, getCSVTicketStats } from '../../services/api'
 
 // ============================================================================
 // STYLES
@@ -139,6 +146,36 @@ const useStyles = makeStyles({
     textAlign: 'center',
     color: tokens.colorNeutralForeground3,
   },
+  clickableRow: {
+    cursor: 'pointer',
+  },
+  detailGrid: {
+    display: 'grid',
+    gridTemplateColumns: '1fr 1fr',
+    gap: tokens.spacingVerticalS,
+    marginTop: tokens.spacingVerticalM,
+  },
+  detailField: {
+    display: 'flex',
+    flexDirection: 'column',
+    gap: tokens.spacingVerticalXXS,
+    padding: tokens.spacingVerticalXS,
+  },
+  detailFieldWide: {
+    display: 'flex',
+    flexDirection: 'column',
+    gap: tokens.spacingVerticalXXS,
+    padding: tokens.spacingVerticalXS,
+    gridColumn: '1 / -1',
+  },
+  detailLabel: {
+    fontWeight: tokens.fontWeightSemibold,
+    fontSize: tokens.fontSizeBase200,
+    color: tokens.colorNeutralForeground3,
+  },
+  detailValue: {
+    fontSize: tokens.fontSizeBase300,
+  },
 })
 
 // ============================================================================
@@ -192,6 +229,46 @@ function getPriorityBadge(priority) {
   return <Badge appearance="tint" color={color}>{priority || '—'}</Badge>
 }
 
+// Wide fields that deserve full-width display
+const WIDE_FIELDS = new Set(['summary', 'notes', 'resolution'])
+
+// Fields to show in the detail modal, in order
+const DETAIL_DISPLAY_ORDER = [
+  'incident_id', 'status', 'priority', 'urgency', 'impact',
+  'summary',
+  'requester_name', 'email', 'company', 'city', 'country',
+  'assignee', 'assigned_group', 'owner_group',
+  'operational_cat_tier1', 'operational_cat_tier2', 'operational_cat_tier3',
+  'product_cat_tier1', 'product_cat_tier2', 'product_cat_tier3',
+  'created_at', 'updated_at', 'closed_date',
+  'notes', 'resolution',
+]
+
+function TicketDetailContent({ ticket, styles }) {
+  // Order known fields first, then append any remaining
+  const knownKeys = DETAIL_DISPLAY_ORDER.filter(k => ticket[k] !== undefined && ticket[k] !== null && ticket[k] !== '')
+  const extraKeys = Object.keys(ticket).filter(k => !DETAIL_DISPLAY_ORDER.includes(k) && k !== 'id' && ticket[k] !== null && ticket[k] !== undefined && ticket[k] !== '')
+  const orderedKeys = [...knownKeys, ...extraKeys]
+
+  return (
+    <div className={styles.detailGrid}>
+      {orderedKeys.map(key => {
+        const isWide = WIDE_FIELDS.has(key)
+        return (
+          <div key={key} className={isWide ? styles.detailFieldWide : styles.detailField}>
+            <span className={styles.detailLabel}>{key.replace(/_/g, ' ')}</span>
+            <span className={styles.detailValue}>
+              {key === 'status' ? getStatusBadge(ticket[key])
+                : key === 'priority' ? getPriorityBadge(ticket[key])
+                : formatCellValue(ticket[key], key)}
+            </span>
+          </div>
+        )
+      })}
+    </div>
+  )
+}
+
 // ============================================================================
 // COMPONENT
 // ============================================================================
@@ -222,6 +299,26 @@ export default function CSVTicketTable() {
     'incident_id', 'summary', 'status', 'priority', 'assignee', 'assigned_group', 
     'requester_name', 'city', 'created_at'
   ])
+
+  // Detail modal
+  const [detailOpen, setDetailOpen] = useState(false)
+  const [detailTicket, setDetailTicket] = useState(null)
+  const [detailLoading, setDetailLoading] = useState(false)
+
+  const openTicketDetail = useCallback(async (ticket) => {
+    const ticketId = ticket.incident_id || ticket.id
+    if (!ticketId) return
+    setDetailOpen(true)
+    setDetailLoading(true)
+    try {
+      const full = await getCSVTicket(ticketId)
+      setDetailTicket(full)
+    } catch {
+      setDetailTicket(ticket) // fallback to row data
+    } finally {
+      setDetailLoading(false)
+    }
+  }, [])
 
   // Load field metadata
   useEffect(() => {
@@ -458,7 +555,8 @@ export default function CSVTicketTable() {
                 {tickets.map((ticket, idx) => (
                   <tr 
                     key={ticket.id || idx} 
-                    className={idx % 2 === 0 ? styles.tr : styles.trAlternate}
+                    className={`${idx % 2 === 0 ? styles.tr : styles.trAlternate} ${styles.clickableRow}`}
+                    onClick={() => openTicketDetail(ticket)}
                   >
                     {columns.map(col => (
                       <td key={col.name} className={styles.td}>
@@ -495,6 +593,39 @@ export default function CSVTicketTable() {
           </>
         )}
       </div>
+
+      {/* Ticket Detail Modal */}
+      <Dialog open={detailOpen} onOpenChange={(_, data) => setDetailOpen(data.open)}>
+        <DialogSurface style={{ maxWidth: '700px' }}>
+          <DialogBody>
+            <DialogTitle
+              action={
+                <Button
+                  appearance="subtle"
+                  icon={<Dismiss24Regular />}
+                  onClick={() => setDetailOpen(false)}
+                />
+              }
+            >
+              {detailTicket?.incident_id || 'Ticket Detail'}
+            </DialogTitle>
+            <DialogContent>
+              {detailLoading ? (
+                <div className={styles.loading}>
+                  <Spinner label="Loading ticket details..." />
+                </div>
+              ) : detailTicket ? (
+                <TicketDetailContent ticket={detailTicket} styles={styles} />
+              ) : null}
+            </DialogContent>
+            <DialogActions>
+              <Button appearance="secondary" onClick={() => setDetailOpen(false)}>
+                Close
+              </Button>
+            </DialogActions>
+          </DialogBody>
+        </DialogSurface>
+      </Dialog>
     </div>
   )
 }
