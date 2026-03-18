@@ -3,8 +3,8 @@
 This document explains the coding principles and patterns used in this project. It's designed to help you understand not just *what* the code does, but *why* it's structured this way.
 
 ## Links for Quart and React
-[/api/mynameis](https://quart.palletsprojects.com/en/latest/)
-https://react.dev/learn 
+- [Quart documentation](https://quart.palletsprojects.com/en/latest/)
+- [React learn](https://react.dev/learn)
 
 ## Table of Contents
 

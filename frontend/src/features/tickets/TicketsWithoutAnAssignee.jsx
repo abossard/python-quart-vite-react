@@ -11,32 +11,32 @@
  */
 
 import {
-  Badge,
-  Button,
-  DataGrid,
-  DataGridBody,
-  DataGridCell,
-  DataGridHeader,
-  DataGridHeaderCell,
-  DataGridRow,
-  Field,
-  Input,
-  MessageBar,
-  MessageBarBody,
-  Select,
-  Spinner,
-  TableCellLayout,
-  Text,
-  createTableColumn,
-  makeStyles,
-  tokens
+    Badge,
+    Button,
+    DataGrid,
+    DataGridBody,
+    DataGridCell,
+    DataGridHeader,
+    DataGridHeaderCell,
+    DataGridRow,
+    Field,
+    Input,
+    MessageBar,
+    MessageBarBody,
+    Select,
+    Spinner,
+    TableCellLayout,
+    Text,
+    createTableColumn,
+    makeStyles,
+    tokens
 } from '@fluentui/react-components'
 import {
-  AlertUrgent20Regular,
-  Checkmark24Regular,
-  PlayCircle24Regular,
-  Search20Regular,
-  Warning24Regular,
+    AlertUrgent20Regular,
+    Checkmark24Regular,
+    PlayCircle24Regular,
+    Search20Regular,
+    Warning24Regular,
 } from '@fluentui/react-icons'
 import { useState } from 'react'
 import { getQATickets } from '../../services/api'
@@ -104,9 +104,13 @@ const useStyles = makeStyles({
     fontWeight: tokens.fontWeightSemibold,
     color: tokens.colorNeutralForeground3,
     fontSize: tokens.fontSizeBase200,
+    overflowWrap: "break-word",
+    wordBreak: "break-word",
   },
   detailValue: {
     fontSize: tokens.fontSizeBase300,
+    overflowWrap: "break-word",
+    wordBreak: "break-word",
   },
   footer: {
     display: 'grid',
@@ -157,7 +161,7 @@ function filterTickets(tickets, searchTerm, priorityFilter) {
     const term = searchTerm.toLowerCase()
     filtered = filtered.filter(
       (ticket) =>
-        ticket.id.toLowerCase().includes(term) ||
+        (ticket.incident_id || ticket.id).toLowerCase().includes(term) ||
         ticket.title.toLowerCase().includes(term) ||
         ticket.description.toLowerCase().includes(term)
     )
@@ -194,12 +198,14 @@ export default function TicketsWithoutAnAssignee() {
   // Columns for DataGrid
   const columns = [
     createTableColumn({
-      columnId: 'id',
-      compare: (a, b) => a.id.localeCompare(b.id),
-      renderHeaderCell: () => 'ID',
+      columnId: 'incident_id',
+      compare: (a, b) => (a.incident_id || a.id).localeCompare(b.incident_id || b.id),
+      renderHeaderCell: () => 'Incident ID',
       renderCell: (item) => (
         <TableCellLayout>
-          <Text weight="semibold">{item.id}</Text>
+          <Text weight="semibold" style={{ fontFamily: 'monospace' }}>
+            {item.incident_id || item.id}
+          </Text>
         </TableCellLayout>
       ),
     }),
@@ -246,7 +252,7 @@ export default function TicketsWithoutAnAssignee() {
 
   const handleReminder = () => {
     if (selectedTicket) {
-      setReminderMessage(`Erinnerung für Ticket ${selectedTicket.id} wurde gesendet.`)
+      setReminderMessage(`Erinnerung für Ticket ${selectedTicket.incident_id || selectedTicket.id} wurde gesendet.`)
       // TODO: Backend integration - send reminder API call
     }
   }
@@ -268,7 +274,7 @@ export default function TicketsWithoutAnAssignee() {
   const handleMarkAsGood = () => {
     if (selectedTicket) {
       setTicketDecisions(prev => ({ ...prev, [selectedTicket.id]: 'GOOD' }))
-      setReminderMessage(`Ticket ${selectedTicket.id} als GOOD markiert.`)
+      setReminderMessage(`Ticket ${selectedTicket.incident_id || selectedTicket.id} als GOOD markiert.`)
       // TODO: Backend integration - update ticket status
     }
   }
@@ -276,7 +282,7 @@ export default function TicketsWithoutAnAssignee() {
   const handleMarkAsEscalate = () => {
     if (selectedTicket) {
       setTicketDecisions(prev => ({ ...prev, [selectedTicket.id]: 'ESCALATE' }))
-      setReminderMessage(`Ticket ${selectedTicket.id} zur Eskalation markiert.`)
+      setReminderMessage(`Ticket ${selectedTicket.incident_id || selectedTicket.id} zur Eskalation markiert.`)
       // TODO: Backend integration - escalate ticket
     }
   }
@@ -301,7 +307,7 @@ export default function TicketsWithoutAnAssignee() {
           </Button>
         </div>
         {error && (
-          <MessageBar intent="error" style={{ marginTop: tokens.spacingVerticalM }}>
+          <MessageBar intent="error" style={{ marginTop: tokens.spacingVerticalM, overflowWrap: "break-word" }}>
             <MessageBarBody>{error}</MessageBarBody>
           </MessageBar>
         )}
@@ -387,8 +393,10 @@ export default function TicketsWithoutAnAssignee() {
                 </div>
 
                 <div className={styles.detailField}>
-                  <Text className={styles.detailLabel}>Ticket ID</Text>
-                  <Text className={styles.detailValue}>{selectedTicket.id}</Text>
+                  <Text className={styles.detailLabel}>Incident ID</Text>
+                  <Text className={styles.detailValue} style={{ fontFamily: 'monospace', fontWeight: 600 }}>
+                    {selectedTicket.incident_id || selectedTicket.id}
+                  </Text>
                 </div>
 
                 <div className={styles.detailField}>
@@ -431,7 +439,7 @@ export default function TicketsWithoutAnAssignee() {
                 </div>
 
                 {selectedTicket.escalationNeeded && (
-                  <MessageBar intent="warning">
+                  <MessageBar intent="warning" style={{ overflowWrap: "break-word" }}>
                     <MessageBarBody>
                       <AlertUrgent20Regular /> Eskalation erforderlich
                     </MessageBarBody>
@@ -439,7 +447,7 @@ export default function TicketsWithoutAnAssignee() {
                 )}
 
                 {ticketDecisions[selectedTicket.id] && (
-                  <MessageBar intent={ticketDecisions[selectedTicket.id] === 'GOOD' ? 'success' : 'error'}>
+                  <MessageBar intent={ticketDecisions[selectedTicket.id] === 'GOOD' ? 'success' : 'error'} style={{ overflowWrap: "break-word" }}>
                     <MessageBarBody>
                       {ticketDecisions[selectedTicket.id] === 'GOOD' ? (
                         <><Checkmark24Regular /> Als GOOD markiert</>
@@ -463,7 +471,7 @@ export default function TicketsWithoutAnAssignee() {
       <div className={styles.footer}>
         <div style={{ gridColumn: '1 / 3' }}>
           {reminderMessage && (
-            <MessageBar intent="success">
+            <MessageBar intent="success" style={{ overflowWrap: "break-word" }}>
               <MessageBarBody>{reminderMessage}</MessageBarBody>
             </MessageBar>
           )}

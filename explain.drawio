@@ -1,6 +1,6 @@
 <mxfile host="65bd71144e">
     <diagram id="lG4lScdXApjigMqi7QEq" name="Page-1">
-        <mxGraphModel dx="134" dy="367" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="827" pageHeight="1169" math="0" shadow="0">
+        <mxGraphModel dx="142" dy="349" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="827" pageHeight="1169" math="0" shadow="0">
             <root>
                 <mxCell id="0"/>
                 <mxCell id="1" parent="0"/>
@@ -93,6 +93,52 @@
                 </mxCell>
                 <mxCell id="vc1tvxiwz19uGiisHoE9-4" value="Ticket Feed HTTP/MCP" style="rounded=1;whiteSpace=wrap;html=1;" vertex="1" parent="1">
                     <mxGeometry x="480" y="270" width="120" height="60" as="geometry"/>
+                </mxCell>
+            </root>
+        </mxGraphModel>
+    </diagram>
+    <diagram id="z9dqFADI0s595GAb3csE" name="Page-3">
+        <mxGraphModel dx="620" dy="349" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1169" pageHeight="827" math="0" shadow="0">
+            <root>
+                <mxCell id="0"/>
+                <mxCell id="1" parent="0"/>
+                <mxCell id="IuoHuGdUUK8f0i8YGFLd-6" style="edgeStyle=none;html=1;" edge="1" parent="1" source="IuoHuGdUUK8f0i8YGFLd-1" target="IuoHuGdUUK8f0i8YGFLd-4">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+                <mxCell id="IuoHuGdUUK8f0i8YGFLd-1" value="MCP Server&lt;div&gt;http / stdio&lt;/div&gt;" style="rounded=0;whiteSpace=wrap;html=1;verticalAlign=top;" vertex="1" parent="1">
+                    <mxGeometry x="355" y="100" width="150" height="130" as="geometry"/>
+                </mxCell>
+                <mxCell id="IuoHuGdUUK8f0i8YGFLd-3" value="tools / messages" style="shape=document;whiteSpace=wrap;html=1;boundedLbl=1;size=0.25;" vertex="1" parent="1">
+                    <mxGeometry x="370" y="140" width="120" height="80" as="geometry"/>
+                </mxCell>
+                <mxCell id="IuoHuGdUUK8f0i8YGFLd-5" style="edgeStyle=none;html=1;" edge="1" parent="1" source="IuoHuGdUUK8f0i8YGFLd-4" target="IuoHuGdUUK8f0i8YGFLd-1">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+                <mxCell id="IuoHuGdUUK8f0i8YGFLd-4" value="MCP Client" style="rounded=0;whiteSpace=wrap;html=1;verticalAlign=middle;" vertex="1" parent="1">
+                    <mxGeometry x="160" y="147.5" width="110" height="35" as="geometry"/>
+                </mxCell>
+            </root>
+        </mxGraphModel>
+    </diagram>
+    <diagram id="J8elHMVoRpAwEhrLpLax" name="Page-4">
+        <mxGraphModel dx="620" dy="349" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1169" pageHeight="827" math="0" shadow="0">
+            <root>
+                <mxCell id="0"/>
+                <mxCell id="1" parent="0"/>
+                <mxCell id="dzx4cuffQn9y2Km5vQKR-5" style="edgeStyle=none;html=1;" edge="1" parent="1" source="dzx4cuffQn9y2Km5vQKR-1" target="dzx4cuffQn9y2Km5vQKR-3">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+                <mxCell id="dzx4cuffQn9y2Km5vQKR-1" value="Copilot" style="ellipse;whiteSpace=wrap;html=1;aspect=fixed;" vertex="1" parent="1">
+                    <mxGeometry x="90" y="140" width="80" height="80" as="geometry"/>
+                </mxCell>
+                <mxCell id="dzx4cuffQn9y2Km5vQKR-4" style="edgeStyle=none;html=1;" edge="1" parent="1" source="dzx4cuffQn9y2Km5vQKR-2" target="dzx4cuffQn9y2Km5vQKR-3">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+                <mxCell id="dzx4cuffQn9y2Km5vQKR-2" value="Robit Agent" style="ellipse;whiteSpace=wrap;html=1;aspect=fixed;" vertex="1" parent="1">
+                    <mxGeometry x="340" y="140" width="80" height="80" as="geometry"/>
+                </mxCell>
+                <mxCell id="dzx4cuffQn9y2Km5vQKR-3" value="&lt;div&gt;Python&lt;/div&gt;/mcp" style="rounded=0;whiteSpace=wrap;html=1;" vertex="1" parent="1">
+                    <mxGeometry x="190" y="300" width="120" height="60" as="geometry"/>
                 </mxCell>
             </root>
         </mxGraphModel>

@@ -9,18 +9,110 @@ from pathlib import Path
 from typing import Any
 from uuid import UUID
 
+from agent_workbench import AgentDefinitionCreate, AgentDefinitionUpdate, AgentRunCreate
 from api_decorators import operation
+from auto_gen_models import AutoGenRunResult, AutoGenSettings, AutoGenSettingsUpdate
+from auto_gen_service import AutoGenService
 from csv_data import get_csv_ticket_service
+from kba_audit import get_audit_service
+from kba_models import (
+    KBADraft,
+    KBADraftCreate,
+    KBADraftFilter,
+    KBADraftListResponse,
+    KBADraftUpdate,
+    KBAPublishRequest,
+    KBAPublishResult,
+)
+from kba_service import get_kba_service
+from sqlmodel import Session, create_engine, text
 from tasks import Task, TaskCreate, TaskFilter, TaskService, TaskStats, TaskUpdate
-from tickets import Ticket, TicketStatus
+from tickets import (
+    SlaBreachReport,
+    Ticket,
+    TicketSlaInfo,
+    TicketStatus,
+    get_sla_breach_report,
+)
 
 # Service instances shared across interfaces
 _task_service = TaskService()
 _csv_service = get_csv_ticket_service()
 _csv_loaded = False
+_auto_gen_service = None  # Initialized lazily
+
+# KBA service requires database session - initialized lazily
+_kba_db_engine = None
+_kba_session = None
+
+
+def _migrate_kba_schema(engine) -> None:
+    """Add missing columns to existing kba_drafts table.
+    
+    This ensures backward compatibility when new fields are added to KBADraftTable.
+    The function is idempotent - safe to run on every startup.
+    """
+    with Session(engine) as session:
+        # Check if search_questions column exists
+        rows = list(session.exec(text("PRAGMA table_info(kba_drafts)")).all())
+        columns = {row[1] for row in rows if len(row) > 1}
+        
+        if 'search_questions' not in columns:
+            # Add search_questions column with default empty JSON array
+            session.exec(text(
+                "ALTER TABLE kba_drafts ADD COLUMN search_questions TEXT DEFAULT '[]'"
+            ))
+            session.commit()
+        
+        # Check if is_auto_generated column exists
+        if 'is_auto_generated' not in columns:
+            # Add is_auto_generated column with default False
+            session.exec(text(
+                "ALTER TABLE kba_drafts ADD COLUMN is_auto_generated INTEGER DEFAULT 0"
+            ))
+            session.commit()
+        
+        # Check if generation_warnings column exists
+        if 'generation_warnings' not in columns:
+            session.exec(text(
+                "ALTER TABLE kba_drafts ADD COLUMN generation_warnings TEXT DEFAULT '[]'"
+            ))
+            session.commit()
+
+
+def _get_kba_session() -> Session:
+    """Get or create KBA database session"""
+    global _kba_db_engine, _kba_session
+    if _kba_db_engine is None:
+        from pathlib import Path
+
+        from auto_gen_models import AutoGenSettingsTable
+        from kba_models import KBAAuditLog, KBADraftTable
+        from sqlmodel import SQLModel
+        
+        db_path = Path(__file__).parent / "data" / "kba.db"
+        db_path.parent.mkdir(parents=True, exist_ok=True)
+        
+        _kba_db_engine = create_engine(f"sqlite:///{db_path}", echo=False)
+        SQLModel.metadata.create_all(_kba_db_engine)
+        _migrate_kba_schema(_kba_db_engine)
+    
+    if _kba_session is None:
+        _kba_session = Session(_kba_db_engine)
+    
+    return _kba_session
+
+
+def _get_auto_gen_service() -> AutoGenService:
+    """Get or create auto-generation service instance"""
+    global _auto_gen_service
+    if _auto_gen_service is None:
+        _auto_gen_service = AutoGenService()
+    return _auto_gen_service
 
 
 CSV_TICKET_FIELDS = [
+    {"name": "incident_id", "label": "Incident ID", "type": "string"},
     {"name": "id", "label": "ID", "type": "uuid"},
     {"name": "summary", "label": "Summary", "type": "string"},
     {"name": "status", "label": "Status", "type": "enum"},
@@ -43,6 +135,23 @@ CSV_TICKET_FIELDS = [
     {"name": "notes", "label": "Notes", "type": "string"},
 ]
 
+# Compact fields for agent/MCP tool responses — excludes notes, resolution,
+# description, work logs, and other heavy fields to minimize token usage.
+# Full Ticket with all fields: ~1500 chars (~400 tokens) per ticket
+# Compact ticket: ~250 chars (~60 tokens) — 87% reduction.
+_COMPACT_TICKET_FIELDS = {
+    "incident_id", "summary", "status", "priority", "assignee",
+    "assigned_group", "requester_name", "city", "created_at", "updated_at",
+}
+
+
+def _compact_tickets(tickets: list[Ticket]) -> list[dict[str, Any]]:
+    """Serialize tickets with compact fields only — for agent/MCP consumers."""
+    return [
+        {k: v for k, v in t.model_dump(mode="json").items() if k in _COMPACT_TICKET_FIELDS}
+        for t in tickets
+    ]
+
 
 def _ensure_csv_loaded() -> None:
     """Load the default CSV file once so MCP tools are immediately usable."""
@@ -54,8 +163,18 @@ def _ensure_csv_loaded() -> None:
     if default_csv_path.exists():
         try:
             _csv_service.load_csv(default_csv_path)
-        except Exception:
-            pass
+        except Exception as exc:
+            import logging
+            logging.getLogger(__name__).warning(
+                "Failed to load CSV data from %s: %s", default_csv_path, exc
+            )
+    else:
+        import logging
+        logging.getLogger(__name__).warning(
+            "CSV data file not found: %s — ticket operations will return empty results. "
+            "Place your BMC Remedy/ITSM CSV export at csv/data.csv to enable ticket features.",
+            default_csv_path.resolve(),
+        )
     _csv_loaded = True
 
 
@@ -85,6 +204,12 @@ def _sorted_tickets(tickets: list[Ticket], sort: str, sort_dir: str) -> list[Tic
         return sorted(tickets, key=sort_key, reverse=reverse)
     except TypeError:
         return tickets
+
+
+def _get_workbench_service():
+    """Lazy import avoids circular import during module bootstrap."""
+    from workbench_integration import workbench_service
+    return workbench_service
 
 
 @operation(
@@ -155,19 +280,19 @@ async def op_get_task_stats() -> TaskStats:
 
 @operation(
     name="csv_list_tickets",
-    description="List tickets loaded from CSV with optional filters and pagination",
+    description="List tickets loaded from CSV with optional filters and pagination. Returns compact fields (incident_id, summary, status, priority, assignee, assigned_group, requester_name, city, created_at, updated_at). Use csv_get_ticket for full details.",
     http_method="GET",
 )
 async def op_csv_list_tickets(
     status: str | None = None,
     assigned_group: str | None = None,
     has_assignee: bool | None = None,
-    limit: int = 100,
+    limit: int = 25,
     offset: int = 0,
     sort: str = "created_at",
     sort_dir: str = "desc",
-) -> list[Ticket]:
-    """List CSV tickets for MCP/agent consumers."""
+) -> list[dict]:
+    """List CSV tickets with compact fields for agent efficiency."""
     _ensure_csv_loaded()
     parsed_status = _parse_status(status)
     tickets = _csv_service.list_tickets(
@@ -178,42 +303,54 @@ async def op_csv_list_tickets(
     tickets = _sorted_tickets(tickets, sort, sort_dir)
 
     normalized_offset = max(offset, 0)
-    normalized_limit = min(max(limit, 1), 500)
-    return tickets[normalized_offset: normalized_offset + normalized_limit]
+    normalized_limit = min(max(limit, 1), 100)
+    return _compact_tickets(tickets[normalized_offset: normalized_offset + normalized_limit])
 
 
 @operation(
     name="csv_get_ticket",
-    description="Get a single CSV ticket by UUID",
+    description="Get full details of a single CSV ticket by INC number (e.g. INC000016349327) or UUID. Use this to drill down after finding tickets with csv_list_tickets or csv_search_tickets. Optionally specify fields (comma-separated) to limit response.",
     http_method="GET",
 )
-async def op_csv_get_ticket(ticket_id: str) -> Ticket | None:
-    """Get one CSV ticket."""
+async def op_csv_get_ticket(ticket_id: str, fields: str = "") -> dict | None:
+    """Get one CSV ticket with optional field selection."""
     _ensure_csv_loaded()
-    try:
-        parsed_id = UUID(ticket_id)
-    except ValueError:
+    # Try INC number first (primary identifier)
+    if ticket_id.upper().startswith("INC"):
+        ticket = _csv_service.get_ticket_by_incident_id(ticket_id)
+    else:
+        try:
+            parsed_id = UUID(ticket_id)
+        except ValueError:
+            return None
+        ticket = _csv_service.get_ticket(parsed_id)
+    if ticket is None:
         return None
-    return _csv_service.get_ticket(parsed_id)
+    dump = ticket.model_dump(mode="json")
+    if fields and fields.strip() and fields.strip() != "*":
+        selected = {f.strip() for f in fields.split(",") if f.strip()}
+        return {k: v for k, v in dump.items() if k in selected}
+    return dump
 
 
 @operation(
     name="csv_search_tickets",
-    description="Search CSV tickets by text across summary, description, notes, requester and location fields",
+    description="Search CSV tickets by text across incident ID, summary, description, notes, requester and location fields. Returns compact fields. Use csv_get_ticket for full details.",
     http_method="GET",
 )
-async def op_csv_search_tickets(query: str, limit: int = 50) -> list[Ticket]:
-    """Search CSV tickets with a simple case-insensitive contains check."""
+async def op_csv_search_tickets(query: str, limit: int = 25) -> list[dict]:
+    """Search CSV tickets — returns compact fields for agent efficiency."""
     _ensure_csv_loaded()
     q = query.strip().lower()
     if not q:
         return []
 
-    normalized_limit = min(max(limit, 1), 500)
+    normalized_limit = min(max(limit, 1), 100)
     matches: list[Ticket] = []
     for ticket in _csv_service.list_tickets():
         haystack = " ".join(
             [
+                ticket.incident_id or "",
                 ticket.summary or "",
                 ticket.description or "",
                 ticket.notes or "",
@@ -231,7 +368,59 @@ async def op_csv_search_tickets(query: str, limit: int = 50) -> list[Ticket]:
             if len(matches) >= normalized_limit:
                 break
 
-    return matches
+    return _compact_tickets(matches)
+
+
+# Fields included in detailed search results (compact + notes/resolution for knowledgebase use)
+_DETAIL_TICKET_FIELDS = _COMPACT_TICKET_FIELDS | {"notes", "resolution", "description"}
+
+
+@operation(
+    name="csv_count_tickets",
+    description="Count how many tickets match a search query WITHOUT returning the data. Use this to check result size before fetching details. Fast and cheap.",
+    http_method="GET",
+)
+async def op_csv_count_tickets(query: str = "", status: str | None = None) -> dict:
+    """Count matching tickets without returning them."""
+    _ensure_csv_loaded()
+    parsed_status = _parse_status(status)
+    tickets = _csv_service.list_tickets(status=parsed_status)
+    if query.strip():
+        q = query.strip().lower()
+        tickets = [t for t in tickets if q in " ".join([
+            t.incident_id or "", t.summary or "", t.description or "",
+            t.notes or "", t.requester_name or "", t.assigned_group or "", t.city or "",
+        ]).lower()]
+    return {"count": len(tickets), "query": query, "status": status}
+
+
+@operation(
+    name="csv_search_tickets_with_details",
+    description="Search tickets AND return full details (notes, resolution, description) in one call. Use this when you need ticket content for analysis, knowledgebase articles, or detailed reports. Limit defaults to 10 to keep responses fast.",
+    http_method="GET",
+)
+async def op_csv_search_tickets_with_details(query: str, limit: int = 10) -> list[dict]:
+    """Search tickets with full details — avoids needing csv_get_ticket per result."""
+    _ensure_csv_loaded()
+    q = query.strip().lower()
+    if not q:
+        return []
+    normalized_limit = min(max(limit, 1), 25)
+    matches: list[Ticket] = []
+    for ticket in _csv_service.list_tickets():
+        haystack = " ".join([
+            ticket.incident_id or "", ticket.summary or "", ticket.description or "",
+            ticket.notes or "", ticket.resolution or "", ticket.requester_name or "",
+            ticket.assigned_group or "", ticket.city or "", ticket.service or "",
+        ]).lower()
+        if q in haystack:
+            matches.append(ticket)
+            if len(matches) >= normalized_limit:
+                break
+    return [
+        {k: v for k, v in t.model_dump(mode="json").items() if k in _DETAIL_TICKET_FIELDS}
+        for t in matches
+    ]
 
 
 @operation(
@@ -271,6 +460,403 @@ async def op_csv_ticket_fields() -> list[dict[str, str]]:
     return CSV_TICKET_FIELDS
 
 
+@operation(
+    name="csv_sla_breach_tickets",
+    description=(
+        "Return tickets at SLA breach risk from the CSV dataset. "
+        "By default only unassigned tickets (assigned to a group but no individual) are included. "
+        "Results contain pre-computed age_hours, sla_threshold_hours, and breach_status. "
+        "Grouped: 'breached' first, then 'at_risk'. Within each group sorted by age_hours descending. "
+        "The reference timestamp is the maximum created_at date found in the selected tickets "
+        "(not the current system time), making results deterministic for historical datasets. "
+        "SLA thresholds: critical=4h, high=24h, medium=72h, low=120h."
+    ),
+    http_method="GET",
+)
+async def op_csv_sla_breach_tickets(
+    unassigned_only: bool = True,
+    include_ok: bool = False,
+) -> SlaBreachReport:
+    """
+    Pre-compute SLA breach status for CSV tickets.
+
+    Args:
+        unassigned_only: When True (default), only return tickets that are assigned
+            to a group but have no individual assignee — the primary use case for
+            proactive SLA monitoring.
+        include_ok: When True, also include tickets that are within their SLA window.
+            Default False keeps the result focused on actionable items.
+
+    Returns:
+        SlaBreachReport with reference_timestamp, counts, and a sorted list of
+        TicketSlaInfo objects ready for display or further AI commentary.
+    """
+    _ensure_csv_loaded()
+    tickets = _csv_service.list_tickets(
+        has_assignee=False if unassigned_only else None,
+    )
+    return get_sla_breach_report(tickets, reference_time=None, include_ok=include_ok)
+
+
+@operation(
+    name="workbench_list_tools",
+    description="List tools available for Agent Fabric definitions",
+    http_method="GET",
+    http_path="/api/workbench/tools",
+)
+async def op_workbench_list_tools() -> list[dict[str, Any]]:
+    """Return all registered tool metadata from the workbench registry."""
+    return _get_workbench_service().list_tools()
+
+
+@operation(
+    name="workbench_list_agents",
+    description="List all Agent Fabric agent definitions",
+    http_method="GET",
+    http_path="/api/workbench/agents",
+)
+async def op_workbench_list_agents() -> list[dict[str, Any]]:
+    """List all persisted workbench agent definitions."""
+    agents = _get_workbench_service().list_agents()
+    return [agent.to_dict() for agent in agents]
+
+
+@operation(
+    name="workbench_create_agent",
+    description="Create a new Agent Fabric agent definition",
+    http_method="POST",
+    http_path="/api/workbench/agents",
+)
+async def op_workbench_create_agent(data: AgentDefinitionCreate) -> dict[str, Any]:
+    """Create and persist a workbench agent definition."""
+    agent = _get_workbench_service().create_agent(data)
+    return agent.to_dict()
+
+
+@operation(
+    name="workbench_get_agent",
+    description="Get one Agent Fabric agent definition by id",
+    http_method="GET",
+    http_path="/api/workbench/agents/{agent_id}",
+)
+async def op_workbench_get_agent(agent_id: str) -> dict[str, Any] | None:
+    """Fetch one workbench agent definition by id."""
+    agent = _get_workbench_service().get_agent(agent_id)
+    return agent.to_dict() if agent else None
+
+
+@operation(
+    name="workbench_update_agent",
+    description="Update an Agent Fabric agent definition",
+    http_method="PUT",
+    http_path="/api/workbench/agents/{agent_id}",
+)
+async def op_workbench_update_agent(
+    agent_id: str,
+    data: AgentDefinitionUpdate,
+) -> dict[str, Any] | None:
+    """Update and return one workbench agent definition."""
+    agent = _get_workbench_service().update_agent(agent_id, data)
+    return agent.to_dict() if agent else None
+
+
+@operation(
+    name="workbench_delete_agent",
+    description="Delete an Agent Fabric agent definition",
+    http_method="DELETE",
+    http_path="/api/workbench/agents/{agent_id}",
+)
+async def op_workbench_delete_agent(agent_id: str) -> bool:
+    """Delete one workbench agent definition by id."""
+    return _get_workbench_service().delete_agent(agent_id)
+
+
+@operation(
+    name="workbench_run_agent",
+    description="Run an Agent Fabric agent with a prompt",
+    http_method="POST",
+    http_path="/api/workbench/agents/{agent_id}/runs",
+)
+async def op_workbench_run_agent(agent_id: str, data: AgentRunCreate) -> dict[str, Any]:
+    """Execute an existing workbench agent definition and persist the run."""
+    run = await _get_workbench_service().run_agent(agent_id, data)
+    return run.to_dict()
+
+
+@operation(
+    name="workbench_list_agent_runs",
+    description="List Agent Fabric runs for a specific agent",
+    http_method="GET",
+    http_path="/api/workbench/agents/{agent_id}/runs",
+)
+async def op_workbench_list_agent_runs(
+    agent_id: str,
+    limit: int = 50,
+) -> list[dict[str, Any]]:
+    """Return recent runs for a single workbench agent."""
+    normalized_limit = min(max(limit, 1), 500)
+    runs = _get_workbench_service().list_runs(agent_id=agent_id, limit=normalized_limit)
+    return [run.to_dict() for run in runs]
+
+
+@operation(
+    name="workbench_list_runs",
+    description="List Agent Fabric runs, optionally filtered by agent id",
+    http_method="GET",
+    http_path="/api/workbench/runs",
+)
+async def op_workbench_list_runs(
+    agent_id: str | None = None,
+    limit: int = 50,
+) -> list[dict[str, Any]]:
+    """Return recent workbench runs."""
+    normalized_limit = min(max(limit, 1), 500)
+    runs = _get_workbench_service().list_runs(agent_id=agent_id, limit=normalized_limit)
+    return [run.to_dict() for run in runs]
+
+
+@operation(
+    name="workbench_get_run",
+    description="Get one Agent Fabric run by id",
+    http_method="GET",
+    http_path="/api/workbench/runs/{run_id}",
+)
+async def op_workbench_get_run(run_id: str) -> dict[str, Any] | None:
+    """Fetch one persisted run by id."""
+    run = _get_workbench_service().get_run(run_id)
+    return run.to_dict() if run else None
+
+
+@operation(
+    name="workbench_evaluate_run",
+    description="Evaluate an Agent Fabric run against its success criteria",
+    http_method="POST",
+    http_path="/api/workbench/runs/{run_id}/evaluate",
+)
+async def op_workbench_evaluate_run(run_id: str) -> dict[str, Any]:
+    """Evaluate one run and upsert its evaluation record."""
+    evaluation = await _get_workbench_service().evaluate_run(run_id)
+    return evaluation.to_dict()
+
+
+@operation(
+    name="workbench_get_evaluation",
+    description="Get evaluation for an Agent Fabric run",
+    http_method="GET",
+    http_path="/api/workbench/runs/{run_id}/evaluation",
+)
+async def op_workbench_get_evaluation(run_id: str) -> dict[str, Any] | None:
+    """Get existing evaluation result for one run."""
+    evaluation = _get_workbench_service().get_evaluation(run_id)
+    return evaluation.to_dict() if evaluation else None
+
+
+# ============================================================================
+# KBA DRAFTER OPERATIONS
+# ============================================================================
+
+@operation(
+    name="kba_generate_draft",
+    description="Generate KBA draft from ticket using OpenAI",
+    http_method="POST",
+    http_path="/api/kba/drafts",
+)
+async def op_kba_generate_draft(data: KBADraftCreate) -> KBADraft:
+    """Generate a new KBA draft from a ticket."""
+    session = _get_kba_session()
+    kba_service = get_kba_service(session)
+    return await kba_service.generate_draft(data)
+
+
+@operation(
+    name="kba_get_draft",
+    description="Get KBA draft by ID",
+    http_method="GET",
+    http_path="/api/kba/drafts/{draft_id}",
+)
+async def op_kba_get_draft(draft_id: str) -> KBADraft:
+    """Get a KBA draft by ID."""
+    from uuid import UUID
+    session = _get_kba_session()
+    kba_service = get_kba_service(session)
+    return kba_service.get_draft(UUID(draft_id))
+
+
+@operation(
+    name="kba_update_draft",
+    description="Update KBA draft fields",
+    http_method="PATCH",
+    http_path="/api/kba/drafts/{draft_id}",
+)
+async def op_kba_update_draft(
+    draft_id: str,
+    data: KBADraftUpdate,
+    user_id: str,
+) -> KBADraft:
+    """Update a KBA draft."""
+    from uuid import UUID
+    session = _get_kba_session()
+    kba_service = get_kba_service(session)
+    return kba_service.update_draft(UUID(draft_id), data, user_id)
+
+
+@operation(
+    name="kba_replace_draft",
+    description="Replace/regenerate KBA draft with new content",
+    http_method="POST",
+    http_path="/api/kba/drafts/{draft_id}/replace",
+)
+async def op_kba_replace_draft(
+    draft_id: str,
+    user_id: str = "anonymous",
+) -> KBADraft:
+    """Replace a KBA draft with newly generated content."""
+    from uuid import UUID
+    session = _get_kba_session()
+    kba_service = get_kba_service(session)
+    return await kba_service.replace_draft(UUID(draft_id), user_id)
+
+
+@operation(
+    name="kba_delete_draft",
+    description="Delete KBA draft",
+    http_method="DELETE",
+    http_path="/api/kba/drafts/{draft_id}",
+)
+async def op_kba_delete_draft(
+    draft_id: str,
+    user_id: str = "anonymous",
+) -> bool:
+    """Delete a KBA draft."""
+    from uuid import UUID
+    session = _get_kba_session()
+    kba_service = get_kba_service(session)
+    return kba_service.delete_draft(UUID(draft_id), user_id)
+
+
+@operation(
+    name="kba_publish_draft",
+    description="Publish KBA draft to knowledge base",
+    http_method="POST",
+    http_path="/api/kba/drafts/{draft_id}/publish",
+)
+async def op_kba_publish_draft(
+    draft_id: str,
+    data: KBAPublishRequest,
+) -> KBAPublishResult:
+    """Publish a KBA draft to the target knowledge base system."""
+    from uuid import UUID
+    session = _get_kba_session()
+    kba_service = get_kba_service(session)
+    return await kba_service.publish_draft(UUID(draft_id), data)
+
+
+@operation(
+    name="kba_list_drafts",
+    description="List KBA drafts with filtering",
+    http_method="GET",
+    http_path="/api/kba/drafts",
+)
+async def op_kba_list_drafts(filters: KBADraftFilter) -> KBADraftListResponse:
+    """List KBA drafts with optional filtering."""
+    session = _get_kba_session()
+    kba_service = get_kba_service(session)
+    return kba_service.list_drafts(filters)
+
+
+@operation(
+    name="kba_get_audit_trail",
+    description="Get audit trail for a KBA draft",
+    http_method="GET",
+    http_path="/api/kba/drafts/{draft_id}/audit",
+)
+async def op_kba_get_audit_trail(draft_id: str) -> list[dict[str, Any]]:
+    """Get complete audit trail for a KBA draft."""
+    from uuid import UUID
+    session = _get_kba_session()
+    audit_service = get_audit_service(session)
+    events = audit_service.get_audit_trail(UUID(draft_id))
+    return [event.model_dump() for event in events]
+
+
+@operation(
+    name="kba_get_auto_gen_settings",
+    description="Get automatic KBA generation settings",
+    http_method="GET",
+    http_path="/api/kba/auto-gen/settings",
+)
+async def op_kba_get_auto_gen_settings() -> AutoGenSettings:
+    """Get auto-generation configuration."""
+    auto_gen_service = _get_auto_gen_service()
+    return auto_gen_service.get_settings()
+
+
+@operation(
+    name="kba_update_auto_gen_settings",
+    description="Update automatic KBA generation settings",
+    http_method="PATCH",
+    http_path="/api/kba/auto-gen/settings",
+)
+async def op_kba_update_auto_gen_settings(data: AutoGenSettingsUpdate) -> AutoGenSettings:
+    """Update auto-generation configuration."""
+    auto_gen_service = _get_auto_gen_service()
+    updates = data.model_dump(exclude_unset=True)
+    settings = auto_gen_service.update_settings(updates)
+    
+    # Update scheduler if schedule_time changed
+    if "schedule_time" in updates:
+        from scheduler import get_scheduler
+        scheduler = get_scheduler()
+        scheduler.update_schedule(settings.schedule_time)
+    
+    return settings
+
+
+@operation(
+    name="kba_trigger_auto_gen",
+    description="Manually trigger automatic KBA generation",
+    http_method="POST",
+    http_path="/api/kba/auto-gen/trigger",
+)
+async def op_kba_trigger_auto_gen(user_id: str = "manual-trigger") -> AutoGenRunResult:
+    """Manually trigger automatic KBA draft generation."""
+    auto_gen_service = _get_auto_gen_service()
+    return await auto_gen_service.run_auto_generation(user_id=user_id)
+
+
+@operation(
+    name="kba_list_guidelines",
+    description="List available KBA guidelines",
+    http_method="GET",
+    http_path="/api/kba/guidelines",
+)
+async def op_kba_list_guidelines() -> dict[str, Any]:
+    """List all available KBA guideline categories."""
+    from guidelines_loader import get_guidelines_loader
+    loader = get_guidelines_loader()
+    return {
+        "available": loader.list_available(),
+        "default": "GENERAL"
+    }
+
+
+@operation(
+    name="kba_get_guideline",
+    description="Get specific KBA guideline content",
+    http_method="GET",
+    http_path="/api/kba/guidelines/{category}",
+)
+async def op_kba_get_guideline(category: str) -> dict[str, Any]:
+    """Get content of a specific guideline category."""
+    from guidelines_loader import get_guidelines_loader
+    loader = get_guidelines_loader()
+    content = loader.load_guideline(category)
+    return {
+        "category": category,
+        "content": content
+    }
+
+
 # Export shared services for callers (REST app, CLI tools, etc.)
 task_service = _task_service
 csv_ticket_service = _csv_service
@@ -289,5 +875,30 @@ __all__ = [
     "op_csv_search_tickets",
     "op_csv_ticket_stats",
     "op_csv_ticket_fields",
+    "op_csv_sla_breach_tickets",
+    "op_workbench_list_tools",
+    "op_workbench_list_agents",
+    "op_workbench_create_agent",
+    "op_workbench_get_agent",
+    "op_workbench_update_agent",
+    "op_workbench_delete_agent",
+    "op_workbench_run_agent",
+    "op_workbench_list_agent_runs",
+    "op_workbench_list_runs",
+    "op_workbench_get_run",
+    "op_workbench_evaluate_run",
+    "op_workbench_get_evaluation",
+    "op_kba_generate_draft",
+    "op_kba_get_draft",
+    "op_kba_update_draft",
+    "op_kba_delete_draft",
+    "op_kba_publish_draft",
+    "op_kba_list_drafts",
+    "op_kba_get_audit_trail",
+    "op_kba_get_auto_gen_settings",
+    "op_kba_update_auto_gen_settings",
+    "op_kba_trigger_auto_gen",
+    "op_kba_list_guidelines",
+    "op_kba_get_guideline",
     "CSV_TICKET_FIELDS",
 ]

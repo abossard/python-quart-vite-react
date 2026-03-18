@@ -11,39 +11,39 @@
  */
 
 import {
-  Badge,
-  DataGrid,
-  DataGridBody,
-  DataGridCell,
-  DataGridHeader,
-  DataGridHeaderCell,
-  DataGridRow,
-  Field,
-  Input,
-  MessageBar,
-  MessageBarBody,
-  Select,
-  Spinner,
-  Tab,
-  TabList,
-  TableCellLayout,
-  Text,
-  createTableColumn,
-  makeStyles,
-  tokens
+    Badge,
+    DataGrid,
+    DataGridBody,
+    DataGridCell,
+    DataGridHeader,
+    DataGridHeaderCell,
+    DataGridRow,
+    Field,
+    Input,
+    MessageBar,
+    MessageBarBody,
+    Select,
+    Spinner,
+    Tab,
+    TabList,
+    TableCellLayout,
+    Text,
+    createTableColumn,
+    makeStyles,
+    tokens
 } from '@fluentui/react-components'
 import {
-  ArrowClockwise20Regular,
-  Building20Regular,
-  Calendar20Regular,
-  Clock20Regular,
-  Document20Regular,
-  DocumentBulletList20Regular,
-  Info20Regular,
-  Location20Regular,
-  Person20Regular,
-  Search20Regular,
-  Tag20Regular
+    ArrowClockwise20Regular,
+    Building20Regular,
+    Calendar20Regular,
+    Clock20Regular,
+    Document20Regular,
+    DocumentBulletList20Regular,
+    Info20Regular,
+    Location20Regular,
+    Person20Regular,
+    Search20Regular,
+    Tag20Regular
 } from '@fluentui/react-icons'
 import { useEffect, useState } from 'react'
 
@@ -175,9 +175,13 @@ const useStyles = makeStyles({
     color: tokens.colorNeutralForeground3,
     fontSize: tokens.fontSizeBase200,
     textTransform: 'uppercase',
+    overflowWrap: "break-word",
+    wordBreak: "break-word",
   },
   detailValue: {
     fontSize: tokens.fontSizeBase300,
+    overflowWrap: "break-word",
+    wordBreak: "break-word",
   },
   descriptionBox: {
     backgroundColor: tokens.colorNeutralBackground3,
@@ -185,6 +189,8 @@ const useStyles = makeStyles({
     borderRadius: tokens.borderRadiusMedium,
     whiteSpace: 'pre-wrap',
     lineHeight: '1.5',
+    overflowWrap: "break-word",
+    wordBreak: "break-word",
   },
   worklogItem: {
     borderLeft: `3px solid ${tokens.colorBrandStroke1}`,
@@ -291,6 +297,7 @@ function filterTickets(tickets, searchTerm, priorityFilter, statusFilter) {
     const term = searchTerm.toLowerCase()
     filtered = filtered.filter(
       (ticket) =>
+        ticket.incident_id?.toLowerCase().includes(term) ||
         ticket.id?.toLowerCase().includes(term) ||
         ticket.summary?.toLowerCase().includes(term) ||
         ticket.requester_name?.toLowerCase().includes(term) ||
@@ -333,6 +340,18 @@ export default function TicketList() {
 
   // Columns for DataGrid
   const columns = [
+    createTableColumn({
+      columnId: 'incident_id',
+      compare: (a, b) => (a.incident_id || '').localeCompare(b.incident_id || ''),
+      renderHeaderCell: () => 'Incident ID',
+      renderCell: (item) => (
+        <TableCellLayout>
+          <Text style={{ fontFamily: 'monospace', fontSize: tokens.fontSizeBase200, fontWeight: tokens.fontWeightSemibold }}>
+            {item.incident_id || '—'}
+          </Text>
+        </TableCellLayout>
+      ),
+    }),
     createTableColumn({
       columnId: 'summary',
       compare: (a, b) => (a.summary || '').localeCompare(b.summary || ''),
@@ -378,7 +397,7 @@ export default function TicketList() {
       renderHeaderCell: () => 'Created',
       renderCell: (item) => (
         <TableCellLayout>
-          <Text style={{ fontSize: tokens.fontSizeBase200, color: tokens.colorNeutralForeground3 }}>
+          <Text style={{ fontSize: tokens.fontSizeBase200, color: tokens.colorNeutralForeground3, overflowWrap: "break-word", wordBreak: "break-word" }}>
             {formatRelativeTime(item.created_at)}
           </Text>
         </TableCellLayout>
@@ -457,11 +476,11 @@ export default function TicketList() {
             )}
           </div>
         </div>
-        <Text weight="semibold" style={{ display: 'block', marginBottom: tokens.spacingVerticalXS }}>
+        <Text weight="semibold" style={{ display: 'block', marginBottom: tokens.spacingVerticalXS, overflowWrap: "break-word", wordBreak: "break-word" }}>
           {log.summary}
         </Text>
         {log.details && (
-          <Text style={{ color: tokens.colorNeutralForeground2 }}>{log.details}</Text>
+          <Text style={{ color: tokens.colorNeutralForeground2, overflowWrap: "break-word", wordBreak: "break-word" }}>{log.details}</Text>
         )}
       </div>
     )
@@ -483,7 +502,7 @@ export default function TicketList() {
   if (error) {
     return (
       <div className={styles.loadingContainer}>
-        <MessageBar intent="error">
+        <MessageBar intent="error" style={{ overflowWrap: "break-word" }}>
           <MessageBarBody>{error}</MessageBarBody>
         </MessageBar>
       </div>
@@ -595,6 +614,11 @@ export default function TicketList() {
               {/* Detail Header */}
               <div className={styles.detailHeader}>
                 <Text className={styles.detailTitle}>{detail.summary}</Text>
+                {detail.incident_id && (
+                  <Text style={{ fontFamily: 'monospace', fontSize: tokens.fontSizeBase200, color: tokens.colorNeutralForeground3, marginBottom: tokens.spacingVerticalXS, display: 'block', overflowWrap: "break-word", wordBreak: "break-word" }}>
+                    {detail.incident_id}
+                  </Text>
+                )}
                 <div className={styles.detailMeta}>
                   <Badge appearance={getStatusAppearance(detail.status)} className={styles.statusBadge}>
                     {detail.status?.replace('_', ' ')}
