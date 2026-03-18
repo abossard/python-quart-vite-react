@@ -37,12 +37,19 @@ from api_decorators import get_operation, operation
 # CSV ticket service
 from csv_data import Ticket, get_csv_ticket_service
 
+# FastMCP client for direct ticket MCP calls (no AI)
+from fastmcp import Client as MCPClient
+
 # KBA Drafter
 from kba_exceptions import (
     DraftNotFoundError,
     DuplicateKBADraftError,
     InvalidLLMOutputError,
     InvalidStatusError,
+    LLMAuthenticationError,
+    LLMRateLimitError,
+    LLMTimeoutError,
+    LLMUnavailableError,
     PublishFailedError,
     TicketNotFoundError,
 )
@@ -53,15 +60,6 @@ from kba_models import (
     KBADraftUpdate,
     KBAPublishRequest,
 )
-from kba_exceptions import (
-    LLMTimeoutError,
-    LLMUnavailableError,
-    LLMRateLimitError,
-    LLMAuthenticationError,
-)
-
-# FastMCP client for direct ticket MCP calls (no AI)
-from fastmcp import Client as MCPClient
 from mcp_handler import handle_mcp_request
 from operations import (
     CSV_TICKET_FIELDS,
@@ -111,8 +109,9 @@ app.register_blueprint(agent_builder_bp)
 @app.before_serving
 async def startup():
     """Initialize scheduler on application startup"""
-    from scheduler import start_scheduler
     import logging
+
+    from scheduler import start_scheduler
     
     logger = logging.getLogger(__name__)
     logger.info("Starting auto-generation scheduler...")
@@ -127,8 +126,9 @@ async def startup():
 @app.after_serving
 async def shutdown():
     """Cleanup scheduler on application shutdown"""
-    from scheduler import stop_scheduler
     import logging
+
+    from scheduler import stop_scheduler
     
     logger = logging.getLogger(__name__)
     logger.info("Stopping auto-generation scheduler...")
@@ -585,6 +585,12 @@ _csv_data_path = Path(__file__).parent.parent / "csv" / "data.csv"
 if _csv_data_path.exists():
     _csv_loaded = _csv_ticket_service.load_csv(_csv_data_path)
     print(f"📊 Loaded {_csv_loaded} tickets from CSV")
+else:
+    print(
+        f"⚠️  CSV data file not found: {_csv_data_path.resolve()}\n"
+        f"   Ticket features will be unavailable.\n"
+        f"   To fix: place your BMC Remedy/ITSM CSV export at csv/data.csv"
+    )
 
 
 @app.route("/api/csv-tickets/fields", methods=["GET"])
@@ -974,6 +980,7 @@ async def rest_kba_publish_draft(draft_id: str):
 async def rest_kba_list_drafts():
     """REST wrapper: list KBA drafts with filtering."""
     from operations import op_kba_list_drafts
+
     # Parse query parameters
     filters = KBADraftFilter(
         status=request.args.get("status"),
@@ -1039,8 +1046,8 @@ async def rest_kba_get_auto_gen_settings():
 @app.route("/api/kba/auto-gen/settings", methods=["PATCH"])
 async def rest_kba_update_auto_gen_settings():
     """REST wrapper: update auto-generation settings."""
-    from operations import op_kba_update_auto_gen_settings
     from auto_gen_models import AutoGenSettingsUpdate
+    from operations import op_kba_update_auto_gen_settings
     
     data = await request.get_json()
     updates = AutoGenSettingsUpdate(**data)
