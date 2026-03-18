@@ -85,8 +85,9 @@ def _get_kba_session() -> Session:
     global _kba_db_engine, _kba_session
     if _kba_db_engine is None:
         from pathlib import Path
-        from kba_models import KBADraftTable, KBAAuditLog
+
         from auto_gen_models import AutoGenSettingsTable
+        from kba_models import KBAAuditLog, KBADraftTable
         from sqlmodel import SQLModel
         
         db_path = Path(__file__).parent / "data" / "kba.db"
@@ -162,8 +163,18 @@ def _ensure_csv_loaded() -> None:
     if default_csv_path.exists():
         try:
             _csv_service.load_csv(default_csv_path)
-        except Exception:
-            pass
+        except Exception as exc:
+            import logging
+            logging.getLogger(__name__).warning(
+                "Failed to load CSV data from %s: %s", default_csv_path, exc
+            )
+    else:
+        import logging
+        logging.getLogger(__name__).warning(
+            "CSV data file not found: %s — ticket operations will return empty results. "
+            "Place your BMC Remedy/ITSM CSV export at csv/data.csv to enable ticket features.",
+            default_csv_path.resolve(),
+        )
     _csv_loaded = True
 
 
