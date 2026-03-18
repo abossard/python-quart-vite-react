@@ -1,34 +1,52 @@
 # LangGraph Agent Playground
 
+> **📖 Full architecture documentation:** See **[AGENT_BUILDER.md](AGENT_BUILDER.md)** for mermaid diagrams, data flow, structured output pipeline, DB schema, and extensibility guide.
+
 ## Overview
 
-A complete LangGraph agent implementation with Azure OpenAI integration for task management automation.
-
-## Features
-
-- **ReAct Agent Pattern**: Reasoning + Acting loop with automatic tool discovery
-- **Azure OpenAI Integration**: Uses Azure's OpenAI service via `langchain-openai`
-- **Automatic Tool Discovery**: All `@operation` decorated functions become agent tools
-- **Type-Safe**: Pydantic models throughout for validation and schemas
-- **Unified Architecture**: Same operations work for REST, MCP, and now AI agents
+Config-driven LLM agents built with LangGraph. Define an agent in the UI (system prompt, tools, output schema) → it's stored in SQLite → runs as a ReAct agent with structured output.
 
 ## Architecture
+
+```mermaid
+graph LR
+    subgraph "Agent Definition (DB)"
+        D[system_prompt<br/>tool_names<br/>model/temperature<br/>output_schema]
+    end
+
+    subgraph "Runtime"
+        R[ToolRegistry.resolve] --> T[LangChain Tools]
+        D --> P[prompt_builder]
+        D --> L[build_llm<br/>per-agent config]
+        P --> A[create_react_agent]
+        T --> A
+        L --> A
+        D -->|output_schema| A
+    end
+
+    A -->|response_format| LLM[OpenAI]
+    LLM --> S[structured_response<br/>typed JSON]
+```
 
 ### Components
 
 ```
-backend/
-├── agents.py              # Agent service with ReAct loop
-├── api_decorators.py      # Extended with to_langchain_tool()
-├── app.py                 # Integrated agent endpoint
-├── tasks.py               # Task operations (auto-exposed as tools)
-└── .env                   # Azure OpenAI configuration
+backend/agent_builder/         # Canonical module
+├── models/                    # Pure data (Pydantic/SQLModel)
+├── tools/                     # ToolRegistry, schema converter
+├── engine/                    # ReAct runner, prompt builder, callbacks
+├── evaluator.py               # Success criteria evaluation
+├── persistence/               # SQLite repository + migrations
+├── service.py                 # WorkbenchService (CRUD + run + eval)
+├── chat_service.py            # ChatService (one-shot)
+├── routes.py                  # Quart Blueprint
+└── tests/                     # 132 tests
 ```
 
 ### How It Works
 
 1. **Operations → Tools**: The `@operation` decorator automatically converts functions to LangChain tools via `to_langchain_tool()`
-2. **Agent Initialization**: `AgentService` loads all tools and creates a ReAct agent with Azure OpenAI
+2. **Agent Initialization**: `WorkbenchService` (or `ChatService`) loads tools from the registry and creates a ReAct agent
 3. **Execution**: Agent receives user prompt, autonomously chooses tools, executes them, and returns results
 
 ### Example Flow
@@ -183,9 +201,9 @@ The agent has access to all `@operation` decorated functions:
 - `AgentResponse` - Structured output with metadata
 
 **Service Layer**:
-- `AgentService.__init__()` - Initializes Azure OpenAI client, loads tools
-- `AgentService.run_agent()` - Executes ReAct agent loop
-- `AgentService._build_state_graph()` - Example for custom LangGraph workflows (learning reference)
+- `WorkbenchService` — CRUD + run + evaluate agents (see [AGENT_BUILDER.md](AGENT_BUILDER.md))
+- `ChatService` — One-shot chat agent
+- Legacy `AgentService` in `agents.py` — Simple chat for `/api/agents/run`
 
 ### api_decorators.py Extensions
 
@@ -197,28 +215,36 @@ The agent has access to all `@operation` decorated functions:
 **Key Insight**: Every `@operation` decorated function automatically becomes:
 1. REST endpoint (existing)
 2. MCP tool (existing)
-3. **LangChain agent tool (NEW!)**
+3. **LangChain agent tool**
 
 ## Learning Examples
 
-### Simple Agent Usage
+### Agent Builder (Configurable)
+
+```python
+from agent_builder import WorkbenchService, AgentDefinitionCreate
+
+# Create via REST or directly:
+agent = service.create_agent(AgentDefinitionCreate(
+    name="SLA Analyzer",
+    system_prompt="Analyze ticket SLA breaches",
+    tool_names=["csv_ticket_stats", "csv_list_tickets"],
+    output_schema={"type": "object", "properties": {"breaches": {"type": "array"}}},
+))
+run = await service.run_agent(agent.id, AgentRunCreate(input_prompt="Check SLA"))
+```
+
+### Simple Chat Agent
 
 ```python
 from agents import AgentService, AgentRequest
 
 service = AgentService()
 result = await service.run_agent(
-    AgentRequest(
-        prompt="Create a task to learn Python",
-        agent_type="task_assistant"
-    )
+    AgentRequest(prompt="Show ticket stats", agent_type="task_assistant")
 )
 print(result.result)
 ```
-
-### Custom StateGraph (Advanced)
-
-See `AgentService._build_state_graph()` docstring for a complete example of building custom multi-step workflows with LangGraph.
 
 ## Testing
 
