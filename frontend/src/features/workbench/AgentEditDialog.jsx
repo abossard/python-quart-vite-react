@@ -1,25 +1,34 @@
 import {
-  Button,
-  Checkbox,
-  Dialog,
-  DialogActions,
-  DialogBody,
-  DialogContent,
-  DialogSurface,
-  DialogTitle,
-  Field,
-  Input,
-  Spinner,
-  Text,
-  Textarea,
-  makeStyles,
-  tokens,
+    Button,
+    Checkbox,
+    Dialog,
+    DialogActions,
+    DialogBody,
+    DialogContent,
+    DialogSurface,
+    DialogTitle,
+    Field,
+    Input,
+    Spinner,
+    Text,
+    Textarea,
+    makeStyles,
+    tokens,
 } from '@fluentui/react-components'
 import { useEffect, useState } from 'react'
 import { updateWorkbenchAgent } from '../../services/api'
 import SchemaEditor from './SchemaEditor'
 
 const useStyles = makeStyles({
+  dialogSurface: {
+    width: 'min(92vw, 860px)',
+    maxWidth: '860px',
+    maxHeight: '88vh',
+  },
+  dialogContent: {
+    overflowY: 'auto',
+    maxHeight: 'calc(88vh - 120px)',
+  },
   form: {
     display: 'flex',
     flexDirection: 'column',
@@ -118,10 +127,10 @@ export default function AgentEditDialog({ agent, tools, onSave, onClose }) {
 
   return (
     <Dialog open={Boolean(agent)} onOpenChange={(_, data) => { if (!data.open) onClose() }}>
-      <DialogSurface data-testid="agent-edit-dialog">
+      <DialogSurface className={styles.dialogSurface} data-testid="agent-edit-dialog">
         <DialogBody>
           <DialogTitle>{`Edit Agent: ${agent?.name || ''}`}</DialogTitle>
-          <DialogContent>
+          <DialogContent className={styles.dialogContent}>
             <div className={styles.form}>
               <Field label="Name" required>
                 <Input
