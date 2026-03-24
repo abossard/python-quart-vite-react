@@ -33,8 +33,8 @@ source "$VENV_DIR/bin/activate"
 MARKER="$VENV_DIR/.installed"
 if [ ! -f "$MARKER" ] || [ "$REQ_FILE" -nt "$MARKER" ]; then
     echo "📦 Installing/updating dependencies..."
-    pip install --quiet --upgrade pip
-    pip install --quiet -r "$REQ_FILE"
+    pip install --upgrade pip
+    pip install -r "$REQ_FILE"
     touch "$MARKER"
 else
     echo "✅ Dependencies up to date"

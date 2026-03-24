@@ -139,6 +139,9 @@ def configure_dspy(
     Uses the project's .env configuration. If no model is specified,
     uses the default from LITELLM_MODEL env var.
 
+    For github_copilot models, automatically adds the required
+    Editor-Version and other headers that the Copilot API expects.
+
     Args:
         model: LiteLLM model string (e.g., 'github_copilot/gpt-4o').
                If None, uses get_default_model().
@@ -157,9 +160,36 @@ def configure_dspy(
     if max_tokens is not None:
         kwargs["max_tokens"] = max_tokens
 
+    # GitHub Copilot models require IDE-style headers that DSPy's
+    # adapter code path may not forward automatically.
+    if model_name.startswith("github_copilot/"):
+        kwargs["extra_headers"] = _get_copilot_headers()
+
     lm = dspy.LM(model_name, cache=cache, **kwargs)
     dspy.configure(lm=lm)
     return lm
+
+
+def _get_copilot_headers() -> dict:
+    """Build the headers GitHub Copilot's API requires. ACTION: may read auth token."""
+    headers = {
+        "editor-version": "vscode/1.95.0",
+        "copilot-integration-id": "vscode-chat",
+        "editor-plugin-version": "copilot-chat/0.26.7",
+        "user-agent": "GitHubCopilotChat/0.26.7",
+        "openai-intent": "conversation-panel",
+        "x-github-api-version": "2025-04-01",
+    }
+    # If LiteLLM's authenticator has a cached token, include it so the
+    # header is present even on DSPy's fallback code paths.
+    try:
+        from litellm.llms.github_copilot.authenticator import Authenticator
+        token = Authenticator().get_api_key()
+        if token:
+            headers["Authorization"] = f"Bearer {token}"
+    except Exception:
+        pass  # Authenticator will handle auth on its own in the normal path
+    return headers
 
 
 def get_config_summary() -> dict:
