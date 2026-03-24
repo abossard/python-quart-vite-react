@@ -114,7 +114,7 @@ def run_optimization(task_id: str, optimizer: str = "BootstrapFewShot", *, max_e
     if optimizer == "MIPROv2":
         opt = dspy.MIPROv2(metric=task.metric_fn, auto="light")
     else:
-        opt = dspy.BootstrapFewShot(metric=task.metric_fn, max_bootstrapped_demos=4, max_labeled_demos=8)
+        opt = dspy.BootstrapFewShot(metric=task.metric_fn, max_bootstrapped_demos=6, max_labeled_demos=8, max_rounds=3)
     optimized_module = opt.compile(module_fresh, trainset=trainset)
     opt_elapsed = time.time() - start
 
