@@ -47,6 +47,32 @@ All deep-dive guides now live under `docs/` for easier discovery:
 
 
 
+### DSPy Prompt Tuning Playground
+
+> **NEW:** Interactive Jupyter notebook series teaching prompt optimization with DSPy
+
+- **[Playground README](notebooks/README.md)** – Setup, learning path, and task catalog
+
+#### Quick start
+
+```bash
+source .venv/bin/activate
+pip install -r notebooks/requirements.txt
+cd notebooks && jupyter lab
+```
+
+Open `00_introduction.ipynb` and follow the 8-notebook learning path. The notebooks automatically discover available models from your `.env` LiteLLM config — no hardcoded API keys needed.
+
+#### What's inside
+
+- **8 notebooks** organized by learning concept (Grokking Simplicity, Philosophy of Software Design)
+- **20 LLM tasks** across 4 tiers (Basics → Reasoning → Composition → Agentic)
+- **ipywidgets** for interactive model selection, optimization controls, and prompt diff viewing
+- **Plotly charts** for model comparison, optimization progress, and ROI calculation
+- Uses the same `LITELLM_MODEL` / `LITELLM_FALLBACK_MODELS` env vars as the backend
+
+
+
 ## 5-minute quick start (TL;DR)
 1. Clone the repo: `git clone <your-fork-url> && cd python-quart-vite-react`
 2. Run the automated bootstrap: `./setup.sh` (creates the repo-level `.venv`, installs frontend deps, installs Playwright)
