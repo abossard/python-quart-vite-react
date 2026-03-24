@@ -6,18 +6,18 @@ and exception mapping for the KBA Drafter.
 """
 
 import os
-import pytest
 from unittest.mock import AsyncMock, MagicMock, patch
-from pydantic import BaseModel, Field
 
-from llm_service import LLMService, get_llm_service
+import pytest
 from kba_exceptions import (
-    LLMUnavailableError,
-    LLMTimeoutError,
-    LLMRateLimitError,
     LLMAuthenticationError,
+    LLMRateLimitError,
+    LLMTimeoutError,
+    LLMUnavailableError,
 )
 from kba_output_models import KBAOutputSchema
+from llm_service import LLMService, get_llm_service
+from pydantic import BaseModel, Field
 
 
 # Test Pydantic Schema
@@ -135,6 +135,43 @@ class TestLLMServiceHealthCheck:
             mock_completion.return_value = mock_resp
             result = await service.health_check()
             assert result is True
+
+
+class TestLLMServiceModelCatalog:
+    """Test model catalog exposure for UI selection."""
+
+    def test_model_catalog_uses_litellm_discovery(self):
+        service = LLMService(model='github_copilot/gpt-4o', backend='litellm')
+        service._fallback_models = ['github_copilot/gpt-4o-mini']
+
+        with patch('litellm.get_valid_models') as mock_get_valid_models:
+            mock_get_valid_models.return_value = ['github_copilot/gpt-4o', 'github_copilot/claude-sonnet-4']
+
+            catalog = service.get_model_catalog()
+
+        assert catalog['backend'] == 'litellm'
+        assert catalog['provider'] == 'github_copilot'
+        assert catalog['default_model'] == 'github_copilot/gpt-4o'
+        assert catalog['fallback_models'] == ['github_copilot/gpt-4o-mini']
+        assert catalog['available_models'] == [
+            'github_copilot/gpt-4o',
+            'github_copilot/gpt-4o-mini',
+            'github_copilot/claude-sonnet-4',
+        ]
+        assert catalog['source'] == 'litellm'
+
+    def test_model_catalog_falls_back_to_configured_models(self):
+        service = LLMService(model='github_copilot/gpt-4o', backend='litellm')
+        service._fallback_models = ['github_copilot/gpt-4o-mini']
+
+        with patch('litellm.get_valid_models', side_effect=Exception('boom')):
+            catalog = service.get_model_catalog()
+
+        assert catalog['available_models'] == [
+            'github_copilot/gpt-4o',
+            'github_copilot/gpt-4o-mini',
+        ]
+        assert catalog['source'] == 'configured'
 
 
 class TestLLMServiceStructuredOutputOpenAI:
@@ -505,8 +542,9 @@ class TestLLMServiceFallbackChain:
     def test_fallback_chain_deduplication(self):
         """Test that fallback chain deduplicates the primary model"""
         with patch.dict(os.environ, {"LITELLM_FALLBACK_MODELS": "github_copilot/gpt-4o,github_copilot/claude-sonnet-4,github_copilot/gpt-4o"}):
-            import llm_service
             from importlib import reload
+
+            import llm_service
             reload(llm_service)
             
             service = llm_service.LLMService(model='github_copilot/gpt-4o', backend='litellm')

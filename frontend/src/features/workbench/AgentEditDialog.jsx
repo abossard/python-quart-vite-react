@@ -1,25 +1,37 @@
 import {
-  Button,
-  Checkbox,
-  Dialog,
-  DialogActions,
-  DialogBody,
-  DialogContent,
-  DialogSurface,
-  DialogTitle,
-  Field,
-  Input,
-  Spinner,
-  Text,
-  Textarea,
-  makeStyles,
-  tokens,
+    Button,
+    Checkbox,
+    Dialog,
+    DialogActions,
+    DialogBody,
+    DialogContent,
+    DialogSurface,
+    DialogTitle,
+    Dropdown,
+    Field,
+    Input,
+    Option,
+    Spinner,
+    Text,
+    Textarea,
+    makeStyles,
+    tokens,
 } from '@fluentui/react-components'
 import { useEffect, useState } from 'react'
 import { updateWorkbenchAgent } from '../../services/api'
+import { buildModelOptions } from './modelOptions'
 import SchemaEditor from './SchemaEditor'
 
 const useStyles = makeStyles({
+  dialogSurface: {
+    width: 'min(92vw, 860px)',
+    maxWidth: '860px',
+    maxHeight: '88vh',
+  },
+  dialogContent: {
+    overflowY: 'auto',
+    maxHeight: 'calc(88vh - 120px)',
+  },
   form: {
     display: 'flex',
     flexDirection: 'column',
@@ -38,7 +50,7 @@ const useStyles = makeStyles({
   },
 })
 
-export default function AgentEditDialog({ agent, tools, onSave, onClose }) {
+export default function AgentEditDialog({ agent, tools, modelOptions = [], serviceDefaultModel = '', onSave, onClose }) {
   const styles = useStyles()
   const [formData, setFormData] = useState({
     name: '',
@@ -46,6 +58,7 @@ export default function AgentEditDialog({ agent, tools, onSave, onClose }) {
     systemPrompt: '',
     requiresInput: false,
     requiredInputDescription: '',
+    model: '',
     showInMenu: false,
   })
   const [selectedToolNames, setSelectedToolNames] = useState([])
@@ -61,6 +74,7 @@ export default function AgentEditDialog({ agent, tools, onSave, onClose }) {
       systemPrompt: agent.system_prompt || '',
       requiresInput: Boolean(agent.requires_input),
       requiredInputDescription: agent.required_input_description || '',
+      model: agent.model || '',
       showInMenu: Boolean(agent.show_in_menu),
     })
     setSelectedToolNames(agent.tool_names || [])
@@ -80,6 +94,10 @@ export default function AgentEditDialog({ agent, tools, onSave, onClose }) {
         : [...prev, toolName],
     )
   }
+
+  const resolvedModelOptions = buildModelOptions(modelOptions, formData.model)
+  const selectedModelOption = formData.model || '__service_default__'
+  const modelDisplayValue = formData.model || (serviceDefaultModel ? `Service default (${serviceDefaultModel})` : 'Service default')
 
   const handleSave = async () => {
     setError('')
@@ -103,12 +121,13 @@ export default function AgentEditDialog({ agent, tools, onSave, onClose }) {
         required_input_description: formData.requiresInput
           ? formData.requiredInputDescription.trim()
           : '',
+        model: formData.model.trim(),
         tool_names: selectedToolNames,
         output_schema: parsedSchema,
         show_in_menu: formData.showInMenu,
       })
-      onSave(result)
       onClose()
+      void Promise.resolve(onSave?.(result))
     } catch (err) {
       setError(err?.message || 'Failed to update agent')
     } finally {
@@ -118,10 +137,10 @@ export default function AgentEditDialog({ agent, tools, onSave, onClose }) {
 
   return (
     <Dialog open={Boolean(agent)} onOpenChange={(_, data) => { if (!data.open) onClose() }}>
-      <DialogSurface data-testid="agent-edit-dialog">
+      <DialogSurface className={styles.dialogSurface} data-testid="agent-edit-dialog">
         <DialogBody>
           <DialogTitle>{`Edit Agent: ${agent?.name || ''}`}</DialogTitle>
-          <DialogContent>
+          <DialogContent className={styles.dialogContent}>
             <div className={styles.form}>
               <Field label="Name" required>
                 <Input
@@ -147,6 +166,27 @@ export default function AgentEditDialog({ agent, tools, onSave, onClose }) {
                   value={formData.systemPrompt}
                   onChange={(_, d) => setFormData((prev) => ({ ...prev, systemPrompt: d.value }))}
                 />
+              </Field>
+
+              <Field label="Model">
+                <Dropdown
+                  data-testid="edit-agent-model"
+                  value={modelDisplayValue}
+                  selectedOptions={[selectedModelOption]}
+                  onOptionSelect={(_, data) => {
+                    const nextModel = data.optionValue === '__service_default__' ? '' : (data.optionValue || '')
+                    setFormData((prev) => ({ ...prev, model: nextModel }))
+                  }}
+                >
+                  <Option value="__service_default__">
+                    {serviceDefaultModel ? `Service default (${serviceDefaultModel})` : 'Service default'}
+                  </Option>
+                  {resolvedModelOptions.map((modelName) => (
+                    <Option key={modelName} value={modelName}>
+                      {modelName}
+                    </Option>
+                  ))}
+                </Dropdown>
               </Field>
 
               <Checkbox

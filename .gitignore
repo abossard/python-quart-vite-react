@@ -53,3 +53,4 @@ logs/
 csv/*.csv
 screenshots/
 *.png
+.mcp.json

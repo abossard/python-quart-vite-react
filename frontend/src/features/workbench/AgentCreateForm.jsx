@@ -1,23 +1,25 @@
 import {
-  Button,
-  Card,
-  Checkbox,
-  Combobox,
-  Field,
-  Input,
-  Option,
-  Text,
-  Textarea,
-  makeStyles,
-  tokens,
+    Button,
+    Card,
+    Checkbox,
+    Combobox,
+    Dropdown,
+    Field,
+    Input,
+    Option,
+    Text,
+    Textarea,
+    makeStyles,
+    tokens,
 } from '@fluentui/react-components'
 import { useEffect, useState } from 'react'
 import {
-  createWorkbenchAgent,
-  improvePrompt,
-  suggestOutputSchema,
-  updateWorkbenchAgent,
+    createWorkbenchAgent,
+    improvePrompt,
+    suggestOutputSchema,
+    updateWorkbenchAgent,
 } from '../../services/api'
+import { buildModelOptions } from './modelOptions'
 import SchemaEditor from './SchemaEditor'
 
 const useStyles = makeStyles({
@@ -120,6 +122,7 @@ const EMPTY_FORM = {
   name: '',
   description: '',
   systemPrompt: '',
+  model: '',
   requiresInput: false,
   requiredInputDescription: '',
   showInMenu: false,
@@ -137,13 +140,14 @@ function formDataFromAgent(agent) {
     name: agent.name || '',
     description: agent.description || '',
     systemPrompt: agent.system_prompt || '',
+    model: agent.model || '',
     requiresInput: Boolean(agent.requires_input),
     requiredInputDescription: agent.required_input_description || '',
     showInMenu: Boolean(agent.show_in_menu),
   }
 }
 
-export default function AgentCreateForm({ tools, onAgentCreated, initialData }) {
+export default function AgentCreateForm({ tools, onAgentCreated, initialData, modelOptions = [], serviceDefaultModel = '' }) {
   const styles = useStyles()
   const isEditing = Boolean(initialData?.id)
 
@@ -175,6 +179,7 @@ export default function AgentCreateForm({ tools, onAgentCreated, initialData }) 
       name: tpl.name,
       description: tpl.description,
       systemPrompt: tpl.system_prompt,
+      model: '',
       requiresInput: Boolean(tpl.requires_input),
       requiredInputDescription: tpl.required_input_description || '',
       showInMenu: Boolean(tpl.show_in_menu),
@@ -286,6 +291,7 @@ export default function AgentCreateForm({ tools, onAgentCreated, initialData }) 
       name: formData.name.trim(),
       description: formData.description.trim(),
       system_prompt: formData.systemPrompt.trim(),
+      model: formData.model.trim(),
       requires_input: formData.requiresInput,
       required_input_description: formData.requiresInput
         ? formData.requiredInputDescription.trim()
@@ -325,6 +331,9 @@ export default function AgentCreateForm({ tools, onAgentCreated, initialData }) 
   const submitLabel = isEditing
     ? (submitting ? 'Saving...' : 'Save Agent')
     : (submitting ? 'Creating...' : 'Create Agent')
+  const resolvedModelOptions = buildModelOptions(modelOptions, formData.model)
+  const selectedModelOption = formData.model || '__service_default__'
+  const modelDisplayValue = formData.model || (serviceDefaultModel ? `Service default (${serviceDefaultModel})` : 'Service default')
 
   return (
     <div className={styles.grid}>
@@ -427,6 +436,26 @@ export default function AgentCreateForm({ tools, onAgentCreated, initialData }) 
             />
           </Field>
           {fieldErrors.systemPrompt && <Text>{fieldErrors.systemPrompt}</Text>}
+          <Field label="Model">
+            <Dropdown
+              data-testid="workbench-agent-model-select"
+              value={modelDisplayValue}
+              selectedOptions={[selectedModelOption]}
+              onOptionSelect={(_, data) => {
+                const nextModel = data.optionValue === '__service_default__' ? '' : (data.optionValue || '')
+                setFormData((prev) => ({ ...prev, model: nextModel }))
+              }}
+            >
+              <Option value="__service_default__">
+                {serviceDefaultModel ? `Service default (${serviceDefaultModel})` : 'Service default'}
+              </Option>
+              {resolvedModelOptions.map((modelName) => (
+                <Option key={modelName} value={modelName}>
+                  {modelName}
+                </Option>
+              ))}
+            </Dropdown>
+          </Field>
           <Button
             data-testid="workbench-improve-prompt-button"
             disabled={improvingPrompt || !formData.systemPrompt.trim()}
