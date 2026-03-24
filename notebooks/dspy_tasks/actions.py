@@ -147,19 +147,39 @@ def _make_signature(base_sig, instructions: str):
     })
 
 
-def _evaluate_examples(module, examples, metric_fn) -> list[dict]:
+def _evaluate_examples(module, examples, metric_fn, timeout_per_example: int = 30) -> list[dict]:
+    import signal
+
+    class TimeoutError(Exception):
+        pass
+
+    def _handler(signum, frame):
+        raise TimeoutError("LLM call timed out")
+
     results = []
-    for ex in examples:
+    for i, ex in enumerate(examples):
+        print(f"  [{i+1}/{len(examples)}]", end=" ", flush=True)
         try:
+            old_handler = signal.signal(signal.SIGALRM, _handler)
+            signal.alarm(timeout_per_example)
             input_kwargs = {k: ex[k] for k in ex.inputs().keys()}
             prediction = module(**input_kwargs)
+            signal.alarm(0)
+            signal.signal(signal.SIGALRM, old_handler)
             score = float(metric_fn(ex, prediction) or 0.0)
             input_str = " | ".join(f"{k}={str(v)}" for k, v in input_kwargs.items())
             expected_fields = {k: str(ex[k]) for k in ex.keys() if k not in ex.inputs()}
             predicted_fields = {k: str(getattr(prediction, k, "")) for k in expected_fields}
             results.append({"input": input_str, "expected": expected_fields, "predicted": predicted_fields, "score": score})
+            print("✓", flush=True)
+        except TimeoutError:
+            signal.alarm(0)
+            results.append({"input": str({k: str(ex[k])[:50] for k in ex.inputs().keys()}), "expected": "N/A", "predicted": "TIMEOUT", "score": 0.0})
+            print("⏰ timeout", flush=True)
         except Exception as e:
+            signal.alarm(0)
             results.append({"input": str({k: str(ex[k])[:50] for k in ex.inputs().keys()}), "expected": "N/A", "predicted": f"ERROR: {e}", "score": 0.0})
+            print(f"✗ {e}", flush=True)
     return results
 
 
