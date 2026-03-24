@@ -45,6 +45,7 @@ class OptimizationResult:
     trial_scores: list[float]
     elapsed_seconds: float
     llm_calls: int
+    optimized_individual_scores: list[dict] = None  # per-example results after optimization
 
 @dataclass
 class ComparisonResult:
@@ -221,15 +222,15 @@ def display_improvement(baseline: float, optimized: float):
     delta = optimized - baseline
     pct = (delta / max(baseline, 0.01)) * 100
     arrow = "↑" if delta > 0 else "↓" if delta < 0 else "→"
-    color = "#107c10" if delta > 0 else "#d13438" if delta < 0 else "#605e5c"
+    color = "#2ea043" if delta > 0 else "#f85149" if delta < 0 else "inherit"
     display(HTML(f'''
-        <div style="background:#f3f2f1; padding:12px; border-radius:4px; margin:8px 0">
+        <div style="padding:12px 0; margin:8px 0">
             <b>Improvement:</b> 
             <span style="color:{color}; font-size:1.3em; font-weight:bold">
                 {arrow} {abs(delta):.1%} ({pct:+.1f}%)
             </span>
             <br>
-            <span style="color:#605e5c">Baseline: {baseline:.1%} → Optimized: {optimized:.1%}</span>
+            <span style="opacity:0.7">Baseline: {baseline:.1%} → Optimized: {optimized:.1%}</span>
         </div>
     '''))
 
@@ -242,15 +243,15 @@ def display_prompt_diff(before: str, after: str, title: str = "What DSPy Changed
     """Display side-by-side prompt comparison."""
     html = f'''
     <div style="margin:16px 0">
-        <h3 style="color:#323130">{title}</h3>
+        <h3>{title}</h3>
         <div style="display:flex; gap:16px">
-            <div style="flex:1; background:#fdf6f0; border:1px solid #edebe9; border-radius:4px; padding:12px">
-                <h4 style="color:#ca5010; margin-top:0">Before (zero-shot)</h4>
-                <pre style="white-space:pre-wrap; font-size:0.85em; color:#323130">{_escape_html(before)}</pre>
+            <div style="flex:1; border:1px solid rgba(128,128,128,0.3); border-radius:4px; padding:12px">
+                <h4 style="color:#f85149; margin-top:0">Before (zero-shot)</h4>
+                <pre style="white-space:pre-wrap; font-size:0.85em">{_escape_html(before)}</pre>
             </div>
-            <div style="flex:1; background:#f0fdf0; border:1px solid #edebe9; border-radius:4px; padding:12px">
-                <h4 style="color:#107c10; margin-top:0">After (DSPy optimized)</h4>
-                <pre style="white-space:pre-wrap; font-size:0.85em; color:#323130">{_escape_html(after)}</pre>
+            <div style="flex:1; border:1px solid rgba(128,128,128,0.3); border-radius:4px; padding:12px">
+                <h4 style="color:#2ea043; margin-top:0">After (DSPy optimized)</h4>
+                <pre style="white-space:pre-wrap; font-size:0.85em">{_escape_html(after)}</pre>
             </div>
         </div>
     </div>
@@ -364,13 +365,12 @@ def display_results_table(results: list[dict], max_rows: int = 20):
 def display_insight(title: str, message: str, icon: str = "💡"):
     """Display a teaching insight card."""
     display(HTML(f'''
-    <div style="background:linear-gradient(135deg, #f0f6ff, #e8f0fe); 
-                border-left:4px solid #0078d4; padding:16px; margin:12px 0; 
+    <div style="border-left:4px solid #0078d4; padding:16px; margin:12px 0; 
                 border-radius:0 8px 8px 0">
         <div style="font-size:1.1em; font-weight:bold; color:#0078d4; margin-bottom:4px">
             {icon} {_escape_html(title)}
         </div>
-        <div style="color:#323130">{_escape_html(message)}</div>
+        <div>{_escape_html(message)}</div>
     </div>
     '''))
 
@@ -378,11 +378,11 @@ def display_tier_header(tier: int, title: str, description: str):
     """Display a tier section header."""
     stars = "★" * tier + "☆" * (4 - tier)
     display(HTML(f'''
-    <div style="background:#f3f2f1; padding:16px; margin:20px 0 12px 0; border-radius:8px">
-        <h2 style="margin:0; color:#323130">Tier {tier}: {_escape_html(title)} 
+    <div style="padding:16px; margin:20px 0 12px 0; border-radius:8px; border:1px solid rgba(128,128,128,0.2)">
+        <h2 style="margin:0">Tier {tier}: {_escape_html(title)} 
             <span style="font-size:0.7em; color:#ca5010">{stars}</span>
         </h2>
-        <p style="color:#605e5c; margin:4px 0 0 0">{_escape_html(description)}</p>
+        <p style="opacity:0.7; margin:4px 0 0 0">{_escape_html(description)}</p>
     </div>
     '''))
 

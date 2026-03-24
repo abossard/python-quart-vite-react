@@ -124,6 +124,7 @@ def run_optimization(task_id: str, optimizer: str = "BootstrapFewShot", *, max_e
         trial_scores=[baseline_score, opt_score],
         elapsed_seconds=round(opt_elapsed, 2),
         llm_calls=len(baseline_results) + len(opt_results),
+        optimized_individual_scores=opt_results,
     )
 
 
