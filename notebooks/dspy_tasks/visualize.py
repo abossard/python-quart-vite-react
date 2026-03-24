@@ -266,47 +266,94 @@ def _escape_html(text: str) -> str:
 # RESULTS TABLE
 # ============================================================================
 
+def _render_field_comparison(expected, predicted) -> tuple[str, str]:
+    """Render expected/predicted dicts with per-field color coding.
+    
+    Returns (expected_html, predicted_html) with matching/mismatching fields colored.
+    """
+    if not isinstance(expected, dict) or not isinstance(predicted, dict):
+        exp_str = _escape_html(str(expected))
+        pred_str = _escape_html(str(predicted))
+        return exp_str, pred_str
+
+    exp_parts = []
+    pred_parts = []
+    for key in expected:
+        exp_val = str(expected[key]).strip().lower()
+        pred_val = str(predicted.get(key, "")).strip().lower()
+        match = exp_val == pred_val
+        # Use inline styles that work on both light and dark themes
+        if match:
+            style = 'color:#2ea043; font-weight:bold'  # green for match
+            icon = '✅'
+        else:
+            style = 'color:#f85149; font-weight:bold'  # red for mismatch
+            icon = '❌'
+        exp_parts.append(f'<span style="{style}">{icon} {_escape_html(key)}: {_escape_html(str(expected[key]))}</span>')
+        pred_parts.append(f'<span style="{style}">{icon} {_escape_html(key)}: {_escape_html(str(predicted.get(key, "")))}</span>')
+    return '<br>'.join(exp_parts), '<br>'.join(pred_parts)
+
+
 def display_results_table(results: list[dict], max_rows: int = 20):
     """Display per-example results as an HTML table.
     
-    Each dict should have: input, expected, predicted, score
+    Each dict should have: input, expected, predicted, score.
+    expected/predicted can be dicts (per-field comparison) or strings.
     """
     rows = ""
     for i, r in enumerate(results[:max_rows]):
         score = r.get("score", 0)
         icon = "✅" if score >= 0.8 else "⚠️" if score >= 0.5 else "❌"
-        bg = "#f0fdf0" if score >= 0.8 else "#fdf6f0" if score >= 0.5 else "#fdf0f0"
+        # Use transparent overlays that work on both light and dark themes
+        if score >= 0.8:
+            bg = 'rgba(46, 160, 67, 0.1)'
+        elif score > 0:
+            bg = 'rgba(210, 153, 34, 0.1)'
+        else:
+            bg = 'rgba(248, 81, 73, 0.08)'
         input_text = str(r.get("input", ""))
-        expected = str(r.get("expected", ""))
-        predicted = str(r.get("predicted", ""))
-        td = 'style="padding:6px; border-bottom:1px solid #edebe9; font-size:0.85em; word-break:break-word"'
+        expected = r.get("expected", "")
+        predicted = r.get("predicted", "")
+        exp_html, pred_html = _render_field_comparison(expected, predicted)
+        td = 'style="padding:6px; border-bottom:1px solid rgba(128,128,128,0.2); font-size:0.85em; word-break:break-word; vertical-align:top"'
         rows += f'''
         <tr style="background:{bg}">
             <td {td}>{i+1}</td>
             <td {td}>{icon}</td>
             <td {td}>{_escape_html(input_text)}</td>
-            <td {td}>{_escape_html(expected)}</td>
-            <td {td}>{_escape_html(predicted)}</td>
-            <td style="padding:6px; border-bottom:1px solid #edebe9; font-weight:bold">{score:.0%}</td>
+            <td {td}>{exp_html}</td>
+            <td {td}>{pred_html}</td>
+            <td style="padding:6px; border-bottom:1px solid rgba(128,128,128,0.2); font-weight:bold; vertical-align:top">{score:.0%}</td>
         </tr>'''
+    
+    # Calculate and show average
+    scores = [r.get("score", 0) for r in results]
+    avg = sum(scores) / len(scores) if scores else 0
+    shown = min(len(results), max_rows)
+    total = len(results)
+    footer_note = f' (zeige {shown} von {total})' if total > max_rows else ''
     
     html = f'''
     <table style="border-collapse:collapse; width:100%; margin:12px 0; table-layout:fixed">
         <thead>
-            <tr style="background:#f3f2f1">
-                <th style="padding:8px; text-align:left; border-bottom:2px solid #8a8886; width:30px">#</th>
-                <th style="padding:8px; text-align:left; border-bottom:2px solid #8a8886; width:30px"></th>
-                <th style="padding:8px; text-align:left; border-bottom:2px solid #8a8886; width:25%">Input</th>
-                <th style="padding:8px; text-align:left; border-bottom:2px solid #8a8886; width:25%">Expected</th>
-                <th style="padding:8px; text-align:left; border-bottom:2px solid #8a8886; width:25%">Predicted</th>
-                <th style="padding:8px; text-align:left; border-bottom:2px solid #8a8886; width:50px">Score</th>
+            <tr style="background:rgba(128,128,128,0.1)">
+                <th style="padding:8px; text-align:left; border-bottom:2px solid rgba(128,128,128,0.3); width:30px">#</th>
+                <th style="padding:8px; text-align:left; border-bottom:2px solid rgba(128,128,128,0.3); width:30px"></th>
+                <th style="padding:8px; text-align:left; border-bottom:2px solid rgba(128,128,128,0.3); width:25%">Input</th>
+                <th style="padding:8px; text-align:left; border-bottom:2px solid rgba(128,128,128,0.3); width:25%">Expected</th>
+                <th style="padding:8px; text-align:left; border-bottom:2px solid rgba(128,128,128,0.3); width:25%">Predicted</th>
+                <th style="padding:8px; text-align:left; border-bottom:2px solid rgba(128,128,128,0.3); width:50px">Score</th>
             </tr>
         </thead>
         <tbody>{rows}</tbody>
+        <tfoot>
+            <tr style="background:rgba(128,128,128,0.15)">
+                <td colspan="5" style="padding:8px; font-weight:bold; border-top:2px solid rgba(128,128,128,0.3)">Durchschnitt{footer_note}</td>
+                <td style="padding:8px; font-weight:bold; border-top:2px solid rgba(128,128,128,0.3); font-size:1.1em">{avg:.0%}</td>
+            </tr>
+        </tfoot>
     </table>
-    '''
-    if len(results) > max_rows:
-        html += f'<p style="color:#605e5c">Showing {max_rows} of {len(results)} results</p>'
+    '''    
     display(HTML(html))
 
 

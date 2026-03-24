@@ -157,7 +157,7 @@ def _evaluate_examples(module, examples, metric_fn) -> list[dict]:
             input_str = " | ".join(f"{k}={str(v)}" for k, v in input_kwargs.items())
             expected_fields = {k: str(ex[k]) for k in ex.keys() if k not in ex.inputs()}
             predicted_fields = {k: str(getattr(prediction, k, "")) for k in expected_fields}
-            results.append({"input": input_str, "expected": str(expected_fields), "predicted": str(predicted_fields), "score": score})
+            results.append({"input": input_str, "expected": expected_fields, "predicted": predicted_fields, "score": score})
         except Exception as e:
             results.append({"input": str({k: str(ex[k])[:50] for k in ex.inputs().keys()}), "expected": "N/A", "predicted": f"ERROR: {e}", "score": 0.0})
     return results
