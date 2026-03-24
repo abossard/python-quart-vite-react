@@ -1,0 +1,42 @@
+[
+  {
+    "question": "How many tickets have priority 'Standard'?",
+    "answer": "2183",
+    "sources": "ticket_database"
+  },
+  {
+    "question": "How many tickets have priority 'Medium'?",
+    "answer": "743",
+    "sources": "ticket_database"
+  },
+  {
+    "question": "How many tickets have priority 'High'?",
+    "answer": "74",
+    "sources": "ticket_database"
+  },
+  {
+    "question": "Which team handles the most tickets?",
+    "answer": "SDE - Service Desk with 601 tickets",
+    "sources": "ticket_database"
+  },
+  {
+    "question": "How many tickets have status 'Pending'?",
+    "answer": "291",
+    "sources": "ticket_database"
+  },
+  {
+    "question": "How many tickets have status 'Resolved'?",
+    "answer": "2329",
+    "sources": "ticket_database"
+  },
+  {
+    "question": "How many tickets have status 'Assigned'?",
+    "answer": "224",
+    "sources": "ticket_database"
+  },
+  {
+    "question": "How many tickets have status 'In Progress'?",
+    "answer": "156",
+    "sources": "ticket_database"
+  }
+]

@@ -1,0 +1,22 @@
+[
+  {"sentence": "Elon Musk announced that Tesla will open a new Gigafactory in Austin, Texas by the end of 2025.", "entities": "Elon Musk, Tesla, Austin, Texas"},
+  {"sentence": "The European Central Bank raised interest rates following a meeting in Frankfurt last Thursday.", "entities": "European Central Bank, Frankfurt"},
+  {"sentence": "Dr. Sarah Chen published her groundbreaking research on CRISPR gene therapy in the journal Nature.", "entities": "Sarah Chen, CRISPR, Nature"},
+  {"sentence": "Microsoft acquired Activision Blizzard for approximately 69 billion dollars after regulatory approval from the FTC.", "entities": "Microsoft, Activision Blizzard, FTC"},
+  {"sentence": "The Tokyo Olympics featured athletes from over 200 countries competing in events across Japan.", "entities": "Tokyo Olympics, Japan"},
+  {"sentence": "Angela Merkel met with Emmanuel Macron in Paris to discuss the European Union's climate policy.", "entities": "Angela Merkel, Emmanuel Macron, Paris, European Union"},
+  {"sentence": "Researchers at MIT and Stanford University collaborated on a new quantum computing chip called Willow.", "entities": "MIT, Stanford University, Willow"},
+  {"sentence": "Amazon Web Services launched three new data centers in Mumbai, India to serve the Asia-Pacific region.", "entities": "Amazon Web Services, Mumbai, India, Asia-Pacific"},
+  {"sentence": "The Nobel Prize in Literature was awarded to Norwegian author Jon Fosse in Stockholm.", "entities": "Nobel Prize in Literature, Jon Fosse, Stockholm"},
+  {"sentence": "SpaceX successfully launched the Falcon Heavy rocket from Cape Canaveral carrying a NASA payload.", "entities": "SpaceX, Falcon Heavy, Cape Canaveral, NASA"},
+  {"sentence": "Chef Gordon Ramsay opened a new restaurant called Lucky Cat in Manchester's central district.", "entities": "Gordon Ramsay, Lucky Cat, Manchester"},
+  {"sentence": "The World Health Organization declared mpox a global health emergency at their Geneva headquarters.", "entities": "World Health Organization, Geneva"},
+  {"sentence": "Samsung unveiled the Galaxy S25 Ultra at their annual Unpacked event in San Jose, California.", "entities": "Samsung, Galaxy S25 Ultra, San Jose, California"},
+  {"sentence": "Professor James Watson from Oxford University presented findings on Alzheimer's treatment at the Lancet conference.", "entities": "James Watson, Oxford University, Lancet"},
+  {"sentence": "Netflix partnered with Ubisoft to develop a series based on the Assassin's Creed franchise.", "entities": "Netflix, Ubisoft, Assassin's Creed"},
+  {"sentence": "The Bank of Japan maintained its negative interest rate policy despite pressure from the International Monetary Fund.", "entities": "Bank of Japan, International Monetary Fund"},
+  {"sentence": "Architect Zaha Hadid's firm completed the Al Janoub Stadium in Al Wakrah for the Qatar World Cup.", "entities": "Zaha Hadid, Al Janoub Stadium, Al Wakrah, Qatar World Cup"},
+  {"sentence": "General Motors and LG Energy Solution invested two billion dollars in a battery plant in Lansing, Michigan.", "entities": "General Motors, LG Energy Solution, Lansing, Michigan"},
+  {"sentence": "Maria Garcia, CEO of Telefonica, announced a merger with Vodafone's operations in the United Kingdom.", "entities": "Maria Garcia, Telefonica, Vodafone, United Kingdom"},
+  {"sentence": "The Louvre Museum in Paris unveiled a newly restored painting by Leonardo da Vinci alongside works by Caravaggio.", "entities": "Louvre Museum, Paris, Leonardo da Vinci, Caravaggio"}
+]

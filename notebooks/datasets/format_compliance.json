@@ -1,0 +1,22 @@
+[
+  {"raw_data": "march 15 2024", "target_format": "ISO_DATE", "formatted_output": "2024-03-15"},
+  {"raw_data": "12/31/1999", "target_format": "ISO_DATE", "formatted_output": "1999-12-31"},
+  {"raw_data": "7th of January, 2023", "target_format": "ISO_DATE", "formatted_output": "2023-01-07"},
+  {"raw_data": "name: John Smith, age: 34, city: Boston", "target_format": "JSON", "formatted_output": "{\"name\": \"John Smith\", \"age\": 34, \"city\": \"Boston\"}"},
+  {"raw_data": "product=Laptop price=999.99 currency=USD", "target_format": "JSON", "formatted_output": "{\"product\": \"Laptop\", \"price\": 999.99, \"currency\": \"USD\"}"},
+  {"raw_data": "host: db-server-01, port: 5432, database: analytics, ssl: true", "target_format": "JSON", "formatted_output": "{\"host\": \"db-server-01\", \"port\": 5432, \"database\": \"analytics\", \"ssl\": true}"},
+  {"raw_data": "Alice 28 Engineer New York\nBob 35 Designer London\nCarla 42 Manager Tokyo", "target_format": "CSV", "formatted_output": "name,age,role,city\nAlice,28,Engineer,New York\nBob,35,Designer,London\nCarla,42,Manager,Tokyo"},
+  {"raw_data": "Item: Widget A | Qty: 100 | Price: 4.50 | Total: 450.00", "target_format": "CSV", "formatted_output": "item,quantity,price,total\nWidget A,100,4.50,450.00"},
+  {"raw_data": "hello world, this is a test message.", "target_format": "UPPERCASE", "formatted_output": "HELLO WORLD, THIS IS A TEST MESSAGE."},
+  {"raw_data": "THE QUICK BROWN FOX JUMPS OVER THE LAZY DOG", "target_format": "LOWERCASE", "formatted_output": "the quick brown fox jumps over the lazy dog"},
+  {"raw_data": "john doe", "target_format": "TITLE_CASE", "formatted_output": "John Doe"},
+  {"raw_data": "02.28.2025", "target_format": "ISO_DATE", "formatted_output": "2025-02-28"},
+  {"raw_data": "temperature: 72F, humidity: 45%, wind: 12mph, direction: NW", "target_format": "JSON", "formatted_output": "{\"temperature\": \"72F\", \"humidity\": \"45%\", \"wind\": \"12mph\", \"direction\": \"NW\"}"},
+  {"raw_data": "SELECT * FROM users WHERE age > 30", "target_format": "UPPERCASE", "formatted_output": "SELECT * FROM USERS WHERE AGE > 30"},
+  {"raw_data": "Sep 5, 2021", "target_format": "ISO_DATE", "formatted_output": "2021-09-05"},
+  {"raw_data": "first_name: Maria, last_name: Garcia, email: m.garcia@email.com, department: Engineering", "target_format": "CSV", "formatted_output": "first_name,last_name,email,department\nMaria,Garcia,m.garcia@email.com,Engineering"},
+  {"raw_data": "status=active type=premium plan=annual amount=199.99", "target_format": "JSON", "formatted_output": "{\"status\": \"active\", \"type\": \"premium\", \"plan\": \"annual\", \"amount\": 199.99}"},
+  {"raw_data": "the art of computer programming by donald knuth", "target_format": "TITLE_CASE", "formatted_output": "The Art Of Computer Programming By Donald Knuth"},
+  {"raw_data": "June 1st, 2020", "target_format": "ISO_DATE", "formatted_output": "2020-06-01"},
+  {"raw_data": "Server: web-prod-03 | CPU: 78% | Memory: 12GB/16GB | Disk: 234GB/500GB | Status: healthy", "target_format": "JSON", "formatted_output": "{\"server\": \"web-prod-03\", \"cpu\": \"78%\", \"memory\": \"12GB/16GB\", \"disk\": \"234GB/500GB\", \"status\": \"healthy\"}"}
+]

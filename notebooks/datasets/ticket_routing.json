@@ -1,0 +1,464 @@
+[
+  {
+    "summary": "Kundin kann sich am Rechner nicht anmelden — Profil der Kundin kann nicht abgemeldet werden, auch nach dem Neustart nicht — [Firma: WBF-SECO] — [Service: BS_Account Hybrid] — [Bereich: Workplace]",
+    "category": "Failure",
+    "priority": "Standard",
+    "assigned_group": "SDE - Service Desk"
+  },
+  {
+    "summary": "Eingebauter Kartenleser im Notebook funktioniert nicht mehr — R�ckruf unter --> [TELEFON] Grund der Ticketer�ffnung --> St�rung Thema (Suche / Auswahl) --> Ger�te - PC und Zube... — [Firma: EFD-BIT] — [Service: BS_Computer_Client] — [Bereich: Workplace]",
+    "category": "Failure",
+    "priority": "Standard",
+    "assigned_group": "SDE - Service Desk"
+  },
+  {
+    "summary": "SmartCard defekt — [REDACTED][TELEFON] Riguardo a (Selezione) --> L'autorizzazione / accesso - Hai dimenticato la pass... — [Firma: B&G-BStGer] — [Service: BS_Account, Mailbox, Userhome] — [Bereich: Workplace]",
+    "category": "Service Request",
+    "priority": "High",
+    "assigned_group": "SDE - Service Desk"
+  },
+  {
+    "summary": "EPOS Headset funktioniert nicht trotz Bluetooth-Verbindung — Mein neues EPOS Headset ist zwar via Bluetooth mit meinem Windows-PC verbunden, aber ich h�re keinen Ton �ber das Headse... — [Firma: B&G-BK] — [Service: BS_Headset] — [Bereich: Workplace]",
+    "category": "Service Request",
+    "priority": "Medium",
+    "assigned_group": "SDE - Service Desk"
+  },
+  {
+    "summary": "Zugang SharePoint f�r verwaltungsexterne Person funktioniert nicht — R�ckruf unter --> [TELEFON] Grund der Ticketer�ffnung --> Zugang SharePOint f�r verwaltungsexterne Person funktion... — [Firma: EDI-BAG] — [Service: BS_SharePoint OnP Sites] — [Bereich: Workplace]",
+    "category": "Service Request",
+    "priority": "Medium",
+    "assigned_group": "OFC - Office & Collaboration"
+  },
+  {
+    "summary": "Onboarding SPS — R�ckruf unter --> [TELEFON] Grund der Ticketer�ffnung --> Anfrage Thema (Suche / Auswahl) --> Software/Applikation... — [Firma: VBS-BABS] — [Service: BS_SharePoint OnP Sites] — [Bereich: Workplace]",
+    "category": "Service Request",
+    "priority": "Medium",
+    "assigned_group": "OFC - Office & Collaboration"
+  },
+  {
+    "summary": "Linker Men�streifen auf SharePoint Site im neuen Design abgeschnitten — Beim Anzeigen der SharePoint Site im neuen Design wird der linke Men�streifen zur H�lfte abgeschnitten — [Firma: VBS-VTG] — [Service: BS_SharePoint OnP Sites] — [Bereich: Workplace]",
+    "category": "Service Request",
+    "priority": "Medium",
+    "assigned_group": "OFC - Office & Collaboration"
+  },
+  {
+    "summary": "Untertitel-Funktion in Teams Anrufen trotz Teams Premium nicht verf�gbar — Ich wurde heute neu auf Teams umgestellt und kann bei Anrufen die Untertitel-Funktion nicht mehr einstellen, obwohl ich ... — [Firma: EDI-BAG] — [Service: BS_Teams Premium M365] — [Bereich: Workplace]",
+    "category": "Service Request",
+    "priority": "Medium",
+    "assigned_group": "OFC - Office & Collaboration"
+  },
+  {
+    "summary": "PRM - WLAN nicht verbunden - Userin hatte keine Verbindung zu gov-direct — mit dem neuen Rechner, den sie heute erhalten hat. — [Firma: EDI-GS] — [Service: BS_Microsoft Windows] — [Bereich: Workplace]",
+    "category": "Service Request",
+    "priority": "Standard",
+    "assigned_group": "PRM - Premium Support"
+  },
+  {
+    "summary": "PRM - Personal Print Manager - Hilfe bei der Einrichtung von Drucker — Personal Print Manager Print Manager - Userin brauchte Hilfe bei der Einrichtung von Drucker — [Firma: EDI-GS] — [Service: BS_Secure Printing] — [Bereich: Workplace]",
+    "category": "Service Request",
+    "priority": "Standard",
+    "assigned_group": "PRM - Premium Support"
+  },
+  {
+    "summary": "CPAM funktioniert nicht mehr — R�ckruf unter --> [TELEFON] Grund der Ticketer�ffnung --> St�rung Thema (Suche / Auswahl) --> Berechtigung/Zugriff... — [Firma: EJPD-SEM] — [Service: BS_SW3a - Client Privileged Acc Mgmt 2.0] — [Bereich: Workplace]",
+    "category": "Service Request",
+    "priority": "Medium",
+    "assigned_group": "CDC - Client Design & Standard SW Integration"
+  },
+  {
+    "summary": "Powershell kann nicht mehr als Adminstrator gestartet werden. — R�ckruf unter --> [TELEFON] Grund der Ticketer�ffnung --> St�rung Thema (Suche / Auswahl) --> Berechtigung/Zugriff... — [Firma: WBF-ISCeco] — [Service: BS_Account Hybrid] — [Bereich: Workplace]",
+    "category": "Service Request",
+    "priority": "High",
+    "assigned_group": "CDC - Client Design & Standard SW Integration"
+  },
+  {
+    "summary": "CEPM is not working anymore — Reachable under Phone No — [Firma: EDI-BFS] — [Service: BS_SW3a - Client Privileged Acc Mgmt 2.0] — [Bereich: Workplace]",
+    "category": "Failure",
+    "priority": "High",
+    "assigned_group": "CDC - Client Design & Standard SW Integration"
+  },
+  {
+    "summary": "CPAM Berechtigung greift nicht mehr — R�ckruf unter --> [TELEFON] Grund der Ticketer�ffnung --> St�rung Thema (Suche / Auswahl) --> Berechtigung/Zugriff... — [Firma: VBS-swisstopo] — [Service: BS_Account Hybrid] — [Bereich: Workplace]",
+    "category": "Failure",
+    "priority": "High",
+    "assigned_group": "CDC - Client Design & Standard SW Integration"
+  },
+  {
+    "summary": "Anfrage zu Berechtigungsvergabe f�r Externe — R�ckruf unter --> [TELEFON] Grund der Ticketer�ffnung --> Anfrage Thema (Suche / Auswahl) --> Berechtigung/Zugriff... — [Firma: UVEK-ARE] — [Service: BS_Account Hybrid] — [Bereich: Workplace]",
+    "category": "Service Request",
+    "priority": "Medium",
+    "assigned_group": "OUM - Incident"
+  },
+  {
+    "summary": "ADR\\A60041998 - kein Zugriff auf die Server — R�ckruf unter --> [TELEFON] Thema (Suche / Auswahl) --> Berechtigung/Zugriff - Account gesperrt ------------------... — [Firma: EFD-BIT] — [Service: BS_Account, Mailbox, Userhome] — [Bereich: Workplace]",
+    "category": "Service Request",
+    "priority": "Medium",
+    "assigned_group": "OUM - Incident"
+  },
+  {
+    "summary": "Fehlerhafte Telefonnumer in AD — R�ckruf unter --> [TELEFON] Thema (Suche / Auswahl) --> Inventar Fehler - Account, Mailbox, Userhome, Share ------... — [Firma: VBS-VTG] — [Service: OS_Inventar_Mein Support] — [Bereich: Mein Support]",
+    "category": "Service Request",
+    "priority": "Standard",
+    "assigned_group": "OUM - Incident"
+  },
+  {
+    "summary": "Anmeldefehler mit Benutzer ADB\\R01012 bei ESTV.E2.Castor@estv.admin.ch — Ich kann mich nicht mit dem Benutzer ADB\\R01012 bei der E-Mail-Adresse ESTV.E2.Castor@estv.admin.ch anmelden — [Firma: EFD-BIT] — [Service: BS_Account, Mailbox, Userhome] — [Bereich: Workplace]",
+    "category": "Service Request",
+    "priority": "Medium",
+    "assigned_group": "OUM - Incident"
+  },
+  {
+    "summary": "Login in Successfactors NOK — Userin hat neu angefangen und wollte sich einloggen um Trainingsvideos sich anzuschauen — [Firma: EDA-DR] — [Service: EDA_ANW_SAP Services] — [Bereich: Customer facing]",
+    "category": "Service Request",
+    "priority": "Standard",
+    "assigned_group": "Helpdesk"
+  },
+  {
+    "summary": "Freischaltung Aufnahmefunktion f�r Webinare — Hallo zusammen  Ich beziehe mich auf die Anfrage unten, welche Romika Feistle bereits einmal gestellt hat — [Firma: EDA-DEZA] — [Service: EDA_S_APS_OS_BasisSW_M365_Teams] — [Bereich: Customer facing]",
+    "category": "Service Request",
+    "priority": "Standard",
+    "assigned_group": "Helpdesk"
+  },
+  {
+    "summary": "Anliegen zu MDM und Hardware Arbeitsplatz — Guten Tag Ich muss versch Hardware Probleme an meinem Arbeitsplatz l�sen und die Citrix Hub vermutlich ganz neu installi... — [Firma: EDA-STS] — [Service: EDA_S_Mobile Kommunikation] — [Bereich: Customer facing]",
+    "category": "Service Request",
+    "priority": "Standard",
+    "assigned_group": "Helpdesk"
+  },
+  {
+    "summary": "MDM : Firmennetzwerk ist zurzeit nicht verf�gbar — Guten Tag  Ich wollte heute das MDM auf mein Telefon laden aber ich erhalte sofort eine Fehlermeldung, welche sagt, der ... — [Firma: EDA-DR] — [Service: EDA_S_APS_OS_BasisSW_M365_Outlook] — [Bereich: Customer facing]",
+    "category": "Service Request",
+    "priority": "Standard",
+    "assigned_group": "Helpdesk"
+  },
+  {
+    "summary": "Support e-dec - neues Passwort — Passwort User gesperrt; neues Passwort — [Firma: EFD-BAZG] — [Service: PS_e-dec_Applikationen] — [Bereich: Applikationen]",
+    "category": "Failure",
+    "priority": "Standard",
+    "assigned_group": "Service-Center IKT"
+  },
+  {
+    "summary": "Gesperrtes Login — Betroffener Benutzer: [REDACTED]  R�ckruf unter: ###[TELEFON]  Kontakt: [REDACTED]  Rufr�ck unter: ###  T... — [Firma: EFD-BAZG] — [Service: PS_e-dec_Applikationen] — [Bereich: Applikationen]",
+    "category": "Failure",
+    "priority": "Standard",
+    "assigned_group": "Service-Center IKT"
+  },
+  {
+    "summary": "Zus�tzlich Test GP-ID f�r Schulungszwecke - DAKOSY AG — Guten Tag,   wir als Softwarelieferant ben�tigen eine zus�tzliche GP-ID, damit wir unsere Tests und Schulungsabdeckung g... — [Firma: EFD-BAZG EXTERN] — [Service: BS_ePortal] — [Bereich: Platform]",
+    "category": "Service Request",
+    "priority": "Standard",
+    "assigned_group": "Service-Center IKT"
+  },
+  {
+    "summary": "Connex Loop: Allgemeine Auskunft — Der Zugang zum ePortal funktioniert einwandfrei — [Firma: EFD-BAZG EXTERN] — [Service: BS_ePortal] — [Bereich: Platform]",
+    "category": "Failure",
+    "priority": "Medium",
+    "assigned_group": "Service-Center IKT"
+  },
+  {
+    "summary": "Smartphone - nicht Funktionierende Apps — Betroffener Benutzer: [REDACTED]  R�ckruf unter: [TELEFON]  Kontakt: [REDACTED]  Rufr�ck unter: ###  Thema: A... — [Firma: EFD-BAZG] — [Service: PS_Smartphone_Smart Device_Kommunikation / Zusammenarbeit] — [Bereich: Kommunikation / Zusammenarbeit]",
+    "category": "Failure",
+    "priority": "Standard",
+    "assigned_group": "Service-Center IKT Bestellungen"
+  },
+  {
+    "summary": "Confluence - Fedlogin wird oft verlangt — Guten Morgen,  seit ein paar Monaten muss sich tags�ber sehr oft via Fedlogin erneut angemeldet werden — [Firma: EFD-BAZG] — [Service: PS_Andere_Applikationen] — [Bereich: Applikationen]",
+    "category": "Service Request",
+    "priority": "Standard",
+    "assigned_group": "Service-Center IKT Bestellungen"
+  },
+  {
+    "summary": "Smartphone - Zugriff auf Citrix Apps — Betroffener Benutzer: [REDACTED]  R�ckruf unter: [TELEFON]  Kontakt: [REDACTED]  Rufr�ck unter: [TELEFON]... — [Firma: EFD-BAZG] — [Service: PS_Smartphone_Smart Device_Kommunikation / Zusammenarbeit] — [Bereich: Kommunikation / Zusammenarbeit]",
+    "category": "Failure",
+    "priority": "Standard",
+    "assigned_group": "Service-Center IKT Bestellungen"
+  },
+  {
+    "summary": "Probleme mit Smartcard — Betroffener Benutzer: [REDACTED]  R�ckruf unter: [TELEFON]  Kontakt: [REDACTED]  Rufr�ck unt... — [Firma: EFD-BAZG] — [Service: PS_Zubeh�r Arbeitsgr�te_Arbeitsger�te] — [Bereich: Arbeitsger�te]",
+    "category": "Failure",
+    "priority": "Standard",
+    "assigned_group": "Service-Center IKT Bestellungen"
+  },
+  {
+    "summary": "Smart Card defekt — Guten Tag  Meine Smart card (�lteren Jahrgangs) ist leider defekt — [Firma: EDA-DEZA] — [Service: EDA_S_BA_2FA] — [Bereich: Customer facing]",
+    "category": "Service Request",
+    "priority": "Standard",
+    "assigned_group": "Smartcard Office"
+  },
+  {
+    "summary": "DRINGEND Termin f�r eine neue SC - verlust — User ruft an und teilt mit, dass er seine SC nicht mehr finden kann — [Firma: EDA-STS] — [Service: EDA_S_BA_2FA] — [Bereich: Customer facing]",
+    "category": "Service Request",
+    "priority": "Medium",
+    "assigned_group": "Smartcard Office"
+  },
+  {
+    "summary": "FW: LRAO certificate with S/N 66A1BCE1698C1FFA164AA24CA3F13... — Bonjour,    Autant j'ai l'habitude de renouveler les certificats, autant j'ai un doute sur le LRAO certificate — [Firma: EDA-DR] — [Service: EDA_ANW_SwissInTouch] — [Bereich: Customer facing]",
+    "category": "Service Request",
+    "priority": "Standard",
+    "assigned_group": "Smartcard Office"
+  },
+  {
+    "summary": "Commande Smartcards — Bonjour � toute l��quipe,  Pour notre repr�sentation nous aurions besoin d�une r�serve de 10 Smartcards , cette demande ... — [Firma: EDA-DR] — [Service: EDA_S_BA_2FA] — [Bereich: Customer facing]",
+    "category": "Service Request",
+    "priority": "Standard",
+    "assigned_group": "Smartcard Office"
+  },
+  {
+    "summary": "Inventar Korrektur Datenbanken SQL — Problem: PROD Migration von Postgresql 15 nach 17 durchgef�hrt, DB-Cluster ist : ssk-omtax-postgres-prd-srv Hat eigentli... — [Firma: EFD-BIT] — [Service: OS_Inventar_Mein Support] — [Bereich: Mein Support]",
+    "category": "Failure",
+    "priority": "Medium",
+    "assigned_group": "CBCD - Container Basierte Cloud Dienste"
+  },
+  {
+    "summary": "Collation Warnings nach Update auf Postgres 17 � Unterst�tzung bei Datenbankbefehlen ben�tigt — Hallo CBCD Team  Nach dem Update auf Postgres 17 treten auf unseren Non-Prod Umgebungen Collation Warnings auf — [Firma: EFD-BIT] — [Service: BS_Container Application Env (APP05800)_P] — [Bereich: Solution]",
+    "category": "Service Request",
+    "priority": "Standard",
+    "assigned_group": "CBCD - Container Basierte Cloud Dienste"
+  },
+  {
+    "summary": "Blocage de mon compte SESAM — Rappel T�l�phone --> [TELEFON] Raison d'ouvrir le Ticket --> D�rangement Sujet (S�lection) --> Software/Applikatio... — [Firma: WBF-SECO] — [Service: BS_SESAM 8606A IKT BIT (APP04094)_P] — [Bereich: Solution]",
+    "category": "Failure",
+    "priority": "Medium",
+    "assigned_group": "CBCD - Container Basierte Cloud Dienste"
+  },
+  {
+    "summary": "MELDESYSTEME  Meldet eine St�rung bei: Berechtigung-Generell & NotifikationModule — APPLICATION [BIT_OCC_Meldesysteme]: Accuracy event in TRANSACTION [TRA_Meldesysteme_Berechtigung-Generell - UrlCheck] at... — [Firma: EDI-BAG] — [Service: BS_Meldesysteme (APP03747)_P] — [Bereich: Solution]",
+    "category": "Event NO Customer Impact",
+    "priority": "Standard",
+    "assigned_group": "OPC - Applikationen"
+  },
+  {
+    "summary": "fkr-tcn-ws_fl_astra_admin_ch_443 certificate 15.00 days left — BIT - Automated Notification Summary / Event Time: \t16.03.2026 00:33:22 (CET)  Summary / Message: \tfkr-tcn-ws_fl_astra_a... — [Firma: UVEK-ASTRA] — [Service: BS_FKR Verwaltungs- Bestellappl. (APP04065)_P] — [Bereich: Solution]",
+    "category": "Event NO Customer Impact",
+    "priority": "Standard",
+    "assigned_group": "OPC - Applikationen"
+  },
+  {
+    "summary": "E-DEC:  TRA_EDEC_01_12_EDEC_ODS_UPDATE — Synthetic Rule: APPLICATION [BIT_OCC_EDEC_DB_P]: Availability event in TRANSACTION [TRA_EDEC_01_12_EDEC_ODS_UPDATE - Tra... — [Firma: EFD-BAZG] — [Service: BS_E-DEC (APP00550)_P] — [Bereich: Solution]",
+    "category": "Event NO Customer Impact",
+    "priority": "Standard",
+    "assigned_group": "OPC - Applikationen"
+  },
+  {
+    "summary": "Cisco Webex Meldet eine St�rung bei: MeetingsCheck - TMain — APPLICATION [BIT_OCC_CiscoWebex]: Availability event in TRANSACTION [TRA_CiscoWebex_MeetingsCheck - TMain] at 1 location... — [Firma: EFD-BIT] — [Service: BS_UCC (APP04405)_P] — [Bereich: Solution]",
+    "category": "Event NO Customer Impact",
+    "priority": "Standard",
+    "assigned_group": "OPC - Applikationen"
+  },
+  {
+    "summary": "PEP App \"Server Fehler\" — Obwohl ich die Netzwerkeinstellungen meines iPhones aufgrund desselben Problems, das letzte Woche aufgetreten ist, zur�c... — [Firma: EFD-BAZG] — [Service: PS_RumacaPEP_Applikationen] — [Bereich: Applikationen]",
+    "category": "Failure",
+    "priority": "Standard",
+    "assigned_group": "DevOps - Rein"
+  },
+  {
+    "summary": "AFV Mobile App Missing Visum — R�ckruf unter --> [TELEFON] Thema (Suche / Auswahl) --> AFV Mobile App ---------------------------------------- Ve... — [Firma: EFD-BAZG] — [Service: PS_AFV Mobile App_Applikationen] — [Bereich: Applikationen]",
+    "category": "Failure",
+    "priority": "Standard",
+    "assigned_group": "DevOps - Rein"
+  },
+  {
+    "summary": "ePortal - Kachel Savida wird nicht mehr angezeigt — [REDACTED]�line  R�ckruf unter: [TELEFON]  [REDACTED]�line  Rufr�ck unter: [TELEFON]... — [Firma: EFD-BAZG] — [Service: PS_eneXs Mobile + eneXs FP App (AFIS)_Applikationen] — [Bereich: Applikationen]",
+    "category": "Failure",
+    "priority": "Standard",
+    "assigned_group": "DevOps - Rein"
+  },
+  {
+    "summary": "divers applications sur le notebook et l'iPhone — Betroffener Benutzer: [REDACTED]  R�ckruf unter: ###  Contact: Kabuya-Ntumba Gyslain  Rappelez-vous sous: 079... — [Firma: EFD-BAZG] — [Service: PS_RumacaPEP_Applikationen] — [Bereich: Applikationen]",
+    "category": "Failure",
+    "priority": "Standard",
+    "assigned_group": "DevOps - Rein"
+  },
+  {
+    "summary": "ESTV Verrechnungssteuer Inland VOE 2.0 - Fragen zum Ausf�llen des Formulars 25 — Hallo zusammen,  Die Anmeldung im Portal wurde durchgef�hrt — [Firma: EFD-ESTV EXTERN] — [Service: ES_VOE] — [Bereich: ESTV]",
+    "category": "Service Request",
+    "priority": "Standard",
+    "assigned_group": "BVX - ePortal Service Line"
+  },
+  {
+    "summary": "ESTV MyESTV  Richiedere il codice di registrazione — Hallo zusammen,   Wir haben den Kunden bei dem Anliegen / Problem unterst�tzt, den Ablauf erkl�rt und gemeinsam durchgef... — [Firma: EFD-ESTV EXTERN] — [Service: ES_myESTV_ESTV] — [Bereich: ESTV]",
+    "category": "Service Request",
+    "priority": "Standard",
+    "assigned_group": "BVX - ePortal Service Line"
+  },
+  {
+    "summary": "ESTV MyESTV : Rg.Code bestellen — Hallo zusammen,   Wir haben den Kunden bei dem Anliegen / Problem unterst�tzt, den Ablauf erkl�rt und gemeinsam durchgef... — [Firma: EFD-ESTV EXTERN] — [Service: ES_myESTV_ESTV] — [Bereich: ESTV]",
+    "category": "Service Request",
+    "priority": "Standard",
+    "assigned_group": "BVX - ePortal Service Line"
+  },
+  {
+    "summary": "ESTV MyESTV  Berechtigungen verwalten . — Ticket ID: 0077305 $ Ticket Type: AGOV L1 $ Datum: 03/17/2026 11:17:01 $ Anrede: Frau $ Vorname: Andrea $ Nachname: Gaer... — [Firma: EFD-ESTV EXTERN] — [Service: ES_myESTV_ESTV] — [Bereich: ESTV]",
+    "category": "Service Request",
+    "priority": "Standard",
+    "assigned_group": "BVX - ePortal Service Line"
+  },
+  {
+    "summary": "SECPRINT Queue bleibt leer — R�ckruf unter --> [TELEFON] Grund der Ticketer�ffnung --> St�rung Thema (Suche / Auswahl) --> Software/Applikation... — [Firma: EDI-BAG] — [Service: BS_Secure Printing] — [Bereich: Workplace]",
+    "category": "Failure",
+    "priority": "Medium",
+    "assigned_group": "IOM - Input / Output Mgmt."
+  },
+  {
+    "summary": "Verschl�sselte Scans von SEM-5284 k�nnen nicht ge�ffnet werden. — Outlook 365 - Mailbox pers�nlich Fehlerbeschrieb:  Userin meldet, dass sie verschl�sselte Mail nicht mehr �ffnen kann — [Firma: EJPD-SEM] — [Service: BS_Netzwerkdrucker] — [Bereich: Workplace]",
+    "category": "Service Request",
+    "priority": "Medium",
+    "assigned_group": "IOM - Input / Output Mgmt."
+  },
+  {
+    "summary": "Secure Printing: Druckeinstellung ver�ndert. Wird nicht so gedruckt wie gew�nsch (lochung links) — Drucker (Secure Printing) Secure Printing: Druckeinstellung ver�ndert — [Firma: WBF-SECO] — [Service: BS_Secure Printing] — [Bereich: Workplace]",
+    "category": "Failure",
+    "priority": "Medium",
+    "assigned_group": "IOM - Input / Output Mgmt."
+  },
+  {
+    "summary": "Drucker VTG-1569 — R�ckruf unter --> [TELEFON] Grund der Ticketer�ffnung --> St�rung Thema (Suche / Auswahl) --> Ger�te - Drucker - N... — [Firma: VBS-VTG] — [Service: BS_Multifunktionsger�te] — [Bereich: Workplace]",
+    "category": "Failure",
+    "priority": "Medium",
+    "assigned_group": "IOM - Input / Output Mgmt."
+  },
+  {
+    "summary": "CP002954: Tastatur defekt — R�ckruf unter --> [TELEFON] Grund der Ticketer�ffnung --> St�rung Thema (Suche / Auswahl) --> Ger�te - PC und Zube... — [Firma: EFD-ESTV] — [Service: BS_Computer_Client] — [Bereich: Workplace]",
+    "category": "Failure",
+    "priority": "Medium",
+    "assigned_group": "OPM - DLC Dispatching"
+  },
+  {
+    "summary": "Client sehr langsam und verliert st�ndig die Internetverbindung — Computer (Betriebssystem / Treiber) X60044816 Der Client ist aktuell extrem langsam in der Nutzung — [Firma: EJPD-SEM] — [Service: BS_Microsoft Windows] — [Bereich: Workplace]",
+    "category": "Service Request",
+    "priority": "Medium",
+    "assigned_group": "OPM - DLC Dispatching"
+  },
+  {
+    "summary": "Defekter Smardcard-Reader im Laptop — Reachable under Phone No — [Firma: UVEK-BAKOM] — [Service: BS_Smartcard Reader] — [Bereich: Workplace]",
+    "category": "Failure",
+    "priority": "High",
+    "assigned_group": "OPM - DLC Dispatching"
+  },
+  {
+    "summary": "Notebook Bildschirm defekt — Notebook Bildschirm (Monitor) defekt  Der Monitor fuktioniert seit kurzem nicht mehr — [Firma: WBF-Agroscope] — [Service: BS_Computer_Client] — [Bereich: Workplace]",
+    "category": "Failure",
+    "priority": "Standard",
+    "assigned_group": "OPM - DLC Dispatching"
+  },
+  {
+    "summary": "MASTER: Zeitsprung + VPN-Abbr�che — Michael meldet, dass er mit dem neuen Notebook wieder das gleiche Problem hat:   Habe soeben erneut einen Zeit Sprung (c... — [Firma: EFD-FINMA] — [Service: PS_Workplace_Software] — [Bereich: Workplace]",
+    "category": "Failure",
+    "priority": "Standard",
+    "assigned_group": "O-SDK"
+  },
+  {
+    "summary": "Berechtigungseinstellungen Kalender EYP — Leider funktioniert die Stv.-Einstellung f�r die Assistenz bei EYP nicht vollumf�nglich — [Firma: EFD-FINMA] — [Service: PS_Messaging_Mailbox] — [Bereich: Messaging]",
+    "category": "Failure",
+    "priority": "Standard",
+    "assigned_group": "O-SDK"
+  },
+  {
+    "summary": "Software; SnagIt funktioniert nicht — Die Meldung 'Capture kann nicht aufgenommen werden' kommt bei mir nicht so gut an — [Firma: EFD-FINMA] — [Service: PS_Workplace_Software] — [Bereich: Workplace]",
+    "category": "Failure",
+    "priority": "Standard",
+    "assigned_group": "O-SDK"
+  },
+  {
+    "summary": "�ffnen von Word-Dateien — Guten Tag  Ich habe in einem Word-File eingebettete Word-Dateien von der AO erhalten und erhalte beim Versuch sie zu �ff... — [Firma: EFD-FINMA] — [Service: PS_Workplace_Software] — [Bereich: Workplace]",
+    "category": "Service Request",
+    "priority": "Standard",
+    "assigned_group": "O-SDK"
+  },
+  {
+    "summary": "ESTV Stammdaten Anschrift der ARGE �ndern? — Gesch�tztes Team   W�rden Sie freundlicherweise die Anschrift der ARGE �ndern? Mir ist dabei ein Fehler unterlaufen — [Firma: EFD-ESTV EXTERN] — [Service: ES_Stammdaten_ESTV] — [Bereich: ESTV]",
+    "category": "Service Request",
+    "priority": "Standard",
+    "assigned_group": "ESTV-RSS-Stammdaten"
+  },
+  {
+    "summary": "ESTV - Stammdaten - Adressanpassung — Sehr geehrte Damen und Herren  Die Adresse sollte bei dieser ARGE noch angepasst werden — [Firma: EFD-ESTV EXTERN] — [Service: ES_Stammdaten_ESTV] — [Bereich: ESTV]",
+    "category": "Service Request",
+    "priority": "Standard",
+    "assigned_group": "ESTV-RSS-Stammdaten"
+  },
+  {
+    "summary": "ESTV Stammdaten   l'adaptation de l�adresse de ma soci�t� ocko S�rl CHE-285.519.814 — Je vous contacte concernant l'adaptation de l�adresse de ma soci�t�, conform�ment au RC � que je vous demande de mettre ... — [Firma: EFD-ESTV EXTERN] — [Service: ES_Stammdaten_ESTV] — [Bereich: ESTV]",
+    "category": "Service Request",
+    "priority": "Standard",
+    "assigned_group": "ESTV-RSS-Stammdaten"
+  },
+  {
+    "summary": "Postretoure Registrierung myESTV — [Firma: EFD-ESTV EXTERN] — [Service: ES_myESTV_ESTV] — [Bereich: ESTV]",
+    "category": "Service Request",
+    "priority": "Standard",
+    "assigned_group": "ESTV-RSS-Stammdaten"
+  },
+  {
+    "summary": "Smartcard wird nicht gelesen — /Anmeldung bleibt h�ngen U80793776 Seit heute morgen 16.03.2026 wird die Karte des Kunden nicht mehr am Client erkannt — [Firma: EJPD-SEM] — [Service: BS_Smartcard Reader] — [Bereich: Workplace]",
+    "category": "Failure",
+    "priority": "Standard",
+    "assigned_group": "FIB - BIT Store Bollwerk"
+  },
+  {
+    "summary": "Wlan Verbindung funktioniert nicht — [Firma: VBS-VTG] — [Service: BS_Computer_Client] — [Bereich: Workplace]",
+    "category": "Failure",
+    "priority": "Standard",
+    "assigned_group": "FIB - BIT Store Bollwerk"
+  },
+  {
+    "summary": "Computer (HW): F2 taste geht nicht mehr — [Firma: VBS-armasuisse] — [Service: BS_Computer_Client] — [Bereich: Workplace]",
+    "category": "Failure",
+    "priority": "Standard",
+    "assigned_group": "FIB - BIT Store Bollwerk"
+  },
+  {
+    "summary": "Premium Support: USB-C Anschl�sse am Laptop defekt — USB-C Anschl�sse am Laptop defekt — [Firma: EDI-GS] — [Service: BS_Dockingstation] — [Bereich: Workplace]",
+    "category": "Service Request",
+    "priority": "Standard",
+    "assigned_group": "FIB - BIT Store Bollwerk"
+  },
+  {
+    "summary": "appartamento 1 casa doganale Roggiana — [REDACTED]Riguardo a (Selezione) --> Immobili_Domande tecniche / informazioni -----------------------... — [Firma: EFD-BAZG] — [Service: PS_Immobilien BAZG_Objekt- und Projektmanagement_IMMO] — [Bereich: IMMO]",
+    "category": "Service Request",
+    "priority": "Standard",
+    "assigned_group": "Immobilien BAZG"
+  },
+  {
+    "summary": "5206AB_Perly_TD D�sinfection SARL_probl�me de fourmis — [REDACTED] — [Firma: EFD-BAZG] — [Service: PS_Immobilien BAZG_Objekt- und Projektmanagement_IMMO] — [Bereich: IMMO]",
+    "category": "Service Request",
+    "priority": "Standard",
+    "assigned_group": "Immobilien BAZG"
+  },
+  {
+    "summary": "5206AB_Perly_Jean Grunder & fils_probl�me de four — [REDACTED] — [Firma: EFD-BAZG] — [Service: PS_Immobilien BAZG_Objekt- und Projektmanagement_IMMO] — [Bereich: IMMO]",
+    "category": "Service Request",
+    "priority": "Standard",
+    "assigned_group": "Immobilien BAZG"
+  },
+  {
+    "summary": "5356AA_Soral1_Jean Grunder_machine � laver — Rappel T�l�phone --> ### Sujet (S�lection) --> Immeubles_Demandes ---------------------------------------- Demande inter... — [Firma: EFD-BAZG] — [Service: PS_Immobilien BAZG_Objekt- und Projektmanagement_IMMO] — [Bereich: IMMO]",
+    "category": "Service Request",
+    "priority": "Standard",
+    "assigned_group": "Immobilien BAZG"
+  },
+  {
+    "summary": "Video Schwaderloch — [REDACTED]�  R�ckruf unter: [TELEFON]  [REDACTED]�  Thema: Abruf Rahmenvertra... — [Firma: EFD-BAZG] — [Service: PS_Bedarfsmanagement_Beschaffung_BEPR] — [Bereich: BEPR]",
+    "category": "Service Request",
+    "priority": "Standard",
+    "assigned_group": "Bedarfsmanagement"
+  },
+  {
+    "summary": "Strassenschilder f�r LE BS Nord — Betroffener Benutzer: [REDACTED]  R�ckruf unter: [TELEFON]  Kontakt: [REDACTED]  Thema: Abruf Rahm... — [Firma: EFD-BAZG] — [Service: PS_Bedarfsmanagement_Beschaffung_BEPR] — [Bereich: BEPR]",
+    "category": "Service Request",
+    "priority": "Standard",
+    "assigned_group": "Bedarfsmanagement"
+  },
+  {
+    "summary": "Einbau von zwei AFV Kameras in einen BMW X3 der LE Aargau zu Testzwecken — ulfitem://\\\\Vf00105a.adb.intra.admin.ch\\ezv_os$\\os\\0\\6\\6\\1\\81902\\066.[TELEFON]_Einbau AFV Kameras in einen BMW X3 — [Firma: EFD-BAZG] — [Service: PS_Antrag_Meldung] — [Bereich: Meldung]",
+    "category": "Service Request",
+    "priority": "Standard",
+    "assigned_group": "Bedarfsmanagement"
+  },
+  {
+    "summary": "Grenzkontrollsystem (GKS)_CR_00198_Konfigurationsanpassung easykioske — Betroffener Benutzer: [REDACTED] Regula  R�ckruf unter: [TELEFON]  Kontakt: [REDACTED] Regula  Thema: Abruf Rahmenvertra... — [Firma: EFD-BAZG] — [Service: PS_Bedarfsmanagement_Beschaffung_BEPR] — [Bereich: BEPR]",
+    "category": "Service Request",
+    "priority": "Standard",
+    "assigned_group": "Bedarfsmanagement"
+  }
+]

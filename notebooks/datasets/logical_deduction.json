@@ -1,0 +1,22 @@
+[
+  {"premises": "All dogs are animals. Rex is a dog.", "question": "Is Rex an animal?", "conclusion": "Rex is an animal.", "is_valid": "true"},
+  {"premises": "All roses are flowers. All flowers need water. This plant is a rose.", "question": "Does this plant need water?", "conclusion": "This plant needs water.", "is_valid": "true"},
+  {"premises": "Some birds can fly. Penguins are birds.", "question": "Can penguins fly?", "conclusion": "Penguins can fly.", "is_valid": "false"},
+  {"premises": "If it rains, the ground gets wet. The ground is wet.", "question": "Did it rain?", "conclusion": "It rained.", "is_valid": "false"},
+  {"premises": "No reptiles have fur. Snakes are reptiles.", "question": "Do snakes have fur?", "conclusion": "Snakes do not have fur.", "is_valid": "true"},
+  {"premises": "All employees in the marketing team speak French. Clara is in the marketing team.", "question": "Does Clara speak French?", "conclusion": "Clara speaks French.", "is_valid": "true"},
+  {"premises": "If a student passes all exams, they graduate. Alex did not graduate.", "question": "Did Alex pass all exams?", "conclusion": "Alex did not pass all exams.", "is_valid": "true"},
+  {"premises": "All cats are mammals. All mammals are warm-blooded. Felix is a cat.", "question": "Is Felix warm-blooded?", "conclusion": "Felix is warm-blooded.", "is_valid": "true"},
+  {"premises": "Some scientists are professors. Dr. Lee is a scientist.", "question": "Is Dr. Lee a professor?", "conclusion": "Dr. Lee is a professor.", "is_valid": "false"},
+  {"premises": "If the power goes out, the alarm stops. The alarm is working.", "question": "Is the power on?", "conclusion": "The power is on.", "is_valid": "true"},
+  {"premises": "All squares are rectangles. This shape is a rectangle.", "question": "Is this shape a square?", "conclusion": "This shape is a square.", "is_valid": "false"},
+  {"premises": "No vegetarians eat meat. Tom is a vegetarian.", "question": "Does Tom eat meat?", "conclusion": "Tom does not eat meat.", "is_valid": "true"},
+  {"premises": "If a number is divisible by 6, it is divisible by 2. 18 is divisible by 6.", "question": "Is 18 divisible by 2?", "conclusion": "18 is divisible by 2.", "is_valid": "true"},
+  {"premises": "All books in the library are cataloged. This novel is cataloged.", "question": "Is this novel in the library?", "conclusion": "This novel is in the library.", "is_valid": "false"},
+  {"premises": "Either the server crashed or the network failed. The server did not crash.", "question": "Did the network fail?", "conclusion": "The network failed.", "is_valid": "true"},
+  {"premises": "Most professional athletes train daily. Maria is a professional athlete.", "question": "Does Maria train daily?", "conclusion": "Maria trains daily.", "is_valid": "false"},
+  {"premises": "If an animal is a whale, then it lives in the ocean. Moby lives in the ocean.", "question": "Is Moby a whale?", "conclusion": "Moby is a whale.", "is_valid": "false"},
+  {"premises": "All prime numbers greater than 2 are odd. 7 is a prime number greater than 2.", "question": "Is 7 odd?", "conclusion": "7 is odd.", "is_valid": "true"},
+  {"premises": "No students who failed the midterm passed the course. Kevin failed the midterm.", "question": "Did Kevin pass the course?", "conclusion": "Kevin did not pass the course.", "is_valid": "true"},
+  {"premises": "If today is Saturday, then the office is closed. The office is closed.", "question": "Is today Saturday?", "conclusion": "Today is Saturday.", "is_valid": "false"}
+]
