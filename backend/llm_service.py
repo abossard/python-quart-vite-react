@@ -152,6 +152,49 @@ class LLMService:
         except Exception as e:
             logger.warning(f"LLM health check failed ({self._backend}): {e}")
             return False
+
+    def get_model_catalog(self) -> dict[str, Any]:
+        """Return backend/model metadata for UI model selection."""
+        fallback_models = list(getattr(self, '_fallback_models', []))
+        configured_models = [self.model, *fallback_models]
+        available_models: list[str] = []
+        source = "configured"
+        provider = None
+
+        if self._backend == "litellm":
+            provider = self.model.split("/", 1)[0] if "/" in self.model else None
+            try:
+                import litellm
+
+                discovered = litellm.get_valid_models(
+                    custom_llm_provider=provider,
+                    check_provider_endpoint=False,
+                )
+                if discovered:
+                    available_models = [m for m in discovered if isinstance(m, str) and m.strip()]
+                    source = "litellm"
+            except Exception as exc:
+                logger.warning("Failed to discover LiteLLM models: %s", exc)
+
+        merged_models: list[str] = []
+        seen: set[str] = set()
+        for model_name in [*configured_models, *available_models]:
+            if not isinstance(model_name, str):
+                continue
+            normalized = model_name.strip()
+            if not normalized or normalized in seen:
+                continue
+            merged_models.append(normalized)
+            seen.add(normalized)
+
+        return {
+            "backend": self._backend,
+            "provider": provider,
+            "default_model": self.model,
+            "fallback_models": fallback_models,
+            "available_models": merged_models,
+            "source": source,
+        }
     
     async def structured_chat(
         self,
