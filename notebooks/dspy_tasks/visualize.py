@@ -11,6 +11,9 @@ import plotly.express as px
 from dataclasses import dataclass
 from typing import Optional
 
+# Generation counter to invalidate stale widget callbacks after cell re-runs
+_workshop_generation = [0]
+
 
 # ============================================================================
 # DATA CLASSES for results (pure data)
@@ -114,6 +117,9 @@ def prompt_workshop(
     """
     from .actions import run_with_prompt
 
+    _workshop_generation[0] += 1
+    my_generation = _workshop_generation[0]
+
     prompt_area = widgets.Textarea(
         value=default_instructions,
         description="",
@@ -133,8 +139,13 @@ def prompt_workshop(
     attempt_scores: list[float] = []
 
     def on_run(b):
-        with output:
-            output.clear_output()
+        if _workshop_generation[0] != my_generation:
+            return  # stale callback from previous cell run
+        btn.disabled = True
+        btn.description = "⏳ Läuft..."
+        try:
+          with output:
+            output.clear_output(wait=True)
             print("⏳ Evaluiere mit deinem Prompt...")
             result = run_with_prompt(
                 task_id, prompt_area.value, max_eval=max_eval,
@@ -154,6 +165,9 @@ def prompt_workshop(
                 + "<br>".join(history_lines)
                 + "</div>"
             )
+        finally:
+            btn.disabled = False
+            btn.description = "Auswerten! 📊"
 
     btn.on_click(on_run)
 
