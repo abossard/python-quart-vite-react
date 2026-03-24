@@ -84,20 +84,32 @@ def run_on_examples(examples, instructions: str, signature_class, metric_fn) -> 
     )
 
 
-def run_optimization(task_id: str, optimizer: str = "BootstrapFewShot", *, max_eval: Optional[int] = None) -> OptimizationResult:
-    """Optimize a task's prompt, then evaluate. Takes 10-60 seconds."""
+def run_optimization(task_id: str, optimizer: str = "BootstrapFewShot", *, max_eval: Optional[int] = None, instructions: Optional[str] = None) -> OptimizationResult:
+    """Optimize a task's prompt, then evaluate. Takes 10-60 seconds.
+    
+    If instructions is provided, it's used as the starting prompt (instead of zero-shot).
+    """
     task = get_task(task_id)
     trainset, devset = task.split_examples()
     if max_eval:
         devset = devset[:max_eval]
 
-    # Baseline
-    module = task.make_module()
+    # Build module — with custom instructions if provided
+    def _make_module_with_instructions():
+        if instructions:
+            CustomSig = _make_signature(task.signature_class, instructions)
+            if task.module_type == "ChainOfThought":
+                return dspy.ChainOfThought(CustomSig)
+            return dspy.Predict(CustomSig)
+        return task.make_module()
+
+    # Baseline (with the given instructions, not zero-shot)
+    module = _make_module_with_instructions()
     baseline_results = _evaluate_examples(module, devset, task.metric_fn)
     baseline_score = _mean([r["score"] for r in baseline_results])
 
-    # Optimize
-    module_fresh = task.make_module()
+    # Optimize (starting from the same instructions)
+    module_fresh = _make_module_with_instructions()
     start = time.time()
     if optimizer == "MIPROv2":
         opt = dspy.MIPROv2(metric=task.metric_fn, auto="light")
@@ -119,8 +131,8 @@ def run_optimization(task_id: str, optimizer: str = "BootstrapFewShot", *, max_e
         optimized_score=opt_score,
         improvement=improvement,
         improvement_pct=(improvement / max(baseline_score, 0.01)) * 100,
-        prompt_before="(zero-shot)",
-        prompt_after=str(optimized_module.dump_state()) if hasattr(optimized_module, 'dump_state') else "(optimized)",
+        prompt_before=instructions or "(zero-shot)",
+        prompt_after=_format_optimized_prompt(optimized_module),
         trial_scores=[baseline_score, opt_score],
         elapsed_seconds=round(opt_elapsed, 2),
         llm_calls=len(baseline_results) + len(opt_results),
@@ -136,6 +148,39 @@ def run_optimization(task_id: str, optimizer: str = "BootstrapFewShot", *, max_e
 def _current_model() -> str:
     lm = dspy.settings.lm
     return str(getattr(lm, 'model', '?')) if lm else '?'
+
+
+def _format_optimized_prompt(module) -> str:
+    """Format an optimized DSPy module's state into a human-readable string."""
+    if not hasattr(module, 'dump_state'):
+        return "(optimized)"
+    
+    state = module.dump_state()
+    parts = []
+    
+    for predictor_name, predictor_state in state.items():
+        # Extract instructions
+        sig = predictor_state.get('signature', {})
+        instructions = sig.get('instructions', '')
+        if instructions:
+            parts.append("━━━ INSTRUCTIONS ━━━")
+            parts.append(instructions)
+        
+        # Extract demos (few-shot examples)
+        demos = predictor_state.get('demos', [])
+        if demos:
+            parts.append(f"\n━━━ FEW-SHOT EXAMPLES ({len(demos)}) ━━━")
+            for i, demo in enumerate(demos):
+                parts.append(f"\n  Example {i+1}:")
+                for key, value in demo.items():
+                    if key == 'augmented':
+                        continue
+                    val_str = str(value)
+                    if len(val_str) > 200:
+                        val_str = val_str[:200] + "..."
+                    parts.append(f"    {key}: {val_str}")
+    
+    return "\n".join(parts) if parts else str(state)
 
 
 def _make_signature(base_sig, instructions: str):
