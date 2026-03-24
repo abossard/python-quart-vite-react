@@ -15,9 +15,10 @@ from unittest.mock import patch
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent))
 
 import app as backend_app_module
+from workbench_integration import _tool_registry
+
 from agent_builder import WorkbenchService
 from agent_builder.routes import configure_blueprint
-from workbench_integration import _tool_registry
 
 
 class _ToolCallMessage:
@@ -105,6 +106,8 @@ class AgentBuilderE2ETests(unittest.IsolatedAsyncioTestCase):
                 data = await resp.get_json()
                 self.assertIn("tool_called", data["criteria_types"])
                 self.assertIn("completed", data["run_statuses"])
+                self.assertIn("llm", data)
+                self.assertIn("available_models", data["llm"])
 
                 # List tools
                 resp = await client.get("/api/workbench/tools")

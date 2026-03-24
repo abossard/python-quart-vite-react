@@ -1,22 +1,22 @@
 import {
-  Caption1,
-  Spinner,
-  Subtitle1,
-  Tab,
-  TabList,
-  Text,
-  makeStyles,
-  tokens,
+    Caption1,
+    Spinner,
+    Subtitle1,
+    Tab,
+    TabList,
+    Text,
+    makeStyles,
+    tokens,
 } from '@fluentui/react-components'
-import { Apps24Regular, Add24Regular } from '@fluentui/react-icons'
-import { useEffect, useState, useCallback } from 'react'
+import { Add24Regular, Apps24Regular } from '@fluentui/react-icons'
+import { useCallback, useEffect, useState } from 'react'
 import {
-  deleteWorkbenchAgent,
-  deleteAllRuns,
-  getWorkbenchUiConfig,
-  listWorkbenchAgents,
-  listWorkbenchTools,
-  listAllRuns,
+    deleteAllRuns,
+    deleteWorkbenchAgent,
+    getWorkbenchUiConfig,
+    listAllRuns,
+    listWorkbenchAgents,
+    listWorkbenchTools,
 } from '../../services/api'
 import AgentCardsPanel from './AgentCardsPanel'
 import AgentCreateForm from './AgentCreateForm'
@@ -122,9 +122,12 @@ export default function WorkbenchPage() {
   }, [])
 
   const handleAgentSaved = useCallback(async () => {
-    setEditingAgent(null)
-    const agentsPayload = await listWorkbenchAgents()
-    setAgents(agentsPayload.agents || [])
+    try {
+      const agentsPayload = await listWorkbenchAgents()
+      setAgents(agentsPayload.agents || [])
+    } catch (err) {
+      setError(err?.message || 'Failed to refresh agents')
+    }
   }, [])
 
   if (loading) {
@@ -194,12 +197,16 @@ export default function WorkbenchPage() {
         <AgentCreateForm
           tools={tools}
           onAgentCreated={handleAgentCreated}
+          modelOptions={uiConfig?.llm?.available_models || []}
+          serviceDefaultModel={uiConfig?.llm?.default_model || ''}
         />
       )}
 
       <AgentEditDialog
         agent={editingAgent}
         tools={tools}
+        modelOptions={uiConfig?.llm?.available_models || []}
+        serviceDefaultModel={uiConfig?.llm?.default_model || ''}
         onSave={handleAgentSaved}
         onClose={() => setEditingAgent(null)}
       />
