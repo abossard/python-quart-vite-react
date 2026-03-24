@@ -1,105 +1,60 @@
-# 🧪 DSPy Prompt Tuning Playground
+# 🧪 Prompt Tuning Playground
 
-> **"Evaluation is the specification. Optimization is the compiler. Data is the source code."**
+> **"Evaluation ist die Spezifikation. Optimierung ist der Compiler. Daten sind der Quellcode."**
 
-An interactive Jupyter notebook series that teaches **prompt tuning and optimization** using [DSPy](https://dspy.ai/) with multiple LLMs via [LiteLLM](https://docs.litellm.ai/). Learn why **evaluation + tuning is the "software engineering" of the AI era**.
+Interaktive Jupyter-Notebooks die zeigen: **warum LLMs nicht perfekt sind**, **wie man Qualität misst**, und **wie automatische Optimierung besser ist als manuelles Prompt-Tuning**.
 
 ## Quick Start
 
 ```bash
-# From the project root
-source .venv/bin/activate
-pip install -r notebooks/requirements.txt
-
-# Launch Jupyter
-cd notebooks
-jupyter lab
+cd notebooks && ./start.sh
+# Oder manuell:
+source .venv/bin/activate && pip install -r notebooks/requirements.txt
+cd notebooks && jupyter lab
 ```
 
 Open `00_introduction.ipynb` and follow the learning path.
 
-## Learning Path
+## Lernpfad
 
-| # | Notebook | Concept | Tasks |
-|---|----------|---------|-------|
-| 00 | **The Shift** | Setup + first taste of DSPy | — |
-| 01 | **Data, Calculations, Actions** | Grokking Simplicity for LLMs | 1-3 |
-| 02 | **Deep Modules** | A Philosophy of Software Design: module depth | 4-7 |
-| 03 | **Evaluation as Specification** | Metrics ARE your software specification | 8-10 |
-| 04 | **The Optimizer Is Your Compiler** | BootstrapFewShot + MIPROv2 optimization | 11-13 |
-| 05 | **Your Data Is Your Moat** | Domain tuning with real ticket data | 14-15 |
-| 06 | **Agentic Optimization** | ReAct agents with tool use | 16-20 |
-| 07 | **The Full Picture** | Cross-model showdown + ROI | All 20 |
+| # | Notebook | Was du lernst |
+|---|----------|---------------|
+| 00 | **Einführung** | Setup, erster LLM-Aufruf, Modell auswählen |
+| 01 | **Evaluation** | LLMs machen Fehler! Was ist Accuracy? Metriken verstehen. Selbst Prompts tunen. |
+| 02 | **Optimierung** | Erst manuell, dann automatisch — der Optimizer als Compiler |
+| 03 | **Domain-Tuning** | Deine echten Daten + Tuning = dein Wettbewerbsvorteil |
+| 04 | **Agenten** | Tool-nutzende Agenten optimieren |
+| 05 | **Gesamtbild** | Cross-Model Showdown + Quiz |
 
-## The 20 Tasks
+### Optionale Appendix-Notebooks
+| | Notebook | Thema |
+|---|----------|-------|
+| A | **Grokking Simplicity** | Code-Architektur: Data, Calculations, Actions |
+| B | **Deep Modules** | Modultiefe: Predict → ChainOfThought → ReAct |
 
-### Tier 1: Fundamentals ★☆☆☆
-1. Sentiment Classification
-2. Entity Extraction
-3. Text Summarization
-4. English → German Translation
-5. Format Compliance
+## Benchmarks & Datasets
 
-### Tier 2: Reasoning ★★☆☆
-6. Math Word Problems (ChainOfThought)
-7. Logical Deduction
-8. Code Generation
-9. Analogy Completion
-10. Fact Verification
+Die Notebooks nutzen **validierte Industrie-Benchmarks**:
+- **TruthfulQA** — Fragen die LLMs zum Halluzinieren verleiten
+- **HotPotQA** — Multi-Hop Wissensfragen
+- **MATH** — Mathematisches Reasoning
+- **Eigene Ticket-Daten** — aus `csv/data.csv`
 
-### Tier 3: Composition ★★★☆
-11. Multi-Hop QA
-12. **Ticket Classification** (uses your CSV data!)
-13. Report Generation
-14. Comparative Analysis
-15. Instruction Following with Constraints
+## Modelle
 
-### Tier 4: Agentic ★★★★
-16. Calculator Agent (ReAct)
-17. Search & Synthesize Agent
-18. Multi-Tool Orchestration
-19. Plan-and-Execute
-20. Self-Correcting Agent
-
-## Architecture
-
-Following **Grokking Simplicity**, the shared library separates:
+Erkennt automatisch verfügbare Modelle aus deiner `.env`-Konfiguration via LiteLLM:
 
 ```
-dspy_tasks/
-├── data.py           # DATA: Signatures + dataset loaders (pure declarations)
-├── calculations.py   # CALCULATIONS: 20 metric functions (pure, no I/O)
-├── actions.py        # ACTIONS: run_baseline, run_optimization (I/O)
-├── tools.py          # ACTIONS: tool functions for agentic tasks
-├── visualize.py      # ACTIONS: ipywidgets + Plotly display helpers
-└── tasks/            # Task definitions (dataclasses, no behavior)
-    ├── tier1_basics.py
-    ├── tier2_reasoning.py
-    ├── tier3_composition.py
-    └── tier4_agentic.py
+github_copilot/gpt-4o, gpt-4o-mini, claude-sonnet-4, o3-mini, ...
 ```
 
-## Models
-
-Uses any LiteLLM-compatible model. Default options:
-
-```python
-AVAILABLE_MODELS = [
-    "github_copilot/gpt-4o",        # strong baseline
-    "github_copilot/gpt-4o-mini",   # cheap — shows optimization value
-    "github_copilot/claude-sonnet-4", # different architecture
-]
-```
-
-## Running Tests
+## Tests
 
 ```bash
-cd notebooks
-python -m pytest tests/ -v
+cd notebooks && python -m pytest tests/ -v
 ```
 
-## Prerequisites
+## Voraussetzungen
 
 - Python 3.10+
-- Project virtual environment (`.venv`)
-- Access to at least one LLM model via LiteLLM (GitHub Copilot models work with no API key)
+- Zugang zu mindestens einem LLM via LiteLLM (GitHub Copilot funktioniert ohne API-Key)
