@@ -276,29 +276,30 @@ def display_results_table(results: list[dict], max_rows: int = 20):
         score = r.get("score", 0)
         icon = "✅" if score >= 0.8 else "⚠️" if score >= 0.5 else "❌"
         bg = "#f0fdf0" if score >= 0.8 else "#fdf6f0" if score >= 0.5 else "#fdf0f0"
-        input_text = str(r.get("input", ""))[:100]
-        expected = str(r.get("expected", ""))[:80]
-        predicted = str(r.get("predicted", ""))[:80]
+        input_text = str(r.get("input", ""))
+        expected = str(r.get("expected", ""))
+        predicted = str(r.get("predicted", ""))
+        td = 'style="padding:6px; border-bottom:1px solid #edebe9; font-size:0.85em; word-break:break-word"'
         rows += f'''
         <tr style="background:{bg}">
-            <td style="padding:6px; border-bottom:1px solid #edebe9">{i+1}</td>
-            <td style="padding:6px; border-bottom:1px solid #edebe9">{icon}</td>
-            <td style="padding:6px; border-bottom:1px solid #edebe9; font-size:0.85em">{_escape_html(input_text)}</td>
-            <td style="padding:6px; border-bottom:1px solid #edebe9; font-size:0.85em">{_escape_html(expected)}</td>
-            <td style="padding:6px; border-bottom:1px solid #edebe9; font-size:0.85em">{_escape_html(predicted)}</td>
+            <td {td}>{i+1}</td>
+            <td {td}>{icon}</td>
+            <td {td}>{_escape_html(input_text)}</td>
+            <td {td}>{_escape_html(expected)}</td>
+            <td {td}>{_escape_html(predicted)}</td>
             <td style="padding:6px; border-bottom:1px solid #edebe9; font-weight:bold">{score:.0%}</td>
         </tr>'''
     
     html = f'''
-    <table style="border-collapse:collapse; width:100%; margin:12px 0">
+    <table style="border-collapse:collapse; width:100%; margin:12px 0; table-layout:fixed">
         <thead>
             <tr style="background:#f3f2f1">
-                <th style="padding:8px; text-align:left; border-bottom:2px solid #8a8886">#</th>
-                <th style="padding:8px; text-align:left; border-bottom:2px solid #8a8886"></th>
-                <th style="padding:8px; text-align:left; border-bottom:2px solid #8a8886">Input</th>
-                <th style="padding:8px; text-align:left; border-bottom:2px solid #8a8886">Expected</th>
-                <th style="padding:8px; text-align:left; border-bottom:2px solid #8a8886">Predicted</th>
-                <th style="padding:8px; text-align:left; border-bottom:2px solid #8a8886">Score</th>
+                <th style="padding:8px; text-align:left; border-bottom:2px solid #8a8886; width:30px">#</th>
+                <th style="padding:8px; text-align:left; border-bottom:2px solid #8a8886; width:30px"></th>
+                <th style="padding:8px; text-align:left; border-bottom:2px solid #8a8886; width:25%">Input</th>
+                <th style="padding:8px; text-align:left; border-bottom:2px solid #8a8886; width:25%">Expected</th>
+                <th style="padding:8px; text-align:left; border-bottom:2px solid #8a8886; width:25%">Predicted</th>
+                <th style="padding:8px; text-align:left; border-bottom:2px solid #8a8886; width:50px">Score</th>
             </tr>
         </thead>
         <tbody>{rows}</tbody>
