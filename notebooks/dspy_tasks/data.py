@@ -164,7 +164,7 @@ class SearchAndSynthesize(dspy.Signature):
 class MultiToolTask(dspy.Signature):
     """Answer a query that may require multiple tools."""
 
-    query: str = dspy.InputField(desc="A query that may need multiple tools to answer")
+    question: str = dspy.InputField(desc="A query that may need multiple tools to answer")
     answer: str = dspy.OutputField(desc="Final answer after using necessary tools")
     tools_used: str = dspy.OutputField(desc="Comma-separated list of tools that were used")
 
@@ -172,16 +172,16 @@ class MultiToolTask(dspy.Signature):
 class PlanAndExecute(dspy.Signature):
     """Create a plan to achieve a goal, then execute it."""
 
-    goal: str = dspy.InputField(desc="The goal to achieve")
-    plan: str = dspy.OutputField(desc="Step-by-step plan to achieve the goal")
-    result: str = dspy.OutputField(desc="Result of executing the plan")
+    question: str = dspy.InputField(desc="The question or goal to achieve")
+    answer: str = dspy.OutputField(desc="Result of executing the plan")
+    plan: str = dspy.OutputField(desc="Step-by-step plan that was followed")
 
 
 class SelfCorrectingTask(dspy.Signature):
     """Complete a task with built-in self-verification and correction."""
 
-    task: str = dspy.InputField(desc="The task to complete with self-correction")
-    verified_output: str = dspy.OutputField(desc="Output that has been self-verified and corrected if needed")
+    question: str = dspy.InputField(desc="The question to answer with self-correction")
+    answer: str = dspy.OutputField(desc="Verified answer after self-correction")
     confidence: str = dspy.OutputField(desc="Confidence level in the output (low, medium, high)")
 
 

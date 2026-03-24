@@ -284,6 +284,12 @@ def _render_field_comparison(expected, predicted) -> tuple[str, str]:
         exp_val = str(expected[key]).strip().lower()
         pred_val = str(predicted.get(key, "")).strip().lower()
         match = exp_val == pred_val
+        # Also check numeric equivalence (e.g. "918.0" vs "918")
+        if not match:
+            try:
+                match = float(exp_val) == float(pred_val)
+            except (ValueError, TypeError):
+                pass
         # Use inline styles that work on both light and dark themes
         if match:
             style = 'color:#2ea043; font-weight:bold'  # green for match

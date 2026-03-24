@@ -44,7 +44,14 @@ def run_with_prompt(task_id: str, instructions: str, *, max_eval: Optional[int] 
     task = get_task(task_id)
     CustomSig = _make_signature(task.signature_class, instructions)
 
-    module = dspy.Predict(CustomSig)
+    if task.module_type == "ReAct":
+        from .tools import TOOL_REGISTRY
+        tool_fns = [TOOL_REGISTRY[t] for t in task.tools]
+        module = dspy.ReAct(CustomSig, tools=tool_fns)
+    elif task.module_type == "ChainOfThought":
+        module = dspy.ChainOfThought(CustomSig)
+    else:
+        module = dspy.Predict(CustomSig)
     _, devset = task.split_examples()
     if max_eval:
         devset = devset[:max_eval]
@@ -98,6 +105,10 @@ def run_optimization(task_id: str, optimizer: str = "BootstrapFewShot", *, max_e
     def _make_module_with_instructions():
         if instructions:
             CustomSig = _make_signature(task.signature_class, instructions)
+            if task.module_type == "ReAct":
+                from .tools import TOOL_REGISTRY
+                tool_fns = [TOOL_REGISTRY[t] for t in task.tools]
+                return dspy.ReAct(CustomSig, tools=tool_fns)
             if task.module_type == "ChainOfThought":
                 return dspy.ChainOfThought(CustomSig)
             return dspy.Predict(CustomSig)
@@ -181,11 +192,9 @@ def _format_optimized_prompt(module) -> str:
                 parts.append(f"\n  Example {i+1}:")
                 if isinstance(demo, dict):
                     for key, value in demo.items():
-                        if key == 'augmented':
-                            continue
                         val_str = str(value)
-                        if len(val_str) > 200:
-                            val_str = val_str[:200] + "..."
+                        if len(val_str) > 500:
+                            val_str = val_str[:500] + "..."
                         parts.append(f"    {key}: {val_str}")
     
     return "\n".join(parts) if parts else str(state)[:500]

@@ -18,7 +18,7 @@ def _load_tickets() -> pd.DataFrame:
     """Load ticket data (cached). ACTION: reads file."""
     global _df_cache
     if _df_cache is None:
-        _df_cache = pd.read_csv(CSV_PATH, encoding="latin-1")
+        _df_cache = pd.read_csv(CSV_PATH, encoding="latin-1", low_memory=False)
     return _df_cache
 
 
@@ -56,9 +56,10 @@ def search_tickets(query: str) -> str:
         return "Error: ticket data not available"
     
     mask = df["Summary*"].astype(str).str.contains(query, case=False, na=False)
+    total_matches = mask.sum()
     matches = df[mask].head(5)
     
-    if len(matches) == 0:
+    if total_matches == 0:
         return f"No tickets found matching '{query}'"
     
     results = []
@@ -69,7 +70,8 @@ def search_tickets(query: str) -> str:
         group = str(row.get("Assigned Group*+", "N/A"))
         results.append(f"- [{priority}] {summary} (Status: {status}, Team: {group})")
     
-    return f"Found {len(matches)} matching tickets:\n" + "\n".join(results)
+    header = f"Found {total_matches} total matching tickets (showing first {len(matches)}):"
+    return header + "\n" + "\n".join(results)
 
 
 def get_ticket_stats(field: str) -> str:

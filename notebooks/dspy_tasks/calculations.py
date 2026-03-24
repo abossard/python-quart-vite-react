@@ -224,17 +224,17 @@ def multi_tool_score(example, prediction, trace=None):
 def plan_quality(example, prediction, trace=None):
     """Plan-and-execute: plan coherence + result accuracy."""
     result_score = token_f1(
-        normalize(str(example.result)).split(),
-        normalize(str(prediction.result)).split()
+        normalize(str(example.answer)).split(),
+        normalize(str(prediction.answer)).split()
     )
-    plan = str(prediction.plan).strip()
+    plan = str(getattr(prediction, 'plan', '')).strip()
     has_plan = float(len(plan) > 20)
     return result_score * 0.7 + has_plan * 0.3
 
 def self_correct_accuracy(example, prediction, trace=None):
     """Self-correcting agent: final accuracy after retries."""
-    pred = normalize(str(prediction.verified_output))
-    gold = normalize(str(example.verified_output))
+    pred = normalize(str(prediction.answer))
+    gold = normalize(str(example.answer))
     if pred == gold:
         return 1.0
     return token_f1(gold.split(), pred.split())
