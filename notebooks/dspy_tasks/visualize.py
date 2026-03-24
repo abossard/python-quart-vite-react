@@ -399,33 +399,98 @@ def cost_roi_chart(
 
 
 # ============================================================================
-# MERMAID DIAGRAMS
+# DIAGRAMS — Pure HTML/CSS (zero external dependencies)
 # ============================================================================
 
-def mermaid(diagram: str) -> None:
-    """Render a Mermaid diagram inline in a Jupyter notebook.
-
-    Uses the Mermaid CDN — works in any Jupyter environment without
-    extensions or local installs.
+def diagram(boxes: list[dict], title: str = "", direction: str = "horizontal") -> None:
+    """Render a flow diagram using pure HTML/CSS. No external dependencies.
 
     Args:
-        diagram: Mermaid diagram source (e.g., 'graph LR; A-->B')
+        boxes: list of dicts with keys:
+            - "label": str (short title)
+            - "detail": str (optional subtitle/description)
+            - "color": str (optional, default blue: "#0078d4")
+            - "icon": str (optional emoji)
+        title: optional title above the diagram
+        direction: "horizontal" (left→right) or "vertical" (top→bottom)
     """
-    import uuid
-    uid = f"mermaid-{uuid.uuid4().hex[:8]}"
+    arrow = "→" if direction == "horizontal" else "↓"
+    flex_dir = "row" if direction == "horizontal" else "column"
+
+    items_html = ""
+    for i, box in enumerate(boxes):
+        color = box.get("color", "#0078d4")
+        bg = color + "18"  # ~10% opacity via hex alpha
+        icon = box.get("icon", "")
+        label = _escape_html(box["label"])
+        detail = _escape_html(box.get("detail", ""))
+        detail_html = f'<div style="font-size:0.8em;color:#605e5c;margin-top:2px">{detail}</div>' if detail else ""
+
+        items_html += f'''
+        <div style="background:{bg}; border:2px solid {color}; border-radius:8px;
+                    padding:12px 16px; min-width:120px; text-align:center; flex-shrink:0">
+            <div style="font-size:1.3em">{icon}</div>
+            <div style="font-weight:bold; color:#323130">{label}</div>
+            {detail_html}
+        </div>'''
+        if i < len(boxes) - 1:
+            items_html += f'<div style="font-size:1.5em; color:#8a8886; padding:0 8px; align-self:center">{arrow}</div>'
+
+    title_html = f'<div style="font-weight:bold; font-size:1.1em; margin-bottom:8px; color:#323130">{_escape_html(title)}</div>' if title else ""
+
     display(HTML(f'''
-    <script type="module">
-    import mermaid from "https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.esm.min.mjs";
-    mermaid.initialize({{ startOnLoad: false, theme: 'base',
-        themeVariables: {{ primaryColor: '#e8f0fe', primaryTextColor: '#323130',
-            primaryBorderColor: '#0078d4', lineColor: '#605e5c',
-            secondaryColor: '#f3f2f1', tertiaryColor: '#f0fdf0' }} }});
-    const el = document.querySelector("#{uid}");
-    const {{ svg }} = await mermaid.render("{uid}-svg", el.textContent);
-    el.innerHTML = svg;
-    </script>
-    <div id="{uid}" class="mermaid">{_escape_html(diagram)}</div>
+    <div style="margin:16px 0">
+        {title_html}
+        <div style="display:flex; flex-direction:{flex_dir}; align-items:center;
+                    flex-wrap:wrap; gap:4px; padding:12px; background:#fafafa;
+                    border-radius:12px; border:1px solid #edebe9">
+            {items_html}
+        </div>
+    </div>
     '''))
+
+
+def diagram_compare(left: dict, right: dict, title: str = "") -> None:
+    """Render a side-by-side comparison diagram.
+
+    Args:
+        left: {"title": str, "items": list[str], "color": str, "icon": str}
+        right: same structure
+        title: optional title above
+    """
+    def _render_side(side):
+        color = side.get("color", "#8a8886")
+        icon = side.get("icon", "")
+        items_html = "".join(
+            f'<div style="padding:4px 0; border-bottom:1px solid #edebe9; font-size:0.9em">{_escape_html(item)}</div>'
+            for item in side.get("items", [])
+        )
+        return f'''
+        <div style="flex:1; background:{color}10; border:2px solid {color};
+                    border-radius:8px; padding:16px; min-width:200px">
+            <div style="font-size:1.3em; text-align:center">{icon}</div>
+            <div style="font-weight:bold; text-align:center; margin-bottom:8px;
+                        color:#323130">{_escape_html(side.get("title", ""))}</div>
+            {items_html}
+        </div>'''
+
+    title_html = f'<div style="font-weight:bold; font-size:1.1em; margin-bottom:8px; color:#323130">{_escape_html(title)}</div>' if title else ""
+    display(HTML(f'''
+    <div style="margin:16px 0">
+        {title_html}
+        <div style="display:flex; gap:16px; flex-wrap:wrap">
+            {_render_side(left)}
+            <div style="align-self:center; font-size:2em; color:#0078d4">⟺</div>
+            {_render_side(right)}
+        </div>
+    </div>
+    '''))
+
+
+# Keep mermaid() as a deprecated alias for backwards compat
+def mermaid(diagram_src: str) -> None:
+    """Deprecated: use diagram() instead. Falls back to displaying source as code block."""
+    display(HTML(f'<pre style="background:#f3f2f1; padding:12px; border-radius:4px; font-size:0.85em">{_escape_html(diagram_src)}</pre>'))
 
 
 # ============================================================================
