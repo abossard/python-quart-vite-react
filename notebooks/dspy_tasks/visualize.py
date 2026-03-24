@@ -99,6 +99,80 @@ def task_picker(tasks: list[dict]) -> widgets.Dropdown:
         layout=widgets.Layout(width='500px'),
     )
 
+
+def prompt_workshop(
+    task_id: str,
+    model_widget: widgets.Dropdown,
+    default_instructions: str = "",
+    max_eval: int = 8,
+) -> widgets.VBox:
+    """Interactive prompt tuning workshop widget.
+
+    Renders a prefilled Textarea for editing the system prompt,
+    a Run button, and a score history panel. User only edits text, never code.
+
+    Args:
+        task_id: Which task to evaluate against
+        model_widget: A model_picker dropdown widget
+        default_instructions: Prefilled prompt text
+        max_eval: Max examples to evaluate (keep low for speed)
+
+    Returns:
+        VBox widget ready to display()
+    """
+    from .actions import run_with_prompt
+
+    prompt_area = widgets.Textarea(
+        value=default_instructions,
+        description="",
+        layout=widgets.Layout(width="100%", height="120px"),
+    )
+    prompt_label = widgets.HTML(
+        '<div style="font-weight:bold; margin-bottom:4px">✏️ Dein Prompt (editiere und klick Auswerten):</div>'
+    )
+    btn = widgets.Button(
+        description="Auswerten! 📊",
+        button_style="primary",
+        icon="play",
+        layout=widgets.Layout(width="200px", height="40px"),
+    )
+    output = widgets.Output()
+    history_html = widgets.HTML(value="")
+    attempt_scores: list[float] = []
+
+    def on_run(b):
+        with output:
+            output.clear_output()
+            print(f"⏳ Evaluiere mit deinem Prompt auf {model_widget.value}...")
+            result = run_with_prompt(
+                task_id, model_widget.value, prompt_area.value, max_eval=max_eval,
+            )
+            attempt_scores.append(result.score)
+            display_score(f"Versuch {len(attempt_scores)}", result.score)
+            display_results_table(result.individual_scores)
+
+            # Update history
+            history_lines = []
+            for i, s in enumerate(attempt_scores):
+                emoji = "🟢" if s >= 0.8 else "🟡" if s >= 0.5 else "🔴"
+                bar = "█" * int(s * 20) + "░" * (20 - int(s * 20))
+                history_lines.append(f"Versuch {i+1}: {emoji} {bar} {s:.0%}")
+            history_html.value = (
+                '<div style="background:#f3f2f1; padding:12px; border-radius:8px; margin-top:8px; font-family:monospace">'
+                + "<br>".join(history_lines)
+                + "</div>"
+            )
+
+    btn.on_click(on_run)
+
+    return widgets.VBox([
+        prompt_label, prompt_area,
+        widgets.HBox([btn, model_widget]),
+        output,
+        widgets.HTML('<div style="font-weight:bold; margin-top:12px">📈 Dein Verlauf:</div>'),
+        history_html,
+    ])
+
 def run_button(description: str = "Run", button_style: str = "primary") -> widgets.Button:
     """Create a styled run button."""
     return widgets.Button(

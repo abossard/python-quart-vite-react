@@ -202,6 +202,101 @@ def compare_models(
     )
 
 
+def run_with_prompt(
+    task_id: str,
+    model: str,
+    instructions: str,
+    *,
+    max_eval: Optional[int] = None,
+    train_ratio: float = 0.7,
+) -> RunResult:
+    """Run a task with custom user-written instructions.
+
+    Creates a dynamic Signature with the user's instructions as its docstring,
+    then evaluates on the dev set. This lets prompt engineers iterate on prompts
+    and see how their wording affects accuracy.
+
+    ACTION: makes LLM API calls.
+    """
+    task = get_task(task_id)
+    lm = configure_dspy(model)
+
+    # Build a dynamic Signature with the user's instructions
+    sig = task.signature_class
+    fields = {}
+    for name, field_info in sig.model_fields.items():
+        fields[name] = (field_info.annotation, field_info)
+
+    CustomSig = type(
+        "CustomSig",
+        (dspy.Signature,),
+        {"__doc__": instructions, "__annotations__": {n: f[0] for n, f in fields.items()}, **{n: f[1] for n, f in fields.items()}},
+    )
+
+    module = dspy.Predict(CustomSig)
+    _, devset = task.split_examples(train_ratio)
+    if max_eval:
+        devset = devset[:max_eval]
+
+    start = time.time()
+    individual = _evaluate_examples(module, devset, task.metric_fn)
+    elapsed = time.time() - start
+    score = _mean([r["score"] for r in individual])
+
+    return RunResult(
+        task_id=task_id,
+        model=model,
+        score=score,
+        individual_scores=individual,
+        prompt_used=instructions,
+        elapsed_seconds=round(elapsed, 2),
+        llm_calls=len(lm.history) if hasattr(lm, "history") else 0,
+    )
+
+
+def run_on_examples(
+    examples: list[dspy.Example],
+    instructions: str,
+    model: str,
+    signature_class: type,
+    metric_fn: callable,
+) -> RunResult:
+    """Run custom instructions on a specific set of examples.
+
+    For use with benchmark datasets (GSM8K, HotPotQA, TruthfulQA).
+    ACTION: makes LLM API calls.
+    """
+    lm = configure_dspy(model)
+
+    sig = signature_class
+    fields = {}
+    for name, field_info in sig.model_fields.items():
+        fields[name] = (field_info.annotation, field_info)
+
+    CustomSig = type(
+        "CustomSig",
+        (dspy.Signature,),
+        {"__doc__": instructions, "__annotations__": {n: f[0] for n, f in fields.items()}, **{n: f[1] for n, f in fields.items()}},
+    )
+
+    module = dspy.Predict(CustomSig)
+
+    start = time.time()
+    individual = _evaluate_examples(module, examples, metric_fn)
+    elapsed = time.time() - start
+    score = _mean([r["score"] for r in individual])
+
+    return RunResult(
+        task_id="custom",
+        model=model,
+        score=score,
+        individual_scores=individual,
+        prompt_used=instructions,
+        elapsed_seconds=round(elapsed, 2),
+        llm_calls=len(lm.history) if hasattr(lm, "history") else 0,
+    )
+
+
 # ============================================================================
 # INTERNAL HELPERS
 # ============================================================================
