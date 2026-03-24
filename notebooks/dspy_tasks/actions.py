@@ -152,35 +152,43 @@ def _current_model() -> str:
 
 def _format_optimized_prompt(module) -> str:
     """Format an optimized DSPy module's state into a human-readable string."""
-    if not hasattr(module, 'dump_state'):
+    try:
+        state = module.dump_state()
+    except Exception:
         return "(optimized)"
     
-    state = module.dump_state()
-    parts = []
+    # dump_state() may return a dict or a list depending on DSPy version
+    if isinstance(state, list):
+        return str(state)[:500]
+    if not isinstance(state, dict):
+        return str(state)[:500]
     
+    parts = []
     for predictor_name, predictor_state in state.items():
-        # Extract instructions
+        if not isinstance(predictor_state, dict):
+            continue
         sig = predictor_state.get('signature', {})
-        instructions = sig.get('instructions', '')
-        if instructions:
-            parts.append("━━━ INSTRUCTIONS ━━━")
-            parts.append(instructions)
+        if isinstance(sig, dict):
+            instructions = sig.get('instructions', '')
+            if instructions:
+                parts.append("━━━ INSTRUCTIONS ━━━")
+                parts.append(str(instructions))
         
-        # Extract demos (few-shot examples)
         demos = predictor_state.get('demos', [])
-        if demos:
+        if demos and isinstance(demos, list):
             parts.append(f"\n━━━ FEW-SHOT EXAMPLES ({len(demos)}) ━━━")
             for i, demo in enumerate(demos):
                 parts.append(f"\n  Example {i+1}:")
-                for key, value in demo.items():
-                    if key == 'augmented':
-                        continue
-                    val_str = str(value)
-                    if len(val_str) > 200:
-                        val_str = val_str[:200] + "..."
-                    parts.append(f"    {key}: {val_str}")
+                if isinstance(demo, dict):
+                    for key, value in demo.items():
+                        if key == 'augmented':
+                            continue
+                        val_str = str(value)
+                        if len(val_str) > 200:
+                            val_str = val_str[:200] + "..."
+                        parts.append(f"    {key}: {val_str}")
     
-    return "\n".join(parts) if parts else str(state)
+    return "\n".join(parts) if parts else str(state)[:500]
 
 
 def _make_signature(base_sig, instructions: str):
