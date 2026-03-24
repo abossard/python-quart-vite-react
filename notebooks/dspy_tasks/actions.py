@@ -11,6 +11,7 @@ import dspy
 from dataclasses import asdict
 from typing import Optional
 
+from .config import configure_dspy
 from .tasks import get_task, list_tasks, PlaygroundTask
 from .visualize import RunResult, OptimizationResult, ComparisonResult
 
@@ -32,8 +33,7 @@ def run_baseline(
     """
     task = get_task(task_id)
 
-    lm = dspy.LM(model)
-    dspy.configure(lm=lm)
+    lm = configure_dspy(model)
 
     module = task.make_module()
     _, devset = task.split_examples(train_ratio)
@@ -83,8 +83,7 @@ def run_optimization(
     """
     task = get_task(task_id)
 
-    lm = dspy.LM(model)
-    dspy.configure(lm=lm)
+    lm = configure_dspy(model)
 
     # --- Baseline ---
     module_baseline = task.make_module()
@@ -166,8 +165,7 @@ def compare_models(
     improvements = {}
 
     for model_name in models:
-        lm = dspy.LM(model_name)
-        dspy.configure(lm=lm)
+        lm = configure_dspy(model_name)
 
         module = task.make_module()
         trainset, devset = task.split_examples(train_ratio)
