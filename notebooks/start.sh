@@ -75,6 +75,13 @@ fi
 
 echo ""
 echo "🚀 Launching Jupyter Lab..."
-echo "   Open 00_introduction.ipynb to start the learning path"
+echo "   Open 01_evaluation_and_tuning.ipynb to start the learning path"
 echo ""
+
+# Support --install-only flag (used by setup.sh)
+if [ "${1:-}" = "--install-only" ]; then
+    echo "✅ Install complete (--install-only mode)"
+    exit 0
+fi
+
 exec jupyter lab --notebook-dir="$SCRIPT_DIR"
