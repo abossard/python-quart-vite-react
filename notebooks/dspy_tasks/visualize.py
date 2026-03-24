@@ -396,3 +396,100 @@ def cost_roi_chart(
         )]
     )
     return fig
+
+
+# ============================================================================
+# MERMAID DIAGRAMS
+# ============================================================================
+
+def mermaid(diagram: str) -> None:
+    """Render a Mermaid diagram inline in a Jupyter notebook.
+
+    Uses the Mermaid CDN — works in any Jupyter environment without
+    extensions or local installs.
+
+    Args:
+        diagram: Mermaid diagram source (e.g., 'graph LR; A-->B')
+    """
+    import uuid
+    uid = f"mermaid-{uuid.uuid4().hex[:8]}"
+    display(HTML(f'''
+    <script type="module">
+    import mermaid from "https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.esm.min.mjs";
+    mermaid.initialize({{ startOnLoad: false, theme: 'base',
+        themeVariables: {{ primaryColor: '#e8f0fe', primaryTextColor: '#323130',
+            primaryBorderColor: '#0078d4', lineColor: '#605e5c',
+            secondaryColor: '#f3f2f1', tertiaryColor: '#f0fdf0' }} }});
+    const el = document.querySelector("#{uid}");
+    const {{ svg }} = await mermaid.render("{uid}-svg", el.textContent);
+    el.innerHTML = svg;
+    </script>
+    <div id="{uid}" class="mermaid">{_escape_html(diagram)}</div>
+    '''))
+
+
+# ============================================================================
+# QUIZ WIDGET
+# ============================================================================
+
+def quiz(questions: list[dict]) -> None:
+    """Display an interactive multiple-choice quiz.
+
+    Args:
+        questions: list of dicts with keys:
+            - "question": str
+            - "options": list[str]
+            - "answer": int (0-based index of correct option)
+            - "explanation": str (shown after answering)
+    """
+    score_label = widgets.HTML(value="")
+    result_boxes = []
+
+    for i, q in enumerate(questions):
+        q_html = widgets.HTML(
+            value=f'<div style="font-weight:bold; margin-top:16px; font-size:1.05em">'
+                  f'Frage {i+1}: {_escape_html(q["question"])}</div>'
+        )
+        radios = widgets.RadioButtons(
+            options=q["options"],
+            value=None,
+            layout=widgets.Layout(width="auto"),
+        )
+        feedback = widgets.HTML(value="")
+        result_boxes.append((radios, feedback, q))
+        display(q_html, radios, feedback)
+
+    check_btn = widgets.Button(
+        description="Auswerten! 📝", button_style="primary", icon="check",
+        layout=widgets.Layout(width="200px", height="40px"),
+    )
+
+    def on_check(b):
+        correct = 0
+        for radios, feedback, q in result_boxes:
+            if radios.value is None:
+                feedback.value = '<span style="color:#ca5010">⚠️ Bitte eine Antwort wählen</span>'
+                continue
+            selected_idx = q["options"].index(radios.value)
+            if selected_idx == q["answer"]:
+                correct += 1
+                feedback.value = (
+                    f'<span style="color:#107c10">✅ Richtig!</span> '
+                    f'<span style="color:#605e5c">{_escape_html(q["explanation"])}</span>'
+                )
+            else:
+                feedback.value = (
+                    f'<span style="color:#d13438">❌ Falsch.</span> '
+                    f'<span style="color:#605e5c">{_escape_html(q["explanation"])}</span>'
+                )
+        total = len(result_boxes)
+        pct = correct / total * 100
+        emoji = "🎉" if pct >= 80 else "👍" if pct >= 60 else "📚"
+        score_label.value = (
+            f'<div style="background:#f3f2f1; padding:16px; border-radius:8px; '
+            f'margin-top:16px; font-size:1.2em; text-align:center">'
+            f'{emoji} <b>{correct}/{total} richtig ({pct:.0f}%)</b></div>'
+        )
+
+    check_btn.on_click(on_check)
+    display(check_btn, score_label)
