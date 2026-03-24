@@ -13,14 +13,13 @@ source .venv/bin/activate && pip install -r notebooks/requirements.txt
 cd notebooks && jupyter lab
 ```
 
-Open `00_introduction.ipynb` and follow the learning path.
+Open `01_evaluation_and_tuning.ipynb` and follow the learning path.
 
 ## Lernpfad
 
 | # | Notebook | Was du lernst |
 |---|----------|---------------|
-| 00 | **Einführung** | Setup, erster LLM-Aufruf, Modell auswählen |
-| 01 | **Evaluation** | LLMs machen Fehler! Was ist Accuracy? Metriken verstehen. Selbst Prompts tunen. |
+| 01 | **Evaluation & Tuning** | Setup, LLM-Fehler sehen, Accuracy messen, selbst Prompts tunen |
 | 02 | **Optimierung** | Erst manuell, dann automatisch — der Optimizer als Compiler |
 | 03 | **Domain-Tuning** | Deine echten Daten + Tuning = dein Wettbewerbsvorteil |
 | 04 | **Agenten** | Tool-nutzende Agenten optimieren |
