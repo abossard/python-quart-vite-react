@@ -102,7 +102,6 @@ def task_picker(tasks: list[dict]) -> widgets.Dropdown:
 
 def prompt_workshop(
     task_id: str,
-    model_widget: widgets.Dropdown,
     default_instructions: str = "",
     max_eval: int = 8,
 ) -> widgets.VBox:
@@ -111,14 +110,7 @@ def prompt_workshop(
     Renders a prefilled Textarea for editing the system prompt,
     a Run button, and a score history panel. User only edits text, never code.
 
-    Args:
-        task_id: Which task to evaluate against
-        model_widget: A model_picker dropdown widget
-        default_instructions: Prefilled prompt text
-        max_eval: Max examples to evaluate (keep low for speed)
-
-    Returns:
-        VBox widget ready to display()
+    Model must be configured once via configure_dspy() before using this.
     """
     from .actions import run_with_prompt
 
@@ -143,9 +135,9 @@ def prompt_workshop(
     def on_run(b):
         with output:
             output.clear_output()
-            print(f"⏳ Evaluiere mit deinem Prompt auf {model_widget.value}...")
+            print("⏳ Evaluiere mit deinem Prompt...")
             result = run_with_prompt(
-                task_id, model_widget.value, prompt_area.value, max_eval=max_eval,
+                task_id, prompt_area.value, max_eval=max_eval,
             )
             attempt_scores.append(result.score)
             display_score(f"Versuch {len(attempt_scores)}", result.score)
@@ -166,8 +158,7 @@ def prompt_workshop(
     btn.on_click(on_run)
 
     return widgets.VBox([
-        prompt_label, prompt_area,
-        widgets.HBox([btn, model_widget]),
+        prompt_label, prompt_area, btn,
         output,
         widgets.HTML('<div style="font-weight:bold; margin-top:12px">📈 Dein Verlauf:</div>'),
         history_html,

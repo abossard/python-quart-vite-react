@@ -166,7 +166,13 @@ def configure_dspy(
         kwargs["extra_headers"] = _get_copilot_headers()
 
     lm = dspy.LM(model_name, cache=cache, **kwargs)
-    dspy.configure(lm=lm)
+    try:
+        dspy.configure(lm=lm)
+    except RuntimeError:
+        # Widget callbacks run on a different thread — dspy.configure()
+        # only works from the thread that first called it.
+        # Fall through: callers should use dspy.context(lm=lm) in callbacks.
+        pass
     return lm
 
 
