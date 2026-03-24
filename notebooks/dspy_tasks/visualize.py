@@ -45,6 +45,7 @@ class OptimizationResult:
     trial_scores: list[float]
     elapsed_seconds: float
     llm_calls: int
+    baseline_individual_scores: list[dict] = None  # per-example results before optimization
     optimized_individual_scores: list[dict] = None  # per-example results after optimization
 
 @dataclass
