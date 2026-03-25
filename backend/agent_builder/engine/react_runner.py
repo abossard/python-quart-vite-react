@@ -18,6 +18,11 @@ from .callbacks import make_llm_logging_callback, make_tool_logging_callback
 logger = logging.getLogger(__name__)
 
 
+def _force_openai_backend() -> bool:
+    """Use OpenAI only when explicitly requested, matching backend/agents.py."""
+    return os.getenv("AGENT_BACKEND", "").strip().lower() == "openai"
+
+
 @dataclass
 class RunResult:
     """Immutable result of a ReAct agent invocation."""
@@ -35,8 +40,8 @@ def build_llm(
     max_tokens: int = 0,
     reasoning_effort: str = "low",
 ) -> Any:
-    """Construct an LLM instance — ChatOpenAI when api_key is provided, ChatLiteLLM otherwise."""
-    if api_key:
+    """Construct an LLM instance — LiteLLM by default, OpenAI only when forced."""
+    if _force_openai_backend() and api_key:
         from langchain_openai import ChatOpenAI
         kwargs: dict[str, Any] = {
             "model": model,
@@ -51,7 +56,7 @@ def build_llm(
         return ChatOpenAI(**kwargs)
     else:
         from langchain_litellm import ChatLiteLLM
-        litellm_model = os.getenv("LITELLM_MODEL", "github_copilot/gpt-4o")
+        litellm_model = model or os.getenv("LITELLM_MODEL", "github_copilot/gpt-4o")
         return ChatLiteLLM(model=litellm_model, temperature=temperature)
 
 

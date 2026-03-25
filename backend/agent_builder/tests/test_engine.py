@@ -1,5 +1,7 @@
 """Tests for engine helpers — extract_tools_used and ReactRunner."""
 
+from unittest.mock import patch
+
 from agent_builder.engine.react_runner import extract_tools_used
 
 
@@ -70,3 +72,27 @@ class TestExtractToolsUsed:
         result = extract_tools_used(messages)
         assert "tool_a" in result
         assert "tool_b" in result
+
+
+class TestBuildLlmSelection:
+    def test_defaults_to_litellm_even_with_api_key(self, monkeypatch):
+        monkeypatch.delenv("AGENT_BACKEND", raising=False)
+
+        with patch("langchain_litellm.ChatLiteLLM") as mock_litellm:
+            from agent_builder.engine.react_runner import build_llm
+
+            build_llm("openai/nvidia/nemotron-3-nano-4b", api_key="test-key")
+
+        mock_litellm.assert_called_once()
+        assert mock_litellm.call_args.kwargs["model"] == "openai/nvidia/nemotron-3-nano-4b"
+
+    def test_uses_openai_when_explicitly_forced(self, monkeypatch):
+        monkeypatch.setenv("AGENT_BACKEND", "openai")
+
+        with patch("langchain_openai.ChatOpenAI") as mock_openai:
+            from agent_builder.engine.react_runner import build_llm
+
+            build_llm("gpt-4o-mini", api_key="test-key", base_url="http://localhost:1234/v1")
+
+        mock_openai.assert_called_once()
+        assert mock_openai.call_args.kwargs["model"] == "gpt-4o-mini"

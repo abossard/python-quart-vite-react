@@ -17,10 +17,15 @@ from pathlib import Path
 from time import perf_counter
 from typing import Any, Optional
 
-from .engine.prompt_builder import append_output_instructions, resolve_output_schema
-from .engine.react_runner import build_llm, build_react_agent, extract_tools_used, make_tool_logging_callback
 from .engine.callbacks import make_streaming_callback
 from .engine.event_bus import AgentEvent, agent_event_bus
+from .engine.prompt_builder import append_output_instructions, resolve_output_schema
+from .engine.react_runner import (
+    build_llm,
+    build_react_agent,
+    extract_tools_used,
+    make_tool_logging_callback,
+)
 from .evaluator import compute_score
 from .evaluator import evaluate_run as _evaluate_criteria
 from .models import (
@@ -39,6 +44,14 @@ from .persistence import AgentRepository, build_engine
 from .tools import ToolRegistry
 
 logger = logging.getLogger(__name__)
+
+
+def _default_model(explicit_model: str = "") -> str:
+    if explicit_model:
+        return explicit_model
+    if os.getenv("AGENT_BACKEND", "").strip().lower() == "openai":
+        return os.getenv("OPENAI_MODEL", "gpt-4o-mini")
+    return os.getenv("LITELLM_MODEL", "github_copilot/gpt-4o")
 
 
 # ============================================================================
@@ -182,13 +195,13 @@ class WorkbenchService:
         tool_registry: ToolRegistry,
         db_path: Optional[Path] = None,
         openai_api_key: str = "",
-        openai_model: str = "gpt-4o-mini",
+        openai_model: str = "",
         openai_base_url: str = "",
         recursion_limit: int = 10,
     ) -> None:
         self._registry = tool_registry
         self._api_key = openai_api_key or os.getenv("OPENAI_API_KEY", "")
-        self._model = openai_model or os.getenv("OPENAI_MODEL", "gpt-4o-mini")
+        self._model = _default_model(openai_model)
         self._base_url = openai_base_url or os.getenv("OPENAI_BASE_URL", "")
         self._recursion_limit = recursion_limit
         self._db_path = db_path or (
