@@ -96,11 +96,7 @@ echo "⚛️  Setting up React frontend..."
 cd frontend
 
 echo "Installing frontend npm dependencies..."
-if [ -f "package-lock.json" ]; then
-    npm ci
-else
-    npm install
-fi
+npm install
 
 info "Frontend setup complete"
 cd ..
