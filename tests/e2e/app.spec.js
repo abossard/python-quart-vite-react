@@ -29,7 +29,9 @@ test.describe("App shell", () => {
       "aria-selected",
       "true",
     );
-    await expect(page.getByRole("heading", { name: "KBA Drafter" })).toBeVisible();
+    await expect(
+      page.getByRole("heading", { name: "KBA Drafter" }),
+    ).toBeVisible();
 
     await page.getByTestId("tab-usecase-demo").click();
     await expect(page.getByTestId("tab-usecase-demo")).toHaveAttribute(

@@ -9,12 +9,8 @@ import os
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
-from kba_exceptions import (
-    LLMAuthenticationError,
-    LLMRateLimitError,
-    LLMTimeoutError,
-    LLMUnavailableError,
-)
+from kba_exceptions import (LLMAuthenticationError, LLMRateLimitError,
+                            LLMTimeoutError, LLMUnavailableError)
 from kba_output_models import KBAOutputSchema
 from llm_service import LLMService, get_llm_service
 from pydantic import BaseModel, Field
