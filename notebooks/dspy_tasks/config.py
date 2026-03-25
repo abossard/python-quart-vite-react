@@ -19,7 +19,9 @@ logger = logging.getLogger(__name__)
 
 # Project root is two levels up from this file (notebooks/dspy_tasks/config.py → project root)
 PROJECT_ROOT = Path(__file__).parent.parent.parent
+NOTEBOOKS_DIR = Path(__file__).parent.parent
 ENV_FILE = PROJECT_ROOT / ".env"
+NOTEBOOKS_ENV_FILE = NOTEBOOKS_DIR / ".env"
 
 
 # ============================================================================
@@ -27,14 +29,17 @@ ENV_FILE = PROJECT_ROOT / ".env"
 # ============================================================================
 
 def _load_env():
-    """Load .env file from project root if it exists. ACTION: file I/O."""
+    """Load .env file from project root and/or notebooks dir. ACTION: file I/O."""
     try:
         from dotenv import load_dotenv
-        if ENV_FILE.exists():
-            load_dotenv(ENV_FILE, override=False)
-            logger.debug("Loaded .env from %s", ENV_FILE)
-        else:
-            logger.debug("No .env file at %s, using system environment", ENV_FILE)
+        loaded = False
+        for env_path in [ENV_FILE, NOTEBOOKS_ENV_FILE]:
+            if env_path.exists():
+                load_dotenv(env_path, override=False)
+                logger.debug("Loaded .env from %s", env_path)
+                loaded = True
+        if not loaded:
+            logger.debug("No .env file found, using system environment")
     except ImportError:
         logger.debug("python-dotenv not installed, using system environment only")
 
@@ -113,15 +118,34 @@ def discover_models() -> list[str]:
     return []
 
 
-def get_available_models() -> list[str]:
-    """Return all available models: configured + discovered, deduplicated.
+def discover_lmstudio_models() -> list[str]:
+    """Discover models from a local LM Studio instance.
 
-    This mirrors backend/llm_service.py's get_model_catalog() logic.
+    Only attempts discovery if LM_STUDIO_API_BASE is set.
+    Uses LiteLLM's native lm_studio/ prefix convention.
+    Returns an empty list if LM Studio is not running or not configured.
     """
+    base_url = os.getenv("LM_STUDIO_API_BASE")
+    if not base_url:
+        return []
+    try:
+        import httpx
+        resp = httpx.get(f"{base_url}/models", timeout=2.0)
+        resp.raise_for_status()
+        data = resp.json().get("data", [])
+        return [f"lm_studio/{m['id']}" for m in data if m.get("id")]
+    except Exception as exc:
+        logger.debug("LM Studio discovery failed (is it running?): %s", exc)
+        return []
+
+
+def get_available_models() -> list[str]:
+    """Return all available models: configured + discovered + LM Studio, deduplicated."""
     primary = get_default_model()
     fallbacks = get_fallback_models()
     discovered = discover_models()
-    return _build_model_list(primary, fallbacks, discovered)
+    lmstudio = discover_lmstudio_models()
+    return _build_model_list(primary, fallbacks, discovered + lmstudio)
 
 
 # ============================================================================
