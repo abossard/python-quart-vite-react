@@ -1,0 +1,102 @@
+[
+  {
+    "question": "Search for Outlook tickets and find out how many there are. Then search for VPN tickets. How many more Outlook tickets are there than VPN tickets?",
+    "answer": "63",
+    "sources": "ticket_database"
+  },
+  {
+    "question": "First, find out which team handles the most tickets overall using stats. Then search for Outlook tickets — how many of those 102 Outlook tickets does that team handle?",
+    "answer": "25",
+    "sources": "ticket_database"
+  },
+  {
+    "question": "Search for Passwort tickets to find which team handles most of them. Then check how many total tickets that team handles using stats.",
+    "answer": "601",
+    "sources": "ticket_database"
+  },
+  {
+    "question": "First check the priority stats to find how many High priority tickets exist. Then calculate: if each costs 500 CHF to resolve, what is the total cost?",
+    "answer": "37000",
+    "sources": "ticket_database"
+  },
+  {
+    "question": "Search for Outlook tickets to find out how many are High priority. Then calculate what percentage of all 102 Outlook tickets are High priority. Round to one decimal.",
+    "answer": "7.8",
+    "sources": "ticket_database"
+  },
+  {
+    "question": "Check the status distribution first. Then calculate: how many tickets are NOT Resolved, as a percentage of all 3000 tickets? Round to one decimal.",
+    "answer": "22.4",
+    "sources": "ticket_database"
+  },
+  {
+    "question": "First search for VPN tickets to find which team handles most of them. Then search for Drucker tickets — does the same team handle most of those too? Answer with the team name.",
+    "answer": "SDE - Service Desk",
+    "sources": "ticket_database"
+  },
+  {
+    "question": "Check how many tickets the OFC - Office & Collaboration team handles using group stats. Then search for Outlook tickets to see how many OFC handles. What percentage of OFC's total tickets are Outlook-related? Round to one decimal.",
+    "answer": "20.7",
+    "sources": "ticket_database"
+  },
+  {
+    "question": "Search for SAP tickets and count them. Then search for Drucker tickets and count them. Which topic has more tickets and by how many?",
+    "answer": "3",
+    "sources": "ticket_database"
+  },
+  {
+    "question": "First get the priority stats. Then calculate: what percentage of all 3000 tickets are Medium priority? Round to one decimal.",
+    "answer": "24.8",
+    "sources": "ticket_database"
+  },
+  {
+    "question": "Search for Telefon tickets and find which team handles most of them. What is the name of that team?",
+    "answer": "OFC - Office & Collaboration",
+    "sources": "ticket_database"
+  },
+  {
+    "question": "Check how many Standard priority tickets exist using stats. Then check how many Medium priority tickets exist. Calculate the ratio of Standard to Medium, rounded to one decimal.",
+    "answer": "2.9",
+    "sources": "ticket_database"
+  },
+  {
+    "question": "Search for Email tickets and count them. Then search for Telefon tickets and count them. How many Email and Telefon tickets are there combined?",
+    "answer": "38",
+    "sources": "ticket_database"
+  },
+  {
+    "question": "Get the group stats to find how many tickets OFC handles. Then get how many tickets SDE handles. How many more tickets does SDE handle than OFC?",
+    "answer": "359",
+    "sources": "ticket_database"
+  },
+  {
+    "question": "Search for Passwort tickets to count them. Then search for VPN tickets to count them. If you add both together, how many are there in total?",
+    "answer": "99",
+    "sources": "ticket_database"
+  },
+  {
+    "question": "First check the status distribution. How many tickets have status Assigned? Then calculate what percentage of all 3000 tickets that is. Round to one decimal.",
+    "answer": "7.5",
+    "sources": "ticket_database"
+  },
+  {
+    "question": "Search for Netzwerk tickets to find how many there are. Then search for WLAN tickets. How many Netzwerk and WLAN tickets are there combined?",
+    "answer": "23",
+    "sources": "ticket_database"
+  },
+  {
+    "question": "Get priority stats to find the number of High tickets. Then get the number of Medium tickets. How many High and Medium tickets are there in total?",
+    "answer": "817",
+    "sources": "ticket_database"
+  },
+  {
+    "question": "Search for Monitor tickets and count them. Then search for Drucker tickets and count them. How many hardware-related tickets (Monitor + Drucker) are there?",
+    "answer": "31",
+    "sources": "ticket_database"
+  },
+  {
+    "question": "Check the status stats to find Pending tickets count. If the team resolves 50 Pending tickets per week, how many weeks to clear all Pending tickets? Round to one decimal.",
+    "answer": "5.8",
+    "sources": "ticket_database"
+  }
+]

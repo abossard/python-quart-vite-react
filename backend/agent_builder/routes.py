@@ -7,12 +7,14 @@ Register with: app.register_blueprint(agent_builder_bp)
 Action layer: marshals HTTP ↔ service, no business logic.
 """
 
-from pydantic import ValidationError
-from quart import Blueprint, jsonify, request
-
 import asyncio
 import json
 
+from pydantic import ValidationError
+from quart import Blueprint, jsonify, request
+
+from .engine.event_bus import agent_event_bus
+from .engine.prompt_builder import DEFAULT_OUTPUT_SCHEMA
 from .models import (
     AgentDefinitionCreate,
     AgentDefinitionUpdate,
@@ -20,8 +22,6 @@ from .models import (
     CriteriaType,
     RunStatus,
 )
-from .engine.prompt_builder import DEFAULT_OUTPUT_SCHEMA
-from .engine.event_bus import agent_event_bus
 
 agent_builder_bp = Blueprint("agent_builder", __name__)
 
@@ -119,6 +119,21 @@ async def workbench_ui_config():
                 "input_schema": op.get_mcp_input_schema(),
             })
 
+    llm_catalog = {
+        "backend": "unknown",
+        "provider": None,
+        "default_model": "",
+        "fallback_models": [],
+        "available_models": [],
+        "source": "unavailable",
+    }
+    try:
+        from llm_service import get_llm_service
+
+        llm_catalog = get_llm_service().get_model_catalog()
+    except Exception:
+        pass
+
     return jsonify({
         "module": "agent_fabric",
         "version": "2",
@@ -132,6 +147,7 @@ async def workbench_ui_config():
             "max_tokens": 4096,
         },
         "llm_config_fields": ["model", "temperature", "recursion_limit", "max_tokens", "output_instructions", "output_schema"],
+        "llm": llm_catalog,
         "default_output_schema": DEFAULT_OUTPUT_SCHEMA,
         "endpoints": endpoints,
     })

@@ -14,7 +14,6 @@ from pathlib import Path
 
 # Ensure operations are loaded so @operation decorators run
 import operations  # noqa: F401
-
 from agent_builder import ChatService, ToolRegistry, WorkbenchService
 from api_decorators import get_langchain_tools
 
@@ -56,14 +55,12 @@ workbench_service = WorkbenchService(
     tool_registry=_tool_registry,
     db_path=Path(__file__).parent / "data" / "workbench.db",
     openai_api_key=os.getenv("OPENAI_API_KEY", ""),
-    openai_model=os.getenv("OPENAI_MODEL", "gpt-4o-mini"),
     openai_base_url=os.getenv("OPENAI_BASE_URL", ""),
 )
 
 chat_service = ChatService(
     tool_registry=_tool_registry,
     openai_api_key=os.getenv("OPENAI_API_KEY", ""),
-    openai_model=os.getenv("OPENAI_MODEL", "gpt-4o-mini"),
     openai_base_url=os.getenv("OPENAI_BASE_URL", ""),
 )
 

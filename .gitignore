@@ -53,3 +53,5 @@ logs/
 csv/*.csv
 screenshots/
 *.png
+.mcp.json
+notebooks/.ipynb_checkpoints/*

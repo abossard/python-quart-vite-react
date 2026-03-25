@@ -1,0 +1,52 @@
+[
+  {
+    "data_points": "Team: SDE - Service Desk, Total tickets: 601, Priority distribution: {'Standard': 514, 'Medium': 75, 'High': 12}",
+    "report_type": "team_summary",
+    "report": "Report for SDE - Service Desk: The team handled 601 tickets. Priority breakdown: {'Standard': 514, 'Medium': 75, 'High': 12}."
+  },
+  {
+    "data_points": "Team: Service-Center IKT Bestellungen, Total tickets: 32, Priority distribution: {'Standard': 30, 'Medium': 2}",
+    "report_type": "team_summary",
+    "report": "Report for Service-Center IKT Bestellungen: The team handled 32 tickets. Priority breakdown: {'Standard': 30, 'Medium': 2}."
+  },
+  {
+    "data_points": "Team: CDC - Client Design & Standard SW Integration, Total tickets: 10, Priority distribution: {'High': 5, 'Medium': 5}",
+    "report_type": "team_summary",
+    "report": "Report for CDC - Client Design & Standard SW Integration: The team handled 10 tickets. Priority breakdown: {'High': 5, 'Medium': 5}."
+  },
+  {
+    "data_points": "Team: FIB - BIT Store Bollwerk, Total tickets: 26, Priority distribution: {'Standard': 23, 'Medium': 3}",
+    "report_type": "team_summary",
+    "report": "Report for FIB - BIT Store Bollwerk: The team handled 26 tickets. Priority breakdown: {'Standard': 23, 'Medium': 3}."
+  },
+  {
+    "data_points": "Team: OFC - Office & Collaboration, Total tickets: 242, Priority distribution: {'Standard': 117, 'Medium': 104, 'High': 21}",
+    "report_type": "team_summary",
+    "report": "Report for OFC - Office & Collaboration: The team handled 242 tickets. Priority breakdown: {'Standard': 117, 'Medium': 104, 'High': 21}."
+  },
+  {
+    "data_points": "Team: Service-Center IKT, Total tickets: 526, Priority distribution: {'Standard': 312, 'Medium': 214}",
+    "report_type": "team_summary",
+    "report": "Report for Service-Center IKT: The team handled 526 tickets. Priority breakdown: {'Standard': 312, 'Medium': 214}."
+  },
+  {
+    "data_points": "Team: Helpdesk, Total tickets: 191, Priority distribution: {'Standard': 119, 'Medium': 72}",
+    "report_type": "team_summary",
+    "report": "Report for Helpdesk: The team handled 191 tickets. Priority breakdown: {'Standard': 119, 'Medium': 72}."
+  },
+  {
+    "data_points": "Team: IOM - Input / Output Mgmt. , Total tickets: 38, Priority distribution: {'Medium': 22, 'Standard': 16}",
+    "report_type": "team_summary",
+    "report": "Report for IOM - Input / Output Mgmt. : The team handled 38 tickets. Priority breakdown: {'Medium': 22, 'Standard': 16}."
+  },
+  {
+    "data_points": "Team: OPC - Applikationen, Total tickets: 19, Priority distribution: {'Standard': 17, 'Medium': 2}",
+    "report_type": "team_summary",
+    "report": "Report for OPC - Applikationen: The team handled 19 tickets. Priority breakdown: {'Standard': 17, 'Medium': 2}."
+  },
+  {
+    "data_points": "Team: G\u00fcter und Ausr\u00fcstung, Total tickets: 9, Priority distribution: {'Standard': 9}",
+    "report_type": "team_summary",
+    "report": "Report for G\u00fcter und Ausr\u00fcstung: The team handled 9 tickets. Priority breakdown: {'Standard': 9}."
+  }
+]

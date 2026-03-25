@@ -112,11 +112,20 @@ const useStyles = makeStyles({
     color: tokens.colorNeutralForeground3,
   },
   dialogSurface: {
-    maxWidth: '900px',
-    width: '90vw',
-    maxHeight: '85vh',
+    maxWidth: '960px',
+    width: 'min(96vw, 960px)',
+    maxHeight: '92vh',
+    display: 'flex',
+    flexDirection: 'column',
+  },
+  dialogBody: {
+    flex: '1 1 auto',
+    minHeight: 0,
+    overflow: 'hidden',
   },
   dialogContent: {
+    flex: '1 1 auto',
+    minHeight: 0,
     overflowY: 'auto',
   },
 })
@@ -256,7 +265,7 @@ export default function RunsSidePanel({ runs = [], agents = [], selectedRunId, o
               >
                 {resolveAgentName(agentMap, selectedRun)} — Result
               </DialogTitle>
-              <DialogBody>
+              <DialogBody className={styles.dialogBody}>
                 <DialogContent className={styles.dialogContent}>
                   <div data-testid={`run-detail-${selectedRun.id}`}>
                     {selectedRun.error && (

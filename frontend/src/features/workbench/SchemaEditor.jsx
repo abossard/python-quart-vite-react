@@ -11,14 +11,14 @@
  */
 
 import {
-  Button,
-  Dropdown,
-  Field,
-  Input,
-  Option,
-  Text,
-  makeStyles,
-  tokens,
+    Button,
+    Dropdown,
+    Field,
+    Input,
+    Option,
+    Text,
+    makeStyles,
+    tokens,
 } from '@fluentui/react-components'
 import { Add24Regular, Delete24Regular } from '@fluentui/react-icons'
 import { useCallback, useEffect, useState } from 'react'
@@ -37,57 +37,144 @@ const WIDGETS = [
   { value: 'hidden', label: '👁️‍🗨️ Hidden' },
 ]
 
+const WIDGET_VALUES = new Set(WIDGETS.map((widget) => widget.value))
+
 const useStyles = makeStyles({
   container: {
     display: 'flex',
     flexDirection: 'column',
-    gap: tokens.spacingVerticalS,
+    gap: tokens.spacingVerticalM,
   },
-  propertyRow: {
+  propertyCard: {
+    display: 'flex',
+    flexDirection: 'column',
+    gap: tokens.spacingVerticalS,
+    padding: tokens.spacingHorizontalM,
+    border: `1px solid ${tokens.colorNeutralStroke2}`,
+    borderRadius: tokens.borderRadiusLarge,
+    backgroundColor: tokens.colorNeutralBackground1,
+  },
+  propertyHeader: {
+    display: 'flex',
+    alignItems: 'flex-start',
+    justifyContent: 'space-between',
+    gap: tokens.spacingHorizontalM,
+  },
+  fieldGrid: {
     display: 'grid',
-    gridTemplateColumns: '1fr 100px 1fr 140px auto',
-    gap: tokens.spacingHorizontalS,
+    gridTemplateColumns: 'minmax(0, 1.4fr) minmax(120px, 0.8fr) minmax(0, 1.5fr) minmax(160px, 1fr)',
+    gap: tokens.spacingHorizontalM,
     alignItems: 'end',
-    padding: tokens.spacingVerticalXS,
-    borderBottom: `1px solid ${tokens.colorNeutralStroke2}`,
+    '@media (max-width: 900px)': {
+      gridTemplateColumns: 'repeat(2, minmax(0, 1fr))',
+    },
+    '@media (max-width: 640px)': {
+      gridTemplateColumns: 'minmax(0, 1fr)',
+    },
+  },
+  wideField: {
+    gridColumn: 'span 2',
+    '@media (max-width: 900px)': {
+      gridColumn: 'span 1',
+    },
   },
   widgetOptions: {
     display: 'grid',
     gridTemplateColumns: '1fr 1fr',
-    gap: tokens.spacingHorizontalS,
-    padding: `${tokens.spacingVerticalXS} 0 ${tokens.spacingVerticalXS} ${tokens.spacingHorizontalL}`,
-    borderBottom: `1px solid ${tokens.colorNeutralStroke2}`,
+    gap: tokens.spacingHorizontalM,
+    paddingTop: tokens.spacingVerticalS,
+    borderTop: `1px solid ${tokens.colorNeutralStroke2}`,
     backgroundColor: tokens.colorNeutralBackground2,
+    borderRadius: tokens.borderRadiusMedium,
+    paddingLeft: tokens.spacingHorizontalM,
+    paddingRight: tokens.spacingHorizontalM,
+    paddingBottom: tokens.spacingVerticalS,
+    '@media (max-width: 640px)': {
+      gridTemplateColumns: 'minmax(0, 1fr)',
+    },
   },
   addButton: {
     alignSelf: 'flex-start',
   },
-  header: {
-    display: 'grid',
-    gridTemplateColumns: '1fr 100px 1fr 140px auto',
-    gap: tokens.spacingHorizontalS,
+  propertyTitle: {
+    display: 'flex',
+    flexDirection: 'column',
+    gap: tokens.spacingVerticalXXS,
+    minWidth: 0,
+  },
+  propertySubtitle: {
     fontSize: tokens.fontSizeBase200,
-    fontWeight: tokens.fontWeightSemibold,
     color: tokens.colorNeutralForeground3,
-    padding: `0 ${tokens.spacingVerticalXS}`,
   },
 })
+
+function isRecord(value) {
+  return value !== null && typeof value === 'object' && !Array.isArray(value)
+}
+
+function normalizeList(value) {
+  if (Array.isArray(value)) {
+    return value.map((item) => String(item).trim()).filter(Boolean)
+  }
+  if (typeof value === 'string') {
+    return value.split(',').map((item) => item.trim()).filter(Boolean)
+  }
+  return []
+}
+
+function normalizeType(value, fallback = 'string') {
+  return typeof value === 'string' && TYPES.includes(value) ? value : fallback
+}
+
+function normalizeArrayItemType(value) {
+  return typeof value === 'string' && ARRAY_ITEM_TYPES.includes(value) ? value : 'string'
+}
+
+function normalizeWidget(value) {
+  return typeof value === 'string' && WIDGET_VALUES.has(value) ? value : ''
+}
+
+function normalizeWidgetOptions(rawOptions = {}) {
+  const options = isRecord(rawOptions) ? rawOptions : {}
+  return {
+    ...options,
+    columns: normalizeList(options.columns),
+    keys: normalizeList(options.keys),
+    label: typeof options.label === 'string' ? options.label : '',
+    indexBy: typeof options.indexBy === 'string' ? options.indexBy : '',
+    idKey: typeof options.idKey === 'string' ? options.idKey : '',
+    valueKey: typeof options.valueKey === 'string' ? options.valueKey : '',
+  }
+}
 
 function parseSchemaToProperties(schemaJson) {
   try {
     const schema = typeof schemaJson === 'string' ? JSON.parse(schemaJson) : schemaJson
-    if (!schema?.properties) return []
-    return Object.entries(schema.properties).map(([name, prop]) => ({
+    if (!isRecord(schema?.properties)) return []
+    return Object.entries(schema.properties).map(([name, prop]) => {
+      const property = isRecord(prop) ? prop : {}
+      const widgetOptions = normalizeWidgetOptions(property['x-ui'])
+      return {
       name,
-      type: prop.type || 'string',
-      description: prop.description || '',
-      widget: prop['x-ui']?.widget || '',
-      widgetOptions: { ...prop['x-ui'] },
-      itemsType: prop.items?.type || 'string',
-    }))
+      type: normalizeType(property.type),
+      description: typeof property.description === 'string' ? property.description : '',
+      widget: normalizeWidget(widgetOptions.widget),
+      widgetOptions,
+      itemsType: normalizeArrayItemType(property.items?.type),
+    }})
   } catch {
     return []
   }
+}
+
+function cleanWidgetOptions(widgetOptions) {
+  return Object.fromEntries(
+    Object.entries(widgetOptions || {}).filter(([, value]) => {
+      if (Array.isArray(value)) return value.length > 0
+      if (typeof value === 'string') return value.trim().length > 0
+      return value !== null && value !== undefined && value !== false
+    }),
+  )
 }
 
 function propertiesToSchema(properties) {
@@ -95,14 +182,16 @@ function propertiesToSchema(properties) {
   for (const prop of properties) {
     if (!prop.name.trim()) continue
     const schemaProp = {
-      type: prop.type,
-      description: prop.description,
+      type: normalizeType(prop.type),
+    }
+    if (prop.description.trim()) {
+      schemaProp.description = prop.description.trim()
     }
     if (prop.type === 'array') {
-      schemaProp.items = { type: prop.itemsType || 'string' }
+      schemaProp.items = { type: normalizeArrayItemType(prop.itemsType) }
     }
     if (prop.widget) {
-      const opts = { ...prop.widgetOptions }
+      const opts = cleanWidgetOptions(prop.widgetOptions)
       delete opts.widget
       schemaProp['x-ui'] = { widget: prop.widget, ...opts }
     }
@@ -114,7 +203,7 @@ function propertiesToSchema(properties) {
   }
 }
 
-function PropertyRow({ property, onChange, onRemove }) {
+function PropertyRow({ index, property, onChange, onRemove }) {
   const styles = useStyles()
 
   const update = (field, value) => {
@@ -124,7 +213,7 @@ function PropertyRow({ property, onChange, onRemove }) {
   const updateWidgetOption = (key, value) => {
     onChange({
       ...property,
-      widgetOptions: { ...property.widgetOptions, [key]: value },
+      widgetOptions: normalizeWidgetOptions({ ...property.widgetOptions, [key]: value }),
     })
   }
 
@@ -133,9 +222,25 @@ function PropertyRow({ property, onChange, onRemove }) {
   const needsChartConfig = property.widget === 'bar-chart'
 
   return (
-    <>
-      <div className={styles.propertyRow}>
-        <Field size="small">
+    <div className={styles.propertyCard}>
+      <div className={styles.propertyHeader}>
+        <div className={styles.propertyTitle}>
+          <Text weight="semibold">{property.name.trim() || `Property ${index + 1}`}</Text>
+          <span className={styles.propertySubtitle}>Configure how this output field is stored and rendered.</span>
+        </div>
+        <Button
+          size="small"
+          appearance="subtle"
+          icon={<Delete24Regular />}
+          onClick={onRemove}
+          title="Remove property"
+        >
+          Remove
+        </Button>
+      </div>
+
+      <div className={styles.fieldGrid}>
+        <Field label="Name" size="small">
           <Input
             size="small"
             value={property.name}
@@ -144,7 +249,7 @@ function PropertyRow({ property, onChange, onRemove }) {
             style={{ fontFamily: 'monospace' }}
           />
         </Field>
-        <Field size="small">
+        <Field label="Type" size="small">
           <Dropdown
             size="small"
             value={property.type}
@@ -154,7 +259,7 @@ function PropertyRow({ property, onChange, onRemove }) {
             {TYPES.map((t) => <Option key={t} value={t}>{t}</Option>)}
           </Dropdown>
         </Field>
-        <Field size="small">
+        <Field label="Description" size="small" className={styles.wideField}>
           <Input
             size="small"
             value={property.description}
@@ -162,7 +267,7 @@ function PropertyRow({ property, onChange, onRemove }) {
             placeholder="description"
           />
         </Field>
-        <Field size="small">
+        <Field label="Widget" size="small">
           <Dropdown
             size="small"
             value={WIDGETS.find((w) => w.value === property.widget)?.label || 'Auto-detect'}
@@ -172,21 +277,27 @@ function PropertyRow({ property, onChange, onRemove }) {
             {WIDGETS.map((w) => <Option key={w.value} value={w.value}>{w.label}</Option>)}
           </Dropdown>
         </Field>
-        <Button
-          size="small"
-          appearance="subtle"
-          icon={<Delete24Regular />}
-          onClick={onRemove}
-          title="Remove property"
-        />
+        {property.type === 'array' && (
+          <Field label="Array item type" size="small">
+            <Dropdown
+              size="small"
+              value={property.itemsType}
+              selectedOptions={[property.itemsType]}
+              onOptionSelect={(_, d) => update('itemsType', d.optionValue)}
+            >
+              {ARRAY_ITEM_TYPES.map((type) => <Option key={type} value={type}>{type}</Option>)}
+            </Dropdown>
+          </Field>
+        )}
       </div>
+
       {(needsColumns || needsLabel || needsChartConfig) && (
         <div className={styles.widgetOptions}>
           {needsColumns && (
             <Field label="Columns (comma-separated)" size="small">
               <Input
                 size="small"
-                value={(property.widgetOptions.columns || []).join(', ')}
+                value={normalizeList(property.widgetOptions.columns).join(', ')}
                 onChange={(_, d) => updateWidgetOption('columns', d.value.split(',').map((s) => s.trim()).filter(Boolean))}
                 placeholder="col1, col2, col3"
               />
@@ -215,7 +326,7 @@ function PropertyRow({ property, onChange, onRemove }) {
               <Field label="Value keys (comma-separated)" size="small">
                 <Input
                   size="small"
-                  value={(property.widgetOptions.keys || []).join(', ')}
+                  value={normalizeList(property.widgetOptions.keys).join(', ')}
                   onChange={(_, d) => updateWidgetOption('keys', d.value.split(',').map((s) => s.trim()).filter(Boolean))}
                   placeholder="e.g. count"
                 />
@@ -224,7 +335,7 @@ function PropertyRow({ property, onChange, onRemove }) {
           )}
         </div>
       )}
-    </>
+    </div>
   )
 }
 
@@ -276,18 +387,10 @@ export default function SchemaEditor({ value, onChange }) {
 
   return (
     <div className={styles.container} data-testid="schema-editor">
-      {properties.length > 0 && (
-        <div className={styles.header}>
-          <span>Name</span>
-          <span>Type</span>
-          <span>Description</span>
-          <span>Widget</span>
-          <span />
-        </div>
-      )}
       {properties.map((prop, i) => (
         <PropertyRow
           key={i}
+          index={i}
           property={prop}
           onChange={(updated) => updateProperty(i, updated)}
           onRemove={() => removeProperty(i)}

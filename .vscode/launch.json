@@ -23,6 +23,13 @@
       "console": "integratedTerminal"
     },
     {
+      "name": "Make LLM Great Again",
+      "type": "node-terminal",
+      "request": "launch",
+      "command": "./start.sh",
+      "cwd": "${workspaceFolder}/notebooks"
+    },
+    {
       "name": "Frontend: Chromium",
       "type": "chrome",
       "request": "launch",

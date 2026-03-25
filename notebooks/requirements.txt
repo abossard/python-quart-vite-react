@@ -1,0 +1,8 @@
+dspy>=2.6.0
+litellm==1.82.6
+python-dotenv>=1.0.0
+ipywidgets>=8.0.0
+plotly>=5.18.0
+jupyterlab>=4.0.0
+nbformat>=5.9.0
+pandas>=2.0.0

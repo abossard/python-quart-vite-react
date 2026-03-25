@@ -96,11 +96,7 @@ echo "⚛️  Setting up React frontend..."
 cd frontend
 
 echo "Installing frontend npm dependencies..."
-if [ -f "package-lock.json" ]; then
-    npm ci
-else
-    npm install
-fi
+npm install
 
 info "Frontend setup complete"
 cd ..
@@ -126,12 +122,32 @@ fi
 echo ""
 info "Setup complete"
 echo ""
+
+echo "📓 Setting up DSPy Playground notebooks..."
+if [ -f "notebooks/requirements.txt" ]; then
+    echo "Installing notebook dependencies into notebooks/.venv..."
+    (cd notebooks && bash start.sh --install-only 2>/dev/null) || {
+        # If --install-only isn't supported, just create venv + install deps
+        if [ ! -d "notebooks/.venv" ]; then
+            python3 -m venv notebooks/.venv
+        fi
+        notebooks/.venv/bin/pip install --quiet --upgrade pip
+        notebooks/.venv/bin/pip install --quiet -r notebooks/requirements.txt
+    }
+    info "Notebook setup complete"
+else
+    warn "notebooks/requirements.txt not found, skipping notebook setup"
+fi
+echo ""
 echo "🚀 Next steps:"
 echo ""
-echo "Option 1 - Use the start script (easiest):"
+echo "Option 1 - Start the web app:"
 echo "  ./start-dev.sh"
 echo ""
-echo "Option 2 - Run manually in separate terminals:"
+echo "Option 2 - Start the DSPy Playground notebooks:"
+echo "  cd notebooks && ./start.sh"
+echo ""
+echo "Option 3 - Run manually in separate terminals:"
 echo "  Terminal 1: source .venv/bin/activate && cd backend && python app.py"
 echo "  Terminal 2: cd frontend && npm run dev"
 echo ""

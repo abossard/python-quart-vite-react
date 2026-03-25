@@ -6,25 +6,25 @@
  */
 
 import {
-  Badge,
-  Button,
-  Card,
-  Caption1,
-  Dialog,
-  DialogActions,
-  DialogBody,
-  DialogContent,
-  DialogSurface,
-  DialogTitle,
-  Field,
-  Spinner,
-  Subtitle1,
-  Subtitle2,
-  Text,
-  Textarea,
-  Tooltip,
-  makeStyles,
-  tokens,
+    Badge,
+    Button,
+    Caption1,
+    Card,
+    Dialog,
+    DialogActions,
+    DialogBody,
+    DialogContent,
+    DialogSurface,
+    DialogTitle,
+    Field,
+    Spinner,
+    Subtitle1,
+    Subtitle2,
+    Text,
+    Textarea,
+    Tooltip,
+    makeStyles,
+    tokens,
 } from '@fluentui/react-components'
 import { ArrowClockwise24Regular, Dismiss24Regular, Pulse20Regular } from '@fluentui/react-icons'
 import { useCallback, useEffect, useState } from 'react'
@@ -97,9 +97,21 @@ const useStyles = makeStyles({
     whiteSpace: 'nowrap',
   },
   dialogSurface: {
-    maxWidth: '900px',
-    width: '90vw',
-    maxHeight: '85vh',
+    maxWidth: '960px',
+    width: 'min(96vw, 960px)',
+    maxHeight: '92vh',
+    display: 'flex',
+    flexDirection: 'column',
+  },
+  dialogBody: {
+    flex: '1 1 auto',
+    minHeight: 0,
+    overflow: 'hidden',
+  },
+  dialogContent: {
+    flex: '1 1 auto',
+    minHeight: 0,
+    overflowY: 'auto',
   },
 })
 
@@ -296,8 +308,8 @@ export default function AgentRunPage({ agent }) {
               >
                 Run Result — {formatTime(selectedRun.created_at)}
               </DialogTitle>
-              <DialogBody>
-                <DialogContent style={{ overflowY: 'auto' }}>
+              <DialogBody className={styles.dialogBody}>
+                <DialogContent className={styles.dialogContent}>
                   {selectedRun.error && (
                     <Text style={{ color: tokens.colorPaletteRedForeground1, marginBottom: tokens.spacingVerticalM, display: 'block' }}>
                       Error: {selectedRun.error}

@@ -1,0 +1,22 @@
+[
+  {"english_text": "The weather forecast predicts heavy rain for the entire weekend.", "german_text": "Die Wettervorhersage sagt starken Regen für das gesamte Wochenende voraus."},
+  {"english_text": "Could you please send me the quarterly financial report by Friday?", "german_text": "Könnten Sie mir bitte den vierteljährlichen Finanzbericht bis Freitag schicken?"},
+  {"english_text": "The new software update includes improved security features and bug fixes.", "german_text": "Das neue Software-Update enthält verbesserte Sicherheitsfunktionen und Fehlerbehebungen."},
+  {"english_text": "I have been learning German for three years and I still struggle with the dative case.", "german_text": "Ich lerne seit drei Jahren Deutsch und habe immer noch Schwierigkeiten mit dem Dativ."},
+  {"english_text": "The train to Munich departs from platform seven at half past three.", "german_text": "Der Zug nach München fährt um halb vier von Gleis sieben ab."},
+  {"english_text": "Artificial intelligence is transforming the way businesses analyze customer data.", "german_text": "Künstliche Intelligenz verändert die Art und Weise, wie Unternehmen Kundendaten analysieren."},
+  {"english_text": "Please ensure that all containers are properly sealed before shipping.", "german_text": "Bitte stellen Sie sicher, dass alle Behälter vor dem Versand ordnungsgemäß verschlossen sind."},
+  {"english_text": "The committee unanimously approved the proposal to expand the recycling program.", "german_text": "Der Ausschuss hat den Vorschlag zur Erweiterung des Recyclingprogramms einstimmig genehmigt."},
+  {"english_text": "She graduated with honors from the Technical University of Berlin.", "german_text": "Sie hat ihr Studium an der Technischen Universität Berlin mit Auszeichnung abgeschlossen."},
+  {"english_text": "The database migration failed because the foreign key constraints were not properly configured.", "german_text": "Die Datenbankmigration ist fehlgeschlagen, weil die Fremdschlüsseleinschränkungen nicht richtig konfiguriert waren."},
+  {"english_text": "We need to reduce our carbon footprint by at least twenty percent over the next decade.", "german_text": "Wir müssen unseren CO2-Fußabdruck in den nächsten zehn Jahren um mindestens zwanzig Prozent reduzieren."},
+  {"english_text": "The patient should take two tablets with food three times a day for seven days.", "german_text": "Der Patient sollte sieben Tage lang dreimal täglich zwei Tabletten zum Essen einnehmen."},
+  {"english_text": "Despite the challenging market conditions, our revenue grew by twelve percent.", "german_text": "Trotz der schwierigen Marktbedingungen ist unser Umsatz um zwölf Prozent gewachsen."},
+  {"english_text": "The machine learning model achieved an accuracy of ninety-eight percent on the test dataset.", "german_text": "Das maschinelle Lernmodell erreichte eine Genauigkeit von achtundneunzig Prozent auf dem Testdatensatz."},
+  {"english_text": "I would like to book a table for four people at eight o'clock this evening.", "german_text": "Ich möchte einen Tisch für vier Personen um zwanzig Uhr heute Abend reservieren."},
+  {"english_text": "The warranty does not cover damage caused by improper use or unauthorized modifications.", "german_text": "Die Garantie deckt keine Schäden ab, die durch unsachgemäßen Gebrauch oder nicht autorisierte Änderungen verursacht wurden."},
+  {"english_text": "Renewable energy sources now account for over forty percent of electricity generation in Germany.", "german_text": "Erneuerbare Energiequellen machen in Deutschland mittlerweile über vierzig Prozent der Stromerzeugung aus."},
+  {"english_text": "The architect designed the building to maximize natural light while minimizing energy consumption.", "german_text": "Der Architekt hat das Gebäude so entworfen, dass das Tageslicht maximiert und der Energieverbrauch minimiert wird."},
+  {"english_text": "All employees must complete the mandatory cybersecurity training before the end of the month.", "german_text": "Alle Mitarbeiter müssen die verpflichtende Cybersicherheitsschulung bis zum Monatsende abschließen."},
+  {"english_text": "The autonomous vehicle successfully navigated through heavy traffic without any human intervention.", "german_text": "Das autonome Fahrzeug hat den dichten Verkehr ohne menschliches Eingreifen erfolgreich bewältigt."}
+]

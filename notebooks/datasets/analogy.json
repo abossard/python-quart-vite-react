@@ -1,0 +1,22 @@
+[
+  {"analogy_prompt": "Hot is to cold as day is to ___", "answer": "night"},
+  {"analogy_prompt": "Bird is to nest as bee is to ___", "answer": "hive"},
+  {"analogy_prompt": "Author is to book as composer is to ___", "answer": "symphony"},
+  {"analogy_prompt": "Eye is to see as ear is to ___", "answer": "hear"},
+  {"analogy_prompt": "Fish is to school as wolf is to ___", "answer": "pack"},
+  {"analogy_prompt": "Painter is to canvas as sculptor is to ___", "answer": "marble"},
+  {"analogy_prompt": "Caterpillar is to butterfly as tadpole is to ___", "answer": "frog"},
+  {"analogy_prompt": "Chapter is to book as scene is to ___", "answer": "play"},
+  {"analogy_prompt": "Kilometer is to distance as kilogram is to ___", "answer": "weight"},
+  {"analogy_prompt": "Sail is to boat as engine is to ___", "answer": "car"},
+  {"analogy_prompt": "Pen is to write as hammer is to ___", "answer": "nail"},
+  {"analogy_prompt": "Bark is to tree as skin is to ___", "answer": "human"},
+  {"analogy_prompt": "Pilot is to airplane as captain is to ___", "answer": "ship"},
+  {"analogy_prompt": "Flour is to bread as grape is to ___", "answer": "wine"},
+  {"analogy_prompt": "Telescope is to stars as microscope is to ___", "answer": "cells"},
+  {"analogy_prompt": "Calf is to cow as puppy is to ___", "answer": "dog"},
+  {"analogy_prompt": "Spoke is to wheel as page is to ___", "answer": "book"},
+  {"analogy_prompt": "Doctor is to hospital as teacher is to ___", "answer": "school"},
+  {"analogy_prompt": "Hunger is to eat as thirst is to ___", "answer": "drink"},
+  {"analogy_prompt": "Oxygen is to breathe as food is to ___", "answer": "eat"}
+]

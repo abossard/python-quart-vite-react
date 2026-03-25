@@ -28,6 +28,73 @@ import { ResponsivePie } from '@nivo/pie'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 
+function isRecord(value) {
+  return value !== null && typeof value === 'object' && !Array.isArray(value)
+}
+
+function normalizeStringList(value) {
+  if (Array.isArray(value)) {
+    return value.map((item) => String(item).trim()).filter(Boolean)
+  }
+  if (typeof value === 'string') {
+    return value.split(',').map((item) => item.trim()).filter(Boolean)
+  }
+  return []
+}
+
+function normalizeUiConfig(ui) {
+  return isRecord(ui) ? ui : null
+}
+
+function isPrimitiveValue(value) {
+  return value == null || ['string', 'number', 'boolean'].includes(typeof value)
+}
+
+function canRenderWidget(widgetName, value) {
+  switch (widgetName) {
+    case 'markdown':
+    case 'stat-card':
+      return isPrimitiveValue(value)
+    case 'table':
+    case 'badge-list':
+      return Array.isArray(value)
+    case 'bar-chart':
+    case 'pie-chart':
+      return Array.isArray(value) || isRecord(value)
+    case 'json':
+    case 'hidden':
+      return true
+    default:
+      return false
+  }
+}
+
+function resolveWidgetName(value, propSchema, ui) {
+  const configuredWidget = typeof ui?.widget === 'string' ? ui.widget : null
+  if (configuredWidget && canRenderWidget(configuredWidget, value)) {
+    return configuredWidget
+  }
+
+  const autoWidget = autoDetectWidget(value, propSchema)
+  if (canRenderWidget(autoWidget, value)) {
+    if (configuredWidget) {
+      console.warn(
+        `[SchemaRenderer] Widget "${configuredWidget}" is incompatible with value shape, falling back to "${autoWidget}"`,
+        value,
+      )
+    }
+    return autoWidget
+  }
+
+  if (configuredWidget) {
+    console.warn(
+      `[SchemaRenderer] Widget "${configuredWidget}" is incompatible with value shape, falling back to json`,
+      value,
+    )
+  }
+  return 'json'
+}
+
 const useStyles = makeStyles({
   section: {
     marginBottom: tokens.spacingVerticalM,
@@ -112,23 +179,22 @@ const useStyles = makeStyles({
  * Detect the best widget for a value when no x-ui annotation is present.
  */
 function autoDetectWidget(value, propSchema) {
+  if (isRecord(value)) return 'json'
+  if (Array.isArray(value)) {
+    return value.length > 0 && typeof value[0] === 'object' ? 'table' : 'badge-list'
+  }
+  if (typeof value === 'string') return 'markdown'
+  if (typeof value === 'number' || typeof value === 'boolean') return 'stat-card'
+
   const schemaType = propSchema?.type
   if (schemaType === 'string') return 'markdown'
   if (schemaType === 'integer' || schemaType === 'number') return 'stat-card'
   if (schemaType === 'array') {
-    if (Array.isArray(value) && value.length > 0) {
-      if (typeof value[0] === 'object' && value[0] !== null) return 'table'
-      return 'badge-list'
-    }
     const itemsType = propSchema?.items?.type
     if (itemsType === 'object') return 'table'
     return 'badge-list'
   }
   if (schemaType === 'object') return 'json'
-  // Runtime fallback
-  if (typeof value === 'string') return 'markdown'
-  if (typeof value === 'number') return 'stat-card'
-  if (Array.isArray(value)) return value.length > 0 && typeof value[0] === 'object' ? 'table' : 'badge-list'
   return 'json'
 }
 
@@ -146,12 +212,25 @@ function TableWidget({ value, ui }) {
   if (!Array.isArray(value) || value.length === 0) {
     return <Text italic>No data</Text>
   }
-  const columns = ui?.columns || Object.keys(value[0])
+  const resolvedUi = normalizeUiConfig(ui)
+  const firstRow = value.find((row) => row !== undefined && row !== null)
+  const columns = normalizeStringList(resolvedUi?.columns)
+  const fallbackColumns = isRecord(firstRow) ? Object.keys(firstRow) : ['value']
+  const columnsToRender = columns.length > 0 ? columns : fallbackColumns
+
+  const renderCellValue = (row, column) => {
+    const cellValue = isRecord(row) || Array.isArray(row) ? row[column] : column === 'value' ? row : ''
+    if (typeof cellValue === 'object' && cellValue !== null) {
+      return JSON.stringify(cellValue)
+    }
+    return String(cellValue ?? '')
+  }
+
   return (
     <table className={styles.table}>
       <thead>
         <tr>
-          {columns.map((col) => (
+          {columnsToRender.map((col) => (
             <th key={col} className={styles.th}>{col}</th>
           ))}
         </tr>
@@ -159,8 +238,8 @@ function TableWidget({ value, ui }) {
       <tbody>
         {value.map((row, i) => (
           <tr key={i}>
-            {columns.map((col) => (
-              <td key={col} className={styles.td}>{typeof row[col] === 'object' ? JSON.stringify(row[col]) : String(row[col] ?? '')}</td>
+            {columnsToRender.map((col) => (
+              <td key={col} className={styles.td}>{renderCellValue(row, col)}</td>
             ))}
           </tr>
         ))}
@@ -186,7 +265,7 @@ function StatCardWidget({ value, ui }) {
   const label = ui?.label || ''
   return (
     <div className={styles.statCard}>
-      <span className={styles.statValue}>{value ?? 0}</span>
+      <span className={styles.statValue}>{String(value ?? 0)}</span>
       {label && <span className={styles.statLabel}>{label}</span>}
     </div>
   )
@@ -194,6 +273,7 @@ function StatCardWidget({ value, ui }) {
 
 function BarChartWidget({ value, ui }) {
   const styles = useStyles()
+  const resolvedUi = normalizeUiConfig(ui)
   // Accept array of objects OR an object {key: number} (auto-convert)
   let chartData = value
   if (!Array.isArray(value) && typeof value === 'object' && value !== null) {
@@ -204,8 +284,13 @@ function BarChartWidget({ value, ui }) {
   if (!Array.isArray(chartData) || chartData.length === 0) return <Text italic>No chart data</Text>
 
   const keys = Object.keys(chartData[0] || {})
-  const indexKey = ui?.indexBy || keys.find((k) => typeof chartData[0][k] === 'string') || keys[0]
-  const valueKeys = ui?.keys || keys.filter((k) => typeof chartData[0][k] === 'number')
+  const configuredKeys = normalizeStringList(resolvedUi?.keys)
+  const indexKey = typeof resolvedUi?.indexBy === 'string' && resolvedUi.indexBy.trim()
+    ? resolvedUi.indexBy.trim()
+    : keys.find((k) => typeof chartData[0][k] === 'string') || keys[0]
+  const valueKeys = configuredKeys.length > 0
+    ? configuredKeys
+    : keys.filter((k) => typeof chartData[0][k] === 'number')
   if (valueKeys.length === 0) return <Text italic>No numeric data for chart</Text>
 
   return (
@@ -227,14 +312,21 @@ function BarChartWidget({ value, ui }) {
 
 function PieChartWidget({ value, ui }) {
   const styles = useStyles()
+  const resolvedUi = normalizeUiConfig(ui)
+  const valueKey = typeof resolvedUi?.valueKey === 'string' && resolvedUi.valueKey.trim()
+    ? resolvedUi.valueKey.trim()
+    : 'value'
+  const idKey = typeof resolvedUi?.idKey === 'string' && resolvedUi.idKey.trim()
+    ? resolvedUi.idKey.trim()
+    : 'id'
   // Accept: array of {id, value} or object {key: number}
   let pieData = []
   if (Array.isArray(value)) {
     pieData = value
-      .filter((item) => typeof (item[ui?.valueKey || 'value'] ?? item.count) === 'number')
+      .filter((item) => isRecord(item) && typeof (item[valueKey] ?? item.count) === 'number')
       .map((item) => ({
-        id: String(item[ui?.idKey || 'id'] || item.label || item.name || item),
-        value: item[ui?.valueKey || 'value'] || item.count || 0,
+        id: String(item[idKey] || item.label || item.name || item),
+        value: item[valueKey] || item.count || 0,
       }))
   } else if (typeof value === 'object' && value !== null) {
     pieData = Object.entries(value)
@@ -283,7 +375,7 @@ const WIDGETS = {
  */
 function PropertyRenderer({ name, value, propSchema, ui }) {
   const styles = useStyles()
-  const widgetName = ui?.widget || autoDetectWidget(value, propSchema)
+  const widgetName = resolveWidgetName(value, propSchema, ui)
 
   if (widgetName === 'hidden') return null
 
@@ -322,7 +414,7 @@ export default function SchemaRenderer({ data, schema }) {
     return null
   }
 
-  const properties = schema?.properties || {}
+  const properties = isRecord(schema?.properties) ? schema.properties : {}
   const propertyNames = Object.keys(properties)
 
   // If schema has no properties, auto-render all data keys
@@ -340,8 +432,8 @@ export default function SchemaRenderer({ data, schema }) {
   return (
     <div data-testid="schema-renderer">
       {keysToRender.map((key) => {
-        const propSchema = properties[key] || {}
-        const ui = propSchema['x-ui'] || null
+        const propSchema = isRecord(properties[key]) ? properties[key] : {}
+        const ui = normalizeUiConfig(propSchema['x-ui'])
         return (
           <PropertyRenderer
             key={key}

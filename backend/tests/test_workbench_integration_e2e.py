@@ -104,6 +104,8 @@ class WorkbenchIntegrationE2ETests(unittest.IsolatedAsyncioTestCase):
                 self.assertIn("/api/workbench/runs/{run_id}/evaluate", endpoint_paths)
                 self.assertIn("tool_called", ui_config_data["criteria_types"])
                 self.assertIn("completed", ui_config_data["run_statuses"])
+                self.assertIn("llm", ui_config_data)
+                self.assertIn("available_models", ui_config_data["llm"])
 
                 tools_resp = await client.get("/api/workbench/tools")
                 self.assertEqual(tools_resp.status_code, 200)
