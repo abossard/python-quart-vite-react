@@ -14,13 +14,38 @@ const API_BASE_URL = "/api";
 // ============================================================================
 
 async function fetchJSON(url, options = {}) {
-  const response = await fetch(url, {
-    ...options,
-    headers: {
-      "Content-Type": "application/json",
-      ...options.headers,
-    },
+  // Support optional timeout in milliseconds via options.timeout
+  const { timeout, ...fetchOptions } = options;
+  const controller = new AbortController();
+  const signal = controller.signal;
+
+  const headers = {
+    "Content-Type": "application/json",
+    ...fetchOptions.headers,
+  };
+
+  const fetchPromise = fetch(url, {
+    ...fetchOptions,
+    headers,
+    signal,
   });
+
+  let timeoutId;
+  if (timeout && Number(timeout) > 0) {
+    timeoutId = setTimeout(() => controller.abort(), Number(timeout));
+  }
+
+  let response;
+  try {
+    response = await fetchPromise;
+  } catch (err) {
+    if (err.name === 'AbortError') {
+      throw new Error('Request timed out');
+    }
+    throw err;
+  } finally {
+    if (timeoutId) clearTimeout(timeoutId);
+  }
 
   if (!response.ok) {
     const errorData = await response
@@ -427,9 +452,11 @@ export async function deleteAllRuns() {
 // ============================================================================
 
 export async function generateKBADraft(data) {
+  // Use a client-side timeout to fail fast if the LLM call hangs
   return fetchJSON(`${API_BASE_URL}/kba/drafts`, {
     method: "POST",
     body: JSON.stringify(data),
+    timeout: 45000, // 45 seconds
   });
 }
 

@@ -807,7 +807,8 @@ export default function KBADrafterPage() {
               appearance="primary"
               icon={<Send24Regular />}
               onClick={handleGenerateClick}
-              disabled={loading || !llmAvailable || !ticketId.trim()}
+              // Only disable when loading, ticketId is empty, or LLM is explicitly unavailable (false)
+              disabled={loading || !ticketId.trim() || llmAvailable === false}
             >
               {loading ? "Generiere..." : "Entwurf erstellen"}
             </Button>
