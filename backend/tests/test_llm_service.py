@@ -66,8 +66,9 @@ class TestLLMServiceInitialization:
     
     def test_service_forced_openai_without_key_raises(self):
         """Test that forcing openai backend without key raises error"""
-        with pytest.raises(LLMAuthenticationError, match="OpenAI API key not set"):
-            LLMService(backend="openai")  # No api_key, env cleared won't help since module-level loaded
+        with patch('llm_service.OPENAI_API_KEY', ''):
+            with pytest.raises(LLMAuthenticationError, match="OpenAI API key not set"):
+                LLMService(backend="openai")
     
     def test_service_forced_litellm_backend(self):
         """Test forcing LiteLLM backend even with API key"""

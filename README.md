@@ -43,10 +43,6 @@ All deep-dive guides now live under `docs/` for easier discovery:
 - **[Publishing Guide](docs/KBA_PUBLISHING.md)** – How to publish KBAs to different KB systems
 
 
-
-
-
-
 ### DSPy Prompt Tuning Playground
 
 > **NEW:** Interactive Jupyter notebook series teaching prompt optimization with DSPy
@@ -70,7 +66,6 @@ Open `00_introduction.ipynb` and follow the 8-notebook learning path. The notebo
 - **ipywidgets** for interactive model selection, optimization controls, and prompt diff viewing
 - **Plotly charts** for model comparison, optimization progress, and ROI calculation
 - Uses the same `LITELLM_MODEL` / `LITELLM_FALLBACK_MODELS` env vars as the backend
-
 
 
 ## 5-minute quick start (TL;DR)

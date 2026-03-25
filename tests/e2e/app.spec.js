@@ -4,7 +4,7 @@ const APP_URL = process.env.E2E_APP_URL || "http://localhost:3001";
 
 async function visit(page, path = "/") {
   const url = path === "/" ? APP_URL : `${APP_URL}${path}`;
-  await page.goto(url, { waitUntil: "domcontentloaded" });
+  await page.goto(url, { waitUntil: "load" });
   await expect(page.getByText("CSV Ticket Viewer")).toBeVisible();
   await expect(page.getByTestId("tab-csvtickets")).toBeVisible();
 }
@@ -29,9 +29,7 @@ test.describe("App shell", () => {
       "aria-selected",
       "true",
     );
-    await expect(
-      page.getByRole("heading", { name: "KBA Drafter" }),
-    ).toBeVisible();
+    await expect(page.getByRole("heading", { name: "KBA Drafter" })).toBeVisible();
 
     await page.getByTestId("tab-usecase-demo").click();
     await expect(page.getByTestId("tab-usecase-demo")).toHaveAttribute(

@@ -142,7 +142,6 @@ if [ -f "notebooks/requirements.txt" ]; then
 else
     warn "notebooks/requirements.txt not found, skipping notebook setup"
 fi
-
 echo ""
 echo "🚀 Next steps:"
 echo ""
