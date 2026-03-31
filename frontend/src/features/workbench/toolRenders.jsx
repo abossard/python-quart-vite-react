@@ -18,7 +18,6 @@ const useStyles = makeStyles({
   widgetContainer: {
     margin: '8px 0',
     maxWidth: '100%',
-    overflow: 'auto',
   },
   table: {
     width: '100%',
@@ -77,8 +76,6 @@ const useStyles = makeStyles({
     borderRadius: '6px',
     fontFamily: 'monospace',
     fontSize: '12px',
-    overflow: 'auto',
-    maxHeight: '400px',
     whiteSpace: 'pre-wrap',
   },
   markdown: {

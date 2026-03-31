@@ -66,7 +66,6 @@ const useStyles = makeStyles({
     padding: '10px 14px',
     borderRadius: '12px 12px 12px 2px',
     maxWidth: '90%',
-    overflow: 'auto',
   },
   toolCallMessage: {
     alignSelf: 'flex-start',

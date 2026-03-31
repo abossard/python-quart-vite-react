@@ -170,9 +170,8 @@ const useStyles = makeStyles({
     padding: tokens.spacingHorizontalM,
     borderRadius: tokens.borderRadiusMedium,
     fontSize: tokens.fontSizeBase200,
-    overflow: 'auto',
-    maxHeight: '200px',
     fontFamily: 'monospace',
+    whiteSpace: 'pre-wrap',
   },
 })
 
