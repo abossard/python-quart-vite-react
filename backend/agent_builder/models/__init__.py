@@ -17,6 +17,14 @@ from .evaluation import (
     SuccessCriteria,
 )
 from .run import AgentRun, AgentRunCreate, RunStatus
+from .thread import (
+    ConversationThread,
+    MessageRole,
+    ThreadCreate,
+    ThreadMessage,
+    ThreadMessageCreate,
+    ThreadStatus,
+)
 
 __all__ = [
     "AgentDefinition",
@@ -27,8 +35,14 @@ __all__ = [
     "AgentResponse",
     "AgentRun",
     "AgentRunCreate",
+    "ConversationThread",
     "CriteriaResult",
     "CriteriaType",
+    "MessageRole",
     "RunStatus",
     "SuccessCriteria",
+    "ThreadCreate",
+    "ThreadMessage",
+    "ThreadMessageCreate",
+    "ThreadStatus",
 ]

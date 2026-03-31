@@ -332,7 +332,7 @@ test.describe("Agent Fabric UI (live)", () => {
     await runBtn.click();
 
     // Wait for the dialog to auto-open with the run detail (live LLM)
-    const runDetail = page.locator('[data-testid^="run-detail-"]').first();
+    const runDetail = page.getByTestId('run-conversation-messages');
     await expect(runDetail).toBeVisible({ timeout: 60000 });
 
     // Live LLM output is intentionally flexible; verify that a non-empty result rendered.
@@ -378,7 +378,7 @@ test.describe("Agent Fabric UI (live)", () => {
     await card.locator("button", { hasText: "Go" }).click();
 
     // Wait for dialog with VPN-related output from the real LLM
-    const runDetail = page.locator('[data-testid^="run-detail-"]').first();
+    const runDetail = page.getByTestId('run-conversation-messages');
     await expect(runDetail).toBeVisible({ timeout: 60000 });
     await expect(runDetail).toContainText(/VPN|vpn/i, { timeout: 10000 });
 
@@ -489,7 +489,7 @@ test.describe("Agent Fabric UI (live)", () => {
     await card.locator(`[data-testid="agent-card-run-${agentId}"]`).click();
 
     // Wait for run to complete — dialog auto-opens
-    const runDetail = page.locator('[data-testid^="run-detail-"]').first();
+    const runDetail = page.getByTestId('run-conversation-messages');
     await expect(runDetail).toBeVisible({ timeout: 60000 });
 
     // Live LLM output is intentionally flexible; verify that a non-empty result rendered.
@@ -541,7 +541,7 @@ test.describe("Agent Fabric UI (live)", () => {
     const initialRunCount = await runEntries.count();
 
     // Wait for dialog to auto-open with the run result
-    const firstRunDetail = page.locator('[data-testid^="run-detail-"]').first();
+    const firstRunDetail = page.getByTestId('run-conversation-messages');
     await expect(firstRunDetail).toBeVisible({ timeout: 60000 });
     await expect(firstRunDetail).toContainText(/VPN|vpn|Ticket/i, {
       timeout: 5000,
@@ -586,9 +586,7 @@ test.describe("Agent Fabric UI (live)", () => {
       timeout: 60000,
     });
 
-    const secondRunDetail = page
-      .locator('[data-testid^="run-detail-"]')
-      .first();
+    const secondRunDetail = page.getByTestId('run-conversation-messages');
     await expect(secondRunDetail).toBeVisible({ timeout: 60000 });
     await expect(secondRunDetail).toContainText(/Outlook|outlook|Ticket/i, {
       timeout: 5000,
@@ -600,7 +598,7 @@ test.describe("Agent Fabric UI (live)", () => {
     const olderRunEntry = runEntries.nth(1);
     await olderRunEntry.click();
     await page.waitForTimeout(300);
-    const olderRunDetail = page.locator('[data-testid^="run-detail-"]').first();
+    const olderRunDetail = page.getByTestId('run-conversation-messages');
     await expect(olderRunDetail).toContainText(/VPN|vpn|Ticket/i, {
       timeout: 5000,
     });
@@ -625,16 +623,18 @@ test.describe("Agent Fabric UI (mocked)", () => {
     const card = page.getByTestId("agent-card-mock-agent-edit-response");
     await expect(card).toBeVisible();
 
+    // Run first time — modal opens with result
     await card.getByTestId("agent-card-run-mock-agent-edit-response").click();
 
-    const runDetail = page.locator('[data-testid^="run-detail-"]').first();
-    await expect(runDetail).toBeVisible();
-    await expect(runDetail).toContainText(
+    const modalMessages = page.getByTestId("run-conversation-messages");
+    await expect(modalMessages).toBeVisible();
+    await expect(modalMessages).toContainText(
       "Original response shown before editing the prompt.",
     );
 
     await closeDialogIfOpen(page);
 
+    // Edit the agent prompt
     await card.getByTestId("agent-card-edit-mock-agent-edit-response").click();
 
     const dialog = page.getByTestId("agent-edit-dialog");
@@ -647,23 +647,25 @@ test.describe("Agent Fabric UI (mocked)", () => {
     await dialog.getByTestId("edit-agent-save").click();
     await expect(dialog).not.toBeVisible();
 
+    // Run second time — modal should show edited response
     await card.getByTestId("agent-card-run-mock-agent-edit-response").click();
 
-    await expect(runDetail).toBeVisible();
-    await expect(runDetail).toContainText(
+    await expect(modalMessages).toBeVisible();
+    await expect(modalMessages).toContainText(
       "Edited response shown after saving the new prompt.",
     );
-    await expect(runDetail).not.toContainText(
+    await expect(modalMessages).not.toContainText(
       "Original response shown before editing the prompt.",
     );
 
     await closeDialogIfOpen(page);
 
+    // Verify history — click older run entry
     const runEntries = page.locator('[data-testid^="run-entry-"]');
     await expect(runEntries).toHaveCount(2);
 
     await runEntries.nth(1).click();
-    await expect(runDetail).toContainText(
+    await expect(modalMessages).toContainText(
       "Original response shown before editing the prompt.",
     );
   });

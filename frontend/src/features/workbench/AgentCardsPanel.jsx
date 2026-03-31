@@ -16,7 +16,6 @@ import {
   Play24Regular,
 } from '@fluentui/react-icons'
 import { useState } from 'react'
-import { runWorkbenchAgent } from '../../services/api'
 
 const useStyles = makeStyles({
   grid: {
@@ -87,10 +86,9 @@ export default function AgentCardsPanel({
 
     setRunningIds((prev) => ({ ...prev, [agent.id]: true }))
     try {
-      const run = await runWorkbenchAgent(agent.id, {
+      await onRunStarted?.(agent.id, {
         requiredInputValue: inputValues[agent.id] || '',
       })
-      onRunStarted?.(run)
     } catch (err) {
       console.error(`Failed to run agent ${agent.id}:`, err)
     } finally {

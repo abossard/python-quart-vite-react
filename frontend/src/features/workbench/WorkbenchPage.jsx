@@ -9,19 +9,19 @@ import {
     tokens,
 } from '@fluentui/react-components'
 import { Add24Regular, Apps24Regular } from '@fluentui/react-icons'
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import {
-    deleteAllRuns,
     deleteWorkbenchAgent,
     getWorkbenchUiConfig,
-    listAllRuns,
     listWorkbenchAgents,
     listWorkbenchTools,
 } from '../../services/api'
 import AgentCardsPanel from './AgentCardsPanel'
 import AgentCreateForm from './AgentCreateForm'
 import AgentEditDialog from './AgentEditDialog'
+import RunConversationModal from './RunConversationModal'
 import RunsSidePanel from './RunsSidePanel'
+import useRunManager from './useRunManager'
 
 const useStyles = makeStyles({
   container: {
@@ -58,25 +58,41 @@ export default function WorkbenchPage() {
   const [uiConfig, setUiConfig] = useState(null)
   const [tools, setTools] = useState([])
   const [agents, setAgents] = useState([])
-  const [runs, setRuns] = useState([])
   const [selectedRunId, setSelectedRunId] = useState(null)
   const [activeTab, setActiveTab] = useState('agents')
   const [editingAgent, setEditingAgent] = useState(null)
+
+  // Central run manager — single source of truth
+  const {
+    runs,
+    startRun,
+    loadRuns,
+    clearAllRuns,
+    getRunActivity,
+    getRunState,
+  } = useRunManager()
+
+  const agentMap = useMemo(() => {
+    const map = {}
+    for (const a of agents) map[a.id] = a
+    return map
+  }, [agents])
+
+  const selectedRun = selectedRunId ? runs.find(r => r.id === selectedRunId) : null
+  const selectedAgent = selectedRun ? agentMap[selectedRun.agent_id] : null
 
   const loadData = useCallback(async () => {
     setLoading(true)
     setError('')
     try {
-      const [configPayload, toolsPayload, agentsPayload, runsPayload] = await Promise.all([
+      const [configPayload, toolsPayload, agentsPayload] = await Promise.all([
         getWorkbenchUiConfig(),
         listWorkbenchTools(),
         listWorkbenchAgents(),
-        listAllRuns().catch(() => ({ runs: [] })),
       ])
       setUiConfig(configPayload)
       setTools(toolsPayload.tools || [])
       setAgents(agentsPayload.agents || [])
-      setRuns(runsPayload.runs || [])
     } catch (err) {
       setError(err?.message || 'Failed to load workbench data')
     } finally {
@@ -86,25 +102,14 @@ export default function WorkbenchPage() {
 
   useEffect(() => { loadData() }, [loadData])
 
-  const refreshRuns = useCallback(async () => {
+  const handleRunStarted = useCallback(async (agentId, opts) => {
     try {
-      const runsPayload = await listAllRuns()
-      setRuns(runsPayload.runs || [])
-    } catch { /* ignore */ }
-  }, [])
-
-  const handleDeleteAllRuns = useCallback(async () => {
-    try {
-      await deleteAllRuns()
-      setRuns([])
-      setSelectedRunId(null)
-    } catch { /* ignore */ }
-  }, [])
-
-  const handleRunStarted = useCallback((run) => {
-    setRuns((prev) => [run, ...prev])
-    setSelectedRunId(run.id)
-  }, [])
+      const run = await startRun(agentId, opts)
+      setSelectedRunId(run.id)
+    } catch (err) {
+      setError(err?.message || 'Failed to start run')
+    }
+  }, [startRun])
 
   const handleAgentCreated = useCallback(async () => {
     const agentsPayload = await listWorkbenchAgents()
@@ -186,8 +191,8 @@ export default function WorkbenchPage() {
               agents={agents}
               selectedRunId={selectedRunId}
               onSelectRun={setSelectedRunId}
-              onRefresh={refreshRuns}
-              onDeleteAll={handleDeleteAllRuns}
+              onRefresh={loadRuns}
+              onDeleteAll={clearAllRuns}
             />
           </div>
         </div>
@@ -209,6 +214,18 @@ export default function WorkbenchPage() {
         serviceDefaultModel={uiConfig?.llm?.default_model || ''}
         onSave={handleAgentSaved}
         onClose={() => setEditingAgent(null)}
+      />
+
+      {/* Unified Run Conversation Modal */}
+      <RunConversationModal
+        open={Boolean(selectedRun)}
+        run={selectedRun}
+        agentId={selectedAgent?.id || selectedRun?.agent_id}
+        agentName={selectedAgent?.name || selectedRun?.agent_snapshot?.name || 'Agent'}
+        outputSchema={selectedAgent?.output_schema}
+        activityEvents={selectedRunId ? getRunActivity(selectedRunId) : []}
+        runState={selectedRunId ? getRunState(selectedRunId) : null}
+        onClose={() => setSelectedRunId(null)}
       />
     </div>
   )

@@ -258,7 +258,7 @@ async def workbench_run_agent(agent_id: str):
     try:
         data = await request.get_json()
         run = await _workbench_service.run_agent(agent_id, AgentRunCreate(**data))
-        return jsonify(run.to_dict()), 200
+        return jsonify(run.to_dict()), 202
     except (ValidationError, ValueError) as exc:
         return _error_response(exc)
     except Exception as exc:
@@ -299,18 +299,26 @@ async def workbench_get_run(run_id: str):
 
 @agent_builder_bp.route("/api/workbench/events", methods=["GET"])
 async def workbench_event_stream():
-    """Server-Sent Events endpoint for real-time agent activity."""
+    """Server-Sent Events endpoint for real-time agent activity.
+
+    Supports optional ?run_id=X to filter events for a specific run.
+    """
+    run_id_filter = request.args.get("run_id")
     queue = agent_event_bus.subscribe()
 
     async def generate():
         try:
             # Send history buffer as catch-up
             for event in agent_event_bus.get_history():
+                if run_id_filter and event.run_id != run_id_filter:
+                    continue
                 yield f"data: {json.dumps(event.to_sse_dict())}\n\n"
 
             # Stream new events
             while True:
                 event = await queue.get()
+                if run_id_filter and event.run_id != run_id_filter:
+                    continue
                 yield f"data: {json.dumps(event.to_sse_dict())}\n\n"
         except asyncio.CancelledError:
             pass
@@ -345,3 +353,95 @@ async def workbench_get_evaluation(run_id: str):
     if evaluation is None:
         return jsonify({"error": "No evaluation found for this run"}), 404
     return jsonify(evaluation.to_dict())
+
+
+# ---------------------------------------------------------------------------
+# AG-UI: Conversational Agent Endpoint
+# ---------------------------------------------------------------------------
+
+@agent_builder_bp.route("/api/workbench/ag-ui", methods=["POST"])
+async def workbench_ag_ui():
+    """AG-UI protocol endpoint — SSE stream of typed events for conversational agent interaction."""
+    try:
+        data = await request.get_json()
+        agent_id = data.get("agent_id")
+        thread_id = data.get("thread_id")
+        message = data.get("message", "").strip()
+
+        if not agent_id and not thread_id:
+            return jsonify({"error": "agent_id or thread_id required"}), 400
+        if not message:
+            return jsonify({"error": "message required"}), 400
+
+        # Create or resume thread
+        if not thread_id:
+            thread = _workbench_service.create_thread(agent_id)
+            thread_id = thread.id
+
+        async def generate():
+            async for event_data in _workbench_service.continue_thread(thread_id, message):
+                yield event_data
+
+        return generate(), {
+            "Content-Type": "text/event-stream",
+            "Cache-Control": "no-cache",
+            "X-Accel-Buffering": "no",
+        }
+    except (ValueError,) as exc:
+        return _error_response(exc)
+    except Exception as exc:
+        return _error_response(exc)
+
+
+# ---------------------------------------------------------------------------
+# Thread Management
+# ---------------------------------------------------------------------------
+
+@agent_builder_bp.route("/api/workbench/threads", methods=["GET"])
+async def workbench_list_threads():
+    """List conversation threads, optionally filtered by agent_id."""
+    agent_id = request.args.get("agent_id")
+    limit = request.args.get("limit", 50, type=int)
+    threads = _workbench_service.list_threads(agent_id=agent_id, limit=limit)
+    return jsonify({"threads": [t.to_dict() for t in threads]})
+
+
+@agent_builder_bp.route("/api/workbench/threads/<thread_id>", methods=["GET"])
+async def workbench_get_thread(thread_id: str):
+    """Get thread details with messages."""
+    thread = _workbench_service.get_thread(thread_id)
+    if thread is None:
+        return jsonify({"error": "Thread not found"}), 404
+    messages = _workbench_service.get_thread_messages(thread_id)
+    result = thread.to_dict()
+    result["messages"] = [m.to_dict() for m in messages]
+    return jsonify(result)
+
+
+@agent_builder_bp.route("/api/workbench/threads/<thread_id>", methods=["DELETE"])
+async def workbench_delete_thread(thread_id: str):
+    if not _workbench_service.delete_thread(thread_id):
+        return jsonify({"error": "Thread not found"}), 404
+    return jsonify({"message": "Deleted"}), 200
+
+
+@agent_builder_bp.route("/api/workbench/threads/<thread_id>/messages", methods=["GET"])
+async def workbench_get_thread_messages(thread_id: str):
+    """Get messages for a thread."""
+    messages = _workbench_service.get_thread_messages(thread_id)
+    return jsonify({"messages": [m.to_dict() for m in messages]})
+
+
+@agent_builder_bp.route("/api/workbench/threads/from-run/<run_id>", methods=["POST"])
+async def workbench_thread_from_run(run_id: str):
+    """Create a conversation thread seeded from a completed run."""
+    try:
+        thread = _workbench_service.start_thread_from_run(run_id)
+        messages = _workbench_service.get_thread_messages(thread.id)
+        result = thread.to_dict()
+        result["messages"] = [m.to_dict() for m in messages]
+        return jsonify(result), 201
+    except ValueError as exc:
+        return _error_response(exc)
+    except Exception as exc:
+        return _error_response(exc)

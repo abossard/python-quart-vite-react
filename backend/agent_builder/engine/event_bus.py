@@ -1,18 +1,18 @@
 """
 Agent Builder — Event Bus
 
-Pub/sub for real-time agent activity events.
+Pub/sub for real-time agent activity events using AG-UI protocol format.
 Subscribers receive events via asyncio.Queue; a history buffer
 provides catch-up for new SSE connections.
 
-Data: AgentEvent dataclass
+Data: AgentEvent dataclass (carries AG-UI typed event dicts)
 Action: publish / subscribe / unsubscribe (I/O via queues)
 """
 
 import asyncio
 import logging
 import time
-from dataclasses import asdict, dataclass, field
+from dataclasses import dataclass, field
 from typing import Any
 
 logger = logging.getLogger(__name__)
@@ -22,14 +22,20 @@ MAX_HISTORY = 200
 
 @dataclass
 class AgentEvent:
-    """A single event from an agent run."""
+    """A single AG-UI event from an agent run."""
     run_id: str
     event_type: str
     data: dict[str, Any] = field(default_factory=dict)
     timestamp: float = field(default_factory=time.time)
 
     def to_sse_dict(self) -> dict[str, Any]:
-        return asdict(self)
+        """Return the AG-UI event dict for SSE serialization."""
+        return {
+            "type": self.event_type,
+            "runId": self.run_id,
+            "timestamp": int(self.timestamp * 1000),
+            **self.data,
+        }
 
 
 class AgentEventBus:

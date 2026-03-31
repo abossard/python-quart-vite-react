@@ -86,10 +86,12 @@ export function connectToTimeStream(onMessage, onError) {
  * Connect to Server-Sent Events stream for real-time agent activity
  * @param {Function} onEvent - Callback for each agent event
  * @param {Function} onError - Callback for errors
+ * @param {Object} options - Optional { runId } to filter events for a specific run
  * @returns {Function} Cleanup function to close the connection
  */
-export function connectToAgentEvents(onEvent, onError) {
-  const eventSource = new EventSource(`${API_BASE_URL}/workbench/events`);
+export function connectToAgentEvents(onEvent, onError, { runId } = {}) {
+  const params = runId ? `?run_id=${runId}` : "";
+  const eventSource = new EventSource(`${API_BASE_URL}/workbench/events${params}`);
 
   eventSource.onmessage = (event) => {
     try {
@@ -420,6 +422,35 @@ export async function getRun(runId) {
 
 export async function deleteAllRuns() {
   return fetchJSON(`${API_BASE_URL}/workbench/runs`, { method: "DELETE" });
+}
+
+// ============================================================================
+// Thread / Conversation APIs
+// ============================================================================
+
+export async function listThreads(agentId) {
+  const params = agentId ? `?agent_id=${agentId}` : "";
+  return fetchJSON(`${API_BASE_URL}/workbench/threads${params}`);
+}
+
+export async function getThread(threadId) {
+  return fetchJSON(`${API_BASE_URL}/workbench/threads/${threadId}`);
+}
+
+export async function deleteThread(threadId) {
+  return fetchJSON(`${API_BASE_URL}/workbench/threads/${threadId}`, {
+    method: "DELETE",
+  });
+}
+
+export async function getThreadMessages(threadId) {
+  return fetchJSON(`${API_BASE_URL}/workbench/threads/${threadId}/messages`);
+}
+
+export async function createThreadFromRun(runId) {
+  return fetchJSON(`${API_BASE_URL}/workbench/threads/from-run/${runId}`, {
+    method: "POST",
+  });
 }
 
 // ============================================================================

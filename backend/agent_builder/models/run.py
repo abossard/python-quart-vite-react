@@ -20,6 +20,7 @@ class RunStatus(str, Enum):
     RUNNING = "running"
     COMPLETED = "completed"
     FAILED = "failed"
+    TRUNCATED = "truncated"
 
 
 class AgentRun(SQLModel, table=True):
@@ -40,6 +41,10 @@ class AgentRun(SQLModel, table=True):
         sa_column=Column(String, name="tools_used"),
     )
     error: Optional[str] = SField(default=None)
+    activity_log_json: str = SField(
+        default="[]",
+        sa_column=Column(String, name="activity_log"),
+    )
     created_at: datetime = SField(default_factory=datetime.now)
     completed_at: Optional[datetime] = SField(default=None)
 
@@ -68,6 +73,17 @@ class AgentRun(SQLModel, table=True):
     def tools_used(self, value: list[str]) -> None:
         self.tools_used_json = json.dumps(value)
 
+    @property
+    def activity_log(self) -> list[dict[str, Any]]:
+        try:
+            return json.loads(self.activity_log_json)
+        except (json.JSONDecodeError, TypeError):
+            return []
+
+    @activity_log.setter
+    def activity_log(self, value: list[dict[str, Any]]) -> None:
+        self.activity_log_json = json.dumps(value)
+
     def to_dict(self) -> dict[str, Any]:
         return {
             "id": self.id,
@@ -77,6 +93,7 @@ class AgentRun(SQLModel, table=True):
             "output": self.output,
             "agent_snapshot": self.agent_snapshot,
             "tools_used": self.tools_used,
+            "activity_log": self.activity_log,
             "error": self.error,
             "created_at": self.created_at.isoformat(),
             "completed_at": self.completed_at.isoformat() if self.completed_at else None,
