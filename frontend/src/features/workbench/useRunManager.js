@@ -14,23 +14,24 @@
  * Components read state, never mutate directly.
  */
 
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from "react";
 import {
   connectToAgentEvents,
   deleteAllRuns,
   getRun,
   listAllRuns,
   runWorkbenchAgent,
-} from '../../services/api'
+} from "../../services/api";
+import { SSE_STATE } from "../../services/sseConnection";
 
 // ---------------------------------------------------------------------------
 // FSM State definitions (pure data)
 // ---------------------------------------------------------------------------
 
-const TERMINAL_STATUSES = new Set(['completed', 'failed', 'truncated'])
+const TERMINAL_STATUSES = new Set(["completed", "failed", "truncated"]);
 
 function isTerminal(status) {
-  return TERMINAL_STATUSES.has(status)
+  return TERMINAL_STATUSES.has(status);
 }
 
 /**
@@ -43,7 +44,7 @@ function createRunState(run) {
     run,
     status: run.status,
     activityEvents: run.activity_log || [],
-  }
+  };
 }
 
 // ---------------------------------------------------------------------------
@@ -52,98 +53,114 @@ function createRunState(run) {
 
 export default function useRunManager() {
   // Map<runId, RunState> — keyed for O(1) lookups
-  const [runMap, setRunMap] = useState(new Map())
-  const [loading, setLoading] = useState(true)
-  const sseCleanupRef = useRef(null)
+  const [runMap, setRunMap] = useState(new Map());
+  const [loading, setLoading] = useState(true);
+  const sseCleanupRef = useRef(null);
 
   // ------------------------------------------------------------------
   // Derived: sorted array of runs (newest first)
   // ------------------------------------------------------------------
   const runs = Array.from(runMap.values())
-    .map(rs => rs.run)
-    .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
+    .map((rs) => rs.run)
+    .sort(
+      (a, b) =>
+        new Date(b.created_at).getTime() - new Date(a.created_at).getTime(),
+    );
 
   // ------------------------------------------------------------------
   // Load initial runs from API
   // ------------------------------------------------------------------
   const loadRuns = useCallback(async () => {
-    setLoading(true)
+    setLoading(true);
     try {
-      const data = await listAllRuns()
-      const newMap = new Map()
-      for (const run of (data.runs || [])) {
-        newMap.set(run.id, createRunState(run))
+      const data = await listAllRuns();
+      const newMap = new Map();
+      for (const run of data.runs || []) {
+        newMap.set(run.id, createRunState(run));
       }
-      setRunMap(newMap)
+      setRunMap(newMap);
     } catch (err) {
-      console.error('[useRunManager] Failed to load runs:', err)
+      console.error("[useRunManager] Failed to load runs:", err);
     } finally {
-      setLoading(false)
+      setLoading(false);
     }
-  }, [])
+  }, []);
 
   // ------------------------------------------------------------------
   // Start a new run (fire-and-forget — returns immediately with RUNNING)
   // ------------------------------------------------------------------
-  const startRun = useCallback(async (agentId, { inputPrompt = '', requiredInputValue = '' } = {}) => {
-    const run = await runWorkbenchAgent(agentId, { inputPrompt, requiredInputValue })
-    setRunMap(prev => {
-      const next = new Map(prev)
-      next.set(run.id, createRunState(run))
-      return next
-    })
-    return run
-  }, [])
+  const startRun = useCallback(
+    async (agentId, { inputPrompt = "", requiredInputValue = "" } = {}) => {
+      const run = await runWorkbenchAgent(agentId, {
+        inputPrompt,
+        requiredInputValue,
+      });
+      setRunMap((prev) => {
+        const next = new Map(prev);
+        next.set(run.id, createRunState(run));
+        return next;
+      });
+      return run;
+    },
+    [],
+  );
 
   // ------------------------------------------------------------------
   // Refresh a single run from the API (e.g. after SSE says it finished)
   // ------------------------------------------------------------------
   const refreshRun = useCallback(async (runId) => {
     try {
-      const run = await getRun(runId)
-      setRunMap(prev => {
-        const next = new Map(prev)
-        const existing = prev.get(runId)
+      const run = await getRun(runId);
+      setRunMap((prev) => {
+        const next = new Map(prev);
+        const existing = prev.get(runId);
         next.set(runId, {
           run,
           status: run.status,
           // Merge: prefer server activity_log if available, else keep collected events
-          activityEvents: (run.activity_log?.length > 0)
-            ? run.activity_log
-            : (existing?.activityEvents || []),
-        })
-        return next
-      })
+          activityEvents:
+            run.activity_log?.length > 0
+              ? run.activity_log
+              : existing?.activityEvents || [],
+        });
+        return next;
+      });
     } catch (err) {
-      console.error('[useRunManager] Failed to refresh run:', runId, err)
+      console.error("[useRunManager] Failed to refresh run:", runId, err);
     }
-  }, [])
+  }, []);
 
   // ------------------------------------------------------------------
   // Delete all runs
   // ------------------------------------------------------------------
   const clearAllRuns = useCallback(async () => {
     try {
-      await deleteAllRuns()
-      setRunMap(new Map())
+      await deleteAllRuns();
+      setRunMap(new Map());
     } catch (err) {
-      console.error('[useRunManager] Failed to delete runs:', err)
+      console.error("[useRunManager] Failed to delete runs:", err);
     }
-  }, [])
+  }, []);
 
   // ------------------------------------------------------------------
   // Get activity events for a specific run
   // ------------------------------------------------------------------
-  const getRunActivity = useCallback((runId) => {
-    return runMap.get(runId)?.activityEvents || []
-  }, [runMap])
+  const getRunActivity = useCallback(
+    (runId) => {
+      return runMap.get(runId)?.activityEvents || [];
+    },
+    [runMap],
+  );
 
   // ------------------------------------------------------------------
   // Get a single run's state
   // ------------------------------------------------------------------
-  const getRunState = useCallback((runId) => {
-    return runMap.get(runId) || null
-  }, [runMap])
+  const getRunState = useCallback(
+    (runId) => {
+      return runMap.get(runId) || null;
+    },
+    [runMap],
+  );
 
   // ------------------------------------------------------------------
   // SSE subscription — single connection for all runs
@@ -151,101 +168,95 @@ export default function useRunManager() {
   useEffect(() => {
     // Clean up previous subscription
     if (sseCleanupRef.current) {
-      sseCleanupRef.current()
+      sseCleanupRef.current();
     }
 
     const cleanup = connectToAgentEvents(
       (event) => {
-        const runId = event.runId || event.threadId
-        if (!runId) return
+        const runId = event.runId || event.threadId;
+        if (!runId) return;
 
-        setRunMap(prev => {
-          const existing = prev.get(runId)
+        setRunMap((prev) => {
+          const existing = prev.get(runId);
           if (!existing) {
-            // Event for a run we don't know about — could be from another tab
-            // Create a placeholder that will be filled on next refresh
-            if (event.type === 'RUN_STARTED') {
-              const next = new Map(prev)
+            if (event.type === "RUN_STARTED") {
+              const next = new Map(prev);
               next.set(runId, {
                 run: {
                   id: runId,
-                  agent_id: event.agentId || '',
-                  status: 'running',
-                  input_prompt: event.inputPreview || '',
+                  agent_id: event.agentId || "",
+                  status: "running",
+                  input_prompt: event.inputPreview || "",
                   created_at: new Date().toISOString(),
-                  agent_snapshot: { name: event.agentName || 'Agent' },
+                  agent_snapshot: { name: event.agentName || "Agent" },
                   tools_used: [],
                   activity_log: [],
                 },
-                status: 'running',
+                status: "running",
                 activityEvents: [event],
-              })
-              return next
+              });
+              return next;
             }
-            return prev
+            return prev;
           }
 
-          const next = new Map(prev)
-          const updatedEvents = [...existing.activityEvents, event]
+          const next = new Map(prev);
+          const updatedEvents = [...existing.activityEvents, event];
 
           switch (event.type) {
-            case 'RUN_FINISHED':
+            case "RUN_FINISHED":
               next.set(runId, {
                 ...existing,
-                status: event.truncated ? 'truncated' : 'completed',
+                status: event.truncated ? "truncated" : "completed",
                 activityEvents: updatedEvents,
-              })
-              // Fetch the full run data from API to get output
-              // (done outside this setState to avoid nesting)
-              break
+              });
+              break;
 
-            case 'RUN_ERROR':
+            case "RUN_ERROR":
               next.set(runId, {
                 ...existing,
-                status: 'failed',
+                status: "failed",
                 activityEvents: updatedEvents,
-              })
-              break
+              });
+              break;
 
             default:
-              // Activity events (STEP_STARTED, TOOL_CALL_START, etc.)
               next.set(runId, {
                 ...existing,
                 activityEvents: updatedEvents,
-              })
-              break
+              });
+              break;
           }
 
-          return next
-        })
+          return next;
+        });
 
         // After terminal events, refresh from API to get full output
-        if (event.type === 'RUN_FINISHED' || event.type === 'RUN_ERROR') {
-          // Small delay to ensure backend has persisted
-          setTimeout(() => {
-            refreshRun(runId)
-          }, 300)
+        if (event.type === "RUN_FINISHED" || event.type === "RUN_ERROR") {
+          setTimeout(() => refreshRun(runId), 300);
         }
       },
-      (err) => {
-        console.warn('[useRunManager] SSE connection error:', err)
+      (sseState) => {
+        if (sseState === SSE_STATE.CONNECTED) {
+          loadRuns();
+        }
       },
-    )
+    );
 
-    sseCleanupRef.current = cleanup
+    sseCleanupRef.current = cleanup;
 
     return () => {
       if (sseCleanupRef.current) {
-        sseCleanupRef.current()
-        sseCleanupRef.current = null
+        sseCleanupRef.current();
+        sseCleanupRef.current = null;
       }
-    }
-  }, [refreshRun])
+    };
+  }, [refreshRun]);
 
   // Initial load
   useEffect(() => {
-    loadRuns()
-  }, [loadRuns])
+    loadRuns();
+  }, [loadRuns]);
 
   return {
     /** Sorted array of run objects (newest first) */
@@ -264,5 +275,5 @@ export default function useRunManager() {
     getRunState,
     /** Refresh a single run from API */
     refreshRun,
-  }
+  };
 }

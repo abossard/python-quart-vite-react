@@ -302,34 +302,48 @@ async def workbench_event_stream():
     """Server-Sent Events endpoint for real-time agent activity.
 
     Supports optional ?run_id=X to filter events for a specific run.
+    Sends periodic heartbeat comments to keep the connection alive
+    through proxies and prevent browser timeouts.
     """
+    from quart import make_response
+
     run_id_filter = request.args.get("run_id")
     queue = agent_event_bus.subscribe()
 
     async def generate():
         try:
+            # Send initial SSE comment so the connection is established immediately
+            yield ": connected\n\n"
+
             # Send history buffer as catch-up
             for event in agent_event_bus.get_history():
                 if run_id_filter and event.run_id != run_id_filter:
                     continue
                 yield f"data: {json.dumps(event.to_sse_dict())}\n\n"
 
-            # Stream new events
+            # Stream new events with periodic heartbeat
             while True:
-                event = await queue.get()
-                if run_id_filter and event.run_id != run_id_filter:
-                    continue
-                yield f"data: {json.dumps(event.to_sse_dict())}\n\n"
+                try:
+                    event = await asyncio.wait_for(queue.get(), timeout=15)
+                    if run_id_filter and event.run_id != run_id_filter:
+                        continue
+                    yield f"data: {json.dumps(event.to_sse_dict())}\n\n"
+                except asyncio.TimeoutError:
+                    # Send SSE comment as keepalive to prevent proxy/browser timeout
+                    yield ": heartbeat\n\n"
         except asyncio.CancelledError:
             pass
         finally:
             agent_event_bus.unsubscribe(queue)
 
-    return generate(), {
+    response = await make_response(generate(), {
         "Content-Type": "text/event-stream",
         "Cache-Control": "no-cache",
+        "Connection": "keep-alive",
         "X-Accel-Buffering": "no",
-    }
+    })
+    response.timeout = None
+    return response
 
 
 # ---------------------------------------------------------------------------

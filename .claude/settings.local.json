@@ -16,7 +16,11 @@
       "Bash(npx playwright test --project=chromium --reporter=line)",
       "Bash(npx playwright test:*)",
       "Bash(find:*)",
-      "Bash(python:*)"
+      "Bash(python:*)",
+      "WebFetch(domain:github.com)",
+      "WebFetch(domain:pypi.org)",
+      "WebFetch(domain:deepwiki.com)",
+      "Bash(pip list:*)"
     ],
     "deny": [],
     "ask": []

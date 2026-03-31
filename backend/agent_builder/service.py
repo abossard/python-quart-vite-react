@@ -55,7 +55,7 @@ def _default_model(explicit_model: str = "") -> str:
         return explicit_model
     if os.getenv("AGENT_BACKEND", "").strip().lower() == "openai":
         return os.getenv("OPENAI_MODEL", "gpt-4o-mini")
-    return os.getenv("LITELLM_MODEL", "github_copilot/gpt-4o")
+    return os.getenv("COPILOT_MODEL", "gpt-4o")
 
 
 # ============================================================================
@@ -766,6 +766,7 @@ class WorkbenchService:
         single async generator interface.
         """
         import uuid as uuid_mod
+
         from .engine.ag_ui_events import (
             encode_event,
             run_error_event,
@@ -775,13 +776,13 @@ class WorkbenchService:
             step_finished_event,
             step_started_event,
             structured_output_event,
-            text_message_start,
             text_message_content,
             text_message_end,
-            tool_call_start,
+            text_message_start,
             tool_call_args,
             tool_call_end,
             tool_call_result,
+            tool_call_start,
         )
 
         thread = self._repo.get_thread(thread_id)

@@ -76,7 +76,7 @@ The `@operation` decorator auto-generates: REST endpoint, MCP JSON-RPC method, J
 - `agent_builder/` — Full agent lifecycle: `service.py` (WorkbenchService), `engine/` (ReAct loop), `persistence/` (SQLite repos), `tools/` (ToolRegistry, MCP adapters), `routes.py` (Blueprint at `/api/workbench/*`)
 - `kba_service.py` — Knowledge Base Article generation pipeline
 
-**LLM config**: LiteLLM is default (works with GitHub Copilot, no key needed); OpenAI is optional override. Config via `.env`.
+**LLM config**: GitHub Copilot is default (uses device flow or GITHUB_TOKEN); OpenAI is optional override. Config via `.env`.
 
 **MCP**: Backend exposes both REST and MCP JSON-RPC from the same `@operation` handlers. `mcp_handler.py` routes JSON-RPC to operations.
 
@@ -105,8 +105,8 @@ Backend tests use pytest. `agent_builder/tests/` has 132 tests covering the agen
 
 Copy `.env.example` to `.env`. Key variables:
 ```
-# LiteLLM (default — no key required if using GitHub Copilot)
-LITELLM_MODEL=github_copilot/gpt-4o
+# GitHub Copilot (default — uses GITHUB_TOKEN or device flow)
+COPILOT_MODEL=gpt-4o
 
 # OpenAI (optional override)
 OPENAI_API_KEY=sk-proj-...

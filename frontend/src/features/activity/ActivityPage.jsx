@@ -8,27 +8,28 @@
  */
 
 import {
-  Badge,
-  Body1,
-  Button,
-  Card,
-  Caption1,
-  Subtitle2,
-  Text,
-  Tooltip,
-  makeStyles,
-  tokens,
+    Badge,
+    Body1,
+    Button,
+    Caption1,
+    Card,
+    Subtitle2,
+    Text,
+    Tooltip,
+    makeStyles,
+    tokens,
 } from '@fluentui/react-components'
 import {
-  ArrowClockwise24Regular,
-  Delete24Regular,
-  Dismiss24Regular,
-  ChevronDown20Regular,
-  ChevronRight20Regular,
+    ArrowClockwise24Regular,
+    ChevronDown20Regular,
+    ChevronRight20Regular,
+    Delete24Regular,
+    Dismiss24Regular,
 } from '@fluentui/react-icons'
-import { useEffect, useRef, useState, useCallback } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import { connectToAgentEvents } from '../../services/api'
+import { SSE_STATE } from '../../services/sseConnection'
 
 const MAX_EVENTS = 500
 
@@ -281,19 +282,20 @@ export default function ActivityPage() {
 
     cleanupRef.current = connectToAgentEvents(
       (evt) => {
-        setConnected(true)
         setEvents((prev) => {
           const next = [...prev, evt]
           return next.length > MAX_EVENTS ? next.slice(-MAX_EVENTS) : next
         })
       },
-      (err) => {
-        setConnected(false)
-        setError('Connection lost — click reconnect')
-        console.warn('[Activity] SSE error:', err)
+      (sseState) => {
+        setConnected(sseState === SSE_STATE.CONNECTED)
+        if (sseState === SSE_STATE.RECONNECTING) {
+          setError('Connection lost — reconnecting…')
+        } else if (sseState === SSE_STATE.CONNECTED) {
+          setError(null)
+        }
       },
     )
-    setConnected(true)
   }, [])
 
   useEffect(() => {

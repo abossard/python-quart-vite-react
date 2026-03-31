@@ -109,10 +109,16 @@ app.register_blueprint(agent_builder_bp)
 @app.before_serving
 async def startup():
     """Initialize scheduler on application startup"""
+    import asyncio
     import logging
 
+    from agent_builder.engine.event_bus import agent_event_bus
     from scheduler import start_scheduler
-    
+
+    # Capture the running event loop so the event bus can safely dispatch
+    # from LangChain callback threads via call_soon_threadsafe.
+    agent_event_bus.set_loop(asyncio.get_running_loop())
+
     logger = logging.getLogger(__name__)
     logger.info("Starting auto-generation scheduler...")
     
