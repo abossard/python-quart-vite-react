@@ -34,7 +34,7 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { createThreadFromRun } from '../../services/api'
 import { parseRunOutput } from './outputUtils'
 import SchemaRenderer from './SchemaRenderer'
-import { MarkdownWidget } from './toolRenders'
+import { SmartMessageRenderer } from './toolRenders'
 
 const useStyles = makeStyles({
   surface: {
@@ -495,7 +495,7 @@ export default function RunConversationModal({
                 if (msg.role === 'assistant') {
                   return (
                     <div key={msg.id} className={styles.assistantMessage} data-testid="chat-message-assistant">
-                      <MarkdownWidget content={msg.content} />
+                      <SmartMessageRenderer content={msg.content} schema={outputSchema} />
                     </div>
                   )
                 }

@@ -281,6 +281,99 @@ export function StructuredOutputRenderer({ output, schema }) {
   )
 }
 
+// ---------------------------------------------------------------------------
+// Smart message renderer — detects JSON blocks and renders them structurally
+// ---------------------------------------------------------------------------
+
+const JSON_FENCE_RE = /```json\s*\n?([\s\S]*?)\n?```/gi
+
+/**
+ * Split a markdown string into alternating segments of prose and parsed JSON.
+ * Pure calculation — no side effects.
+ *
+ * @param {string} content - Raw assistant message (markdown with optional JSON fences)
+ * @returns {{ type: 'markdown'|'json', value: string|object }[]}
+ */
+function splitMarkdownAndJson(content) {
+  if (!content || typeof content !== 'string') return []
+
+  // Try parsing the entire content as JSON first (no fences)
+  const trimmed = content.trim()
+  try {
+    const parsed = JSON.parse(trimmed)
+    if (typeof parsed === 'object' && parsed !== null) {
+      return [{ type: 'json', value: parsed }]
+    }
+  } catch { /* not pure JSON */ }
+
+  const segments = []
+  let lastIndex = 0
+  let match
+
+  // Reset regex state
+  JSON_FENCE_RE.lastIndex = 0
+
+  while ((match = JSON_FENCE_RE.exec(content)) !== null) {
+    // Add markdown before this JSON block
+    const before = content.slice(lastIndex, match.index).trim()
+    if (before) segments.push({ type: 'markdown', value: before })
+
+    // Parse JSON block
+    try {
+      const parsed = JSON.parse(match[1].trim())
+      if (typeof parsed === 'object' && parsed !== null) {
+        segments.push({ type: 'json', value: parsed })
+      } else {
+        // Primitive JSON value — render as markdown
+        segments.push({ type: 'markdown', value: match[0] })
+      }
+    } catch {
+      // Invalid JSON — keep as markdown code block
+      segments.push({ type: 'markdown', value: match[0] })
+    }
+
+    lastIndex = match.index + match[0].length
+  }
+
+  // Add remaining markdown after last JSON block
+  const remaining = content.slice(lastIndex).trim()
+  if (remaining) segments.push({ type: 'markdown', value: remaining })
+
+  return segments
+}
+
+/**
+ * Smart message renderer for assistant chat messages.
+ * Detects JSON blocks in markdown and renders them with structured widgets
+ * (tables, stat cards, badge lists) instead of raw <pre><code> blocks.
+ * Falls back to plain MarkdownWidget when no JSON is detected.
+ */
+export function SmartMessageRenderer({ content, schema }) {
+  const styles = useStyles()
+  const segments = splitMarkdownAndJson(content)
+
+  // No JSON found — fast path: plain markdown
+  if (segments.length === 0) {
+    return <MarkdownWidget content={content} />
+  }
+  if (segments.length === 1 && segments[0].type === 'markdown') {
+    return <MarkdownWidget content={segments[0].value} />
+  }
+
+  return (
+    <div className={styles.widgetContainer}>
+      {segments.map((seg, i) => {
+        if (seg.type === 'markdown') {
+          return <MarkdownWidget key={i} content={seg.value} />
+        }
+        return (
+          <StructuredOutputRenderer key={i} output={seg.value} schema={schema} />
+        )
+      })}
+    </div>
+  )
+}
+
 /**
  * Build props for a specific widget from value and schema property.
  * Pure calculation.

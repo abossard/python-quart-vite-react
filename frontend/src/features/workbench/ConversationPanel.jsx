@@ -24,6 +24,7 @@ import {
 import { useCallback, useEffect, useRef, useState } from 'react'
 import {
   MarkdownWidget,
+  SmartMessageRenderer,
   StructuredOutputRenderer,
 } from './toolRenders'
 
@@ -332,7 +333,7 @@ export default function ConversationPanel({
           if (msg.role === 'assistant') {
             return (
               <div key={msg.id} className={styles.assistantMessage} data-testid="chat-message-assistant">
-                <MarkdownWidget content={msg.content} />
+                <SmartMessageRenderer content={msg.content} schema={outputSchema} />
               </div>
             )
           }

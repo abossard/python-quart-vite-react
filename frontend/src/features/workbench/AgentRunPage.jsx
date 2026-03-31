@@ -152,9 +152,13 @@ export default function AgentRunPage({ agent }) {
 
   const parsedOutput = parseRunOutput(output)
 
+  // Find the latest completed/truncated run for this agent (for auto-continue)
+  const latestCompletedRun = runs.find(r => r.status === 'completed' || r.status === 'truncated') || null
+
   const handleRun = async () => {
     setError('')
     setOutput(null)
+    setChatThread(null)
 
     if (agent.requires_input && !requiredInput.trim()) {
       setError(`Required: ${agent.required_input_description || 'input value'}`)
@@ -243,6 +247,20 @@ export default function AgentRunPage({ agent }) {
                 data={parsedOutput}
                 schema={agent.output_schema?.properties ? agent.output_schema : undefined}
               />
+            </div>
+          )}
+
+          {/* Auto-continue: show "Continue in Chat" after a run completes */}
+          {!chatThread && latestCompletedRun && (
+            <div style={{ marginTop: tokens.spacingVerticalS, display: 'flex', gap: tokens.spacingHorizontalS }}>
+              <Button
+                appearance="primary"
+                icon={<Chat24Regular />}
+                onClick={() => handleContinueInChat(latestCompletedRun)}
+                data-testid="agent-run-continue-chat"
+              >
+                Continue in Chat
+              </Button>
             </div>
           )}
         </div>
