@@ -1,10 +1,18 @@
-# Quart + Vite + React Demo Application
+# UPDATE
+> [!WARNING]
+> This version has new dependencies and not anymore to LiteLLM.
+> Please delete the current .venv folders and run the ./setup.sh
+> Check the logs of the Python process, you might need to authenticate to Github.com so that 
+> the application can use the Github token
 
-**Current Task:** Document usecase demo ideas from the CSV-backed ticket dataset and build/iterate pages like `/usecase_demo_1` where each demo page has:
-- a short summary
-- editable agent prompt(s)
-- a button that launches the agent run in background
-- visible results (table/visualization)
+    rm -rf .venv
+    rm -rf notebooks/
+    ./setup.sh
+    ./start-dev.sh
+
+----------
+
+# Quart + Vite + React Demo Application
 
 > A teaching-oriented full-stack sample that pairs a Python Quart backend with a React + FluentUI frontend, real-time Server-Sent Events (SSE), and Playwright tests.
 
