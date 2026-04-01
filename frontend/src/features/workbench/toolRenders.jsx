@@ -8,9 +8,9 @@
  * Following Grokking Simplicity: these are pure calculations (data → UI).
  */
 
+import { Badge, makeStyles, Text, tokens } from '@fluentui/react-components'
 import { ResponsiveBar } from '@nivo/bar'
 import { ResponsivePie } from '@nivo/pie'
-import { makeStyles, tokens, Text, Badge } from '@fluentui/react-components'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 
@@ -138,9 +138,10 @@ export function TableWidget({ data, columns }) {
 
 export function StatCardWidget({ value, label }) {
   const styles = useStyles()
+  const display = value == null ? '—' : typeof value === 'object' ? JSON.stringify(value) : value
   return (
     <div className={styles.statCard}>
-      <span className={styles.statValue}>{value ?? '—'}</span>
+      <span className={styles.statValue}>{display}</span>
       {label && <span className={styles.statLabel}>{label}</span>}
     </div>
   )
