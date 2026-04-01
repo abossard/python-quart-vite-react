@@ -106,8 +106,22 @@ class CopilotAuthenticator:
 
     def _run_device_flow(self) -> str:
         """Run GitHub OAuth device-code flow. Prompts user to authenticate."""
+        # Suppress noisy httpx INFO logs during device flow polling
+        httpx_logger = logging.getLogger("httpx")
+        prev_level = httpx_logger.level
+        httpx_logger.setLevel(logging.WARNING)
+
+        try:
+            return self._do_device_flow()
+        finally:
+            httpx_logger.setLevel(prev_level)
+
+    def _do_device_flow(self) -> str:
+        """Internal: run the device-code flow with clear terminal output."""
+        max_polls = 24
+        poll_interval = 5
+
         with httpx.Client(timeout=30) as client:
-            # Request device code
             resp = client.post(
                 _GITHUB_DEVICE_CODE_URL,
                 headers=self._github_headers(),
@@ -119,17 +133,25 @@ class CopilotAuthenticator:
             device_code = data["device_code"]
             user_code = data["user_code"]
             verification_uri = data["verification_uri"]
+            poll_interval = data.get("interval", poll_interval)
 
             print(  # noqa: T201
-                f"\n🔑 GitHub Copilot authentication required.\n"
-                f"   Visit: {verification_uri}\n"
-                f"   Enter code: {user_code}\n",
+                "\n"
+                "╔══════════════════════════════════════════════════╗\n"
+                "║       🔑 GitHub Copilot Authentication          ║\n"
+                "╠══════════════════════════════════════════════════╣\n"
+                f"║  1. Open:  {verification_uri:<37s} ║\n"
+                f"║  2. Enter: {user_code:<37s} ║\n"
+                "╚══════════════════════════════════════════════════╝",
                 flush=True,
             )
 
-            # Poll for access token (up to 60s)
-            for _ in range(12):
-                time.sleep(5)
+            for attempt in range(1, max_polls + 1):
+                time.sleep(poll_interval)
+                print(  # noqa: T201
+                    f"   ⏳ Waiting for authentication… ({attempt}/{max_polls})",
+                    flush=True,
+                )
                 poll_resp = client.post(
                     _GITHUB_ACCESS_TOKEN_URL,
                     headers=self._github_headers(),
@@ -145,7 +167,7 @@ class CopilotAuthenticator:
                 if "access_token" in poll_data:
                     token = poll_data["access_token"]
                     self._write_file(self._access_token_path, token)
-                    logger.info("GitHub Copilot authentication successful")
+                    print("   ✅ Authentication successful!\n", flush=True)  # noqa: T201
                     return token
 
                 if poll_data.get("error") != "authorization_pending":
