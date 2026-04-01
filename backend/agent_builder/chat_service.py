@@ -37,7 +37,7 @@ def _default_model(explicit_model: str = "") -> str:
         return explicit_model
     if os.getenv("AGENT_BACKEND", "").strip().lower() == "openai":
         return os.getenv("OPENAI_MODEL", "gpt-4o-mini")
-    return os.getenv("LITELLM_MODEL", "github_copilot/gpt-4o")
+    return os.getenv("COPILOT_MODEL", "gpt-4o")
 
 
 class ChatService:

@@ -7,6 +7,8 @@
  * - Clear interface for backend communication
  */
 
+import { subscribeSSE } from "./sseConnection";
+
 const API_BASE_URL = "/api";
 
 // ============================================================================
@@ -26,7 +28,7 @@ async function fetchJSON(url, options = {}) {
     const errorData = await response
       .json()
       .catch(() => ({ error: "Request failed" }));
-    
+
     // For 409 Conflict (duplicate), include full error data
     if (response.status === 409) {
       const error = new Error(errorData.error || `HTTP ${response.status}`);
@@ -34,7 +36,7 @@ async function fetchJSON(url, options = {}) {
       error.data = errorData;
       throw error;
     }
-    
+
     throw new Error(errorData.error || `HTTP ${response.status}`);
   }
 
@@ -82,32 +84,19 @@ export function connectToTimeStream(onMessage, onError) {
   };
 }
 
+export { SSE_STATE } from "./sseConnection";
+
 /**
- * Connect to Server-Sent Events stream for real-time agent activity
- * @param {Function} onEvent - Callback for each agent event
- * @param {Function} onError - Callback for errors
- * @returns {Function} Cleanup function to close the connection
+ * Subscribe to the shared SSE connection for real-time agent activity.
+ *
+ * Returns an unsubscribe function. Multiple consumers share one EventSource.
+ *
+ * @param {(event: object) => void} onEvent - Callback for each parsed agent event
+ * @param {(state: string) => void} onStateChange - Callback with SSE_STATE value on every transition
+ * @returns {() => void} unsubscribe
  */
-export function connectToAgentEvents(onEvent, onError) {
-  const eventSource = new EventSource(`${API_BASE_URL}/workbench/events`);
-
-  eventSource.onmessage = (event) => {
-    try {
-      const data = JSON.parse(event.data);
-      onEvent(data);
-    } catch (error) {
-      if (onError) onError(error);
-    }
-  };
-
-  eventSource.onerror = (error) => {
-    if (onError) onError(error);
-    eventSource.close();
-  };
-
-  return () => {
-    eventSource.close();
-  };
+export function connectToAgentEvents(onEvent, onStateChange) {
+  return subscribeSSE({ onEvent, onStateChange });
 }
 
 // ============================================================================
@@ -376,7 +365,11 @@ export async function runWorkbenchAgent(
   });
 }
 
-export async function suggestOutputSchema({ name = "", description = "", systemPrompt = "" } = {}) {
+export async function suggestOutputSchema({
+  name = "",
+  description = "",
+  systemPrompt = "",
+} = {}) {
   return fetchJSON(`${API_BASE_URL}/workbench/suggest-schema`, {
     method: "POST",
     body: JSON.stringify({
@@ -387,7 +380,12 @@ export async function suggestOutputSchema({ name = "", description = "", systemP
   });
 }
 
-export async function improvePrompt({ name = "", description = "", systemPrompt = "", toolNames = [] } = {}) {
+export async function improvePrompt({
+  name = "",
+  description = "",
+  systemPrompt = "",
+  toolNames = [],
+} = {}) {
   return fetchJSON(`${API_BASE_URL}/workbench/improve-prompt`, {
     method: "POST",
     body: JSON.stringify({
@@ -420,6 +418,35 @@ export async function getRun(runId) {
 
 export async function deleteAllRuns() {
   return fetchJSON(`${API_BASE_URL}/workbench/runs`, { method: "DELETE" });
+}
+
+// ============================================================================
+// Thread / Conversation APIs
+// ============================================================================
+
+export async function listThreads(agentId) {
+  const params = agentId ? `?agent_id=${agentId}` : "";
+  return fetchJSON(`${API_BASE_URL}/workbench/threads${params}`);
+}
+
+export async function getThread(threadId) {
+  return fetchJSON(`${API_BASE_URL}/workbench/threads/${threadId}`);
+}
+
+export async function deleteThread(threadId) {
+  return fetchJSON(`${API_BASE_URL}/workbench/threads/${threadId}`, {
+    method: "DELETE",
+  });
+}
+
+export async function getThreadMessages(threadId) {
+  return fetchJSON(`${API_BASE_URL}/workbench/threads/${threadId}/messages`);
+}
+
+export async function createThreadFromRun(runId) {
+  return fetchJSON(`${API_BASE_URL}/workbench/threads/from-run/${runId}`, {
+    method: "POST",
+  });
 }
 
 // ============================================================================
@@ -473,9 +500,11 @@ export async function listKBADrafts(filters = {}) {
   if (filters.incident_id) params.set("incident_id", filters.incident_id);
   if (filters.limit) params.set("limit", filters.limit.toString());
   if (filters.offset) params.set("offset", filters.offset.toString());
-  
+
   const queryString = params.toString();
-  return fetchJSON(`${API_BASE_URL}/kba/drafts${queryString ? `?${queryString}` : ""}`);
+  return fetchJSON(
+    `${API_BASE_URL}/kba/drafts${queryString ? `?${queryString}` : ""}`,
+  );
 }
 
 export async function getKBAAuditTrail(draftId) {

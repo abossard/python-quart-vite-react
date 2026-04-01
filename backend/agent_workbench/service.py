@@ -85,13 +85,9 @@ def _build_llm(model: str, api_key: str, base_url: str = "") -> Any:
             temperature=0.0,
         )
     else:
-        from langchain_litellm import ChatLiteLLM
-        litellm_model = os.getenv("LITELLM_MODEL", "github_copilot/gpt-4o")
-        logger.info("Workbench LLM: using ChatLiteLLM (model=%s)", litellm_model)
-        return ChatLiteLLM(
-            model=litellm_model,
-            temperature=0.0,
-        )
+        from copilot_llm import build_copilot_llm
+        logger.info("Workbench LLM: using GitHub Copilot")
+        return build_copilot_llm()
 
 
 def _build_react_agent(llm: Any, tools: list[Any], system_prompt: str) -> Any:

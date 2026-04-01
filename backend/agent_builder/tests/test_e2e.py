@@ -5,6 +5,7 @@ Adapted from the original test_workbench_integration_e2e.py to use the new
 agent_builder Blueprint and services.
 """
 
+import asyncio
 import sys
 import unittest
 from pathlib import Path
@@ -131,13 +132,24 @@ class AgentBuilderE2ETests(unittest.IsolatedAsyncioTestCase):
                 self.assertEqual(resp.status_code, 201, agent_data)
                 agent_id = agent_data["id"]
 
-                # Run agent
+                # Run agent — returns 202 immediately (fire-and-forget)
                 resp = await client.post(
                     f"/api/workbench/agents/{agent_id}/runs",
                     json={"input_prompt": "Get CSV ticket total."},
                 )
                 run_data = await resp.get_json()
-                self.assertEqual(resp.status_code, 200, run_data)
+                self.assertEqual(resp.status_code, 202, run_data)
+                self.assertEqual(run_data["status"], "running")
+                run_id = run_data["id"]
+
+                # Poll until completed (background task finishes quickly with fake agent)
+                for _ in range(20):
+                    await asyncio.sleep(0.1)
+                    resp = await client.get(f"/api/workbench/runs/{run_id}")
+                    run_data = await resp.get_json()
+                    if run_data["status"] in ("completed", "failed", "truncated"):
+                        break
+
                 self.assertEqual(run_data["status"], "completed")
                 self.assertIn("csv_ticket_stats", run_data["tools_used"])
                 self.assertIn("total=", run_data["output"] or "")
@@ -193,7 +205,16 @@ class AgentBuilderE2ETests(unittest.IsolatedAsyncioTestCase):
                     json={"required_input_value": "INC-12345"},
                 )
                 run_data = await resp.get_json()
-                self.assertEqual(resp.status_code, 200, run_data)
+                self.assertEqual(resp.status_code, 202, run_data)
+                run_id = run_data["id"]
+
+                for _ in range(20):
+                    await asyncio.sleep(0.1)
+                    resp = await client.get(f"/api/workbench/runs/{run_id}")
+                    run_data = await resp.get_json()
+                    if run_data["status"] in ("completed", "failed", "truncated"):
+                        break
+
                 self.assertEqual(run_data["status"], "completed")
                 self.assertIn("INC-12345", run_data["output"] or "")
 
@@ -247,7 +268,16 @@ class AgentBuilderE2ETests(unittest.IsolatedAsyncioTestCase):
                     json={"input_prompt": "test"},
                 )
                 run_data = await resp.get_json()
-                self.assertEqual(resp.status_code, 200, run_data)
+                self.assertEqual(resp.status_code, 202, run_data)
+                run_id = run_data["id"]
+
+                for _ in range(20):
+                    await asyncio.sleep(0.1)
+                    resp = await client.get(f"/api/workbench/runs/{run_id}")
+                    run_data = await resp.get_json()
+                    if run_data["status"] in ("completed", "failed", "truncated"):
+                        break
+
                 snapshot = run_data["agent_snapshot"]
                 self.assertEqual(snapshot["model"], "gpt-4o")
                 self.assertEqual(snapshot["temperature"], 0.2)

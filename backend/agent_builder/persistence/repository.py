@@ -14,7 +14,9 @@ from ..models import (
     AgentDefinition,
     AgentEvaluation,
     AgentRun,
+    ConversationThread,
     RunStatus,
+    ThreadMessage,
 )
 
 
@@ -125,3 +127,73 @@ class AgentRepository:
             session.commit()
             session.refresh(evaluation)
             return evaluation
+
+    # ----- Threads -----
+
+    def create_thread(self, thread: ConversationThread) -> ConversationThread:
+        with Session(self._engine) as session:
+            session.add(thread)
+            session.commit()
+            session.refresh(thread)
+        return thread
+
+    def get_thread(self, thread_id: str) -> Optional[ConversationThread]:
+        with Session(self._engine) as session:
+            return session.get(ConversationThread, thread_id)
+
+    def list_threads(self, agent_id: Optional[str] = None, limit: int = 50) -> list[ConversationThread]:
+        with Session(self._engine) as session:
+            stmt = select(ConversationThread)
+            if agent_id:
+                stmt = stmt.where(ConversationThread.agent_id == agent_id)
+            stmt = stmt.order_by(ConversationThread.updated_at.desc()).limit(limit)
+            return list(session.exec(stmt).all())
+
+    def update_thread(self, thread_id: str, **fields) -> Optional[ConversationThread]:
+        with Session(self._engine) as session:
+            thread = session.get(ConversationThread, thread_id)
+            if thread is None:
+                return None
+            for key, value in fields.items():
+                setattr(thread, key, value)
+            thread.updated_at = datetime.now()
+            session.add(thread)
+            session.commit()
+            session.refresh(thread)
+            return thread
+
+    def delete_thread(self, thread_id: str) -> bool:
+        with Session(self._engine) as session:
+            thread = session.get(ConversationThread, thread_id)
+            if thread is None:
+                return False
+            # Delete messages first
+            msgs = session.exec(
+                select(ThreadMessage).where(ThreadMessage.thread_id == thread_id)
+            ).all()
+            for msg in msgs:
+                session.delete(msg)
+            session.delete(thread)
+            session.commit()
+        return True
+
+    # ----- Thread Messages -----
+
+    def add_message(self, message: ThreadMessage) -> ThreadMessage:
+        with Session(self._engine) as session:
+            session.add(message)
+            session.commit()
+            session.refresh(message)
+        # Touch the thread's updated_at
+        self.update_thread(message.thread_id)
+        return message
+
+    def get_messages(self, thread_id: str, limit: int = 200) -> list[ThreadMessage]:
+        with Session(self._engine) as session:
+            stmt = (
+                select(ThreadMessage)
+                .where(ThreadMessage.thread_id == thread_id)
+                .order_by(ThreadMessage.created_at.asc())
+                .limit(limit)
+            )
+            return list(session.exec(stmt).all())

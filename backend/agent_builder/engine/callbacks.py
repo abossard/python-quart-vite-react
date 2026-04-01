@@ -157,13 +157,14 @@ def _extract_llm_call_metadata(
 # ---------------------------------------------------------------------------
 
 def make_streaming_callback(run_id: str, event_bus: AgentEventBus) -> Any:
-    """Create a callback handler that publishes agent events to the SSE event bus."""
+    """Create a callback handler that publishes AG-UI events to the SSE event bus."""
     from langchain_core.callbacks import BaseCallbackHandler
 
     class StreamingCallbackHandler(BaseCallbackHandler):
         def __init__(self) -> None:
             super().__init__()
             self._start_times: dict[Any, float] = {}
+            self._tool_names: dict[Any, str] = {}
 
         def on_tool_start(
             self,
@@ -175,30 +176,43 @@ def make_streaming_callback(run_id: str, event_bus: AgentEventBus) -> Any:
         ) -> None:
             self._start_times[run_id] = perf_counter()
             name = serialized.get("name", "unknown")
+            self._tool_names[run_id] = name
             preview = input_str[:500] if isinstance(input_str, str) else str(input_str)[:500]
             event_bus.publish(AgentEvent(
                 run_id=run_id_outer,
-                event_type="tool_start",
-                data={"tool_name": name, "input": preview},
+                event_type="TOOL_CALL_START",
+                data={"toolCallId": str(run_id), "toolCallName": name, "args": preview},
             ))
 
         def on_tool_end(self, output: str, *, run_id: Any = None, **kwargs: Any) -> None:
             started = self._start_times.pop(run_id, None)
             duration_ms = int((perf_counter() - started) * 1000) if started is not None else None
+            name = self._tool_names.pop(run_id, "")
             preview = output[:500] if isinstance(output, str) else str(output)[:500]
             event_bus.publish(AgentEvent(
                 run_id=run_id_outer,
-                event_type="tool_end",
-                data={"tool_name": kwargs.get("name", ""), "output": preview, "duration_ms": duration_ms},
+                event_type="TOOL_CALL_END",
+                data={"toolCallId": str(run_id), "toolCallName": name},
+            ))
+            event_bus.publish(AgentEvent(
+                run_id=run_id_outer,
+                event_type="TOOL_CALL_RESULT",
+                data={
+                    "toolCallId": str(run_id),
+                    "toolCallName": name,
+                    "content": preview,
+                    "durationMs": duration_ms,
+                },
             ))
 
         def on_tool_error(self, error: BaseException, *, run_id: Any = None, **kwargs: Any) -> None:
             started = self._start_times.pop(run_id, None)
             duration_ms = int((perf_counter() - started) * 1000) if started is not None else None
+            name = self._tool_names.pop(run_id, "")
             event_bus.publish(AgentEvent(
                 run_id=run_id_outer,
-                event_type="tool_error",
-                data={"error": str(error), "duration_ms": duration_ms},
+                event_type="TOOL_CALL_END",
+                data={"toolCallId": str(run_id), "toolCallName": name, "error": str(error), "durationMs": duration_ms},
             ))
 
         def on_llm_start(
@@ -219,8 +233,8 @@ def make_streaming_callback(run_id: str, event_bus: AgentEventBus) -> Any:
                 )
             event_bus.publish(AgentEvent(
                 run_id=run_id_outer,
-                event_type="llm_start",
-                data={"model": model_name or ""},
+                event_type="STEP_STARTED",
+                data={"stepName": "llm_call", "model": model_name or ""},
             ))
 
         def on_llm_end(self, response: Any, *, run_id: UUID = None, **kwargs: Any) -> None:
@@ -229,12 +243,13 @@ def make_streaming_callback(run_id: str, event_bus: AgentEventBus) -> Any:
             token_usage, model_name, finish_reason = _extract_llm_call_metadata(response)
             event_bus.publish(AgentEvent(
                 run_id=run_id_outer,
-                event_type="llm_end",
+                event_type="STEP_FINISHED",
                 data={
+                    "stepName": "llm_call",
                     "model": model_name or "",
-                    "duration_ms": duration_ms,
-                    "token_usage": token_usage or {},
-                    "finish_reason": finish_reason or "",
+                    "durationMs": duration_ms,
+                    "tokenUsage": token_usage or {},
+                    "finishReason": finish_reason or "",
                 },
             ))
 
@@ -243,8 +258,8 @@ def make_streaming_callback(run_id: str, event_bus: AgentEventBus) -> Any:
             duration_ms = int((perf_counter() - started_at) * 1000) if started_at is not None else None
             event_bus.publish(AgentEvent(
                 run_id=run_id_outer,
-                event_type="llm_error",
-                data={"error": str(error), "duration_ms": duration_ms},
+                event_type="STEP_FINISHED",
+                data={"stepName": "llm_call", "error": str(error), "durationMs": duration_ms},
             ))
 
     # Closure captures run_id as run_id_outer to avoid shadowing with LangChain's run_id param

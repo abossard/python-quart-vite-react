@@ -8,27 +8,28 @@
  */
 
 import {
-  Badge,
-  Body1,
-  Button,
-  Card,
-  Caption1,
-  Subtitle2,
-  Text,
-  Tooltip,
-  makeStyles,
-  tokens,
+    Badge,
+    Body1,
+    Button,
+    Caption1,
+    Card,
+    Subtitle2,
+    Text,
+    Tooltip,
+    makeStyles,
+    tokens,
 } from '@fluentui/react-components'
 import {
-  ArrowClockwise24Regular,
-  Delete24Regular,
-  Dismiss24Regular,
-  ChevronDown20Regular,
-  ChevronRight20Regular,
+    ArrowClockwise24Regular,
+    ChevronDown20Regular,
+    ChevronRight20Regular,
+    Delete24Regular,
+    Dismiss24Regular,
 } from '@fluentui/react-icons'
-import { useEffect, useRef, useState, useCallback } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import { connectToAgentEvents } from '../../services/api'
+import { SSE_STATE } from '../../services/sseConnection'
 
 const MAX_EVENTS = 500
 
@@ -135,19 +136,18 @@ const useStyles = makeStyles({
 })
 
 const EVENT_CONFIG = {
-  run_started:   { emoji: '🚀', color: 'informative', label: 'Run Started' },
-  run_completed: { emoji: '✅', color: 'success',     label: 'Run Completed' },
-  run_failed:    { emoji: '❌', color: 'danger',      label: 'Run Failed' },
-  llm_start:     { emoji: '🧠', color: 'warning',     label: 'LLM Thinking' },
-  llm_end:       { emoji: '💬', color: 'informative', label: 'LLM Response' },
-  llm_error:     { emoji: '⚠️', color: 'danger',      label: 'LLM Error' },
-  tool_start:    { emoji: '🔧', color: 'warning',     label: 'Tool Call' },
-  tool_end:      { emoji: '📦', color: 'success',     label: 'Tool Result' },
-  tool_error:    { emoji: '🔴', color: 'danger',      label: 'Tool Error' },
+  RUN_STARTED:      { emoji: '🚀', color: 'informative', label: 'Run Started' },
+  RUN_FINISHED:     { emoji: '✅', color: 'success',     label: 'Run Completed' },
+  RUN_ERROR:        { emoji: '❌', color: 'danger',      label: 'Run Failed' },
+  STEP_STARTED:     { emoji: '🧠', color: 'warning',     label: 'Step Started' },
+  STEP_FINISHED:    { emoji: '💬', color: 'informative', label: 'Step Finished' },
+  TOOL_CALL_START:  { emoji: '🔧', color: 'warning',     label: 'Tool Call' },
+  TOOL_CALL_END:    { emoji: '📦', color: 'success',     label: 'Tool Done' },
+  TOOL_CALL_RESULT: { emoji: '📄', color: 'informative', label: 'Tool Result' },
 }
 
 function formatTime(ts) {
-  const d = new Date(ts * 1000)
+  const d = new Date(typeof ts === 'number' && ts > 1e12 ? ts : ts * 1000)
   return d.toLocaleTimeString('en-US', { hour12: false, hour: '2-digit', minute: '2-digit', second: '2-digit' })
 }
 
@@ -157,50 +157,60 @@ function shortId(id) {
 }
 
 function eventSummary(evt) {
-  const d = evt.data || {}
-  switch (evt.event_type) {
-    case 'run_started':
-      return `Agent "${d.agent_name || '?'}" started — ${d.input_preview?.slice(0, 80) || ''}…`
-    case 'run_completed':
-      return `Done in ${d.duration_ms}ms — tools: ${(d.tools_used || []).join(', ') || 'none'}`
-    case 'run_failed':
-      return `Failed: ${d.error || 'unknown error'}`
-    case 'llm_start':
-      return `Thinking… (${d.model || 'model'})`
-    case 'llm_end': {
-      const tok = d.token_usage || {}
+  const t = evt.type || evt.event_type || ''
+  switch (t) {
+    case 'RUN_STARTED':
+      return `Agent "${evt.agentName || '?'}" started — ${evt.inputPreview?.slice(0, 80) || ''}…`
+    case 'RUN_FINISHED': {
       const parts = []
-      if (d.duration_ms != null) parts.push(`${d.duration_ms}ms`)
-      if (tok.total_tokens) parts.push(`${tok.total_tokens} tokens`)
-      if (d.finish_reason) parts.push(d.finish_reason)
-      return parts.join(' · ') || 'LLM responded'
+      if (evt.durationMs != null) parts.push(`${evt.durationMs}ms`)
+      if (evt.toolsUsed?.length) parts.push(`tools: ${evt.toolsUsed.join(', ')}`)
+      return `Done${parts.length ? ' — ' + parts.join(' · ') : ''}`
     }
-    case 'llm_error':
-      return `LLM error: ${d.error || 'unknown'}`
-    case 'tool_start':
-      return `→ ${d.tool_name || '?'}(${d.input?.slice(0, 80) || ''})`
-    case 'tool_end':
-      return `← ${d.tool_name || '?'} (${d.duration_ms ?? '?'}ms)`
-    case 'tool_error':
-      return `Tool error: ${d.error || 'unknown'}`
+    case 'RUN_ERROR':
+      return `Failed: ${evt.message || 'unknown error'}`
+    case 'STEP_STARTED':
+      return evt.stepName === 'llm_call'
+        ? `Thinking… (${evt.model || 'model'})`
+        : `Step: ${evt.stepName}`
+    case 'STEP_FINISHED': {
+      if (evt.stepName === 'llm_call') {
+        const parts = []
+        if (evt.durationMs != null) parts.push(`${evt.durationMs}ms`)
+        const tok = evt.tokenUsage || {}
+        if (tok.total_tokens || tok.totalTokens) parts.push(`${tok.total_tokens || tok.totalTokens} tokens`)
+        if (evt.finishReason) parts.push(evt.finishReason)
+        if (evt.error) parts.push(`⚠️ ${evt.error}`)
+        return parts.join(' · ') || 'LLM responded'
+      }
+      return `Step done: ${evt.stepName}`
+    }
+    case 'TOOL_CALL_START':
+      return `→ ${evt.toolCallName || '?'}${evt.args ? '(' + evt.args.slice(0, 80) + ')' : ''}`
+    case 'TOOL_CALL_END':
+      return `← ${evt.toolCallName || '?'}${evt.durationMs != null ? ' (' + evt.durationMs + 'ms)' : ''}${evt.error ? ' ⚠️ ' + evt.error : ''}`
+    case 'TOOL_CALL_RESULT':
+      return `📄 ${evt.toolCallName || 'result'} → ${(evt.content || '').slice(0, 80)}`
     default:
-      return evt.event_type
+      return t
   }
 }
 
 function eventDetail(evt) {
-  const d = evt.data || {}
-  switch (evt.event_type) {
-    case 'tool_start':
-      return d.input || null
-    case 'tool_end':
-      return d.output || null
-    case 'run_completed':
-      return d.output_preview || null
-    case 'run_failed':
-      return d.error || null
-    case 'tool_error':
-      return d.error || null
+  const t = evt.type || evt.event_type || ''
+  switch (t) {
+    case 'TOOL_CALL_START':
+      return evt.args || null
+    case 'TOOL_CALL_RESULT':
+      return evt.content || null
+    case 'RUN_FINISHED':
+      return evt.outputPreview || null
+    case 'RUN_ERROR':
+      return evt.message || null
+    case 'TOOL_CALL_END':
+      return evt.error || null
+    case 'STEP_FINISHED':
+      return evt.error || null
     default:
       return null
   }
@@ -209,20 +219,22 @@ function eventDetail(evt) {
 function EventRow({ evt, onFilterByRun }) {
   const styles = useStyles()
   const [expanded, setExpanded] = useState(false)
-  const config = EVENT_CONFIG[evt.event_type] || { emoji: '❓', color: 'informative', label: evt.event_type }
+  const evtType = evt.type || evt.event_type || ''
+  const evtRunId = evt.runId || evt.run_id || ''
+  const config = EVENT_CONFIG[evtType] || { emoji: '❓', color: 'informative', label: evtType }
   const detail = eventDetail(evt)
 
   return (
     <div className={styles.eventRow} data-testid="activity-event">
       <span className={styles.timestamp}>{formatTime(evt.timestamp)}</span>
-      <Tooltip content={`Filter by run ${evt.run_id || ''}`} relationship="label">
+      <Tooltip content={`Filter by run ${evtRunId}`} relationship="label">
         <Badge
           appearance="outline"
           color={config.color}
           className={styles.runId}
-          onClick={(e) => { e.stopPropagation(); onFilterByRun(evt.run_id) }}
+          onClick={(e) => { e.stopPropagation(); onFilterByRun(evtRunId) }}
         >
-          {shortId(evt.run_id)}
+          {shortId(evtRunId)}
         </Badge>
       </Tooltip>
       <span>{config.emoji}</span>
@@ -270,19 +282,20 @@ export default function ActivityPage() {
 
     cleanupRef.current = connectToAgentEvents(
       (evt) => {
-        setConnected(true)
         setEvents((prev) => {
           const next = [...prev, evt]
           return next.length > MAX_EVENTS ? next.slice(-MAX_EVENTS) : next
         })
       },
-      (err) => {
-        setConnected(false)
-        setError('Connection lost — click reconnect')
-        console.warn('[Activity] SSE error:', err)
+      (sseState) => {
+        setConnected(sseState === SSE_STATE.CONNECTED)
+        if (sseState === SSE_STATE.RECONNECTING) {
+          setError('Connection lost — reconnecting…')
+        } else if (sseState === SSE_STATE.CONNECTED) {
+          setError(null)
+        }
       },
     )
-    setConnected(true)
   }, [])
 
   useEffect(() => {
@@ -293,7 +306,7 @@ export default function ActivityPage() {
   }, [connect])
 
   const filteredEvents = filterRunId
-    ? events.filter((e) => e.run_id === filterRunId)
+    ? events.filter((e) => (e.runId || e.run_id) === filterRunId)
     : events
 
   // Auto-scroll to bottom on new events

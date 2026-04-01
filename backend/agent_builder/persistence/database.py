@@ -32,6 +32,8 @@ def _run_migrations(engine) -> None:
     _ensure_column(engine, "workbench_agent_definitions", "output_schema", "TEXT NOT NULL DEFAULT '{}'")
     _ensure_column(engine, "workbench_agent_definitions", "show_in_menu", "BOOLEAN NOT NULL DEFAULT 0")
     _ensure_column(engine, "workbench_agent_definitions", "reasoning_effort", "TEXT NOT NULL DEFAULT 'low'")
+    # Activity log for run execution details
+    _ensure_column(engine, "workbench_agent_runs", "activity_log", "TEXT NOT NULL DEFAULT '[]'")
 
 def _ensure_column(engine, table_name: str, column_name: str, column_ddl: str) -> None:
     with Session(engine) as session:

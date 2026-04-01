@@ -63,6 +63,7 @@ function canRenderWidget(widgetName, value) {
       return Array.isArray(value) || isRecord(value)
     case 'json':
     case 'hidden':
+    case 'recursive':
       return true
     default:
       return false
@@ -169,9 +170,8 @@ const useStyles = makeStyles({
     padding: tokens.spacingHorizontalM,
     borderRadius: tokens.borderRadiusMedium,
     fontSize: tokens.fontSizeBase200,
-    overflow: 'auto',
-    maxHeight: '200px',
     fontFamily: 'monospace',
+    whiteSpace: 'pre-wrap',
   },
 })
 
@@ -179,9 +179,14 @@ const useStyles = makeStyles({
  * Detect the best widget for a value when no x-ui annotation is present.
  */
 function autoDetectWidget(value, propSchema) {
-  if (isRecord(value)) return 'json'
+  if (isRecord(value)) return 'recursive'
   if (Array.isArray(value)) {
-    return value.length > 0 && typeof value[0] === 'object' ? 'table' : 'badge-list'
+    if (value.length > 0 && typeof value[0] === 'object') {
+      // Arrays of {id, value} or {name, value} → pie-chart
+      if (looksLikePieData(value)) return 'pie-chart'
+      return 'table'
+    }
+    return 'badge-list'
   }
   if (typeof value === 'string') return 'markdown'
   if (typeof value === 'number' || typeof value === 'boolean') return 'stat-card'
@@ -194,8 +199,24 @@ function autoDetectWidget(value, propSchema) {
     if (itemsType === 'object') return 'table'
     return 'badge-list'
   }
-  if (schemaType === 'object') return 'json'
+  if (schemaType === 'object') return 'recursive'
   return 'json'
+}
+
+/**
+ * Heuristic: does this array look like pie chart data?
+ * Matches [{id: string, value: number}, ...] or [{name: string, value: number}, ...]
+ */
+function looksLikePieData(arr) {
+  if (!Array.isArray(arr) || arr.length === 0) return false
+  return arr.every(item => {
+    if (!isRecord(item)) return false
+    const keys = Object.keys(item)
+    if (keys.length < 2 || keys.length > 3) return false
+    const hasValue = typeof item.value === 'number' || typeof item.count === 'number'
+    const hasLabel = typeof item.id === 'string' || typeof item.name === 'string' || typeof item.label === 'string'
+    return hasValue && hasLabel
+  })
 }
 
 function MarkdownWidget({ value }) {
@@ -378,6 +399,18 @@ function PropertyRenderer({ name, value, propSchema, ui }) {
   const widgetName = resolveWidgetName(value, propSchema, ui)
 
   if (widgetName === 'hidden') return null
+
+  // Recursive rendering for nested objects
+  if (widgetName === 'recursive' && isRecord(value)) {
+    const subSchema = propSchema?.properties ? propSchema : undefined
+    const label = ui?.label || propSchema?.description || name
+    return (
+      <div className={styles.section} data-testid={`schema-field-${name}`}>
+        <span className={styles.label}>{label}</span>
+        <SchemaRenderer data={value} schema={subSchema} />
+      </div>
+    )
+  }
 
   const Widget = WIDGETS[widgetName]
   if (!Widget) {

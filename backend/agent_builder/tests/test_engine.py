@@ -75,16 +75,15 @@ class TestExtractToolsUsed:
 
 
 class TestBuildLlmSelection:
-    def test_defaults_to_litellm_even_with_api_key(self, monkeypatch):
+    def test_defaults_to_copilot_even_with_api_key(self, monkeypatch):
         monkeypatch.delenv("AGENT_BACKEND", raising=False)
 
-        with patch("langchain_litellm.ChatLiteLLM") as mock_litellm:
+        with patch("copilot_llm.build_copilot_llm") as mock_copilot:
             from agent_builder.engine.react_runner import build_llm
 
-            build_llm("openai/nvidia/nemotron-3-nano-4b", api_key="test-key")
+            build_llm("gpt-4o", api_key="test-key")
 
-        mock_litellm.assert_called_once()
-        assert mock_litellm.call_args.kwargs["model"] == "openai/nvidia/nemotron-3-nano-4b"
+        mock_copilot.assert_called_once()
 
     def test_uses_openai_when_explicitly_forced(self, monkeypatch):
         monkeypatch.setenv("AGENT_BACKEND", "openai")

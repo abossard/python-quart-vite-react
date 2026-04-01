@@ -40,7 +40,7 @@ def build_llm(
     max_tokens: int = 0,
     reasoning_effort: str = "low",
 ) -> Any:
-    """Construct an LLM instance — LiteLLM by default, OpenAI only when forced."""
+    """Construct an LLM instance — Copilot by default, OpenAI only when forced."""
     if _force_openai_backend() and api_key:
         from langchain_openai import ChatOpenAI
         kwargs: dict[str, Any] = {
@@ -55,9 +55,13 @@ def build_llm(
             kwargs["reasoning_effort"] = reasoning_effort
         return ChatOpenAI(**kwargs)
     else:
-        from langchain_litellm import ChatLiteLLM
-        litellm_model = model or os.getenv("LITELLM_MODEL", "github_copilot/gpt-4o")
-        return ChatLiteLLM(model=litellm_model, temperature=temperature)
+        from copilot_llm import build_copilot_llm
+        return build_copilot_llm(
+            model=model or "",
+            temperature=temperature,
+            max_tokens=max_tokens,
+            reasoning_effort=reasoning_effort,
+        )
 
 
 def build_react_agent(

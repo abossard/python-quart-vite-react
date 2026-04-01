@@ -10,6 +10,7 @@ Public methods:
   - list_tools
 """
 
+import json
 import logging
 import os
 from datetime import datetime
@@ -35,10 +36,13 @@ from .models import (
     AgentEvaluation,
     AgentRun,
     AgentRunCreate,
+    ConversationThread,
     CriteriaResult,
     CriteriaType,
+    MessageRole,
     RunStatus,
     SuccessCriteria,
+    ThreadMessage,
 )
 from .persistence import AgentRepository, build_engine
 from .tools import ToolRegistry
@@ -51,7 +55,7 @@ def _default_model(explicit_model: str = "") -> str:
         return explicit_model
     if os.getenv("AGENT_BACKEND", "").strip().lower() == "openai":
         return os.getenv("OPENAI_MODEL", "gpt-4o-mini")
-    return os.getenv("LITELLM_MODEL", "github_copilot/gpt-4o")
+    return os.getenv("COPILOT_MODEL", "gpt-4o")
 
 
 # ============================================================================
@@ -514,7 +518,14 @@ class WorkbenchService:
     # ------------------------------------------------------------------
 
     async def run_agent(self, agent_id: str, run_request: AgentRunCreate) -> AgentRun:
-        """Execute an AgentDefinition against a user prompt using LangGraph ReAct."""
+        """Create a run record and start execution in the background.
+
+        Returns immediately with a RUNNING run. The actual agent execution
+        happens asynchronously via ``execute_run``, publishing SSE events as
+        it progresses and updating the run record when done.
+        """
+        import asyncio
+
         agent_def = self.get_agent(agent_id)
         if agent_def is None:
             raise ValueError(f"Agent '{agent_id}' not found")
@@ -536,16 +547,57 @@ class WorkbenchService:
         run = self._repo.create_run(run)
         run_id = run.id
 
-        # Publish run_started event
+        # Publish RUN_STARTED event (AG-UI)
         agent_event_bus.publish(AgentEvent(
             run_id=run_id,
-            event_type="run_started",
+            event_type="RUN_STARTED",
             data={
-                "agent_id": agent_id,
-                "agent_name": agent_def.name,
-                "input_preview": user_message[:200],
+                "threadId": run_id,
+                "agentId": agent_id,
+                "agentName": agent_def.name,
+                "inputPreview": user_message[:200],
             },
         ))
+
+        # Fire-and-forget: launch execution as a background task
+        asyncio.create_task(
+            self._execute_run(run_id, agent_def, validated_tool_names, user_message)
+        )
+
+        return run
+
+    async def _execute_run(
+        self,
+        run_id: str,
+        agent_def: AgentDefinition,
+        validated_tool_names: list[str],
+        user_message: str,
+    ) -> None:
+        """Execute the agent ReAct loop in the background.
+
+        Updates the run record with output/status and publishes SSE events.
+        """
+        activity_events: list[dict[str, Any]] = []
+
+        def _collect_event(event: AgentEvent) -> None:
+            """Capture SSE events emitted during this run for persistence."""
+            if event.run_id == run_id:
+                activity_events.append(event.to_sse_dict())
+
+        # Subscribe to the event bus to capture activity events
+        import asyncio
+        collector_queue: asyncio.Queue[AgentEvent] = asyncio.Queue(maxsize=2000)
+        agent_event_bus._subscribers.append(collector_queue)
+
+        async def _drain_collector():
+            """Drain the collector queue into activity_events."""
+            while True:
+                try:
+                    evt = collector_queue.get_nowait()
+                    if evt.run_id == run_id:
+                        activity_events.append(evt.to_sse_dict())
+                except asyncio.QueueEmpty:
+                    break
 
         try:
             tools = self._registry.resolve(validated_tool_names)
@@ -555,21 +607,15 @@ class WorkbenchService:
                 agent_def.output_schema if agent_def.has_output_schema else None,
             )
 
-            # Per-agent LLM: use agent's model/temperature/max_tokens if set, else service defaults
             run_llm = self._resolve_llm_for_agent(agent_def)
-
-            # Build agent WITHOUT response_format — the prompt already instructs JSON output.
-            # LangGraph's response_format adds an extra LLM call (~5-10s) which doubles latency.
-            # Instead we parse the JSON from the final message ourselves.
             react = build_react_agent(run_llm, tools, runtime_system_prompt)
 
-            # recursion_limit: multiply user setting by 3 for graph step overhead
             user_recursion = agent_def.recursion_limit or self._recursion_limit
             graph_recursion_limit = max(user_recursion * 3, 10)
 
             logger.info(
                 "▶️  Agent run_id=%s agent=%s model=%s temp=%s tools=%s custom_schema=%s prompt=%s",
-                run_id, agent_id, agent_def.model or self._model,
+                run_id, agent_def.id, agent_def.model or self._model,
                 agent_def.temperature, validated_tool_names,
                 agent_def.has_output_schema, user_message[:120],
             )
@@ -588,51 +634,341 @@ class WorkbenchService:
 
             total_ms = int((perf_counter() - t0) * 1000)
 
-            # Extract output from final message (prompt-enforced JSON)
             final_msg = result["messages"][-1]
             output = final_msg.content if hasattr(final_msg, "content") else str(final_msg)
 
             tools_used = extract_tools_used(result["messages"])
 
+            # Detect LangGraph recursion-limit truncation
+            is_truncated = "Sorry, need more steps" in (output or "")
+            if is_truncated:
+                logger.warning(
+                    "⚠️  Agent run_id=%s hit recursion limit (%s user / %s graph)",
+                    run_id, agent_def.recursion_limit, graph_recursion_limit,
+                )
+                final_status = RunStatus.TRUNCATED.value
+                event_type = "RUN_FINISHED"
+            else:
+                final_status = RunStatus.COMPLETED.value
+                event_type = "RUN_FINISHED"
+
             logger.info(
-                "⏹️  Agent done run_id=%s total_ms=%s tools_used=%s messages=%d",
-                run_id, total_ms, tools_used, len(result["messages"]),
+                "⏹️  Agent done run_id=%s total_ms=%s tools_used=%s messages=%d status=%s",
+                run_id, total_ms, tools_used, len(result["messages"]), final_status,
             )
 
             agent_event_bus.publish(AgentEvent(
                 run_id=run_id,
-                event_type="run_completed",
+                event_type=event_type,
                 data={
-                    "output_preview": output[:300],
-                    "tools_used": tools_used,
-                    "duration_ms": total_ms,
+                    "threadId": run_id,
+                    "outputPreview": output[:300],
+                    "toolsUsed": tools_used,
+                    "durationMs": total_ms,
+                    "truncated": is_truncated,
                 },
             ))
 
+            # Drain collector before persisting
+            await _drain_collector()
+
             updated = self._repo.update_run(run_id,
+                status=final_status,
+                output=output,
+                completed_at=datetime.now(),
+                activity_log_json=json.dumps(activity_events),
+            )
+            if updated:
+                updated.tools_used = tools_used
+                self._repo.update_run(run_id, tools_used_json=updated.tools_used_json)
+
+        except Exception as exc:
+            logger.exception("❌ Agent run_id=%s failed: %s", run_id, exc)
+            agent_event_bus.publish(AgentEvent(
+                run_id=run_id,
+                event_type="RUN_ERROR",
+                data={"message": str(exc)},
+            ))
+
+            await _drain_collector()
+
+            self._repo.update_run(run_id,
+                status=RunStatus.FAILED.value,
+                error=str(exc),
+                completed_at=datetime.now(),
+                activity_log_json=json.dumps(activity_events),
+            )
+        finally:
+            # Unsubscribe collector queue
+            try:
+                agent_event_bus._subscribers.remove(collector_queue)
+            except ValueError:
+                pass
+
+    # ------------------------------------------------------------------
+    # Conversations (AG-UI threaded chat)
+    # ------------------------------------------------------------------
+
+    def create_thread(self, agent_id: str, title: str = "") -> ConversationThread:
+        """Create a new conversation thread for an agent."""
+        agent = self.get_agent(agent_id)
+        if agent is None:
+            raise ValueError(f"Agent '{agent_id}' not found")
+        auto_title = title or f"Chat with {agent.name}"
+        thread = ConversationThread(agent_id=agent_id, title=auto_title)
+        return self._repo.create_thread(thread)
+
+    def get_thread(self, thread_id: str) -> Optional[ConversationThread]:
+        return self._repo.get_thread(thread_id)
+
+    def list_threads(self, agent_id: Optional[str] = None, limit: int = 50) -> list[ConversationThread]:
+        return self._repo.list_threads(agent_id=agent_id, limit=limit)
+
+    def delete_thread(self, thread_id: str) -> bool:
+        return self._repo.delete_thread(thread_id)
+
+    def get_thread_messages(self, thread_id: str) -> list[ThreadMessage]:
+        return self._repo.get_messages(thread_id)
+
+    def start_thread_from_run(self, run_id: str) -> ConversationThread:
+        """Create a thread seeded with context from a completed run."""
+        run = self.get_run(run_id)
+        if run is None:
+            raise ValueError(f"Run '{run_id}' not found")
+        agent = self.get_agent(run.agent_id)
+        agent_name = agent.name if agent else "Agent"
+        thread = ConversationThread(
+            agent_id=run.agent_id,
+            title=f"Chat from run — {agent_name}",
+        )
+        thread = self._repo.create_thread(thread)
+        # Seed with the run's input as user message
+        if run.input_prompt:
+            self._repo.add_message(ThreadMessage(
+                thread_id=thread.id,
+                role=MessageRole.USER.value,
+                content=run.input_prompt,
+            ))
+        # Seed with the run's output as assistant message
+        if run.output:
+            self._repo.add_message(ThreadMessage(
+                thread_id=thread.id,
+                role=MessageRole.ASSISTANT.value,
+                content=run.output,
+            ))
+        return thread
+
+    async def continue_thread(self, thread_id: str, user_message: str):
+        """Continue a conversation — yields AG-UI events as an async generator.
+
+        Deep module: hides thread history loading, ReAct execution,
+        AG-UI event conversion, and message persistence behind a
+        single async generator interface.
+        """
+        import uuid as uuid_mod
+
+        from .engine.ag_ui_events import (
+            encode_event,
+            run_error_event,
+            run_finished_event,
+            run_started_event,
+            state_snapshot_event,
+            step_finished_event,
+            step_started_event,
+            structured_output_event,
+            text_message_content,
+            text_message_end,
+            text_message_start,
+            tool_call_args,
+            tool_call_end,
+            tool_call_result,
+            tool_call_start,
+        )
+
+        thread = self._repo.get_thread(thread_id)
+        if thread is None:
+            yield encode_event(run_error_event(f"Thread '{thread_id}' not found"))
+            return
+
+        agent_def = self.get_agent(thread.agent_id)
+        if agent_def is None:
+            yield encode_event(run_error_event(f"Agent for thread not found"))
+            return
+
+        run_id = str(uuid_mod.uuid4())
+
+        # Persist user message
+        self._repo.add_message(ThreadMessage(
+            thread_id=thread_id,
+            role=MessageRole.USER.value,
+            content=user_message,
+        ))
+
+        yield encode_event(run_started_event(thread_id, run_id))
+
+        try:
+            # Load conversation history for context
+            history_msgs = self._repo.get_messages(thread_id, limit=50)
+            langchain_messages = []
+            for msg in history_msgs:
+                if msg.role == MessageRole.USER.value:
+                    langchain_messages.append(("user", msg.content))
+                elif msg.role == MessageRole.ASSISTANT.value:
+                    langchain_messages.append(("assistant", msg.content))
+
+            # Resolve tools and build prompt
+            validated_tool_names = self._validate_tool_names(agent_def.tool_names)
+            tools = self._registry.resolve(validated_tool_names)
+            runtime_system_prompt = append_output_instructions(
+                agent_def.system_prompt,
+                agent_def.output_instructions,
+                agent_def.output_schema if agent_def.has_output_schema else None,
+            )
+            run_llm = self._resolve_llm_for_agent(agent_def)
+            react = build_react_agent(run_llm, tools, runtime_system_prompt)
+
+            user_recursion = agent_def.recursion_limit or self._recursion_limit
+            graph_recursion_limit = max(user_recursion * 3, 10)
+
+            # Send state snapshot with agent info
+            yield encode_event(state_snapshot_event({
+                "agent_id": agent_def.id,
+                "agent_name": agent_def.name,
+                "tools": validated_tool_names,
+                "output_schema": agent_def.output_schema if agent_def.has_output_schema else None,
+            }))
+
+            yield encode_event(step_started_event("agent_execution"))
+
+            # Stream ReAct agent execution with astream_events for real-time AG-UI events
+            message_id = str(uuid_mod.uuid4())
+            output_chunks = []
+            tools_used = []
+            started_text = False
+            active_tool_calls = {}
+            final_output = ""
+
+            async for event in react.astream_events(
+                {"messages": langchain_messages},
+                config={"recursion_limit": graph_recursion_limit},
+                version="v2",
+            ):
+                kind = event.get("event", "")
+                data = event.get("data", {})
+
+                if kind == "on_chat_model_stream":
+                    # Token-by-token LLM streaming
+                    chunk = data.get("chunk")
+                    if chunk and hasattr(chunk, "content") and chunk.content:
+                        if not started_text:
+                            yield encode_event(text_message_start(message_id, role="assistant"))
+                            started_text = True
+                        yield encode_event(text_message_content(message_id, chunk.content))
+                        output_chunks.append(chunk.content)
+
+                    # Check for tool calls in the chunk
+                    if chunk and hasattr(chunk, "tool_call_chunks"):
+                        for tc_chunk in (chunk.tool_call_chunks or []):
+                            tc_id = tc_chunk.get("id")
+                            tc_name = tc_chunk.get("name")
+                            tc_args_delta = tc_chunk.get("args", "")
+                            if tc_id and tc_name and tc_id not in active_tool_calls:
+                                # New tool call starting
+                                if started_text:
+                                    yield encode_event(text_message_end(message_id))
+                                    started_text = False
+                                    message_id = str(uuid_mod.uuid4())
+                                active_tool_calls[tc_id] = tc_name
+                                yield encode_event(tool_call_start(tc_id, tc_name))
+                                if tc_name not in tools_used:
+                                    tools_used.append(tc_name)
+                            if tc_id and tc_args_delta:
+                                yield encode_event(tool_call_args(tc_id, tc_args_delta))
+
+                elif kind == "on_tool_start":
+                    tc_name = event.get("name", "tool")
+                    tc_id = event.get("run_id", str(uuid_mod.uuid4()))
+                    if tc_name not in tools_used:
+                        tools_used.append(tc_name)
+                    if tc_id not in active_tool_calls:
+                        if started_text:
+                            yield encode_event(text_message_end(message_id))
+                            started_text = False
+                            message_id = str(uuid_mod.uuid4())
+                        active_tool_calls[tc_id] = tc_name
+                        yield encode_event(tool_call_start(str(tc_id), tc_name))
+
+                elif kind == "on_tool_end":
+                    tc_id = event.get("run_id", "")
+                    tc_output = data.get("output", "")
+                    if isinstance(tc_output, str):
+                        tc_content = tc_output[:500]
+                    else:
+                        tc_content = str(tc_output)[:500]
+                    if str(tc_id) in active_tool_calls or tc_id in active_tool_calls:
+                        yield encode_event(tool_call_end(str(tc_id)))
+                        yield encode_event(tool_call_result(str(tc_id), tc_content))
+                        active_tool_calls.pop(str(tc_id), None)
+                        active_tool_calls.pop(tc_id, None)
+
+                elif kind == "on_chain_end":
+                    # Capture final output from the chain end event as fallback
+                    chain_output = data.get("output", {})
+                    if isinstance(chain_output, dict):
+                        msgs = chain_output.get("messages", [])
+                        if msgs:
+                            last_msg = msgs[-1]
+                            content = getattr(last_msg, "content", None)
+                            if content and isinstance(content, str):
+                                final_output = content
+
+            # Close any open text message
+            if started_text:
+                yield encode_event(text_message_end(message_id))
+
+            # Fallback: if no text was streamed but we have a final output, emit it
+            if not output_chunks and final_output:
+                message_id = str(uuid_mod.uuid4())
+                yield encode_event(text_message_start(message_id, role="assistant"))
+                yield encode_event(text_message_content(message_id, final_output))
+                yield encode_event(text_message_end(message_id))
+                output_chunks.append(final_output)
+
+            yield encode_event(step_finished_event("agent_execution"))
+
+            output = "".join(output_chunks)
+
+            # If agent has structured output schema, emit custom event
+            if agent_def.has_output_schema:
+                yield encode_event(structured_output_event(
+                    output, agent_def.output_schema,
+                ))
+
+            # Persist assistant response
+            self._repo.add_message(ThreadMessage(
+                thread_id=thread_id,
+                role=MessageRole.ASSISTANT.value,
+                content=output,
+            ))
+
+            # Also create an AgentRun record for backward compat
+            run = AgentRun(
+                id=run_id,
+                agent_id=agent_def.id,
+                input_prompt=user_message,
                 status=RunStatus.COMPLETED.value,
                 output=output,
                 completed_at=datetime.now(),
             )
-            if updated:
-                updated.tools_used = tools_used
-                updated = self._repo.update_run(run_id, tools_used_json=updated.tools_used_json)
-            return updated or run
+            run.tools_used = tools_used
+            run.agent_snapshot = self._build_agent_snapshot(agent_def)
+            self._repo.create_run(run)
+
+            yield encode_event(run_finished_event(thread_id, run_id))
 
         except Exception as exc:
-            agent_event_bus.publish(AgentEvent(
-                run_id=run_id,
-                event_type="run_failed",
-                data={"error": str(exc)},
-            ))
-            updated = self._repo.update_run(run_id,
-                status=RunStatus.FAILED.value,
-                error=str(exc),
-                completed_at=datetime.now(),
-            )
-            if updated:
-                return updated
-            raise
+            logger.exception("Thread conversation error: %s", exc)
+            yield encode_event(run_error_event(str(exc)))
 
     # ------------------------------------------------------------------
     # Evaluation

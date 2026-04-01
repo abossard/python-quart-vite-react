@@ -146,13 +146,12 @@ class AgentResponse(BaseModel):
 
 
 # ============================================================================
-# CONFIGURATION - LLM settings (LiteLLM default, OpenAI optional)
+# CONFIGURATION - LLM settings (Copilot default, OpenAI optional)
 # ============================================================================
 
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY", "")
 OPENAI_MODEL = os.getenv("OPENAI_MODEL", "gpt-4o-mini")
 OPENAI_BASE_URL = os.getenv("OPENAI_BASE_URL", "")  # optional override
-LITELLM_MODEL = os.getenv("LITELLM_MODEL", "github_copilot/gpt-4o")
 OPENAI_CALL_LOGGING_ENABLED = _env_flag("OPENAI_CALL_LOGGING_ENABLED", "true")
 AGENT_EFFICIENCY_MODE = _env_flag("AGENT_EFFICIENCY_MODE", "true")
 AGENT_TRACE_ENABLED = _env_flag("AGENT_TRACE_ENABLED", "false")
@@ -185,7 +184,7 @@ class AgentService:
         """
         Initialize the agent service.
         
-        Defaults to LiteLLM with GitHub Copilot backend.
+        Defaults to GitHub Copilot backend.
         Set AGENT_BACKEND=openai to force OpenAI SDK (requires OPENAI_API_KEY).
         """
         force_openai = os.getenv("AGENT_BACKEND", "").lower() == "openai"
@@ -199,12 +198,9 @@ class AgentService:
             )
             logger.info(f"AgentService using OpenAI: {OPENAI_MODEL}")
         else:
-            from langchain_litellm import ChatLiteLLM
-            self.llm = ChatLiteLLM(
-                model=LITELLM_MODEL,
-                temperature=0.0,
-            )
-            logger.info(f"AgentService using LiteLLM: {LITELLM_MODEL}")
+            from copilot_llm import build_copilot_llm
+            self.llm = build_copilot_llm()
+            logger.info("AgentService using GitHub Copilot")
         
         # CSV tools only
         self.tools = self._build_csv_tools()

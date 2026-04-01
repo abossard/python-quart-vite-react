@@ -35,9 +35,9 @@ def _make_service(tmp_path: Path) -> WorkbenchService:
 
 
 class TestWorkbenchServiceCRUD:
-    def test_defaults_to_litellm_model_when_not_forced(self, monkeypatch):
+    def test_defaults_to_copilot_model_when_not_forced(self, monkeypatch):
         monkeypatch.delenv("AGENT_BACKEND", raising=False)
-        monkeypatch.setenv("LITELLM_MODEL", "openai/nvidia/nemotron-3-nano-4b")
+        monkeypatch.setenv("COPILOT_MODEL", "gpt-4o")
         monkeypatch.setenv("OPENAI_MODEL", "gpt-4o-mini")
 
         with TemporaryDirectory() as tmp:
@@ -47,7 +47,7 @@ class TestWorkbenchServiceCRUD:
                 db_path=Path(tmp) / "test.db",
                 openai_api_key="test-key",
             )
-            assert svc._model == "openai/nvidia/nemotron-3-nano-4b"
+            assert svc._model == "gpt-4o"
 
     def test_create_and_get_agent(self):
         with TemporaryDirectory() as tmp:

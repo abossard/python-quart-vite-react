@@ -26,12 +26,14 @@ import {
     makeStyles,
     tokens,
 } from '@fluentui/react-components'
-import { ArrowClockwise24Regular, Dismiss24Regular, Pulse20Regular } from '@fluentui/react-icons'
+import { ArrowClockwise24Regular, Chat24Regular, Dismiss24Regular, Pulse20Regular } from '@fluentui/react-icons'
 import { useCallback, useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { listAgentRuns, runWorkbenchAgent } from '../../services/api'
+import { createThreadFromRun, listAgentRuns } from '../../services/api'
 import { parseRunOutput } from './outputUtils'
+import ConversationPanel from './ConversationPanel'
 import SchemaRenderer from './SchemaRenderer'
+import useRunManager from './useRunManager'
 
 const useStyles = makeStyles({
   container: {
@@ -124,6 +126,7 @@ function formatTime(dateStr) {
 function statusColor(status) {
   if (status === 'completed') return 'success'
   if (status === 'failed') return 'danger'
+  if (status === 'truncated') return 'warning'
   return 'informative'
 }
 
@@ -135,21 +138,13 @@ export default function AgentRunPage({ agent }) {
   const [running, setRunning] = useState(false)
   const [error, setError] = useState('')
   const [output, setOutput] = useState(null)
-  const [runs, setRuns] = useState([])
   const [selectedRun, setSelectedRun] = useState(null)
+  const [chatThread, setChatThread] = useState(null)
 
-  const loadRuns = useCallback(async () => {
-    if (!agent?.id) return
-    try {
-      const data = await listAgentRuns(agent.id)
-      const sorted = (data.runs || []).sort(
-        (a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime(),
-      )
-      setRuns(sorted)
-    } catch { /* ignore */ }
-  }, [agent?.id])
+  const { runs: allRuns, startRun, loadRuns } = useRunManager()
 
-  useEffect(() => { loadRuns() }, [loadRuns])
+  // Filter runs for this agent
+  const runs = allRuns.filter(r => r.agent_id === agent?.id)
 
   if (!agent) {
     return <Spinner label="Loading agent..." />
@@ -157,9 +152,13 @@ export default function AgentRunPage({ agent }) {
 
   const parsedOutput = parseRunOutput(output)
 
+  // Find the latest completed/truncated run for this agent (for auto-continue)
+  const latestCompletedRun = runs.find(r => r.status === 'completed' || r.status === 'truncated') || null
+
   const handleRun = async () => {
     setError('')
     setOutput(null)
+    setChatThread(null)
 
     if (agent.requires_input && !requiredInput.trim()) {
       setError(`Required: ${agent.required_input_description || 'input value'}`)
@@ -168,12 +167,12 @@ export default function AgentRunPage({ agent }) {
 
     setRunning(true)
     try {
-      const run = await runWorkbenchAgent(agent.id, {
+      await startRun(agent.id, {
         inputPrompt: prompt.trim(),
         requiredInputValue: requiredInput.trim(),
       })
-      setOutput(run?.output || '(no output)')
-      loadRuns()
+      // Output will arrive via SSE → useRunManager. For inline display,
+      // we can watch the latest run. For now, clear to show it's running.
     } catch (err) {
       setError(err?.message || 'Agent run failed')
     } finally {
@@ -182,6 +181,23 @@ export default function AgentRunPage({ agent }) {
   }
 
   const selectedRunParsed = selectedRun ? parseRunOutput(selectedRun.output) : null
+
+  const handleContinueInChat = async (run) => {
+    try {
+      const threadData = await createThreadFromRun(run.id)
+      setChatThread({
+        threadId: threadData.id,
+        messages: (threadData.messages || []).map(m => ({
+          role: m.role,
+          content: m.content,
+          id: m.id,
+        })),
+      })
+      setSelectedRun(null)
+    } catch (err) {
+      console.error('Failed to create thread from run:', err)
+    }
+  }
 
   return (
     <div className={styles.container}>
@@ -231,6 +247,20 @@ export default function AgentRunPage({ agent }) {
                 data={parsedOutput}
                 schema={agent.output_schema?.properties ? agent.output_schema : undefined}
               />
+            </div>
+          )}
+
+          {/* Auto-continue: show "Continue in Chat" after a run completes */}
+          {!chatThread && latestCompletedRun && (
+            <div style={{ marginTop: tokens.spacingVerticalS, display: 'flex', gap: tokens.spacingHorizontalS }}>
+              <Button
+                appearance="primary"
+                icon={<Chat24Regular />}
+                onClick={() => handleContinueInChat(latestCompletedRun)}
+                data-testid="agent-run-continue-chat"
+              >
+                Continue in Chat
+              </Button>
             </div>
           )}
         </div>
@@ -326,12 +356,34 @@ export default function AgentRunPage({ agent }) {
                 </DialogContent>
               </DialogBody>
               <DialogActions>
+                <Button
+                  appearance="primary"
+                  icon={<Chat24Regular />}
+                  onClick={() => handleContinueInChat(selectedRun)}
+                  data-testid="continue-in-chat-button"
+                >
+                  Continue in Chat
+                </Button>
                 <Button appearance="secondary" onClick={() => setSelectedRun(null)}>Close</Button>
               </DialogActions>
             </>
           )}
         </DialogSurface>
       </Dialog>
+
+      {/* Chat Panel (opened from Continue in Chat) */}
+      {chatThread && (
+        <div style={{ height: '500px', marginTop: tokens.spacingVerticalL }}>
+          <ConversationPanel
+            agentId={agent.id}
+            agentName={agent.name}
+            threadId={chatThread.threadId}
+            initialMessages={chatThread.messages}
+            outputSchema={agent.output_schema}
+            onClose={() => setChatThread(null)}
+          />
+        </div>
+      )}
     </div>
   )
 }
