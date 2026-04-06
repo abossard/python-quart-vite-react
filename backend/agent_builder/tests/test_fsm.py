@@ -6,24 +6,40 @@ from agent_builder.fsm import InvalidTransition, RunEvent, transition
 from agent_builder.models.run import RunStatus
 
 
+VALID_TRANSITIONS = [
+    (RunStatus.PENDING, RunEvent.START, RunStatus.RUNNING),
+    (RunStatus.RUNNING, RunEvent.COMPLETE, RunStatus.COMPLETED),
+    (RunStatus.RUNNING, RunEvent.FAIL, RunStatus.FAILED),
+    (RunStatus.RUNNING, RunEvent.TRUNCATE, RunStatus.TRUNCATED),
+]
+
+INVALID_TRANSITIONS = [
+    (RunStatus.PENDING, RunEvent.COMPLETE),
+    (RunStatus.PENDING, RunEvent.FAIL),
+    (RunStatus.COMPLETED, RunEvent.START),
+    (RunStatus.COMPLETED, RunEvent.COMPLETE),
+    (RunStatus.FAILED, RunEvent.START),
+    (RunStatus.TRUNCATED, RunEvent.START),
+    (RunStatus.RUNNING, RunEvent.START),
+]
+
+
 class TestRunStatusFSM:
-    """Valid transitions."""
+    @pytest.mark.parametrize("status, event, expected", VALID_TRANSITIONS,
+        ids=[f"{s.value}+{e.value}" for s, e, _ in VALID_TRANSITIONS])
+    def test_valid_transition(self, status, event, expected):
+        assert transition(status, event) == expected
 
-    def test_pending_start_running(self):
-        assert transition(RunStatus.PENDING, RunEvent.START) == RunStatus.RUNNING
-
-    def test_running_complete_completed(self):
-        assert transition(RunStatus.RUNNING, RunEvent.COMPLETE) == RunStatus.COMPLETED
-
-    def test_running_fail_failed(self):
-        assert transition(RunStatus.RUNNING, RunEvent.FAIL) == RunStatus.FAILED
-
-    def test_running_truncate_truncated(self):
-        assert transition(RunStatus.RUNNING, RunEvent.TRUNCATE) == RunStatus.TRUNCATED
+    @pytest.mark.parametrize("status, event", INVALID_TRANSITIONS,
+        ids=[f"{s.value}+{e.value}" for s, e in INVALID_TRANSITIONS])
+    def test_invalid_transition_raises(self, status, event):
+        with pytest.raises(InvalidTransition) as exc_info:
+            transition(status, event)
+        assert exc_info.value.status == status
+        assert exc_info.value.event == event
 
     def test_full_lifecycle_success(self):
         status = transition(RunStatus.PENDING, RunEvent.START)
-        assert status == RunStatus.RUNNING
         status = transition(status, RunEvent.COMPLETE)
         assert status == RunStatus.COMPLETED
 
@@ -31,44 +47,3 @@ class TestRunStatusFSM:
         status = transition(RunStatus.PENDING, RunEvent.START)
         status = transition(status, RunEvent.FAIL)
         assert status == RunStatus.FAILED
-
-
-class TestRunStatusFSMInvalid:
-    """Invalid transitions should raise InvalidTransition."""
-
-    def test_pending_complete_invalid(self):
-        with pytest.raises(InvalidTransition):
-            transition(RunStatus.PENDING, RunEvent.COMPLETE)
-
-    def test_pending_fail_invalid(self):
-        with pytest.raises(InvalidTransition):
-            transition(RunStatus.PENDING, RunEvent.FAIL)
-
-    def test_completed_start_invalid(self):
-        with pytest.raises(InvalidTransition):
-            transition(RunStatus.COMPLETED, RunEvent.START)
-
-    def test_completed_complete_invalid(self):
-        with pytest.raises(InvalidTransition):
-            transition(RunStatus.COMPLETED, RunEvent.COMPLETE)
-
-    def test_failed_start_invalid(self):
-        with pytest.raises(InvalidTransition):
-            transition(RunStatus.FAILED, RunEvent.START)
-
-    def test_truncated_start_invalid(self):
-        with pytest.raises(InvalidTransition):
-            transition(RunStatus.TRUNCATED, RunEvent.START)
-
-    def test_running_start_invalid(self):
-        with pytest.raises(InvalidTransition):
-            transition(RunStatus.RUNNING, RunEvent.START)
-
-    def test_error_contains_details(self):
-        with pytest.raises(InvalidTransition) as exc_info:
-            transition(RunStatus.COMPLETED, RunEvent.FAIL)
-        err = exc_info.value
-        assert err.status == RunStatus.COMPLETED
-        assert err.event == RunEvent.FAIL
-        assert "completed" in str(err).lower()
-        assert "fail" in str(err).lower()

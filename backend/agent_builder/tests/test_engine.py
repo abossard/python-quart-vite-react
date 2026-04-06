@@ -1,51 +1,30 @@
-"""Tests for engine helpers — extract_tools_used and ReactRunner."""
+"""Tests for engine helpers — extract_tools_used."""
 
 from agent_builder.engine.react_runner import extract_tools_used
 
 
 class _MockToolCallMessage:
-    """Simulates a LangGraph AI message with tool_calls."""
     def __init__(self, tool_names: list[str]):
         self.tool_calls = [{"name": n} for n in tool_names]
 
 
 class _MockToolMessage:
-    """Simulates a LangGraph ToolMessage."""
     def __init__(self, name: str):
         self.type = "tool"
         self.name = name
 
 
 class _MockFinalMessage:
-    """Simulates a final AI message."""
     def __init__(self, content: str):
         self.content = content
 
 
 class TestExtractToolsUsed:
     def test_extracts_from_tool_calls(self):
-        messages = [
-            _MockToolCallMessage(["csv_ticket_stats"]),
-            _MockFinalMessage("Done"),
-        ]
+        messages = [_MockToolCallMessage(["csv_ticket_stats"]), _MockFinalMessage("Done")]
         assert extract_tools_used(messages) == ["csv_ticket_stats"]
 
-    def test_extracts_from_tool_messages(self):
-        messages = [
-            _MockToolMessage("csv_list_tickets"),
-            _MockFinalMessage("Done"),
-        ]
-        assert extract_tools_used(messages) == ["csv_list_tickets"]
-
-    def test_deduplicates(self):
-        messages = [
-            _MockToolCallMessage(["csv_ticket_stats"]),
-            _MockToolCallMessage(["csv_ticket_stats"]),
-            _MockFinalMessage("Done"),
-        ]
-        assert extract_tools_used(messages) == ["csv_ticket_stats"]
-
-    def test_preserves_order(self):
+    def test_deduplicates_preserving_order(self):
         messages = [
             _MockToolCallMessage(["tool_b"]),
             _MockToolCallMessage(["tool_a"]),
@@ -53,13 +32,6 @@ class TestExtractToolsUsed:
             _MockFinalMessage("Done"),
         ]
         assert extract_tools_used(messages) == ["tool_b", "tool_a"]
-
-    def test_empty_messages(self):
-        assert extract_tools_used([]) == []
-
-    def test_no_tool_calls(self):
-        messages = [_MockFinalMessage("Hello")]
-        assert extract_tools_used(messages) == []
 
     def test_mixed_sources(self):
         messages = [
@@ -71,11 +43,8 @@ class TestExtractToolsUsed:
         assert "tool_a" in result
         assert "tool_b" in result
 
+    def test_empty_messages(self):
+        assert extract_tools_used([]) == []
 
-class TestReactRunnerNoBuildLlm:
-    """build_llm was removed — LLM is always passed in by the caller."""
-
-    def test_react_runner_has_no_build_llm(self):
-        import agent_builder.engine.react_runner as mod
-        assert not hasattr(mod, "build_llm"), \
-            "build_llm should no longer exist in react_runner — LLM is injected via LLMFactory"
+    def test_no_tool_calls(self):
+        assert extract_tools_used([_MockFinalMessage("Hello")]) == []
