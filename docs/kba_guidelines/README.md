@@ -281,7 +281,7 @@ def detect_categories_from_ticket(ticket: Ticket) -> list[str]:
 
 ### Datenquelle: CSV
 
-Die Ticket-Daten stammen aus [`CSV/data.csv`](../../CSV/data.csv), einem BMC Remedy/ITSM-Export:
+Die Ticket-Daten stammen aus [`csv/data.csv`](../../csv/data.csv), einem BMC Remedy/ITSM-Export:
 
 **Relevante Spalten:**
 - `Incident ID*+`: Eindeutige Ticket-ID (z.B. INC000016300803)

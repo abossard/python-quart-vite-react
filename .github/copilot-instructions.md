@@ -81,9 +81,9 @@ Config-driven LLM agents built with LangGraph. Agents are defined in the UI (sys
 
 ## CSV Data
 
-Primary source: `CSV/data.csv` (BMC Remedy/ITSM export). Reference: `backend/csv_data.py`.
+Primary source: `csv/data.csv` (BMC Remedy/ITSM export). Reference: `backend/csv_data.py`.
 
-- Load: `pd.read_csv("CSV/data.csv", encoding="latin-1")`
+- Load: `pd.read_csv("csv/data.csv", encoding="latin-1")`
 - Date format: `DD.MM.YYYY HH:MM:SS`
 - Key columns: `Incident ID*+`, `Summary*`, `Status*`, `Priority*`, `Assignee+`, `Assigned Group*+`, `Reported Date+`, `Operational Categorization Tier 1+/2/3`
 - Status values: New, Assigned, In Progress, Pending, Resolved, Closed, Cancelled
