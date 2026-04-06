@@ -1,380 +1,131 @@
-# LangGraph Agent Playground
+# Agents in This Project
 
-> **📖 Full architecture documentation:** See **[AGENT_BUILDER.md](AGENT_BUILDER.md)** for mermaid diagrams, data flow, structured output pipeline, DB schema, and extensibility guide.
+> **Package docs:** See [`backend/agent_builder/README.md`](../backend/agent_builder/README.md) for the portable integration guide.
 
-## Overview
+## How This Project Uses agent_builder
 
-Config-driven LLM agents built with LangGraph. Define an agent in the UI (system prompt, tools, output schema) → it's stored in SQLite → runs as a ReAct agent with structured output.
+The `agent_builder` package is generic — this project wires it with domain-specific tools, LLM providers, and prompts via `backend/workbench_integration.py`.
 
-## Architecture
-
-```mermaid
-graph LR
-    subgraph "Agent Definition (DB)"
-        D[system_prompt<br/>tool_names<br/>model/temperature<br/>output_schema]
-    end
-
-    subgraph "Runtime"
-        R[ToolRegistry.resolve] --> T[LangChain Tools]
-        D --> P[prompt_builder]
-        D --> L[build_llm<br/>per-agent config]
-        P --> A[create_react_agent]
-        T --> A
-        L --> A
-        D -->|output_schema| A
-    end
-
-    A -->|response_format| LLM[OpenAI]
-    LLM --> S[structured_response<br/>typed JSON]
-```
-
-### Components
+### Wiring Overview
 
 ```
-backend/agent_builder/         # Canonical module
-├── models/                    # Pure data (Pydantic/SQLModel)
-├── tools/                     # ToolRegistry, schema converter
-├── engine/                    # ReAct runner, prompt builder, callbacks
-├── evaluator.py               # Success criteria evaluation
-├── persistence/               # SQLite repository + migrations
-├── service.py                 # WorkbenchService (CRUD + run + eval)
-├── chat_service.py            # ChatService (one-shot)
-├── routes.py                  # Quart Blueprint
-└── tests/                     # 132 tests
+workbench_integration.py
+├── LLM Factory      → Copilot (default) or OpenAI (if AGENT_BACKEND=openai)
+├── Tool Registry     → csv_* operations from @operation decorator
+├── Chat Prompt       → German + CSV-ticket domain context
+├── Model Catalog     → From llm_service.get_model_catalog()
+└── Services          → WorkbenchService + ChatService (singletons)
 ```
 
-### How It Works
+### Integration Code (simplified)
 
-1. **Operations → Tools**: The `@operation` decorator automatically converts functions to LangChain tools via `to_langchain_tool()`
-2. **Agent Initialization**: `WorkbenchService` (or `ChatService`) loads tools from the registry and creates a ReAct agent
-3. **Execution**: Agent receives user prompt, autonomously chooses tools, executes them, and returns results
+```python
+# workbench_integration.py
 
-### Example Flow
+# 1. LLM Factory — dispatches to Copilot or OpenAI based on env
+def llm_factory(config: LLMConfig) -> BaseChatModel:
+    if os.getenv("AGENT_BACKEND") == "openai":
+        return ChatOpenAI(model=config.model, api_key=os.getenv("OPENAI_API_KEY"), ...)
+    else:
+        return build_copilot_llm(model=config.model, ...)
 
+# 2. Tool Registry — auto-discovers @operation-decorated CSV tools
+registry = ToolRegistry()
+csv_tools = [t for t in get_langchain_tools() if t.name.startswith("csv_")]
+registry.register_all(csv_tools)
+
+# 3. Services
+workbench_service = WorkbenchService(
+    tool_registry=registry,
+    llm_factory=llm_factory,
+    db_path=Path("data/workbench.db"),
+)
+
+chat_service = ChatService(
+    tool_registry=registry,
+    llm_factory=llm_factory,
+    system_prompt_builder=build_chat_system_prompt,  # domain-specific
+)
 ```
-User: "Create a task to learn LangGraph"
-  ↓
-Agent (Reasoning): I need to use the create_task tool
-  ↓
-Agent (Acting): Calls create_task with {"title": "Learn LangGraph", "description": "..."}
-  ↓
-Task Service: Creates task in database
-  ↓
-Agent (Observing): Task created with ID xyz
-  ↓
-Agent (Response): "I've created a task titled 'Learn LangGraph' with ID xyz"
+
+### Blueprint Registration (in app.py)
+
+```python
+from agent_builder.routes import agent_builder_bp, configure_blueprint
+
+configure_blueprint(
+    workbench_service=workbench_service,
+    chat_service=chat_service,
+    model_catalog_provider=model_catalog_provider,
+)
+app.register_blueprint(agent_builder_bp)
 ```
 
-## Setup
+## Available Tools
 
-### 1. Install Dependencies
+All `@operation`-decorated functions with `csv_` prefix are auto-registered:
 
+| Tool | Description |
+|------|-------------|
+| `csv_list_tickets` | List tickets with filters |
+| `csv_get_ticket` | Get ticket by ID |
+| `csv_search_tickets` | Search tickets by keyword |
+| `csv_search_tickets_with_details` | Search with full details |
+| `csv_ticket_stats` | Ticket statistics |
+| `csv_ticket_fields` | Available field metadata |
+| `csv_count_tickets` | Count matching tickets |
+| `csv_sla_breach_tickets` | SLA breach report |
+
+## Agent Templates
+
+Pre-built templates in the UI (defined in `AgentCreateForm.jsx`):
+
+- **Topic & Product Analysis** — Analyze ticket patterns across topics and products
+- **Next Step Advisor** — Recommend actions for a ticket or topic
+
+## Environment Variables
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `AGENT_BACKEND` | `copilot` | LLM provider: `copilot` or `openai` |
+| `OPENAI_API_KEY` | — | Required when `AGENT_BACKEND=openai` |
+| `OPENAI_MODEL` | `gpt-4o-mini` | Model for OpenAI backend |
+| `COPILOT_MODEL` | `gpt-4o` | Model for Copilot backend |
+| `REACT_AGENT_RECURSION_LIMIT` | `8` | Max ReAct loop iterations |
+| `AGENT_EFFICIENCY_MODE` | `true` | Shorter prompts for faster responses |
+
+## REST API
+
+All routes are under `/api/workbench/`. See the [agent_builder README](../backend/agent_builder/README.md#api-reference-blueprint-routes) for the full route table.
+
+### Quick Examples
+
+**Create an agent:**
 ```bash
-source .venv/bin/activate
-pip install -r backend/requirements.txt
-```
-
-Dependencies added:
-- `python-dotenv==1.2.1` - Environment variable loading
-- `langchain==1.1.0` - LangChain framework
-- `langgraph==1.0.4` - LangGraph orchestration
-- `openai==2.8.1` - OpenAI SDK
-- `langchain-openai>=0.3.0` - Azure OpenAI integration
-
-### 2. Configure Azure OpenAI
-
-Copy the example environment file:
-
-```bash
-cp .env.example .env
-```
-
-Edit `.env` with your Azure OpenAI credentials:
-
-```bash
-AZURE_OPENAI_ENDPOINT=https://your-resource.openai.azure.com/
-AZURE_OPENAI_API_KEY=your-api-key-here
-AZURE_OPENAI_DEPLOYMENT=gpt-4
-AZURE_OPENAI_API_VERSION=2024-02-15-preview
-```
-
-**Get credentials from**: https://portal.azure.com → Your OpenAI resource → Keys and Endpoint
-
-### 3. Start the Server
-
-```bash
-cd backend
-python app.py
-```
-
-You should see:
-```
-✓ Agent service initialized with Azure OpenAI
-🚀 Unified Quart Server with Pydantic
-...
-```
-
-If Azure OpenAI is not configured:
-```
-⚠ Agent service disabled: Azure OpenAI configuration is incomplete.
-  To enable agents, configure Azure OpenAI in .env file
-```
-
-## Usage
-
-### REST API
-
-**Endpoint**: `POST /api/agents/run`
-
-**Request**:
-```json
-{
-  "prompt": "Create a task to learn LangGraph and list all current tasks",
-  "agent_type": "task_assistant"
-}
-```
-
-**Response**:
-```json
-{
-  "result": "I've created a task titled 'Learn LangGraph'...",
-  "agent_type": "task_assistant",
-  "created_at": "2025-12-03T10:30:00",
-  "tools_used": ["create_task", "list_tasks"],
-  "error": null
-}
-```
-
-### Example cURL
-
-```bash
-curl -X POST http://localhost:5001/api/agents/run \
+curl -X POST http://localhost:5001/api/workbench/agents \
   -H "Content-Type: application/json" \
   -d '{
-    "prompt": "List all my tasks",
-    "agent_type": "task_assistant"
+    "name": "SLA Analyzer",
+    "system_prompt": "Analyze ticket SLA breaches and report findings.",
+    "tool_names": ["csv_ticket_stats", "csv_sla_breach_tickets"]
   }'
 ```
 
-### MCP Integration
-
-The agent endpoint is automatically exposed via MCP:
-
-```json
-{
-  "jsonrpc": "2.0",
-  "method": "tools/call",
-  "params": {
-    "name": "run_agent",
-    "arguments": {
-      "request": {
-        "prompt": "Create a task",
-        "agent_type": "task_assistant"
-      }
-    }
-  }
-}
+**Run an agent:**
+```bash
+curl -X POST http://localhost:5001/api/workbench/agents/<agent_id>/runs \
+  -H "Content-Type: application/json" \
+  -d '{"input_prompt": "Which tickets are at risk of SLA breach?"}'
 ```
 
-## Available Tools (Automatically Exposed)
-
-The agent has access to all `@operation` decorated functions:
-
-### Task Management
-- `create_task` - Create new tasks
-- `get_task` - Retrieve task by ID
-- `update_task` - Update task properties
-- `delete_task` - Delete tasks
-- `list_tasks` - List all/filtered tasks
-- `get_task_stats` - Get task statistics
-
-### Ollama (if running)
-- `ollama_chat` - Chat with local Ollama models
-- `list_ollama_models` - List available models
-
-## Code Structure
-
-### agents.py
-
-**Data Models** (Pydantic):
-- `AgentRequest` - Input validation for agent requests
-- `AgentResponse` - Structured output with metadata
-
-**Service Layer**:
-- `WorkbenchService` — CRUD + run + evaluate agents (see [AGENT_BUILDER.md](AGENT_BUILDER.md))
-- `ChatService` — One-shot chat agent
-- Legacy `AgentService` in `agents.py` — Simple chat for `/api/agents/run`
-
-### api_decorators.py Extensions
-
-**New Methods**:
-- `Operation.to_langchain_tool()` - Converts operation to LangChain StructuredTool
-- `Operation._create_pydantic_model_for_langchain()` - Generates Pydantic schema for tool args
-- `get_langchain_tools()` - Returns all operations as tools
-
-**Key Insight**: Every `@operation` decorated function automatically becomes:
-1. REST endpoint (existing)
-2. MCP tool (existing)
-3. **LangChain agent tool**
-
-## Learning Examples
-
-### Agent Builder (Configurable)
-
-```python
-from agent_builder import WorkbenchService, AgentDefinitionCreate
-
-# Create via REST or directly:
-agent = service.create_agent(AgentDefinitionCreate(
-    name="SLA Analyzer",
-    system_prompt="Analyze ticket SLA breaches",
-    tool_names=["csv_ticket_stats", "csv_list_tickets"],
-    output_schema={"type": "object", "properties": {"breaches": {"type": "array"}}},
-))
-run = await service.run_agent(agent.id, AgentRunCreate(input_prompt="Check SLA"))
-```
-
-### Simple Chat Agent
-
-```python
-from agents import AgentService, AgentRequest
-
-service = AgentService()
-result = await service.run_agent(
-    AgentRequest(prompt="Show ticket stats", agent_type="task_assistant")
-)
-print(result.result)
+**Get run result:**
+```bash
+curl http://localhost:5001/api/workbench/runs/<run_id>
 ```
 
 ## Testing
 
-### Manual Testing
-
 ```bash
-# Test agent endpoint
-curl -X POST http://localhost:5001/api/agents/run \
-  -H "Content-Type: application/json" \
-  -d '{"prompt": "What tasks do I have?", "agent_type": "task_assistant"}'
+cd backend && pytest agent_builder/tests/ -q    # Unit tests
+cd backend && pytest tests/test_agents.py -q     # Operation registry tests
 ```
-
-### Python Test
-
-```python
-import httpx
-
-async def test_agent():
-    async with httpx.AsyncClient() as client:
-        response = await client.post(
-            "http://localhost:5001/api/agents/run",
-            json={
-                "prompt": "Create 3 tasks: Learn LangGraph, Read docs, Build agent",
-                "agent_type": "task_assistant"
-            }
-        )
-        result = response.json()
-        print(f"Agent: {result['result']}")
-        print(f"Tools used: {result['tools_used']}")
-```
-
-## Troubleshooting
-
-### Agent service disabled
-
-**Symptom**: `⚠ Agent service disabled` on startup
-
-**Solution**: Configure Azure OpenAI in `.env` file:
-```bash
-cp .env.example .env
-# Edit .env with your credentials
-```
-
-### Import errors
-
-**Symptom**: `ModuleNotFoundError: No module named 'langchain'`
-
-**Solution**: Install dependencies:
-```bash
-pip install -r backend/requirements.txt
-```
-
-### Azure OpenAI errors
-
-**Symptom**: `AuthenticationError` or `ResourceNotFoundError`
-
-**Solution**: Verify in `.env`:
-- `AZURE_OPENAI_ENDPOINT` is correct (includes https://)
-- `AZURE_OPENAI_API_KEY` is valid
-- `AZURE_OPENAI_DEPLOYMENT` matches your Azure deployment name
-- `AZURE_OPENAI_API_VERSION` is supported (recommend `2024-02-15-preview`)
-
-### Agent not using tools
-
-**Symptom**: Agent returns text without calling tools
-
-**Solution**: 
-- Make prompt more explicit: "Use the create_task tool to create a task..."
-- Check Azure OpenAI deployment supports function calling (gpt-4, gpt-35-turbo)
-- Increase temperature if agent is too conservative
-
-## Advanced Topics
-
-### Adding Custom Tools
-
-Tools are automatically created from `@operation` decorators:
-
-```python
-@operation(
-    name="custom_operation",
-    description="Does something useful",
-    http_method="POST",
-    http_path="/api/custom"
-)
-async def op_custom(param: CustomModel) -> ResponseModel:
-    # Implementation
-    return result
-```
-
-This operation is now:
-- Available via REST at `POST /api/custom`
-- Available via MCP as `custom_operation`
-- **Available to agents automatically!**
-
-### Building Custom Workflows
-
-For complex multi-step workflows, use LangGraph's StateGraph:
-
-```python
-from langgraph.graph import StateGraph, END
-from typing import TypedDict
-
-class WorkflowState(TypedDict):
-    input: str
-    plan: str
-    result: str
-
-workflow = StateGraph(WorkflowState)
-workflow.add_node("planner", plan_step)
-workflow.add_node("executor", execute_step)
-workflow.add_edge("planner", "executor")
-workflow.add_edge("executor", END)
-
-agent = workflow.compile()
-```
-
-See `agents.py:_build_state_graph()` for detailed example.
-
-## References
-
-- [LangGraph Documentation](https://langchain-ai.github.io/langgraph/)
-- [LangChain Documentation](https://docs.langchain.com/)
-- [Azure OpenAI Documentation](https://learn.microsoft.com/azure/ai-services/openai/)
-- [ReAct Pattern Paper](https://arxiv.org/abs/2210.03629)
-
-## Next Steps
-
-1. ✅ Basic ReAct agent with task tools
-2. **Add memory**: Implement conversation history
-3. **Add RAG**: Integrate vector store for task search
-4. **Multi-agent**: Create specialized agents (planner, executor, reviewer)
-5. **Human-in-the-loop**: Add approval workflow for destructive operations
-6. **Streaming**: Stream agent thinking process to client

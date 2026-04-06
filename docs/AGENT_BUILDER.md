@@ -323,11 +323,7 @@ npx playwright test --project=chromium
 
 ## Backward Compatibility
 
-`agent_workbench/` still works as a shim:
+All imports use the canonical `agent_builder` package:
 ```python
-# Old import (still works)
-from agent_workbench import WorkbenchService, ToolRegistry
-
-# New import (canonical)
 from agent_builder import WorkbenchService, ToolRegistry
 ```

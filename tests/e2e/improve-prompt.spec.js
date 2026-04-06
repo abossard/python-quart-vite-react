@@ -64,7 +64,7 @@ test.describe("Improve Prompt button", () => {
         contentType: "application/json",
         body: JSON.stringify({
           improved_prompt:
-            "You are an expert Knowledge Base author specializing in IT support.\n\n## Goal\nCreate a comprehensive, reusable KBA from patterns found across related tickets.\n\n## Steps\n1. Use csv_search_tickets_with_details to find tickets matching the user's topic.\n2. Identify common symptoms across tickets.\n3. Determine the root cause from resolution notes.\n4. Write step-by-step resolution instructions.\n\n## Output Format\n- **Title**: Concise, searchable\n- **Symptoms**: Bullet list of what users experience\n- **Cause**: Root cause explanation\n- **Resolution**: Numbered steps\n- **Related Tickets**: INC numbers analyzed\n\n## Constraints\n- Only reference tickets you actually retrieved.\n- Do not fabricate resolution steps.",
+            "You are an expert IT support data analyst.\n\n## Goal\nAnalyze ticket data to understand which topics, products, and services generate the most issues and find actionable patterns.\n\n## Steps\n1. Use csv_ticket_stats to get an overview of the ticket landscape.\n2. Use csv_search_tickets_with_details to examine ticket details.\n3. Analyze across dimensions: top topics, product/service breakdown, priority vs. product, resolution patterns, group workload.\n4. Identify actionable patterns and recommend focus areas.\n\n## Output Format\nPresent findings with counts and percentages where possible.\n\n## Constraints\n- Only reference data you actually retrieved.\n- Do not fabricate statistics.",
         }),
       });
     });
@@ -74,7 +74,7 @@ test.describe("Improve Prompt button", () => {
     // Select a template first
     const templateSelect = page.getByTestId("workbench-template-select");
     await templateSelect.click();
-    await page.getByText("KBA from Multiple Tickets").click();
+    await page.getByText("Topic & Product Analysis").click();
 
     // Wait for form to populate
     await expect(

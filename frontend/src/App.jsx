@@ -18,7 +18,6 @@ import {
 import {
     Bot24Regular,
     DataHistogram24Regular,
-    DocumentEdit24Regular,
     Flow24Regular,
     Info24Regular,
     Pulse24Regular,
@@ -36,7 +35,6 @@ import { USECASE_DEMO_DEFINITIONS } from './features/usecase-demo/demoDefinition
 import UsecaseDemoPage from './features/usecase-demo/UsecaseDemoPage'
 import KitchenSink from './features/kitchensink/KitchenSink'
 import AgentRunPage from './features/workbench/AgentRunPage'
-import KBADrafterPage from './features/kba-drafter/KBADrafterPage'
 import WorkbenchPage from './features/workbench/WorkbenchPage'
 import WorkflowPage from './features/workflow/WorkflowPage'
 import SettingsPage from './features/settings/SettingsPage'
@@ -113,7 +111,6 @@ export default function App() {
   // Settings tab is excluded — it's always visible and pinned last
   const allTabs = useMemo(() => [
     { value: 'csvtickets', label: 'Tickets', icon: <Table24Regular />, defaultIconName: 'Table24Regular', path: '/csvtickets', testId: 'tab-csvtickets' },
-    { value: 'kba-drafter', label: 'KBA Drafter', icon: <DocumentEdit24Regular />, defaultIconName: 'DocumentEdit24Regular', path: '/kba-drafter', testId: 'tab-kba-drafter' },
     ...usecaseTabs,
     ...agentMenuTabs,
     { value: 'kitchensink', label: 'Kitchen Sink', icon: <DataHistogram24Regular />, defaultIconName: 'DataHistogram24Regular', path: '/kitchensink', testId: 'tab-kitchensink' },
@@ -167,7 +164,6 @@ export default function App() {
       <main className={styles.content}>
         <Routes>
           <Route path="/" element={<Navigate to="/csvtickets" replace />} />
-          <Route path="/kba-drafter" element={<KBADrafterPage />} />
           <Route path="/csvtickets" element={<CSVTicketTable />} />
           {USECASE_DEMO_DEFINITIONS.map((definition) => (
             <Route

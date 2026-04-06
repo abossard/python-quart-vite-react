@@ -41,26 +41,14 @@ All deep-dive guides now live under `docs/` for easier discovery:
 - [Troubleshooting](docs/TROUBLESHOOTING.md) – common issues and fixes for setup, dev, and tests
 - [CSV AI Guidance](docs/CSV_AI_GUIDANCE.md) – how AI agents should query and reason over CSV ticket data
 
-### KBA Drafter Documentation
-
-> **NEW:** LLM-powered Knowledge Base Article generator with OpenAI integration
-
-- **[Feature Overview](docs/KBA_DRAFTER_OVERVIEW.md)** – Architecture, components, API endpoints, testing
-- **[Quick Start](docs/KBA_DRAFTER_QUICKSTART.md)** – Fastest path to generating your first KBA
-- **[Technical Guide](docs/KBA_DRAFTER.md)** – Complete implementation details
-- **[Publishing Guide](docs/KBA_PUBLISHING.md)** – How to publish KBAs to different KB systems
-
-
-
 
 ## 5-minute quick start (TL;DR)
 1. Clone the repo: `git clone <your-fork-url> && cd python-quart-vite-react`
 2. Run the automated bootstrap: `./setup.sh` (creates the repo-level `.venv`, installs frontend deps, installs Playwright)
-3. Configure OpenAI API key in `.env` for LLM features (see KBA Drafter documentation)
+3. Configure OpenAI API key in `.env` for LLM features (agent builder)
 4. Start all servers: `./start-dev.sh` *(or)* use the VS Code "Full Stack: Backend + Frontend" launch config
 5. Open `http://localhost:3001/usecase_demo_1` and start documenting your usecase demo idea on that page
-6. Test KBA health endpoint: `curl http://localhost:5001/api/kba/health`
-7. (Optional) Run the Playwright suite from the repo root: `npm run test:e2e`
+6. (Optional) Run the Playwright suite from the repo root: `npm run test:e2e`
 
 ## Detailed setup (first-time users)
 
@@ -81,7 +69,7 @@ npx playwright install chromium
 ```
 > Debian/Ubuntu users may also need `npx playwright install-deps` for browser libs.
 
-### 4. OpenAI API Key (for KBA Drafter)
+### 4. OpenAI API Key (for Agent Builder)
 
 Add your OpenAI API key to `.env`:
 
@@ -92,14 +80,14 @@ OPENAI_MODEL=gpt-4o-mini
 
 Get your API key from [platform.openai.com/api-keys](https://platform.openai.com/api-keys).
 
-> The KBA Drafter requires OpenAI configured in `.env` to function.
+> The Agent Builder requires OpenAI configured in `.env` to function.
 
 ## Run & verify
 
 ### Option A — Manual terminals
 1. **Backend:** `source .venv/bin/activate && cd backend && python app.py` → serves REST + MCP on `http://localhost:5001`
 2. **Frontend:** `cd frontend && npm run dev` → launches Vite dev server on `http://localhost:3001`
-3. **OpenAI (for KBA Drafter):** Configure `.env` with `OPENAI_API_KEY` → enables LLM-powered KBA generation
+3. **OpenAI (for Agent Builder):** Configure `.env` with `OPENAI_API_KEY` → enables LLM-powered agents
 
 ### Option B — Helper script
 `./start-dev.sh` (verifies dependencies, starts backend + frontend, stops all on Ctrl+C)
@@ -131,7 +119,6 @@ docker run --rm -p 5001:5001 quart-react-demo
 - **Usecase Demo tab (`/usecase_demo_1`):** Main demo page for documenting usecase demo ideas with editable prompts and background agent runs.
 - **Fields tab (`/fields`):** Lists mapped CSV schema fields available to UI/MCP/agent flows.
 - **Agent tab (`/agent`):** Chat-style agent interface for CSV ticket analysis.
-- **KBA Drafter tab (`/kba-drafter`):** Generate Knowledge Base Articles from tickets using OpenAI
 
 ## Architecture cheat sheet
 - Shows how to keep REST and MCP JSON-RPC in a single Quart process
@@ -206,7 +193,7 @@ Tests rely on:
 | `source .venv/bin/activate` fails | Recreate the env: `rm -rf .venv && python3 -m venv .venv && pip install -r backend/requirements.txt` |
 | `npm install` errors | `npm cache clean --force && rm -rf node_modules package-lock.json && npm install` |
 | Playwright browser install fails | `sudo npx playwright install-deps && npx playwright install` |
-| OpenAI API errors | Check `.env` has valid `OPENAI_API_KEY`, verify at `curl http://localhost:5001/api/kba/health` |
+| OpenAI API errors | Check `.env` has valid `OPENAI_API_KEY` |
 
 See [docs/TROUBLESHOOTING.md](docs/TROUBLESHOOTING.md) for more detailed solutions.
 
@@ -217,6 +204,5 @@ See [docs/TROUBLESHOOTING.md](docs/TROUBLESHOOTING.md) for more detailed solutio
 4. Add more Playwright specs (filters, SSE error handling, MCP flows)
 5. **Smart task descriptions:** Use OpenAI to auto-generate task descriptions from titles
 6. **Task summarization:** Summarize completed tasks using LLM
-7. **KBA enhancements:** Add multi-language support, SharePoint integration
 
 Happy coding! 🎉

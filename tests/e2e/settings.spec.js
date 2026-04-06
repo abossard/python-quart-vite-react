@@ -42,7 +42,6 @@ test.describe("Settings page", () => {
 
     // Core static tabs should all appear
     await expect(page.getByTestId("settings-tab-csvtickets")).toBeVisible();
-    await expect(page.getByTestId("settings-tab-kba-drafter")).toBeVisible();
     await expect(page.getByTestId("settings-tab-kitchensink")).toBeVisible();
     await expect(page.getByTestId("settings-tab-fields")).toBeVisible();
     await expect(page.getByTestId("settings-tab-workbench")).toBeVisible();

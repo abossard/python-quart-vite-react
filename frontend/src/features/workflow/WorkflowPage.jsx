@@ -53,11 +53,9 @@ const PALETTE = [
 const AGENT_PRESETS = [
   { id: 'none', name: '(none)', description: '' },
   { id: 'auto-classify', name: 'Auto-Classify Agent', description: 'Classify tickets by category and priority' },
-  { id: 'kba-search', name: 'KBA Search Agent', description: 'Search Knowledge Base for known resolutions' },
   { id: 'root-cause', name: 'Root Cause Analyzer', description: 'Analyze patterns to find root causes' },
   { id: 'next-step', name: 'Next Step Advisor', description: 'Recommend the best next action' },
   { id: 'escalation', name: 'Escalation Router', description: 'Route to the right L2/L3 team' },
-  { id: 'kba-writer', name: 'KBA Writer Agent', description: 'Generate KB articles from resolved tickets' },
   { id: 'stats', name: 'Statistics Agent', description: 'Analyze worklog activity and produce reports' },
   { id: 'sla-monitor', name: 'SLA Monitor Agent', description: 'Check tickets at risk of SLA breach' },
   { id: 'change-assess', name: 'Change Assessor', description: 'Evaluate risk and impact of changes' },
@@ -72,9 +70,9 @@ const WORKFLOWS = {
     nodes: [
       { id: 'i1', x: 80, y: 160, label: '! Incident', color: '#dc2626', agent: 'none' },
       { id: 'i2', x: 240, y: 100, label: 'Geklärte\nSymptome', color: '#dc2626', agent: 'auto-classify' },
-      { id: 'i3', x: 430, y: 160, label: 'Kurzfristige\nKorrektive Aktionen', color: '#ea580c', agent: 'kba-search' },
+      { id: 'i3', x: 430, y: 160, label: 'Kurzfristige\nKorrektive Aktionen', color: '#ea580c', agent: 'none' },
       { id: 'i4', x: 680, y: 160, label: 'Weiterdenken', color: '#16a34a', agent: 'next-step' },
-      { id: 'i5', x: 930, y: 160, label: 'Permanente\nKorrektive Aktionen', color: '#16a34a', agent: 'kba-writer' },
+      { id: 'i5', x: 930, y: 160, label: 'Permanente\nKorrektive Aktionen', color: '#16a34a', agent: 'none' },
       { id: 'i6', x: 240, y: 290, label: 'Fakten', color: '#ea580c', agent: 'stats' },
       { id: 'i7', x: 380, y: 290, label: 'Ursachen', color: '#ea580c', agent: 'root-cause' },
       { id: 'i8', x: 560, y: 290, label: 'Ziele', color: '#2563eb', agent: 'none' },
@@ -96,12 +94,12 @@ const WORKFLOWS = {
     nodes: [
       { id: 'p1', x: 80, y: 200, label: 'Problem\nDetected', color: '#2563eb', agent: 'sla-monitor' },
       { id: 'p2', x: 260, y: 200, label: 'Gather\nFacts', color: '#2563eb', agent: 'stats' },
-      { id: 'p3', x: 440, y: 120, label: 'Known Error\nMatch?', color: '#16a34a', agent: 'kba-search' },
+      { id: 'p3', x: 440, y: 120, label: 'Known Error\nMatch?', color: '#16a34a', agent: 'none' },
       { id: 'p4', x: 440, y: 300, label: 'Root Cause\nAnalysis', color: '#7c3aed', agent: 'root-cause' },
-      { id: 'p5', x: 640, y: 120, label: 'Apply Known\nFix', color: '#16a34a', agent: 'kba-search' },
+      { id: 'p5', x: 640, y: 120, label: 'Apply Known\nFix', color: '#16a34a', agent: 'none' },
       { id: 'p6', x: 640, y: 300, label: 'Propose\nSolution', color: '#7c3aed', agent: 'next-step' },
       { id: 'p7', x: 830, y: 200, label: 'Validate\n& Test', color: '#d97706', agent: 'none' },
-      { id: 'p8', x: 1010, y: 120, label: 'Write KBA', color: '#16a34a', agent: 'kba-writer' },
+      { id: 'p8', x: 1010, y: 120, label: 'Write Report', color: '#16a34a', agent: 'none' },
       { id: 'p9', x: 1010, y: 300, label: 'Close\nProblem', color: '#475569', agent: 'none' },
     ],
     edges: [
@@ -123,7 +121,7 @@ const WORKFLOWS = {
       { id: 'c5', x: 650, y: 200, label: 'Schedule\nImplementation', color: '#4f46e5', agent: 'none' },
       { id: 'c6', x: 840, y: 120, label: 'Implement\nChange', color: '#4f46e5', agent: 'next-step' },
       { id: 'c7', x: 840, y: 300, label: 'Rollback\nPlan', color: '#dc2626', agent: 'none' },
-      { id: 'c8', x: 1020, y: 200, label: 'Post-Review\n& Close', color: '#475569', agent: 'kba-writer' },
+      { id: 'c8', x: 1020, y: 200, label: 'Post-Review\n& Close', color: '#475569', agent: 'none' },
     ],
     edges: [
       { from: 'c1', to: 'c2' }, { from: 'c2', to: 'c3' },

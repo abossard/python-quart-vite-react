@@ -1,5 +1,6 @@
 """Tests for operation registry and LangChain tool conversion."""
 
+import operations  # noqa: F401 — triggers @operation decorator registration
 from api_decorators import LANGCHAIN_AVAILABLE, get_langchain_tools, get_operations
 
 

@@ -39,8 +39,6 @@ backend/
 │       ├── test_service.py      # WorkbenchService CRUD
 │       ├── test_persistence.py  # Repository layer
 │       └── test_e2e.py          # Full REST API flow
-├── agent_workbench/             # Backward-compat shim (re-exports from agent_builder)
-│   └── __init__.py
 ├── agents.py                    # Legacy chat agent (AgentService for /api/agents/run)
 ├── operations.py                # @operation definitions — REST + MCP + LangChain tools
 ├── api_decorators.py            # Unified @operation decorator system

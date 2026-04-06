@@ -2,7 +2,7 @@
 
 ## Purpose
 
-Teaching-oriented full-stack app: Python Quart backend + React/FluentUI frontend, with CSV ticket data processing, LLM-powered KBA generation, and a config-driven LangGraph agent builder. Designed to demonstrate "Grokking Simplicity" (actions vs. calculations vs. data) and "A Philosophy of Software Design" (deep modules).
+Teaching-oriented full-stack app: Python Quart backend + React/FluentUI frontend, with CSV ticket data processing and a config-driven LangGraph agent builder. Designed to demonstrate "Grokking Simplicity" (actions vs. calculations vs. data) and "A Philosophy of Software Design" (deep modules).
 
 ## Commands
 
@@ -48,18 +48,17 @@ def create_task(data: TaskCreate) -> Task:
 
 ### Backend layers
 
-- `tasks.py`, `tickets.py`, `kba_models.py` — Pydantic/SQLModel models + business logic
+- `tasks.py`, `tickets.py` — Pydantic/SQLModel models + business logic
 - `api_decorators.py` — `@operation` decorator and `Operation` registry
 - `operations.py` — All operation definitions (single source of truth)
 - `app.py` — Quart routes, MCP JSON-RPC handler, SSE streams
-- `kba_service.py` — KBA draft generation with OpenAI/Copilot/Ollama backends
+- `app.py` — Quart routes, MCP JSON-RPC handler, SSE streams
 - `csv_data.py` — CSV ticket parsing (BMC Remedy format)
 - `agent_builder/` — Config-driven LangGraph agents (models, engine, persistence, tools, routes)
-- `agent_workbench/` — Backward-compat shim that re-exports from `agent_builder/`
 
 ### Frontend layers
 
-- Feature-first structure under `frontend/src/features/` (workbench, kba-drafter, tickets, tasks, agent, etc.)
+- Feature-first structure under `frontend/src/features/` (workbench, tickets, tasks, agent, etc.)
 - All API calls go through `frontend/src/services/api.js` (`fetchJSON` centralizes error handling)
 - FluentUI v9 components + design tokens for theming
 - Nivo charts for data visualization
@@ -72,7 +71,7 @@ Config-driven LLM agents built with LangGraph. Agents are defined in the UI (sys
 ## Conventions
 
 - **Grokking Simplicity**: separate data (models/CSV), calculations (pure functions), and actions (I/O/side effects). `services/api.js` is actions; component logic is calculations.
-- **Deep modules**: `TaskService`, `KBAService` etc. have simple interfaces but hide complex implementations. Don't add thin wrapper layers.
+- **Deep modules**: `TaskService` etc. have simple interfaces but hide complex implementations. Don't add thin wrapper layers.
 - **Pydantic-first**: all data shapes use Pydantic models. Adding a field to a model automatically propagates to REST, MCP, and agent tool schemas.
 - **SQLModel for persistence**: single class serves as both Pydantic model and SQLAlchemy ORM table.
 - **Backend tests**: pytest with `asyncio_mode = auto`. Tests live in `backend/tests/` and `backend/agent_builder/tests/`.

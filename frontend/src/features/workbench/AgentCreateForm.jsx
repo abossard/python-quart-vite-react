@@ -48,28 +48,6 @@ const useStyles = makeStyles({
 
 const AGENT_TEMPLATES = [
   {
-    id: 'kba-from-tickets',
-    name: 'KBA from Multiple Tickets',
-    description: 'Create a Knowledge Base article by analyzing patterns across related tickets',
-    system_prompt: `You are a Knowledge Base author. Your job is to create a clear, reusable Knowledge Base Article (KBA) from ticket data.
-
-Steps:
-1. Use csv_search_tickets_with_details to find tickets related to the topic the user provides.
-2. Analyze the tickets: identify common symptoms, root causes, and resolution steps.
-3. Synthesize the findings into a structured KBA with these sections:
-   - **Title**: A concise, searchable title
-   - **Symptoms**: What the user experiences
-   - **Cause**: The underlying root cause
-   - **Resolution**: Step-by-step fix instructions
-   - **Related Tickets**: List the INC numbers you analyzed
-
-Write the KBA in clear language that a support agent can follow.`,
-    tool_names: ['csv_search_tickets_with_details', 'csv_search_tickets', 'csv_get_ticket', 'csv_ticket_stats'],
-    requires_input: true,
-    required_input_description: 'Topic or keyword to search tickets for (e.g. "VPN timeout", "password reset")',
-    show_in_menu: false,
-  },
-  {
     id: 'topic-product-analysis',
     name: 'Topic & Product Analysis',
     description: 'Analyze which topics, products, and services generate the most tickets and find patterns',

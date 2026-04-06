@@ -3,7 +3,6 @@ import { expect, test } from "@playwright/test";
 test("menu page screenshots", async ({ page }, testInfo) => {
   const pages = [
     { name: "tickets", url: "/csvtickets" },
-    { name: "kba-drafter", tab: "tab-kba-drafter" },
     { name: "usecase-demo", tab: "tab-usecase-demo" },
     { name: "ops-demo", tab: "tab-usecase-demo-ops" },
     { name: "sla-breach-risk", tab: "tab-usecase-demo-sla-breach" },

@@ -1,5 +1,5 @@
 """
-LLM Service - Dual Backend for KBA Draft Generation
+LLM Service - Dual Backend for Structured LLM Output
 
 Provides async interface for structured LLM output.
 - Primary: OpenAI SDK when OPENAI_API_KEY is set
@@ -15,13 +15,32 @@ import logging
 import os
 from typing import Any, Optional, Type
 
-from kba_exceptions import (
-    LLMAuthenticationError,
-    LLMRateLimitError,
-    LLMTimeoutError,
-    LLMUnavailableError,
-)
 from pydantic import BaseModel
+
+
+# ============================================================================
+# LLM Exception Hierarchy
+# ============================================================================
+
+class LLMError(Exception):
+    """Base exception for LLM service errors."""
+    pass
+
+class LLMUnavailableError(LLMError):
+    """LLM service is not available."""
+    pass
+
+class LLMTimeoutError(LLMError):
+    """LLM request timed out."""
+    pass
+
+class LLMRateLimitError(LLMError):
+    """LLM rate limit exceeded."""
+    pass
+
+class LLMAuthenticationError(LLMError):
+    """LLM authentication failed."""
+    pass
 
 logger = logging.getLogger(__name__)
 
