@@ -29,6 +29,7 @@ agent_builder_bp = Blueprint("agent_builder", __name__)
 _workbench_service = None
 _chat_service = None
 _get_operation = None
+_model_catalog_provider = None
 
 
 def configure_blueprint(
@@ -36,16 +37,24 @@ def configure_blueprint(
     workbench_service,
     chat_service=None,
     get_operation_fn=None,
+    model_catalog_provider=None,
 ):
     """
     Wire services into the blueprint at startup.
 
     Called once from app.py or workbench_integration.py before the app starts.
+
+    Args:
+        workbench_service: WorkbenchService instance
+        chat_service: Optional ChatService instance
+        get_operation_fn: Optional callable to look up Operation by name
+        model_catalog_provider: Optional ModelCatalogProvider callable for LLM config
     """
-    global _workbench_service, _chat_service, _get_operation
+    global _workbench_service, _chat_service, _get_operation, _model_catalog_provider
     _workbench_service = workbench_service
     _chat_service = chat_service
     _get_operation = get_operation_fn
+    _model_catalog_provider = model_catalog_provider
 
 
 # ---------------------------------------------------------------------------
@@ -127,12 +136,11 @@ async def workbench_ui_config():
         "available_models": [],
         "source": "unavailable",
     }
-    try:
-        from llm_service import get_llm_service
-
-        llm_catalog = get_llm_service().get_model_catalog()
-    except Exception:
-        pass
+    if _model_catalog_provider is not None:
+        try:
+            llm_catalog = _model_catalog_provider()
+        except Exception:
+            pass
 
     return jsonify({
         "module": "agent_fabric",

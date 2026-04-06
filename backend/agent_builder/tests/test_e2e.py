@@ -19,6 +19,7 @@ import app as backend_app_module
 from workbench_integration import _tool_registry
 
 from agent_builder import WorkbenchService
+from agent_builder.llm_protocol import LLMConfig
 from agent_builder.routes import configure_blueprint
 
 
@@ -30,6 +31,10 @@ class _ToolCallMessage:
 class _FinalMessage:
     def __init__(self, content: str) -> None:
         self.content = content
+
+
+def _fake_llm_factory(config: LLMConfig):
+    return object()
 
 
 class _FakeReactAgent:
@@ -75,8 +80,8 @@ class AgentBuilderE2ETests(unittest.IsolatedAsyncioTestCase):
 
         test_service = WorkbenchService(
             tool_registry=_tool_registry,
+            llm_factory=_fake_llm_factory,
             db_path=Path(self._tmpdir.name) / "e2e-test.db",
-            openai_api_key="test-key",
         )
         test_service._llm = object()
 

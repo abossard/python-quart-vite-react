@@ -72,7 +72,7 @@ from operations import (
     task_service,
 )
 from usecase_demo import UsecaseDemoRunCreate, usecase_demo_run_service
-from workbench_integration import chat_service, workbench_service
+from workbench_integration import chat_service, model_catalog_provider, workbench_service
 
 # Ticket MCP server URL (same as in agents.py)
 TICKET_MCP_SERVER_URL = "https://yodrrscbpxqnslgugwow.supabase.co/functions/v1/mcp/a7f2b8c4-d3e9-4f1a-b5c6-e8d9f0123456"
@@ -96,6 +96,7 @@ configure_blueprint(
     workbench_service=workbench_service,
     chat_service=chat_service,
     get_operation_fn=get_operation,
+    model_catalog_provider=model_catalog_provider,
 )
 app.register_blueprint(agent_builder_bp)
 

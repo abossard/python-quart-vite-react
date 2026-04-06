@@ -8,6 +8,8 @@ Import everything you need from this package:
 
 from .chat_service import ChatService
 from .evaluator import compute_score, evaluate_run
+from .fsm import InvalidTransition, RunEvent, transition
+from .llm_protocol import LLMConfig, LLMFactory, ModelCatalog, ModelCatalogProvider
 from .models import (
     AgentDefinition,
     AgentDefinitionCreate,
@@ -30,6 +32,15 @@ __all__ = [
     "ChatService",
     "WorkbenchService",
     "ToolRegistry",
+    # LLM Protocol
+    "LLMConfig",
+    "LLMFactory",
+    "ModelCatalog",
+    "ModelCatalogProvider",
+    # FSM
+    "InvalidTransition",
+    "RunEvent",
+    "transition",
     # Models
     "AgentDefinition",
     "AgentDefinitionCreate",

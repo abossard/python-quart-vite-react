@@ -6,10 +6,13 @@ from tempfile import TemporaryDirectory
 import pytest
 
 from agent_builder import WorkbenchService
+from agent_builder.fsm import InvalidTransition, RunEvent, transition
+from agent_builder.llm_protocol import LLMConfig
 from agent_builder.models import (
     AgentDefinitionCreate,
     AgentDefinitionUpdate,
     CriteriaType,
+    RunStatus,
     SuccessCriteria,
 )
 from agent_builder.tools import ToolRegistry
@@ -22,32 +25,34 @@ class _FakeTool:
         self.args_schema = None
 
 
+def _fake_llm_factory(config: LLMConfig):
+    """Stub factory that returns a sentinel object (never calls a real LLM)."""
+    return object()
+
+
 def _make_service(tmp_path: Path) -> WorkbenchService:
     registry = ToolRegistry()
     registry.register_all([_FakeTool("csv_ticket_stats"), _FakeTool("csv_list_tickets")])
     svc = WorkbenchService(
         tool_registry=registry,
+        llm_factory=_fake_llm_factory,
         db_path=tmp_path / "test.db",
-        openai_api_key="test-key",
     )
     svc._llm = object()  # prevent real API calls
     return svc
 
 
 class TestWorkbenchServiceCRUD:
-    def test_defaults_to_copilot_model_when_not_forced(self, monkeypatch):
-        monkeypatch.delenv("AGENT_BACKEND", raising=False)
-        monkeypatch.setenv("COPILOT_MODEL", "gpt-4o")
-        monkeypatch.setenv("OPENAI_MODEL", "gpt-4o-mini")
-
+    def test_default_model_passed_through(self, monkeypatch):
         with TemporaryDirectory() as tmp:
             registry = ToolRegistry()
             svc = WorkbenchService(
                 tool_registry=registry,
+                llm_factory=_fake_llm_factory,
                 db_path=Path(tmp) / "test.db",
-                openai_api_key="test-key",
+                default_model="gpt-4o",
             )
-            assert svc._model == "gpt-4o"
+            assert svc._default_model == "gpt-4o"
 
     def test_create_and_get_agent(self):
         with TemporaryDirectory() as tmp:

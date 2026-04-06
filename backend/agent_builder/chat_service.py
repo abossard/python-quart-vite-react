@@ -8,10 +8,11 @@ Uses the shared ReAct engine under the hood.
 import logging
 import os
 from datetime import datetime
-from typing import Any, Optional
+from typing import Any
 
 from .engine.prompt_builder import build_chat_system_prompt
-from .engine.react_runner import RunResult, build_llm, run_react_agent
+from .engine.react_runner import RunResult, run_react_agent
+from .llm_protocol import LLMConfig, LLMFactory
 from .models.chat import AgentRequest, AgentResponse
 from .tools import ToolRegistry
 
@@ -32,14 +33,6 @@ def _env_int(name: str, default: int) -> int:
         return default
 
 
-def _default_model(explicit_model: str = "") -> str:
-    if explicit_model:
-        return explicit_model
-    if os.getenv("AGENT_BACKEND", "").strip().lower() == "openai":
-        return os.getenv("OPENAI_MODEL", "gpt-4o-mini")
-    return os.getenv("COPILOT_MODEL", "gpt-4o")
-
-
 class ChatService:
     """
     Runs one-shot chat agent interactions.
@@ -52,14 +45,14 @@ class ChatService:
     def __init__(
         self,
         tool_registry: ToolRegistry,
-        openai_api_key: str = "",
-        openai_model: str = "",
-        openai_base_url: str = "",
+        llm_factory: LLMFactory,
+        default_model: str = "",
+        system_prompt_builder: Any = None,
     ) -> None:
         self._registry = tool_registry
-        self._api_key = openai_api_key or os.getenv("OPENAI_API_KEY", "")
-        self._model = _default_model(openai_model)
-        self._base_url = openai_base_url or os.getenv("OPENAI_BASE_URL", "")
+        self._llm_factory = llm_factory
+        self._default_model = default_model
+        self._system_prompt_builder = system_prompt_builder or build_chat_system_prompt
         self._llm: Any = None
         self._recursion_limit = max(3, _env_int("REACT_AGENT_RECURSION_LIMIT", 8))
         self._efficiency_mode = _env_flag("AGENT_EFFICIENCY_MODE", "true")
@@ -68,7 +61,7 @@ class ChatService:
     @property
     def llm(self) -> Any:
         if self._llm is None:
-            self._llm = build_llm(self._model, self._api_key, self._base_url)
+            self._llm = self._llm_factory(LLMConfig(model=self._default_model))
         return self._llm
 
     @property
@@ -77,7 +70,7 @@ class ChatService:
 
     async def run_agent(self, request: AgentRequest) -> AgentResponse:
         """Run a ReAct agent with the given request."""
-        system_prompt = build_chat_system_prompt(efficiency_mode=self._efficiency_mode)
+        system_prompt = self._system_prompt_builder(efficiency_mode=self._efficiency_mode)
 
         result: RunResult = await run_react_agent(
             llm=self.llm,
@@ -87,7 +80,7 @@ class ChatService:
             recursion_limit=self._recursion_limit,
             enable_tool_logging=True,
             enable_llm_logging=self._llm_logging,
-            default_model_name=self._model,
+            default_model_name=self._default_model,
         )
 
         if result.error:

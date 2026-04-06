@@ -91,14 +91,15 @@ class TestAppendOutputInstructions:
 class TestBuildChatSystemPrompt:
     def test_efficiency_mode_on(self):
         prompt = build_chat_system_prompt(efficiency_mode=True)
-        assert "csv_*" in prompt
-        assert "Plane möglichst" in prompt
+        assert "single tool call" in prompt
+        assert "helpful assistant" in prompt
 
     def test_efficiency_mode_off(self):
         prompt = build_chat_system_prompt(efficiency_mode=False)
-        assert "csv_*" in prompt
-        assert "Plane möglichst" not in prompt
+        assert "single tool call" not in prompt
+        assert "helpful assistant" in prompt
 
-    def test_contains_german(self):
+    def test_generic_not_domain_specific(self):
         prompt = build_chat_system_prompt()
-        assert "Deutsch" in prompt
+        # The default module prompt should be generic, not domain-specific
+        assert "Do not invent data" in prompt

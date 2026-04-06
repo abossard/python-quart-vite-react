@@ -6,21 +6,18 @@ Action: performs LLM invocations via LangGraph.
 
 Both WorkbenchService and ChatService use this to avoid duplicating
 the "build → invoke → extract" pattern.
+
+The module never instantiates an LLM itself — the caller provides
+an LLM instance (built via the LLMFactory protocol).
 """
 
 import logging
-import os
 from dataclasses import dataclass, field
 from typing import Any
 
 from .callbacks import make_llm_logging_callback, make_tool_logging_callback
 
 logger = logging.getLogger(__name__)
-
-
-def _force_openai_backend() -> bool:
-    """Use OpenAI only when explicitly requested, matching backend/agents.py."""
-    return os.getenv("AGENT_BACKEND", "").strip().lower() == "openai"
 
 
 @dataclass
@@ -30,38 +27,6 @@ class RunResult:
     tools_used: list[str] = field(default_factory=list)
     messages: list[Any] = field(default_factory=list)
     error: str | None = None
-
-
-def build_llm(
-    model: str,
-    api_key: str,
-    base_url: str = "",
-    temperature: float = 0.0,
-    max_tokens: int = 0,
-    reasoning_effort: str = "low",
-) -> Any:
-    """Construct an LLM instance — Copilot by default, OpenAI only when forced."""
-    if _force_openai_backend() and api_key:
-        from langchain_openai import ChatOpenAI
-        kwargs: dict[str, Any] = {
-            "model": model,
-            "api_key": api_key,
-            "base_url": base_url or None,
-            "temperature": temperature,
-        }
-        if max_tokens > 0:
-            kwargs["max_tokens"] = max_tokens
-        if reasoning_effort and reasoning_effort != "default":
-            kwargs["reasoning_effort"] = reasoning_effort
-        return ChatOpenAI(**kwargs)
-    else:
-        from copilot_llm import build_copilot_llm
-        return build_copilot_llm(
-            model=model or "",
-            temperature=temperature,
-            max_tokens=max_tokens,
-            reasoning_effort=reasoning_effort,
-        )
 
 
 def build_react_agent(

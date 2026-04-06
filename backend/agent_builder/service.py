@@ -22,13 +22,14 @@ from .engine.callbacks import make_streaming_callback
 from .engine.event_bus import AgentEvent, agent_event_bus
 from .engine.prompt_builder import append_output_instructions, resolve_output_schema
 from .engine.react_runner import (
-    build_llm,
     build_react_agent,
     extract_tools_used,
     make_tool_logging_callback,
 )
 from .evaluator import compute_score
 from .evaluator import evaluate_run as _evaluate_criteria
+from .fsm import InvalidTransition, RunEvent, transition as fsm_transition
+from .llm_protocol import LLMConfig, LLMFactory
 from .models import (
     AgentDefinition,
     AgentDefinitionCreate,
@@ -48,14 +49,6 @@ from .persistence import AgentRepository, build_engine
 from .tools import ToolRegistry
 
 logger = logging.getLogger(__name__)
-
-
-def _default_model(explicit_model: str = "") -> str:
-    if explicit_model:
-        return explicit_model
-    if os.getenv("AGENT_BACKEND", "").strip().lower() == "openai":
-        return os.getenv("OPENAI_MODEL", "gpt-4o-mini")
-    return os.getenv("COPILOT_MODEL", "gpt-4o")
 
 
 # ============================================================================
@@ -103,6 +96,7 @@ def _build_improve_prompt_request(
 def _build_suggest_prompt(
     name: str, description: str, system_prompt: str,
     all_tools: list[dict[str, Any]], tool_names_list: list[str],
+    domain_context: str = "",
 ) -> str:
     """Build the LLM prompt for schema + tool suggestion. Pure calculation."""
     context_parts = []
@@ -118,14 +112,15 @@ def _build_suggest_prompt(
         f"  - {t['name']}: {t['description'][:150]}" for t in all_tools
     )
 
+    domain_section = ""
+    if domain_context:
+        domain_section = f"## Data Domain\n{domain_context}\n\n"
+
     return (
         "You are a JSON Schema designer AND tool selector for an AI agent.\n\n"
         "## Agent Definition\n"
         f"{agent_context}\n\n"
-        "## Data Domain\n"
-        "The agent works with IT support/helpdesk ticket data (BMC Remedy/ITSM export). "
-        "Each ticket has fields: incident_id, summary, status, priority, assignee, "
-        "assigned_group, requester_name, city, created_at, updated_at, notes, resolution, description.\n\n"
+        f"{domain_section}"
         "## Available Tools\n"
         f"{tool_descriptions}\n\n"
         "## UI Widget System\n"
@@ -140,10 +135,9 @@ def _build_suggest_prompt(
         "2. \"tool_names\" — array of tool names the agent needs.\n\n"
         "## Rules\n"
         "1. Always include 'message' (string, widget 'markdown').\n"
-        "2. Always include 'referenced_tickets' (array of strings, widget 'badge-list').\n"
-        "3. Match widget to data shape: numbers→stat-card, ticket lists→table, distributions→pie/bar-chart.\n"
-        "4. For tool_names, select ONLY tools the agent actually needs.\n"
-        f"5. Valid tool names: {tool_names_list}\n\n"
+        "2. Match widget to data shape: numbers→stat-card, lists→table, distributions→pie/bar-chart.\n"
+        "3. For tool_names, select ONLY tools the agent actually needs.\n"
+        f"4. Valid tool names: {tool_names_list}\n\n"
         "Respond with ONLY valid JSON (no markdown fences)."
     )
 
@@ -197,17 +191,17 @@ class WorkbenchService:
     def __init__(
         self,
         tool_registry: ToolRegistry,
+        llm_factory: LLMFactory,
         db_path: Optional[Path] = None,
-        openai_api_key: str = "",
-        openai_model: str = "",
-        openai_base_url: str = "",
+        default_model: str = "",
         recursion_limit: int = 10,
+        domain_context: str = "",
     ) -> None:
         self._registry = tool_registry
-        self._api_key = openai_api_key or os.getenv("OPENAI_API_KEY", "")
-        self._model = _default_model(openai_model)
-        self._base_url = openai_base_url or os.getenv("OPENAI_BASE_URL", "")
+        self._llm_factory = llm_factory
+        self._default_model = default_model
         self._recursion_limit = recursion_limit
+        self._domain_context = domain_context
         self._db_path = db_path or (
             Path(__file__).resolve().parents[1] / "data" / "workbench.db"
         )
@@ -218,19 +212,20 @@ class WorkbenchService:
     @property
     def llm(self) -> Any:
         if self._llm is None:
-            self._llm = build_llm(self._model, self._api_key, self._base_url, reasoning_effort="low")
+            self._llm = self._llm_factory(LLMConfig(
+                model=self._default_model,
+                reasoning_effort="low",
+            ))
         return self._llm
 
     def _resolve_llm_for_agent(self, agent_def: "AgentDefinition") -> Any:
         """Build an LLM instance using per-agent overrides or service defaults."""
-        return build_llm(
-            model=(agent_def.model.strip() or self._model),
-            api_key=self._api_key,
-            base_url=self._base_url,
+        return self._llm_factory(LLMConfig(
+            model=agent_def.model.strip() or self._default_model,
             temperature=agent_def.temperature,
             max_tokens=agent_def.max_tokens,
             reasoning_effort=agent_def.reasoning_effort or "low",
-        )
+        ))
 
     # ------------------------------------------------------------------
     # Tool introspection
@@ -273,7 +268,7 @@ class WorkbenchService:
         all_tools = self.list_tools()
         tool_names_list = [t["name"] for t in all_tools]
 
-        prompt = _build_suggest_prompt(name, description, system_prompt, all_tools, tool_names_list)
+        prompt = _build_suggest_prompt(name, description, system_prompt, all_tools, tool_names_list, self._domain_context)
 
         from langchain_core.messages import HumanMessage
         response = await self.llm.ainvoke([HumanMessage(content=prompt)])
@@ -523,6 +518,8 @@ class WorkbenchService:
         Returns immediately with a RUNNING run. The actual agent execution
         happens asynchronously via ``execute_run``, publishing SSE events as
         it progresses and updating the run record when done.
+
+        Uses the RunStatus FSM to validate PENDING → RUNNING transition.
         """
         import asyncio
 
@@ -538,10 +535,14 @@ class WorkbenchService:
         agent_snapshot["required_input_value"] = normalized_required_input
         agent_snapshot["composed_user_message"] = user_message
 
+        # FSM: PENDING → RUNNING
+        initial_status = RunStatus.PENDING
+        running_status = fsm_transition(initial_status, RunEvent.START)
+
         run = AgentRun(
             agent_id=agent_id,
             input_prompt=normalized_prompt,
-            status=RunStatus.RUNNING.value,
+            status=running_status.value,
         )
         run.agent_snapshot = agent_snapshot
         run = self._repo.create_run(run)
@@ -615,7 +616,7 @@ class WorkbenchService:
 
             logger.info(
                 "▶️  Agent run_id=%s agent=%s model=%s temp=%s tools=%s custom_schema=%s prompt=%s",
-                run_id, agent_def.id, agent_def.model or self._model,
+                run_id, agent_def.id, agent_def.model or self._default_model,
                 agent_def.temperature, validated_tool_names,
                 agent_def.has_output_schema, user_message[:120],
             )
@@ -646,10 +647,12 @@ class WorkbenchService:
                     "⚠️  Agent run_id=%s hit recursion limit (%s user / %s graph)",
                     run_id, agent_def.recursion_limit, graph_recursion_limit,
                 )
-                final_status = RunStatus.TRUNCATED.value
+                # FSM: RUNNING → TRUNCATED
+                final_status = fsm_transition(RunStatus.RUNNING, RunEvent.TRUNCATE)
                 event_type = "RUN_FINISHED"
             else:
-                final_status = RunStatus.COMPLETED.value
+                # FSM: RUNNING → COMPLETED
+                final_status = fsm_transition(RunStatus.RUNNING, RunEvent.COMPLETE)
                 event_type = "RUN_FINISHED"
 
             logger.info(
@@ -673,7 +676,7 @@ class WorkbenchService:
             await _drain_collector()
 
             updated = self._repo.update_run(run_id,
-                status=final_status,
+                status=final_status.value,
                 output=output,
                 completed_at=datetime.now(),
                 activity_log_json=json.dumps(activity_events),
@@ -684,6 +687,8 @@ class WorkbenchService:
 
         except Exception as exc:
             logger.exception("❌ Agent run_id=%s failed: %s", run_id, exc)
+            # FSM: RUNNING → FAILED
+            failed_status = fsm_transition(RunStatus.RUNNING, RunEvent.FAIL)
             agent_event_bus.publish(AgentEvent(
                 run_id=run_id,
                 event_type="RUN_ERROR",
@@ -693,7 +698,7 @@ class WorkbenchService:
             await _drain_collector()
 
             self._repo.update_run(run_id,
-                status=RunStatus.FAILED.value,
+                status=failed_status.value,
                 error=str(exc),
                 completed_at=datetime.now(),
                 activity_log_json=json.dumps(activity_events),
@@ -952,11 +957,16 @@ class WorkbenchService:
             ))
 
             # Also create an AgentRun record for backward compat
+            # FSM: PENDING → RUNNING → COMPLETED (thread runs are synchronous)
+            completed_status = fsm_transition(
+                fsm_transition(RunStatus.PENDING, RunEvent.START),
+                RunEvent.COMPLETE,
+            )
             run = AgentRun(
                 id=run_id,
                 agent_id=agent_def.id,
                 input_prompt=user_message,
-                status=RunStatus.COMPLETED.value,
+                status=completed_status.value,
                 output=output,
                 completed_at=datetime.now(),
             )

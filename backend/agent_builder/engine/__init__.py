@@ -13,7 +13,7 @@ from .prompt_builder import (
     build_chat_system_prompt,
     resolve_output_schema,
 )
-from .react_runner import RunResult, build_llm, build_react_agent, extract_tools_used, run_react_agent
+from .react_runner import RunResult, build_react_agent, extract_tools_used, run_react_agent
 
 __all__ = [
     "AgentEvent",
@@ -25,7 +25,6 @@ __all__ = [
     "append_output_instructions",
     "build_chat_system_prompt",
     "resolve_output_schema",
-    "build_llm",
     "build_react_agent",
     "extract_tools_used",
     "make_llm_logging_callback",

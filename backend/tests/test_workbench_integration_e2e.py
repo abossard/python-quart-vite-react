@@ -11,8 +11,13 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 import app as backend_app_module
 from agent_builder import WorkbenchService
+from agent_builder.llm_protocol import LLMConfig
 from agent_builder.routes import configure_blueprint
 from workbench_integration import _tool_registry
+
+
+def _fake_llm_factory(config: LLMConfig):
+    return object()
 
 
 class _ToolCallMessage:
@@ -69,8 +74,8 @@ class WorkbenchIntegrationE2ETests(unittest.IsolatedAsyncioTestCase):
 
         test_service = WorkbenchService(
             tool_registry=_tool_registry,
+            llm_factory=_fake_llm_factory,
             db_path=Path(self._tmpdir.name) / "workbench-e2e.db",
-            openai_api_key="test-key",
         )
         # Avoid any real network/model dependency in this end-to-end API flow test.
         test_service._llm = object()

@@ -11,11 +11,101 @@ Separation of concerns:
 
 import os
 from pathlib import Path
+from typing import Any
 
 # Ensure operations are loaded so @operation decorators run
 import operations  # noqa: F401
 from agent_builder import ChatService, ToolRegistry, WorkbenchService
+from agent_builder.llm_protocol import LLMConfig
 from api_decorators import get_langchain_tools
+
+# ============================================================================
+# LLM FACTORY (bridges agent_builder to this project's LLM providers)
+# ============================================================================
+
+def _build_llm_factory():
+    """Build an LLM factory that uses Copilot by default, OpenAI when forced.
+
+    This is the single place where LLM provider knowledge lives —
+    the agent_builder module never imports any provider directly.
+    """
+    def llm_factory(config: LLMConfig) -> Any:
+        force_openai = os.getenv("AGENT_BACKEND", "").strip().lower() == "openai"
+        api_key = config.api_key or os.getenv("OPENAI_API_KEY", "")
+
+        if force_openai and api_key:
+            from langchain_openai import ChatOpenAI
+            kwargs: dict[str, Any] = {
+                "model": config.model or os.getenv("OPENAI_MODEL", "gpt-4o-mini"),
+                "api_key": api_key,
+                "base_url": config.base_url or os.getenv("OPENAI_BASE_URL", "") or None,
+                "temperature": config.temperature,
+            }
+            if config.max_tokens > 0:
+                kwargs["max_tokens"] = config.max_tokens
+            if config.reasoning_effort and config.reasoning_effort != "default":
+                kwargs["reasoning_effort"] = config.reasoning_effort
+            return ChatOpenAI(**kwargs)
+        else:
+            from copilot_llm import build_copilot_llm
+            return build_copilot_llm(
+                model=config.model or "",
+                temperature=config.temperature,
+                max_tokens=config.max_tokens,
+                reasoning_effort=config.reasoning_effort,
+            )
+
+    return llm_factory
+
+
+def _build_model_catalog_provider():
+    """Build a model catalog provider wrapping llm_service."""
+    def provider():
+        from llm_service import get_llm_service
+        return get_llm_service().get_model_catalog()
+    return provider
+
+
+def _default_model() -> str:
+    """Resolve the default model name from environment."""
+    if os.getenv("AGENT_BACKEND", "").strip().lower() == "openai":
+        return os.getenv("OPENAI_MODEL", "gpt-4o-mini")
+    return os.getenv("COPILOT_MODEL", "gpt-4o")
+
+
+# ============================================================================
+# CHAT SYSTEM PROMPT (domain-specific — lives in the host, not in the module)
+# ============================================================================
+
+def build_chat_system_prompt(*, efficiency_mode: bool = True) -> str:
+    """Build the default system prompt for the chat agent.
+
+    Domain-specific (German, CSV-ticket focused) — kept in the host
+    so the agent_builder module stays generic.
+    """
+    efficiency_rules = (
+        "- Plane möglichst einen einzelnen Tool-Aufruf und stoppe früh, sobald die Antwort klar ist.\n"
+        "- Nutze kleine Payloads: setze sinnvolle limits und kompakte fields.\n"
+        "- Fordere notes/resolution nur bei explizitem Bedarf an.\n"
+    ) if efficiency_mode else ""
+    return (
+        "Du bist ein präziser CSV-Ticket-Assistent. Sprich Deutsch.\n\n"
+        "Verhalten:\n"
+        "- Verwende ausschließlich csv_* Tools für Ticketdaten.\n"
+        f"{efficiency_rules}"
+        "- Erfinde keine Daten; markiere fehlende Daten klar.\n"
+        "- Gib eine kurze Antwort und bei strukturierten Ergebnissen einen JSON-Codeblock "
+        'mit {"rows": [...]}.'
+    )
+
+
+# Domain context for schema suggestion prompts
+TICKET_DOMAIN_CONTEXT = (
+    "The agent works with IT support/helpdesk ticket data (BMC Remedy/ITSM export). "
+    "Each ticket has fields: incident_id, summary, status, priority, assignee, "
+    "assigned_group, requester_name, city, created_at, updated_at, notes, resolution, description."
+)
+
 
 # ============================================================================
 # BUILD TOOL REGISTRY
@@ -50,18 +140,23 @@ def _build_registry() -> ToolRegistry:
 # ============================================================================
 
 _tool_registry = _build_registry()
+_llm_factory = _build_llm_factory()
 
 workbench_service = WorkbenchService(
     tool_registry=_tool_registry,
+    llm_factory=_llm_factory,
     db_path=Path(__file__).parent / "data" / "workbench.db",
-    openai_api_key=os.getenv("OPENAI_API_KEY", ""),
-    openai_base_url=os.getenv("OPENAI_BASE_URL", ""),
+    default_model=_default_model(),
+    domain_context=TICKET_DOMAIN_CONTEXT,
 )
 
 chat_service = ChatService(
     tool_registry=_tool_registry,
-    openai_api_key=os.getenv("OPENAI_API_KEY", ""),
-    openai_base_url=os.getenv("OPENAI_BASE_URL", ""),
+    llm_factory=_llm_factory,
+    default_model=_default_model(),
+    system_prompt_builder=build_chat_system_prompt,
 )
 
-__all__ = ["workbench_service", "chat_service", "_tool_registry"]
+model_catalog_provider = _build_model_catalog_provider()
+
+__all__ = ["workbench_service", "chat_service", "model_catalog_provider", "_tool_registry"]

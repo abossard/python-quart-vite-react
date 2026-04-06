@@ -1,7 +1,5 @@
 """Tests for engine helpers — extract_tools_used and ReactRunner."""
 
-from unittest.mock import patch
-
 from agent_builder.engine.react_runner import extract_tools_used
 
 
@@ -74,24 +72,10 @@ class TestExtractToolsUsed:
         assert "tool_b" in result
 
 
-class TestBuildLlmSelection:
-    def test_defaults_to_copilot_even_with_api_key(self, monkeypatch):
-        monkeypatch.delenv("AGENT_BACKEND", raising=False)
+class TestReactRunnerNoBuildLlm:
+    """build_llm was removed — LLM is always passed in by the caller."""
 
-        with patch("copilot_llm.build_copilot_llm") as mock_copilot:
-            from agent_builder.engine.react_runner import build_llm
-
-            build_llm("gpt-4o", api_key="test-key")
-
-        mock_copilot.assert_called_once()
-
-    def test_uses_openai_when_explicitly_forced(self, monkeypatch):
-        monkeypatch.setenv("AGENT_BACKEND", "openai")
-
-        with patch("langchain_openai.ChatOpenAI") as mock_openai:
-            from agent_builder.engine.react_runner import build_llm
-
-            build_llm("gpt-4o-mini", api_key="test-key", base_url="http://localhost:1234/v1")
-
-        mock_openai.assert_called_once()
-        assert mock_openai.call_args.kwargs["model"] == "gpt-4o-mini"
+    def test_react_runner_has_no_build_llm(self):
+        import agent_builder.engine.react_runner as mod
+        assert not hasattr(mod, "build_llm"), \
+            "build_llm should no longer exist in react_runner — LLM is injected via LLMFactory"
