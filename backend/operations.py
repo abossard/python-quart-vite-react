@@ -124,7 +124,7 @@ def _sorted_tickets(tickets: list[Ticket], sort: str, sort_dir: str) -> list[Tic
 
 def _get_workbench_service():
     """Lazy import avoids circular import during module bootstrap."""
-    from workbench_integration import workbench_service
+    from agent_builder_integration import workbench_service
     return workbench_service
 
 

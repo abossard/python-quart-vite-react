@@ -6,7 +6,7 @@ singleton services ready to use in app.py.
 
 Separation of concerns:
   agent_builder/  - independent module, knows nothing about this project
-  workbench_integration.py - knows about both; bridges the gap
+  agent_builder_integration.py - knows about both; bridges the gap
 """
 
 import os
@@ -77,10 +77,49 @@ def _build_llm_factory():
 
 
 def _build_model_catalog_provider():
-    """Build a model catalog provider wrapping llm_service."""
+    """Build a model catalog provider returning backend/model metadata for the UI."""
     def provider():
-        from llm_service import get_llm_service
-        return get_llm_service().get_model_catalog()
+        backend = os.getenv("AGENT_BACKEND", "").strip().lower()
+        if backend == "openai":
+            model = os.getenv("OPENAI_MODEL", "gpt-4o-mini")
+            return {
+                "backend": "openai",
+                "provider": None,
+                "default_model": model,
+                "fallback_models": [],
+                "available_models": [model],
+                "source": "configured",
+            }
+        if backend == "fake":
+            return {
+                "backend": "fake",
+                "provider": "fake",
+                "default_model": "fake-model",
+                "fallback_models": [],
+                "available_models": ["fake-model"],
+                "source": "configured",
+            }
+        # Copilot (default)
+        model = os.getenv("COPILOT_MODEL", "gpt-4o")
+        fallbacks = [
+            m.strip() for m in os.getenv(
+                "COPILOT_FALLBACK_MODELS", "claude-sonnet-4,gpt-4o,gpt-4o-mini"
+            ).split(",") if m.strip() and m.strip() != model
+        ]
+        seen: set[str] = set()
+        unique: list[str] = []
+        for m in [model, *fallbacks]:
+            if m not in seen:
+                unique.append(m)
+                seen.add(m)
+        return {
+            "backend": "copilot",
+            "provider": "copilot",
+            "default_model": model,
+            "fallback_models": fallbacks,
+            "available_models": unique,
+            "source": "configured",
+        }
     return provider
 
 

@@ -1,7 +1,7 @@
 """
 End-to-end test for the agent_builder module via REST endpoints.
 
-Adapted from the original test_workbench_integration_e2e.py to use the new
+Adapted from the original test_agent_builder_integration_e2e.py to use the new
 agent_builder Blueprint and services.
 """
 
@@ -16,7 +16,7 @@ from unittest.mock import patch
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent))
 
 import app as backend_app_module
-from workbench_integration import _tool_registry
+from agent_builder_integration import _tool_registry
 
 from agent_builder import WorkbenchService
 from agent_builder.llm_protocol import LLMConfig

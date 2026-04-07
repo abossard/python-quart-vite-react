@@ -42,7 +42,7 @@ def configure_blueprint(
     """
     Wire services into the blueprint at startup.
 
-    Called once from app.py or workbench_integration.py before the app starts.
+    Called once from app.py or agent_builder_integration.py before the app starts.
 
     Args:
         workbench_service: WorkbenchService instance
