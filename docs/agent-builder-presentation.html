@@ -1,0 +1,1162 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Agent Builder — Architecture Walkthrough</title>
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/reveal.js@5.1.0/dist/reveal.css" />
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/reveal.js@5.1.0/dist/theme/night.css" />
+  <style>
+    :root {
+      --r-heading-font: system-ui, -apple-system, sans-serif;
+      --r-main-font: system-ui, -apple-system, sans-serif;
+      --r-code-font: 'Fira Code', 'JetBrains Mono', monospace;
+    }
+    .reveal { font-size: 32px; }
+    .reveal h1 { font-size: 2.2em; }
+    .reveal h2 { font-size: 1.6em; color: #7dd3fc; }
+    .reveal h3 { font-size: 1.2em; color: #93c5fd; }
+    .reveal pre { font-size: 0.55em; box-shadow: none; }
+    .reveal pre code { max-height: 520px; padding: 16px; border-radius: 8px; }
+    .reveal .slides section { text-align: left; }
+    .reveal .slides section.center { text-align: center; }
+    .reveal ul { font-size: 0.85em; }
+    .reveal li { margin-bottom: 0.4em; }
+    .reveal .fragment.fade-in-then-semi-out.visible:not(.current-fragment) { opacity: 0.4; }
+
+    .pill {
+      display: inline-block;
+      padding: 4px 14px;
+      border-radius: 999px;
+      font-size: 0.65em;
+      font-weight: 600;
+      margin: 2px 4px;
+    }
+    .pill-blue   { background: #1e40af; color: #dbeafe; }
+    .pill-green  { background: #166534; color: #dcfce7; }
+    .pill-purple { background: #6b21a8; color: #f3e8ff; }
+    .pill-orange { background: #9a3412; color: #ffedd5; }
+    .pill-gray   { background: #374151; color: #e5e7eb; }
+
+    .box {
+      background: rgba(255,255,255,0.05);
+      border: 1px solid rgba(255,255,255,0.15);
+      border-radius: 12px;
+      padding: 20px 24px;
+      margin: 12px 0;
+    }
+    .box-blue   { border-color: #3b82f6; background: rgba(59,130,246,0.08); }
+    .box-green  { border-color: #22c55e; background: rgba(34,197,94,0.08); }
+    .box-purple { border-color: #a855f7; background: rgba(168,85,247,0.08); }
+    .box-orange { border-color: #f97316; background: rgba(249,115,22,0.08); }
+
+    .grid-2 {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 20px;
+      align-items: start;
+    }
+    .grid-3 {
+      display: grid;
+      grid-template-columns: 1fr 1fr 1fr;
+      gap: 16px;
+    }
+
+    .big-number {
+      font-size: 3em;
+      font-weight: 800;
+      line-height: 1;
+      color: #7dd3fc;
+    }
+    .big-number small {
+      font-size: 0.35em;
+      color: #94a3b8;
+      display: block;
+      font-weight: 400;
+    }
+
+    .diagram-box {
+      background: #0f172a;
+      border: 2px solid #334155;
+      border-radius: 12px;
+      padding: 16px 20px;
+      text-align: center;
+      font-size: 0.75em;
+    }
+    .diagram-box.highlight { border-color: #3b82f6; background: rgba(59,130,246,0.15); }
+    .diagram-box.highlight-green { border-color: #22c55e; background: rgba(34,197,94,0.15); }
+
+    .arrow-down::after {
+      content: '↓';
+      display: block;
+      font-size: 1.5em;
+      color: #64748b;
+      text-align: center;
+      margin: 4px 0;
+    }
+
+    .flow-row {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      justify-content: center;
+      flex-wrap: wrap;
+    }
+    .flow-row .arrow { font-size: 1.3em; color: #64748b; }
+
+    .checklist { list-style: none; padding: 0; }
+    .checklist li::before { content: '☐ '; color: #64748b; }
+    .checklist li.done::before { content: '✅ '; }
+
+    table.clean {
+      width: 100%;
+      font-size: 0.65em;
+      border-collapse: collapse;
+    }
+    table.clean th {
+      background: rgba(59,130,246,0.2);
+      padding: 8px 12px;
+      text-align: left;
+      border-bottom: 2px solid #334155;
+    }
+    table.clean td {
+      padding: 6px 12px;
+      border-bottom: 1px solid #1e293b;
+    }
+    table.clean tr:nth-child(even) td { background: rgba(255,255,255,0.02); }
+
+    .code-label {
+      font-size: 0.55em;
+      color: #94a3b8;
+      margin-bottom: -8px;
+      font-family: var(--r-code-font);
+    }
+
+    .emoji-icon { font-size: 1.4em; vertical-align: middle; }
+
+    @keyframes pulse-border {
+      0%, 100% { border-color: #3b82f6; }
+      50% { border-color: #60a5fa; box-shadow: 0 0 20px rgba(96,165,250,0.3); }
+    }
+    .pulse { animation: pulse-border 2s ease-in-out infinite; }
+  </style>
+</head>
+<body>
+<div class="reveal">
+<div class="slides">
+
+<!-- ======================================================================= -->
+<!-- TITLE -->
+<!-- ======================================================================= -->
+<section class="center" data-background-gradient="linear-gradient(135deg, #0c1222 0%, #1e1b4b 100%)">
+  <h1 style="font-size:2.6em;">🤖 Agent Builder</h1>
+  <p style="color:#94a3b8; font-size:0.9em;">Config-driven LLM agents with LangGraph</p>
+  <br/>
+  <div class="flow-row">
+    <span class="pill pill-blue">Define</span>
+    <span class="arrow">→</span>
+    <span class="pill pill-green">Store</span>
+    <span class="arrow">→</span>
+    <span class="pill pill-purple">Run</span>
+    <span class="arrow">→</span>
+    <span class="pill pill-orange">Stream</span>
+  </div>
+  <br/>
+  <p style="color:#475569; font-size:0.6em;">Use ← → arrow keys or swipe to navigate &nbsp;|&nbsp; Press <kbd>↓</kbd> for deep dives</p>
+</section>
+
+<!-- ======================================================================= -->
+<!-- WHAT IS IT -->
+<!-- ======================================================================= -->
+<section>
+  <section>
+    <h2>What is Agent Builder?</h2>
+    <br/>
+    <div class="grid-3">
+      <div class="box box-blue" style="text-align:center;">
+        <div class="big-number">🧩<small>Portable Package</small></div>
+        <p style="font-size:0.7em;">Drop into any Python + Quart app</p>
+      </div>
+      <div class="box box-green" style="text-align:center;">
+        <div class="big-number">🔌<small>Zero Provider Lock-in</small></div>
+        <p style="font-size:0.7em;">You inject the LLM — we never import one</p>
+      </div>
+      <div class="box box-purple" style="text-align:center;">
+        <div class="big-number">⚡<small>Real-Time SSE</small></div>
+        <p style="font-size:0.7em;">Live streaming of agent thinking & tool calls</p>
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <h3>The Big Picture</h3>
+    <br/>
+    <div style="display:flex; flex-direction:column; gap:8px; align-items:center;">
+      <div class="diagram-box" style="width:60%;">
+        <strong>🎨 Frontend</strong> — React hooks + SSE
+      </div>
+      <div class="arrow-down"></div>
+      <div class="diagram-box highlight" style="width:70%;">
+        <strong>⚙️ Agent Builder</strong> — Quart Blueprint + REST API + SSE Events
+      </div>
+      <div class="arrow-down"></div>
+      <div style="display:flex; gap:12px; width:80%; justify-content:center;">
+        <div class="diagram-box" style="flex:1;">🧠 LangGraph<br/><small>ReAct Agent</small></div>
+        <div class="diagram-box" style="flex:1;">🗄️ SQLite<br/><small>Persistence</small></div>
+        <div class="diagram-box" style="flex:1;">🔧 Tools<br/><small>LangChain</small></div>
+      </div>
+    </div>
+  </section>
+</section>
+
+<!-- ======================================================================= -->
+<!-- BACKEND ARCHITECTURE -->
+<!-- ======================================================================= -->
+<section>
+  <section>
+    <h2>Backend Architecture</h2>
+    <br/>
+    <div class="grid-2">
+      <div>
+        <pre><code style="font-size:0.95em;">agent_builder/
+├── llm_protocol.py     # Host interface
+├── service.py          # WorkbenchService
+├── chat_service.py     # ChatService
+├── routes.py           # Quart Blueprint
+├── evaluator.py        # Run evaluation
+├── fsm.py              # State machine
+├── models/             # Pydantic/SQLModel
+├── engine/             # ReAct runner
+├── persistence/        # SQLite
+└── tools/              # ToolRegistry</code></pre>
+      </div>
+      <div>
+        <div class="box box-blue">
+          <strong>Design Principles</strong>
+          <ul style="font-size:0.8em;">
+            <li class="fragment"><strong>Deep modules</strong> — simple API, complex internals</li>
+            <li class="fragment"><strong>No provider coupling</strong> — host injects LLM factory</li>
+            <li class="fragment"><strong>FSM-validated state</strong> — invalid transitions rejected</li>
+            <li class="fragment"><strong>Grokking Simplicity</strong> — data / calculations / actions</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <h3>The LLM Factory Protocol</h3>
+    <p style="font-size:0.75em; color:#94a3b8;">The host decides which provider to use. Agent Builder never imports one.</p>
+    <br/>
+    <div class="grid-2">
+      <div>
+        <p class="code-label">agent_builder/llm_protocol.py</p>
+        <pre><code class="python">@dataclass(frozen=True)
+class LLMConfig:
+    model: str = ""
+    temperature: float = 0.0
+    max_tokens: int = 4096
+    api_key: str = ""
+    base_url: str = ""
+
+class LLMFactory(Protocol):
+    def __call__(
+        self, config: LLMConfig
+    ) -> BaseChatModel: ...</code></pre>
+      </div>
+      <div>
+        <p class="code-label">your_app/integration.py</p>
+        <pre><code class="python"># You implement this ↓
+def my_llm_factory(config: LLMConfig):
+    return ChatOpenAI(
+        model=config.model or "gpt-4o",
+        api_key=os.getenv("OPENAI_KEY"),
+        temperature=config.temperature,
+    )
+
+# Agent Builder uses it ↓
+service = WorkbenchService(
+    llm_factory=my_llm_factory,
+    tool_registry=registry,
+)</code></pre>
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <h3>Run Status — Finite State Machine</h3>
+    <br/>
+    <div style="text-align:center;">
+      <div class="flow-row" style="font-size:1.1em;">
+        <div class="diagram-box" style="min-width:120px;">⏳ PENDING</div>
+        <span class="arrow">─ START →</span>
+        <div class="diagram-box highlight pulse" style="min-width:120px;">🔄 RUNNING</div>
+        <span class="arrow">─ COMPLETE →</span>
+        <div class="diagram-box highlight-green" style="min-width:130px;">✅ COMPLETED</div>
+      </div>
+      <br/>
+      <div class="flow-row" style="font-size:0.85em; color:#94a3b8;">
+        <span style="width:280px;"></span>
+        <span>├─ FAIL →</span>
+        <div class="diagram-box" style="border-color:#ef4444; min-width:110px;">❌ FAILED</div>
+        <span style="width:20px;"></span>
+        <span>├─ TRUNCATE →</span>
+        <div class="diagram-box" style="border-color:#f59e0b; min-width:120px;">⚠️ TRUNCATED</div>
+      </div>
+    </div>
+    <br/>
+    <pre><code class="python" style="font-size:0.9em;">from agent_builder import transition, RunStatus, RunEvent
+
+status = transition(RunStatus.PENDING, RunEvent.START)    # → RUNNING
+status = transition(status, RunEvent.COMPLETE)             # → COMPLETED
+transition(RunStatus.COMPLETED, RunEvent.START)            # raises InvalidTransition</code></pre>
+  </section>
+</section>
+
+<!-- ======================================================================= -->
+<!-- SETUP CHECKLIST -->
+<!-- ======================================================================= -->
+<section>
+  <section>
+    <h2>Integration — 6 Steps</h2>
+    <br/>
+    <div class="grid-2">
+      <div>
+        <ul class="checklist" style="font-size:0.85em; line-height:2;">
+          <li class="done fragment">Copy <code>agent_builder/</code> into your project</li>
+          <li class="done fragment">Install dependencies</li>
+          <li class="done fragment">Write an LLM factory function</li>
+          <li class="done fragment">Create ToolRegistry + register tools</li>
+          <li class="done fragment">Instantiate WorkbenchService</li>
+          <li class="done fragment">Mount the Quart Blueprint</li>
+        </ul>
+      </div>
+      <div class="fragment">
+        <div class="box box-green">
+          <strong>What you get:</strong>
+          <ul style="font-size:0.75em;">
+            <li>20+ REST API endpoints</li>
+            <li>SSE real-time streaming</li>
+            <li>SQLite persistence (auto-migrating)</li>
+            <li>Agent CRUD + run lifecycle</li>
+            <li>Success criteria evaluation</li>
+            <li>AI-assisted schema & prompt tools</li>
+            <li>Multi-turn conversations</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <h3>Minimal Wiring</h3>
+    <pre><code class="python" style="font-size:0.95em;">from langchain_openai import ChatOpenAI
+from agent_builder import WorkbenchService, ToolRegistry, LLMConfig
+from agent_builder.routes import agent_builder_bp, configure_blueprint
+
+# 1. LLM Factory
+def my_factory(config: LLMConfig):
+    return ChatOpenAI(model=config.model or "gpt-4o-mini",
+                      temperature=config.temperature)
+
+# 2. Tools
+registry = ToolRegistry()
+registry.register_all(my_langchain_tools)
+
+# 3. Service
+workbench = WorkbenchService(tool_registry=registry,
+                             llm_factory=my_factory)
+
+# 4. Mount
+configure_blueprint(workbench_service=workbench)
+app.register_blueprint(agent_builder_bp)</code></pre>
+  </section>
+
+  <section>
+    <h3>Dependencies</h3>
+    <br/>
+    <table class="clean">
+      <tr><th>Package</th><th>Purpose</th><th>Required?</th></tr>
+      <tr><td><code>langchain-core</code></td><td>Tool types, callback base</td><td>✅ Yes</td></tr>
+      <tr><td><code>langgraph</code></td><td>ReAct agent executor</td><td>✅ Yes</td></tr>
+      <tr><td><code>sqlmodel</code></td><td>SQLite persistence</td><td>✅ Yes</td></tr>
+      <tr><td><code>pydantic ≥ 2</code></td><td>Data models</td><td>✅ Yes</td></tr>
+      <tr><td><code>quart</code></td><td>Blueprint routes</td><td>✅ Yes</td></tr>
+      <tr><td><code>ag-ui-protocol</code></td><td>AG-UI event types</td><td>Optional</td></tr>
+    </table>
+  </section>
+</section>
+
+<!-- ======================================================================= -->
+<!-- AGENT LIFECYCLE -->
+<!-- ======================================================================= -->
+<section>
+  <section>
+    <h2>Agent Lifecycle</h2>
+    <br/>
+    <div style="display:flex; flex-direction:column; gap:6px; align-items:center;">
+      <div class="flow-row">
+        <div class="diagram-box highlight" style="min-width:160px;">
+          <strong>1. Define</strong><br/>
+          <small>Name, prompt, tools, schema</small>
+        </div>
+        <span class="arrow">→</span>
+        <div class="diagram-box highlight-green" style="min-width:160px;">
+          <strong>2. Store</strong><br/>
+          <small>SQLite via SQLModel</small>
+        </div>
+        <span class="arrow">→</span>
+        <div class="diagram-box" style="border-color:#a855f7; background:rgba(168,85,247,0.12); min-width:160px;">
+          <strong>3. Run</strong><br/>
+          <small>ReAct loop with LangGraph</small>
+        </div>
+      </div>
+      <br/>
+      <div class="flow-row">
+        <div class="diagram-box" style="border-color:#f97316; background:rgba(249,115,22,0.12); min-width:160px;">
+          <strong>4. Stream</strong><br/>
+          <small>SSE events to frontend</small>
+        </div>
+        <span class="arrow">→</span>
+        <div class="diagram-box" style="border-color:#14b8a6; background:rgba(20,184,166,0.12); min-width:160px;">
+          <strong>5. Evaluate</strong><br/>
+          <small>Success criteria check</small>
+        </div>
+        <span class="arrow">→</span>
+        <div class="diagram-box" style="border-color:#64748b; min-width:160px;">
+          <strong>6. Converse</strong><br/>
+          <small>Multi-turn threads</small>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <h3>Create & Run — Code</h3>
+    <pre><code class="python">from agent_builder import AgentDefinitionCreate, AgentRunCreate
+
+# Define an agent
+agent = workbench.create_agent(AgentDefinitionCreate(
+    name="SLA Analyzer",
+    system_prompt="Analyze ticket SLA breaches and report findings.",
+    tool_names=["csv_ticket_stats", "csv_sla_breach_tickets"],
+    output_schema={
+        "type": "object",
+        "properties": {
+            "breaches": {"type": "array"},
+            "summary":  {"type": "string"}
+        }
+    },
+))
+
+# Fire-and-forget — returns immediately with status=RUNNING
+run = await workbench.run_agent(
+    agent.id,
+    AgentRunCreate(input_prompt="Which tickets breach SLA?")
+)
+# run.status == "running"
+# → SSE events stream to /api/workbench/events</code></pre>
+  </section>
+
+  <section>
+    <h3>What Happens During a Run</h3>
+    <br/>
+    <div style="font-size:0.75em;">
+      <div class="flow-row">
+        <div class="diagram-box" style="min-width:100px;">User<br/>Prompt</div>
+        <span class="arrow">→</span>
+        <div class="diagram-box highlight" style="min-width:120px;">🧠 LLM<br/>Think</div>
+        <span class="arrow">→</span>
+        <div class="diagram-box highlight-green" style="min-width:120px;">🔧 Tool<br/>Call</div>
+        <span class="arrow">→</span>
+        <div class="diagram-box highlight" style="min-width:120px;">🧠 LLM<br/>Reflect</div>
+        <span class="arrow">→</span>
+        <div class="diagram-box" style="border-color:#22c55e; min-width:100px;">📤 Output<br/>JSON</div>
+      </div>
+    </div>
+    <br/>
+    <div class="box" style="font-size:0.7em;">
+      <strong>SSE Events emitted at each step:</strong>
+      <div class="flow-row" style="margin-top:8px; flex-wrap:wrap;">
+        <span class="pill pill-blue">RUN_STARTED</span>
+        <span class="pill pill-gray">STEP_STARTED</span>
+        <span class="pill pill-green">TOOL_CALL_START</span>
+        <span class="pill pill-green">TOOL_CALL_END</span>
+        <span class="pill pill-gray">STEP_FINISHED</span>
+        <span class="pill pill-purple">RUN_FINISHED</span>
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <h3>Evaluation Criteria</h3>
+    <br/>
+    <table class="clean">
+      <tr><th>Type</th><th>What It Checks</th><th>Example</th></tr>
+      <tr>
+        <td><span class="pill pill-green" style="font-size:1em;">NO_ERROR</span></td>
+        <td>Run completed without error</td>
+        <td><em>(always passes if no crash)</em></td>
+      </tr>
+      <tr>
+        <td><span class="pill pill-blue" style="font-size:1em;">TOOL_CALLED</span></td>
+        <td>Specific tool was invoked</td>
+        <td><code>"csv_ticket_stats"</code></td>
+      </tr>
+      <tr>
+        <td><span class="pill pill-purple" style="font-size:1em;">OUTPUT_CONTAINS</span></td>
+        <td>Output contains substring</td>
+        <td><code>"SLA breach"</code></td>
+      </tr>
+      <tr>
+        <td><span class="pill pill-orange" style="font-size:1em;">LLM_JUDGE</span></td>
+        <td>LLM grades the output</td>
+        <td><code>"Is the analysis actionable?"</code></td>
+      </tr>
+    </table>
+    <br/>
+    <pre><code class="python" style="font-size:0.9em;">evaluation = await workbench.evaluate_run(run.id)
+# evaluation.score          → 0.0–1.0
+# evaluation.overall_passed → True/False</code></pre>
+  </section>
+</section>
+
+<!-- ======================================================================= -->
+<!-- FRONTEND UI LIBRARY -->
+<!-- ======================================================================= -->
+<section>
+  <section>
+    <h2>Frontend — agent-builder-ui</h2>
+    <p style="font-size:0.75em; color:#94a3b8;">Headless React hooks & utilities. Bring your own components.</p>
+    <br/>
+    <div class="grid-3">
+      <div class="box box-blue" style="text-align:center;">
+        <div style="font-size:2em;">🔌</div>
+        <strong>Services</strong>
+        <p style="font-size:0.7em;">SSE connection<br/>REST API client</p>
+      </div>
+      <div class="box box-green" style="text-align:center;">
+        <div style="font-size:2em;">🪝</div>
+        <strong>Hooks</strong>
+        <p style="font-size:0.7em;">useRunManager<br/>useAgentManager</p>
+      </div>
+      <div class="box box-purple" style="text-align:center;">
+        <div style="font-size:2em;">🧰</div>
+        <strong>Utils</strong>
+        <p style="font-size:0.7em;">Output parsing<br/>Event formatting</p>
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <h3>SSE — Singleton State Machine</h3>
+    <br/>
+    <div style="text-align:center;">
+      <div class="flow-row" style="font-size:0.9em;">
+        <div class="diagram-box" style="min-width:90px;">IDLE</div>
+        <span class="arrow">→</span>
+        <div class="diagram-box" style="border-color:#f59e0b; min-width:120px;">CONNECTING</div>
+        <span class="arrow">→</span>
+        <div class="diagram-box highlight-green pulse" style="min-width:120px;">CONNECTED</div>
+      </div>
+      <div style="margin:8px 0; color:#64748b; font-size:0.8em;">
+        ↕ onerror → RECONNECTING (exponential backoff 1s → 30s)
+      </div>
+    </div>
+    <br/>
+    <pre><code class="javascript">import { subscribeSSE, SSE_STATE, configureSSE } from 'agent-builder-ui'
+
+// Optional: custom endpoint
+configureSSE('/my-app/events')
+
+const unsub = subscribeSSE({
+  onEvent: (evt) => console.log(evt.type, evt.runId),
+  onStateChange: (state) => {
+    if (state === SSE_STATE.CONNECTED) console.log('🟢 Live')
+  },
+})</code></pre>
+  </section>
+
+  <section>
+    <h3>useRunManager — Run Lifecycle</h3>
+    <br/>
+    <div class="box box-blue" style="font-size:0.75em;">
+      <strong>What it manages:</strong> All agent runs in a <code>Map&lt;runId, RunState&gt;</code> — driven by SSE events
+    </div>
+    <pre><code class="jsx">import { useRunManager } from 'agent-builder-ui'
+
+function AgentPage({ agentId }) {
+  const { runs, startRun, getRunActivity } = useRunManager()
+
+  const handleRun = async () => {
+    const run = await startRun(agentId, {
+      inputPrompt: 'Analyze VPN tickets'
+    })
+    // run.status === 'running'
+    // SSE events auto-update runs array
+  }
+
+  return runs.map(run => (
+    &lt;div key={run.id}&gt;
+      {run.status} — {getRunActivity(run.id).length} events
+    &lt;/div&gt;
+  ))
+}</code></pre>
+  </section>
+
+  <section>
+    <h3>useAgentManager — CRUD in One Hook</h3>
+    <pre><code class="jsx">import { useAgentManager } from 'agent-builder-ui'
+
+function Dashboard() {
+  const {
+    agents,       // Agent definitions
+    tools,        // Available tools
+    uiConfig,     // UI metadata
+    loading,
+    createAgent,
+    deleteAgent,
+  } = useAgentManager()
+
+  if (loading) return &lt;Spinner /&gt;
+
+  return (
+    &lt;div&gt;
+      &lt;h2&gt;{agents.length} agents, {tools.length} tools&lt;/h2&gt;
+      {agents.map(a =&gt; (
+        &lt;Card key={a.id}&gt;
+          {a.name}
+          &lt;Button onClick={() =&gt; deleteAgent(a.id)}&gt;Delete&lt;/Button&gt;
+        &lt;/Card&gt;
+      ))}
+    &lt;/div&gt;
+  )
+}</code></pre>
+  </section>
+</section>
+
+<!-- ======================================================================= -->
+<!-- REST API -->
+<!-- ======================================================================= -->
+<section>
+  <section>
+    <h2>REST API — 20+ Endpoints</h2>
+    <br/>
+    <div class="grid-2">
+      <div>
+        <table class="clean">
+          <tr><th colspan="2">Agent CRUD</th></tr>
+          <tr><td><code>GET</code></td><td>/api/workbench/agents</td></tr>
+          <tr><td><code>POST</code></td><td>/api/workbench/agents</td></tr>
+          <tr><td><code>PUT</code></td><td>/api/workbench/agents/:id</td></tr>
+          <tr><td><code>DELETE</code></td><td>/api/workbench/agents/:id</td></tr>
+          <tr><th colspan="2">Runs</th></tr>
+          <tr><td><code>POST</code></td><td>/api/workbench/agents/:id/runs</td></tr>
+          <tr><td><code>GET</code></td><td>/api/workbench/runs</td></tr>
+          <tr><td><code>GET</code></td><td>/api/workbench/runs/:id</td></tr>
+        </table>
+      </div>
+      <div>
+        <table class="clean">
+          <tr><th colspan="2">Evaluation</th></tr>
+          <tr><td><code>POST</code></td><td>/api/workbench/runs/:id/evaluate</td></tr>
+          <tr><td><code>GET</code></td><td>/api/workbench/runs/:id/evaluation</td></tr>
+          <tr><th colspan="2">AI Assistance</th></tr>
+          <tr><td><code>POST</code></td><td>/api/workbench/suggest-schema</td></tr>
+          <tr><td><code>POST</code></td><td>/api/workbench/improve-prompt</td></tr>
+          <tr><th colspan="2">Real-Time</th></tr>
+          <tr><td><code>GET</code></td><td>/api/workbench/events <span class="pill pill-orange" style="font-size:0.8em;">SSE</span></td></tr>
+        </table>
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <h3>cURL Examples</h3>
+    <p class="code-label">Create an agent</p>
+    <pre><code class="bash">curl -X POST http://localhost:5001/api/workbench/agents \
+  -H "Content-Type: application/json" \
+  -d '{
+    "name": "SLA Analyzer",
+    "system_prompt": "Analyze ticket SLA breaches.",
+    "tool_names": ["csv_ticket_stats", "csv_sla_breach_tickets"]
+  }'</code></pre>
+    <p class="code-label">Run the agent</p>
+    <pre><code class="bash">curl -X POST http://localhost:5001/api/workbench/agents/{id}/runs \
+  -H "Content-Type: application/json" \
+  -d '{"input_prompt": "Which tickets are at risk?"}'
+# → 202 Accepted (async, SSE streams progress)</code></pre>
+    <p class="code-label">Watch events live</p>
+    <pre><code class="bash">curl -N http://localhost:5001/api/workbench/events
+# data: {"type":"RUN_STARTED","runId":"abc...","agentName":"SLA Analyzer"}
+# data: {"type":"TOOL_CALL_START","toolCallName":"csv_ticket_stats"}
+# data: {"type":"RUN_FINISHED","durationMs":2340}</code></pre>
+  </section>
+</section>
+
+<!-- ======================================================================= -->
+<!-- QUART INTEGRATION COOKBOOK -->
+<!-- ======================================================================= -->
+<section>
+  <section>
+    <h2>🐍 Quart Integration Cookbook</h2>
+    <p style="font-size:0.75em; color:#94a3b8;">Complete working example: from empty Quart app to running agents</p>
+    <br/>
+    <div style="text-align:center;">
+      <div class="flow-row" style="font-size:0.9em;">
+        <div class="diagram-box highlight" style="min-width:130px;">
+          <strong>app.py</strong><br/><small>Quart app</small>
+        </div>
+        <span class="arrow">←registers─</span>
+        <div class="diagram-box highlight-green" style="min-width:150px;">
+          <strong>integration.py</strong><br/><small>LLM + Tools + Services</small>
+        </div>
+        <span class="arrow">←uses─</span>
+        <div class="diagram-box" style="border-color:#a855f7; min-width:150px;">
+          <strong>agent_builder/</strong><br/><small>The package</small>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <h3>Step 1 — integration.py</h3>
+    <p style="font-size:0.7em; color:#94a3b8;">This file is the <strong>only place</strong> where your app touches agent_builder internals.</p>
+    <pre><code class="python">"""integration.py — Wire agent_builder into your app."""
+import os
+from pathlib import Path
+from langchain_openai import ChatOpenAI
+from langchain_core.tools import StructuredTool
+from agent_builder import (
+    WorkbenchService, ChatService, ToolRegistry, LLMConfig,
+)
+
+# ── 1. LLM Factory ──────────────────────────────────────────────
+def llm_factory(config: LLMConfig):
+    """Host decides the provider. Agent Builder never imports one."""
+    return ChatOpenAI(
+        model=config.model or "gpt-4o-mini",
+        api_key=config.api_key or os.getenv("OPENAI_API_KEY"),
+        temperature=config.temperature,
+        max_tokens=config.max_tokens or None,
+    )
+
+# ── 2. Tool Registry ────────────────────────────────────────────
+registry = ToolRegistry()
+
+# Register any LangChain StructuredTool
+registry.register(StructuredTool.from_function(
+    name="get_weather",
+    description="Get current weather for a city",
+    func=lambda city: f"Sunny, 22°C in {city}",
+))
+
+# ── 3. Services ─────────────────────────────────────────────────
+workbench_service = WorkbenchService(
+    tool_registry=registry,
+    llm_factory=llm_factory,
+    db_path=Path("data/agents.db"),
+    default_model="gpt-4o-mini",
+)
+
+chat_service = ChatService(
+    tool_registry=registry,
+    llm_factory=llm_factory,
+)</code></pre>
+  </section>
+
+  <section>
+    <h3>Step 2 — app.py</h3>
+    <p style="font-size:0.7em; color:#94a3b8;">Mount the blueprint. That's it — 20+ endpoints are live.</p>
+    <pre><code class="python">"""app.py — Quart application."""
+import asyncio
+from quart import Quart
+from quart_cors import cors
+from agent_builder.routes import agent_builder_bp, configure_blueprint
+from agent_builder.engine.event_bus import agent_event_bus
+from integration import workbench_service, chat_service
+
+app = Quart(__name__)
+app = cors(app)
+
+# Wire services into the blueprint
+configure_blueprint(
+    workbench_service=workbench_service,
+    chat_service=chat_service,
+)
+app.register_blueprint(agent_builder_bp)
+
+@app.before_serving
+async def startup():
+    # Capture event loop for SSE thread-safe dispatch
+    agent_event_bus.set_loop(asyncio.get_running_loop())
+
+@app.route("/health")
+async def health():
+    return {"status": "ok", "agents": "enabled"}
+
+if __name__ == "__main__":
+    app.run(host="0.0.0.0", port=5001)</code></pre>
+  </section>
+
+  <section>
+    <h3>Step 3 — That's It! ✅</h3>
+    <br/>
+    <pre><code class="bash">$ python app.py
+ * Serving Quart app 'app'
+ * Running on http://0.0.0.0:5001
+
+# Create your first agent
+$ curl -X POST localhost:5001/api/workbench/agents \
+    -H "Content-Type: application/json" \
+    -d '{"name":"Weather Bot",
+         "system_prompt":"You help users check the weather.",
+         "tool_names":["get_weather"]}'
+
+# Run it
+$ curl -X POST localhost:5001/api/workbench/agents/{id}/runs \
+    -H "Content-Type: application/json" \
+    -d '{"input_prompt":"What is the weather in Zurich?"}'
+
+# Watch SSE events
+$ curl -N localhost:5001/api/workbench/events</code></pre>
+  </section>
+</section>
+
+<!-- ======================================================================= -->
+<!-- LLM FACTORY PATTERNS -->
+<!-- ======================================================================= -->
+<section>
+  <section>
+    <h2>🧠 LLM Factory Patterns</h2>
+    <p style="font-size:0.75em; color:#94a3b8;">The factory is <em>the</em> integration point. Here are common patterns.</p>
+    <br/>
+    <div class="grid-3">
+      <div class="box box-blue" style="text-align:center;">
+        <div style="font-size:1.8em;">🟢</div>
+        <strong>OpenAI</strong>
+        <p style="font-size:0.65em;">Direct API key</p>
+      </div>
+      <div class="box box-green" style="text-align:center;">
+        <div style="font-size:1.8em;">☁️</div>
+        <strong>Azure OpenAI</strong>
+        <p style="font-size:0.65em;">Enterprise deployment</p>
+      </div>
+      <div class="box box-purple" style="text-align:center;">
+        <div style="font-size:1.8em;">🏠</div>
+        <strong>Ollama / Local</strong>
+        <p style="font-size:0.65em;">Self-hosted models</p>
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <h3>Pattern: OpenAI</h3>
+    <pre><code class="python">from langchain_openai import ChatOpenAI
+from agent_builder import LLMConfig
+
+def openai_factory(config: LLMConfig):
+    return ChatOpenAI(
+        model=config.model or "gpt-4o-mini",
+        api_key=config.api_key or os.getenv("OPENAI_API_KEY"),
+        temperature=config.temperature,
+        max_tokens=config.max_tokens or None,
+    )</code></pre>
+    <div class="box" style="font-size:0.7em;">
+      <strong>Env:</strong> <code>OPENAI_API_KEY=sk-proj-...</code>
+    </div>
+  </section>
+
+  <section>
+    <h3>Pattern: Azure OpenAI</h3>
+    <pre><code class="python">from langchain_openai import AzureChatOpenAI
+from agent_builder import LLMConfig
+
+def azure_factory(config: LLMConfig):
+    return AzureChatOpenAI(
+        azure_deployment=config.model or os.getenv("AZURE_DEPLOYMENT"),
+        azure_endpoint=os.getenv("AZURE_ENDPOINT"),
+        api_key=config.api_key or os.getenv("AZURE_API_KEY"),
+        api_version="2024-06-01",
+        temperature=config.temperature,
+        max_tokens=config.max_tokens or None,
+    )</code></pre>
+    <div class="box" style="font-size:0.7em;">
+      <strong>Env:</strong> <code>AZURE_ENDPOINT</code>, <code>AZURE_API_KEY</code>, <code>AZURE_DEPLOYMENT</code>
+    </div>
+  </section>
+
+  <section>
+    <h3>Pattern: Ollama (Local)</h3>
+    <pre><code class="python">from langchain_ollama import ChatOllama
+from agent_builder import LLMConfig
+
+def ollama_factory(config: LLMConfig):
+    return ChatOllama(
+        model=config.model or "llama3.1",
+        base_url=config.base_url or "http://localhost:11434",
+        temperature=config.temperature,
+    )</code></pre>
+    <div class="box" style="font-size:0.7em;">
+      <strong>Run:</strong> <code>ollama serve &amp;&amp; ollama pull llama3.1</code>
+    </div>
+  </section>
+
+  <section>
+    <h3>Pattern: Multi-Provider Router</h3>
+    <p style="font-size:0.7em; color:#94a3b8;">Switch providers per-agent using <code>LLMConfig.extra</code></p>
+    <pre><code class="python">from agent_builder import LLMConfig
+
+def router_factory(config: LLMConfig):
+    provider = config.extra.get("provider", "openai")
+
+    if provider == "azure":
+        return azure_factory(config)
+    elif provider == "ollama":
+        return ollama_factory(config)
+    else:
+        return openai_factory(config)
+
+# Per-agent override via output_schema or extra config:
+# agent.model = "llama3.1"
+# → factory receives LLMConfig(model="llama3.1")</code></pre>
+    <div class="box box-orange" style="font-size:0.7em;">
+      <strong>Tip:</strong> Each agent can specify its own <code>model</code> and <code>temperature</code>
+      in the agent definition. The factory receives these via <code>LLMConfig</code>.
+    </div>
+  </section>
+</section>
+
+<!-- ======================================================================= -->
+<!-- REACT UI INTEGRATION -->
+<!-- ======================================================================= -->
+<section>
+  <section>
+    <h2>⚛️ React UI Integration</h2>
+    <p style="font-size:0.75em; color:#94a3b8;">Build a complete agent dashboard with 3 hooks</p>
+    <br/>
+    <div style="text-align:center;">
+      <div class="flow-row" style="font-size:0.85em;">
+        <div class="diagram-box highlight" style="min-width:160px;">
+          <strong>useAgentManager</strong><br/><small>agents, tools, config</small>
+        </div>
+        <span class="arrow">+</span>
+        <div class="diagram-box highlight-green" style="min-width:160px;">
+          <strong>useRunManager</strong><br/><small>runs, SSE, lifecycle</small>
+        </div>
+        <span class="arrow">=</span>
+        <div class="diagram-box" style="border-color:#a855f7; background:rgba(168,85,247,0.12); min-width:160px;">
+          <strong>Full Agent UI</strong><br/><small>~50 lines of JSX</small>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <h3>Complete Agent Dashboard</h3>
+    <pre><code class="jsx" style="font-size:0.85em;">import { useAgentManager, useRunManager, parseRunOutput } from 'agent-builder-ui'
+
+function AgentDashboard() {
+  const { agents, loading: agentsLoading } = useAgentManager()
+  const { runs, startRun } = useRunManager()
+
+  if (agentsLoading) return &lt;p&gt;Loading...&lt;/p&gt;
+
+  return (
+    &lt;div&gt;
+      &lt;h1&gt;My Agents&lt;/h1&gt;
+      {agents.map(agent =&gt; (
+        &lt;div key={agent.id} className="agent-card"&gt;
+          &lt;h3&gt;{agent.name}&lt;/h3&gt;
+          &lt;p&gt;{agent.description}&lt;/p&gt;
+          &lt;button onClick={() =&gt; startRun(agent.id, {
+            inputPrompt: 'Run analysis'
+          })}&gt;
+            ▶ Run
+          &lt;/button&gt;
+        &lt;/div&gt;
+      ))}
+
+      &lt;h2&gt;Recent Runs&lt;/h2&gt;
+      {runs.map(run =&gt; (
+        &lt;div key={run.id}&gt;
+          {run.status === 'running' ? '🔄' : '✅'} {run.status}
+          &lt;pre&gt;{JSON.stringify(parseRunOutput(run.output), null, 2)}&lt;/pre&gt;
+        &lt;/div&gt;
+      ))}
+    &lt;/div&gt;
+  )
+}</code></pre>
+  </section>
+
+  <section>
+    <h3>Live Activity Monitor</h3>
+    <pre><code class="jsx" style="font-size:0.85em;">import {
+  subscribeSSE, SSE_STATE,
+  eventSummary, formatTime, shortId
+} from 'agent-builder-ui'
+import { useEffect, useState } from 'react'
+
+function ActivityFeed() {
+  const [events, setEvents] = useState([])
+  const [connected, setConnected] = useState(false)
+
+  useEffect(() =&gt; {
+    return subscribeSSE({
+      onEvent: (evt) =&gt; setEvents(prev =&gt; [...prev.slice(-99), evt]),
+      onStateChange: (s) =&gt; setConnected(s === SSE_STATE.CONNECTED),
+    })
+  }, [])
+
+  return (
+    &lt;div&gt;
+      &lt;span&gt;{connected ? '🟢' : '🔴'} SSE&lt;/span&gt;
+      {events.map((evt, i) =&gt; (
+        &lt;div key={i}&gt;
+          &lt;code&gt;{formatTime(evt.timestamp)}&lt;/code&gt;
+          &lt;span&gt;{shortId(evt.runId)}&lt;/span&gt;
+          &lt;span&gt;{eventSummary(evt)}&lt;/span&gt;
+        &lt;/div&gt;
+      ))}
+    &lt;/div&gt;
+  )
+}</code></pre>
+  </section>
+
+  <section>
+    <h3>Agent Create Form</h3>
+    <pre><code class="jsx" style="font-size:0.85em;">import { useAgentManager, buildModelOptions } from 'agent-builder-ui'
+import { useState } from 'react'
+
+function CreateAgentForm() {
+  const { tools, uiConfig, createAgent } = useAgentManager()
+  const [name, setName] = useState('')
+  const [prompt, setPrompt] = useState('')
+  const [selectedTools, setSelectedTools] = useState([])
+
+  const models = buildModelOptions(
+    uiConfig?.llm_catalog?.available_models || [], ''
+  )
+
+  const handleSubmit = async () =&gt; {
+    await createAgent({
+      name,
+      system_prompt: prompt,
+      tool_names: selectedTools,
+    })
+    setName(''); setPrompt(''); setSelectedTools([])
+  }
+
+  return (
+    &lt;form onSubmit={e =&gt; { e.preventDefault(); handleSubmit() }}&gt;
+      &lt;input value={name} onChange={e =&gt; setName(e.target.value)}
+             placeholder="Agent name" /&gt;
+      &lt;textarea value={prompt} onChange={e =&gt; setPrompt(e.target.value)}
+                placeholder="System prompt" /&gt;
+
+      &lt;h4&gt;Tools ({tools.length} available)&lt;/h4&gt;
+      {tools.map(t =&gt; (
+        &lt;label key={t.name}&gt;
+          &lt;input type="checkbox"
+                 checked={selectedTools.includes(t.name)}
+                 onChange={() =&gt; setSelectedTools(prev =&gt;
+                   prev.includes(t.name)
+                     ? prev.filter(n =&gt; n !== t.name)
+                     : [...prev, t.name]
+                 )} /&gt;
+          {t.name}
+        &lt;/label&gt;
+      ))}
+
+      &lt;button type="submit"&gt;Create Agent&lt;/button&gt;
+    &lt;/form&gt;
+  )
+}</code></pre>
+  </section>
+</section>
+
+<!-- ======================================================================= -->
+<!-- FILE STRUCTURE -->
+<!-- ======================================================================= -->
+<section>
+  <h2>Package Structure</h2>
+  <br/>
+  <div class="grid-2">
+    <div>
+      <h3>Backend</h3>
+      <pre><code style="font-size:0.85em;">agent_builder/
+├── __init__.py          # Public API
+├── llm_protocol.py      # LLMFactory protocol
+├── service.py           # WorkbenchService
+├── chat_service.py      # ChatService
+├── evaluator.py         # Success criteria
+├── fsm.py               # State machine
+├── routes.py            # Quart Blueprint
+├── models/              # Pydantic/SQLModel
+├── engine/              # ReAct runner + SSE
+├── persistence/         # SQLite (auto)
+└── tools/               # ToolRegistry</code></pre>
+    </div>
+    <div>
+      <h3>Frontend</h3>
+      <pre><code style="font-size:0.85em;">agent-builder-ui/
+├── index.js             # Barrel export
+├── services/
+│   ├── agentSSE.js      # SSE singleton FSM
+│   └── agentApi.js      # REST client
+├── hooks/
+│   ├── useRunManager.js # Run lifecycle
+│   └── useAgentManager.js # Agent CRUD
+├── utils/
+│   ├── outputUtils.js   # Parse output
+│   ├── modelOptions.js  # Model helpers
+│   └── eventFormatters.js # Event display
+└── components/          # (future)</code></pre>
+    </div>
+  </div>
+</section>
+
+<!-- ======================================================================= -->
+<!-- CLOSING -->
+<!-- ======================================================================= -->
+<section class="center" data-background-gradient="linear-gradient(135deg, #0c1222 0%, #1e1b4b 100%)">
+  <h1>🚀 Get Started</h1>
+  <br/>
+  <div class="flow-row" style="font-size:0.85em;">
+    <div class="box box-blue" style="min-width:200px; text-align:center;">
+      <strong>Backend</strong><br/>
+      <code style="font-size:0.8em;">agent_builder/README.md</code>
+    </div>
+    <div class="box box-green" style="min-width:200px; text-align:center;">
+      <strong>Frontend</strong><br/>
+      <code style="font-size:0.8em;">agent-builder-ui/README.md</code>
+    </div>
+    <div class="box box-purple" style="min-width:200px; text-align:center;">
+      <strong>Project Docs</strong><br/>
+      <code style="font-size:0.8em;">docs/AGENTS.md</code>
+    </div>
+  </div>
+  <br/><br/>
+  <p style="color:#64748b; font-size:0.7em;">
+    Built with LangGraph · Quart · React · FluentUI
+  </p>
+</section>
+
+</div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/reveal.js@5.1.0/dist/reveal.js"></script>
+<script>
+  Reveal.initialize({
+    hash: true,
+    slideNumber: 'c/t',
+    transition: 'slide',
+    controlsTutorial: true,
+    progress: true,
+    center: false,
+    width: 1280,
+    height: 720,
+  });
+</script>
+</body>
+</html>

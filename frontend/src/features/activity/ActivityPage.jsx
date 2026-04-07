@@ -28,8 +28,8 @@ import {
 } from '@fluentui/react-icons'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
-import { connectToAgentEvents } from '../../services/api'
-import { SSE_STATE } from '../../services/sseConnection'
+import { subscribeSSE, SSE_STATE } from '../../agent-builder-ui/services/agentSSE'
+import { formatTime, shortId, eventSummary, eventDetail } from '../../agent-builder-ui/utils/eventFormatters'
 
 const MAX_EVENTS = 500
 
@@ -146,76 +146,6 @@ const EVENT_CONFIG = {
   TOOL_CALL_RESULT: { emoji: '📄', color: 'informative', label: 'Tool Result' },
 }
 
-function formatTime(ts) {
-  const d = new Date(typeof ts === 'number' && ts > 1e12 ? ts : ts * 1000)
-  return d.toLocaleTimeString('en-US', { hour12: false, hour: '2-digit', minute: '2-digit', second: '2-digit' })
-}
-
-function shortId(id) {
-  if (!id || typeof id !== 'string') return '???'
-  return id.slice(0, 8)
-}
-
-function eventSummary(evt) {
-  const t = evt.type || evt.event_type || ''
-  switch (t) {
-    case 'RUN_STARTED':
-      return `Agent "${evt.agentName || '?'}" started — ${evt.inputPreview?.slice(0, 80) || ''}…`
-    case 'RUN_FINISHED': {
-      const parts = []
-      if (evt.durationMs != null) parts.push(`${evt.durationMs}ms`)
-      if (evt.toolsUsed?.length) parts.push(`tools: ${evt.toolsUsed.join(', ')}`)
-      return `Done${parts.length ? ' — ' + parts.join(' · ') : ''}`
-    }
-    case 'RUN_ERROR':
-      return `Failed: ${evt.message || 'unknown error'}`
-    case 'STEP_STARTED':
-      return evt.stepName === 'llm_call'
-        ? `Thinking… (${evt.model || 'model'})`
-        : `Step: ${evt.stepName}`
-    case 'STEP_FINISHED': {
-      if (evt.stepName === 'llm_call') {
-        const parts = []
-        if (evt.durationMs != null) parts.push(`${evt.durationMs}ms`)
-        const tok = evt.tokenUsage || {}
-        if (tok.total_tokens || tok.totalTokens) parts.push(`${tok.total_tokens || tok.totalTokens} tokens`)
-        if (evt.finishReason) parts.push(evt.finishReason)
-        if (evt.error) parts.push(`⚠️ ${evt.error}`)
-        return parts.join(' · ') || 'LLM responded'
-      }
-      return `Step done: ${evt.stepName}`
-    }
-    case 'TOOL_CALL_START':
-      return `→ ${evt.toolCallName || '?'}${evt.args ? '(' + evt.args.slice(0, 80) + ')' : ''}`
-    case 'TOOL_CALL_END':
-      return `← ${evt.toolCallName || '?'}${evt.durationMs != null ? ' (' + evt.durationMs + 'ms)' : ''}${evt.error ? ' ⚠️ ' + evt.error : ''}`
-    case 'TOOL_CALL_RESULT':
-      return `📄 ${evt.toolCallName || 'result'} → ${(evt.content || '').slice(0, 80)}`
-    default:
-      return t
-  }
-}
-
-function eventDetail(evt) {
-  const t = evt.type || evt.event_type || ''
-  switch (t) {
-    case 'TOOL_CALL_START':
-      return evt.args || null
-    case 'TOOL_CALL_RESULT':
-      return evt.content || null
-    case 'RUN_FINISHED':
-      return evt.outputPreview || null
-    case 'RUN_ERROR':
-      return evt.message || null
-    case 'TOOL_CALL_END':
-      return evt.error || null
-    case 'STEP_FINISHED':
-      return evt.error || null
-    default:
-      return null
-  }
-}
-
 function EventRow({ evt, onFilterByRun }) {
   const styles = useStyles()
   const [expanded, setExpanded] = useState(false)
@@ -280,14 +210,14 @@ export default function ActivityPage() {
     if (cleanupRef.current) cleanupRef.current()
     setError(null)
 
-    cleanupRef.current = connectToAgentEvents(
-      (evt) => {
+    cleanupRef.current = subscribeSSE({
+      onEvent: (evt) => {
         setEvents((prev) => {
           const next = [...prev, evt]
           return next.length > MAX_EVENTS ? next.slice(-MAX_EVENTS) : next
         })
       },
-      (sseState) => {
+      onStateChange: (sseState) => {
         setConnected(sseState === SSE_STATE.CONNECTED)
         if (sseState === SSE_STATE.RECONNECTING) {
           setError('Connection lost — reconnecting…')
@@ -295,7 +225,7 @@ export default function ActivityPage() {
           setError(null)
         }
       },
-    )
+    })
   }, [])
 
   useEffect(() => {
