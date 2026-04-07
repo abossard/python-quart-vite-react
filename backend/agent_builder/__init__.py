@@ -24,7 +24,9 @@ from .models import (
     RunStatus,
     SuccessCriteria,
 )
-from .persistence import RepositoryProtocol, SqliteRepository
+from .persistence import RepositoryProtocol
+from .persistence.sqlite import SqliteRepository
+from .persistence.postgres import PostgresRepository
 from .service import WorkbenchService
 from .tools import ToolRegistry
 
@@ -36,6 +38,7 @@ __all__ = [
     # Persistence
     "RepositoryProtocol",
     "SqliteRepository",
+    "PostgresRepository",
     # LLM Protocol
     "LLMConfig",
     "LLMFactory",

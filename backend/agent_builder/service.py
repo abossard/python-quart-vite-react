@@ -14,7 +14,6 @@ import json
 import logging
 import os
 from datetime import datetime
-from pathlib import Path
 from time import perf_counter
 from typing import Any, Optional
 
@@ -45,7 +44,6 @@ from .models import (
     SuccessCriteria,
     ThreadMessage,
 )
-from .persistence import SqliteRepository
 from .persistence.protocol import RepositoryProtocol
 from .tools import ToolRegistry
 
@@ -193,8 +191,7 @@ class WorkbenchService:
         self,
         tool_registry: ToolRegistry,
         llm_factory: LLMFactory,
-        repo: Optional[RepositoryProtocol] = None,
-        db_path: Optional[Path] = None,
+        repo: RepositoryProtocol,
         default_model: str = "",
         recursion_limit: int = 10,
         domain_context: str = "",
@@ -204,13 +201,7 @@ class WorkbenchService:
         self._default_model = default_model
         self._recursion_limit = recursion_limit
         self._domain_context = domain_context
-        if repo is not None:
-            self._repo: RepositoryProtocol = repo
-        else:
-            self._db_path = db_path or (
-                Path(__file__).resolve().parents[1] / "data" / "workbench.db"
-            )
-            self._repo = SqliteRepository(self._db_path)
+        self._repo = repo
         self._llm: Any = None
 
     @property

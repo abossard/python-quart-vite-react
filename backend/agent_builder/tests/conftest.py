@@ -11,7 +11,7 @@ import pytest
 
 from agent_builder import WorkbenchService
 from agent_builder.llm_protocol import LLMConfig
-from agent_builder.persistence import SqliteRepository
+from agent_builder.persistence.sqlite import SqliteRepository
 from agent_builder.tools import ToolRegistry
 
 
@@ -57,10 +57,11 @@ def tool_registry():
 @pytest.fixture
 def workbench_service(tmp_db_path, tool_registry):
     """WorkbenchService with real SQLite temp DB but no real LLM."""
+    repo = SqliteRepository(tmp_db_path / "test.db")
     svc = WorkbenchService(
         tool_registry=tool_registry,
         llm_factory=fake_llm_factory,
-        db_path=tmp_db_path / "test.db",
+        repo=repo,
     )
     svc._llm = object()
     return svc

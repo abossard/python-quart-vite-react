@@ -351,8 +351,9 @@ transition(RunStatus.COMPLETED, RunEvent.START)            # raises InvalidTrans
   <section>
     <h3>Minimal Wiring</h3>
     <pre><code class="python" style="font-size:0.95em;">from langchain_openai import ChatOpenAI
-from agent_builder import WorkbenchService, ToolRegistry, LLMConfig
-from agent_builder.routes import agent_builder_bp, configure_blueprint
+from agent_builder import ToolRegistry, LLMConfig
+from agent_builder.routes import agent_builder_blueprint, configure_agent_builder_blueprint
+from agent_builder.persistence.sqlite import SqliteRepository
 
 # 1. LLM Factory
 def my_factory(config: LLMConfig):
@@ -363,13 +364,13 @@ def my_factory(config: LLMConfig):
 registry = ToolRegistry()
 registry.register_all(my_langchain_tools)
 
-# 3. Service
-workbench = WorkbenchService(tool_registry=registry,
-                             llm_factory=my_factory)
+# 3. Repo
+repo = SqliteRepository(Path("data/agents.db"))
 
-# 4. Mount
-configure_blueprint(workbench_service=workbench)
-app.register_blueprint(agent_builder_bp)</code></pre>
+# 4. Configure + Mount
+configure_agent_builder_blueprint(
+    tool_registry=registry, llm_factory=my_factory, repo=repo)
+app.register_blueprint(agent_builder_blueprint)</code></pre>
   </section>
 
   <section>
@@ -751,17 +752,16 @@ registry.register(StructuredTool.from_function(
     func=lambda city: f"Sunny, 22°C in {city}",
 ))
 
-# ── 3. Services ─────────────────────────────────────────────────
-workbench_service = WorkbenchService(
-    tool_registry=registry,
-    llm_factory=llm_factory,
-    db_path=Path("data/agents.db"),
-    default_model="gpt-4o-mini",
-)
+# ── 3. Repo ──────────────────────────────────────────────────────
+from agent_builder.persistence.sqlite import SqliteRepository
+repo = SqliteRepository(Path("data/agents.db"))
 
-chat_service = ChatService(
+# ── 4. Configure ────────────────────────────────────────────────
+from agent_builder.routes import configure_agent_builder_blueprint
+configure_agent_builder_blueprint(
     tool_registry=registry,
     llm_factory=llm_factory,
+    repo=repo,
 )</code></pre>
   </section>
 
@@ -772,19 +772,14 @@ chat_service = ChatService(
 import asyncio
 from quart import Quart
 from quart_cors import cors
-from agent_builder.routes import agent_builder_bp, configure_blueprint
+from agent_builder.routes import agent_builder_blueprint
 from agent_builder.engine.event_bus import agent_event_bus
-from integration import workbench_service, chat_service
+import integration  # triggers configure_agent_builder_blueprint()
 
 app = Quart(__name__)
 app = cors(app)
 
-# Wire services into the blueprint
-configure_blueprint(
-    workbench_service=workbench_service,
-    chat_service=chat_service,
-)
-app.register_blueprint(agent_builder_bp)
+app.register_blueprint(agent_builder_blueprint)
 
 @app.before_serving
 async def startup():

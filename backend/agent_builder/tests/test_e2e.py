@@ -16,11 +16,14 @@ from unittest.mock import patch
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent))
 
 import app as backend_app_module
-from agent_builder_integration import _tool_registry
 
 from agent_builder import WorkbenchService
 from agent_builder.llm_protocol import LLMConfig
-from agent_builder.routes import configure_blueprint
+from agent_builder.persistence.sqlite import SqliteRepository
+from agent_builder.routes import configure_agent_builder_blueprint
+from agent_builder import routes as _routes_module
+from agent_builder.tools import ToolRegistry
+from api_decorators import get_langchain_tools
 
 
 class _ToolCallMessage:
@@ -76,29 +79,26 @@ def _fake_build_react_agent(_llm: object, tools: list[object], _prompt: str, res
 class AgentBuilderE2ETests(unittest.IsolatedAsyncioTestCase):
     async def asyncSetUp(self) -> None:
         self._tmpdir = TemporaryDirectory()
-        self._original_service = backend_app_module.workbench_service
+        self._original_service = _routes_module._workbench_service
+        self._original_chat = _routes_module._chat_service
 
-        test_service = WorkbenchService(
-            tool_registry=_tool_registry,
+        # Build a test tool registry from the project's operations
+        test_registry = ToolRegistry()
+        test_registry.register_all([
+            t for t in get_langchain_tools()
+            if getattr(t, "name", "").startswith("csv_")
+        ])
+
+        repo = SqliteRepository(Path(self._tmpdir.name) / "e2e-test.db")
+        configure_agent_builder_blueprint(
+            tool_registry=test_registry,
             llm_factory=_fake_llm_factory,
-            db_path=Path(self._tmpdir.name) / "e2e-test.db",
-        )
-        test_service._llm = object()
-
-        # Rewire the blueprint to use the test service
-        backend_app_module.workbench_service = test_service
-        configure_blueprint(
-            workbench_service=test_service,
-            get_operation_fn=backend_app_module.get_operation,
+            repo=repo,
         )
 
     async def asyncTearDown(self) -> None:
-        backend_app_module.workbench_service = self._original_service
-        configure_blueprint(
-            workbench_service=self._original_service,
-            chat_service=getattr(backend_app_module, "chat_service", None),
-            get_operation_fn=backend_app_module.get_operation,
-        )
+        _routes_module._workbench_service = self._original_service
+        _routes_module._chat_service = self._original_chat
         self._tmpdir.cleanup()
 
     async def test_create_run_and_evaluate_agent(self) -> None:

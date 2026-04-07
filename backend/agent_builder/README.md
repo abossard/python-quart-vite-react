@@ -13,9 +13,9 @@ A portable, config-driven LLM agent package built on LangGraph. Define agents (s
 ☐  2. Install dependencies (see below)
 ☐  3. Write an LLM factory function
 ☐  4. Create a ToolRegistry and register your tools
-☐  5. Choose a repository backend (SQLite default, or custom)
-☐  6. Instantiate WorkbenchService (and optionally ChatService)
-☐  7. Mount the Quart Blueprint (or call services directly)
+☐  5. Create a repository (SqliteRepository or PostgresRepository)
+☐  6. Call configure_agent_builder_blueprint() with the 3 essentials
+☐  7. Register agent_builder_blueprint on your Quart app
 ```
 
 ## Step-by-Step
@@ -62,35 +62,37 @@ registry.register_all(my_tools)     # list of tools
 
 Tools must be LangChain `StructuredTool` instances (or anything with a `.name` attribute).
 
-### 4. Create Services
+### 4. Configure the Blueprint (single call)
 
 ```python
-from agent_builder import WorkbenchService, ChatService
+from agent_builder.routes import agent_builder_blueprint, configure_agent_builder_blueprint
+from agent_builder.persistence.sqlite import SqliteRepository  # or PostgresRepository
 
-# Option A: SQLite (default, zero config)
-workbench = WorkbenchService(
-    tool_registry=registry,
-    llm_factory=my_llm_factory,
-    # db_path=Path("data/agents.db"),  # default: auto-created
-)
-
-# Option B: Custom repository (PostgreSQL, etc.)
-from agent_builder import SqliteRepository  # or your own
 repo = SqliteRepository(Path("data/agents.db"))
-workbench = WorkbenchService(
+
+configure_agent_builder_blueprint(
     tool_registry=registry,
     llm_factory=my_llm_factory,
     repo=repo,
-)
-
-# Optional: simple one-shot chat agent
-chat = ChatService(
-    tool_registry=registry,
-    llm_factory=my_llm_factory,
+    # optional:
+    # model_catalog_provider=my_catalog,     # also derives default_model
+    # domain_context="My domain...",
+    # system_prompt_builder=my_prompt_fn,    # custom chat agent prompt
 )
 ```
 
-### 5. Implement a Custom Repository (optional)
+This single call creates `WorkbenchService` and `ChatService` internally.
+The `default_model` is derived from `model_catalog_provider()["default_model"]` if provided.
+
+### 5. Register the Blueprint
+
+```python
+app.register_blueprint(agent_builder_blueprint)
+```
+
+That's it — the full REST API is now live under `/api/workbench/...`.
+
+### 6. Implement a Custom Repository (optional)
 
 To use a different database, implement the `RepositoryProtocol`:
 
@@ -119,21 +121,6 @@ The protocol requires these methods:
 - **Evaluations**: `get_evaluation`, `upsert_evaluation`
 - **Threads**: `create_thread`, `get_thread`, `list_threads`, `update_thread`, `delete_thread`
 - **Messages**: `add_message`, `get_messages`
-
-### 6. Mount Routes (Quart)
-
-```python
-from agent_builder.routes import agent_builder_bp, configure_blueprint
-
-configure_blueprint(
-    workbench_service=workbench,
-    chat_service=chat,                     # optional
-    model_catalog_provider=my_catalog,     # optional
-)
-app.register_blueprint(agent_builder_bp)
-```
-
-This exposes a full REST API under `/api/workbench/...` (see API Reference below).
 
 ### 7. Or Call Services Directly
 

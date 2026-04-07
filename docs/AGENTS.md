@@ -34,16 +34,17 @@ registry = ToolRegistry()
 csv_tools = [t for t in get_langchain_tools() if t.name.startswith("csv_")]
 registry.register_all(csv_tools)
 
-# 3. Services
-workbench_service = WorkbenchService(
-    tool_registry=registry,
-    llm_factory=llm_factory,
-    db_path=Path("data/workbench.db"),
-)
+# 3. Repository
+from agent_builder.persistence.sqlite import SqliteRepository
+repo = SqliteRepository(Path("data/workbench.db"))
 
-chat_service = ChatService(
+# 4. Configure — single call creates WorkbenchService + ChatService
+from agent_builder.routes import agent_builder_blueprint, configure_agent_builder_blueprint
+
+configure_agent_builder_blueprint(
     tool_registry=registry,
     llm_factory=llm_factory,
+    repo=repo,
     system_prompt_builder=build_chat_system_prompt,  # domain-specific
 )
 ```
@@ -51,14 +52,9 @@ chat_service = ChatService(
 ### Blueprint Registration (in app.py)
 
 ```python
-from agent_builder.routes import agent_builder_bp, configure_blueprint
+from agent_builder.routes import agent_builder_blueprint
 
-configure_blueprint(
-    workbench_service=workbench_service,
-    chat_service=chat_service,
-    model_catalog_provider=model_catalog_provider,
-)
-app.register_blueprint(agent_builder_bp)
+app.register_blueprint(agent_builder_blueprint)
 ```
 
 ## Available Tools

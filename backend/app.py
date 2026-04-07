@@ -30,8 +30,8 @@ load_dotenv()
 
 # Import unified operation system
 
-# Agent Builder — blueprint replaces inline workbench+chat routes
-from agent_builder.routes import agent_builder_bp, configure_blueprint
+# Agent Builder — blueprint is configured by agent_builder_integration on import
+from agent_builder.routes import agent_builder_blueprint
 from api_decorators import get_operation, operation
 
 # CSV ticket service
@@ -52,7 +52,7 @@ from operations import (
     task_service,
 )
 from usecase_demo import UsecaseDemoRunCreate, usecase_demo_run_service
-from agent_builder_integration import chat_service, model_catalog_provider, workbench_service
+import agent_builder_integration  # noqa: F401 — triggers configure_agent_builder_blueprint()
 
 # Ticket MCP server URL (same as in agents.py)
 TICKET_MCP_SERVER_URL = "https://yodrrscbpxqnslgugwow.supabase.co/functions/v1/mcp/a7f2b8c4-d3e9-4f1a-b5c6-e8d9f0123456"
@@ -71,14 +71,7 @@ from tasks import Task, TaskCreate, TaskFilter, TaskService, TaskStats, TaskUpda
 app = Quart(__name__)
 app = cors(app, allow_origin="*")
 
-# Wire Agent Builder blueprint
-configure_blueprint(
-    workbench_service=workbench_service,
-    chat_service=chat_service,
-    get_operation_fn=get_operation,
-    model_catalog_provider=model_catalog_provider,
-)
-app.register_blueprint(agent_builder_bp)
+app.register_blueprint(agent_builder_blueprint)
 
 # Service instances live in operations.py so every interface shares them
 

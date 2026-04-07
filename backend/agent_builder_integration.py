@@ -1,8 +1,8 @@
 """
-Workbench Integration
+Agent Builder Integration
 
 Wires the project's tools into the Agent Builder module and exposes
-singleton services ready to use in app.py.
+the configured blueprint ready to register in app.py.
 
 Separation of concerns:
   agent_builder/  - independent module, knows nothing about this project
@@ -15,8 +15,10 @@ from typing import Any
 
 # Ensure operations are loaded so @operation decorators run
 import operations  # noqa: F401
-from agent_builder import ChatService, ToolRegistry, WorkbenchService
+from agent_builder import ToolRegistry
 from agent_builder.llm_protocol import LLMConfig
+from agent_builder.persistence.sqlite import SqliteRepository
+from agent_builder.routes import agent_builder_blueprint, configure_agent_builder_blueprint
 from api_decorators import get_langchain_tools
 
 # ============================================================================
@@ -193,27 +195,16 @@ def _build_registry() -> ToolRegistry:
 
 
 # ============================================================================
-# SINGLETON SERVICES
+# CONFIGURE AGENT BUILDER (single call wires everything)
 # ============================================================================
 
-_tool_registry = _build_registry()
-_llm_factory = _build_llm_factory()
-
-workbench_service = WorkbenchService(
-    tool_registry=_tool_registry,
-    llm_factory=_llm_factory,
-    db_path=Path(__file__).parent / "data" / "workbench.db",
-    default_model=_default_model(),
+configure_agent_builder_blueprint(
+    tool_registry=_build_registry(),
+    llm_factory=_build_llm_factory(),
+    repo=SqliteRepository(Path(__file__).parent / "data" / "workbench.db"),
+    model_catalog_provider=_build_model_catalog_provider(),
     domain_context=TICKET_DOMAIN_CONTEXT,
-)
-
-chat_service = ChatService(
-    tool_registry=_tool_registry,
-    llm_factory=_llm_factory,
-    default_model=_default_model(),
     system_prompt_builder=build_chat_system_prompt,
 )
 
-model_catalog_provider = _build_model_catalog_provider()
-
-__all__ = ["workbench_service", "chat_service", "model_catalog_provider", "_tool_registry"]
+__all__ = ["agent_builder_blueprint"]

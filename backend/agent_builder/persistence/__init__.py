@@ -1,13 +1,12 @@
 """
 Agent Builder — Persistence
 
-Repository protocol and implementations for agent builder storage.
+Repository protocol for agent builder storage.
+Import concrete implementations directly:
+    from agent_builder.persistence.sqlite import SqliteRepository
+    from agent_builder.persistence.postgres import PostgresRepository
 """
 
 from .protocol import RepositoryProtocol
-from .sqlite import SqliteRepository
 
-# Backward-compatible alias
-AgentRepository = SqliteRepository
-
-__all__ = ["AgentRepository", "RepositoryProtocol", "SqliteRepository"]
+__all__ = ["RepositoryProtocol"]

@@ -2,7 +2,7 @@
 Agent Builder — Quart Blueprint
 
 All HTTP routes for the agent builder (/api/workbench/* and /api/agents/run).
-Register with: app.register_blueprint(agent_builder_bp)
+Register with: app.register_blueprint(agent_builder_blueprint)
 
 Action layer: marshals HTTP ↔ service, no business logic.
 """
@@ -15,6 +15,7 @@ from quart import Blueprint, jsonify, request
 
 from .engine.event_bus import agent_event_bus
 from .engine.prompt_builder import DEFAULT_OUTPUT_SCHEMA
+from .chat_service import ChatService
 from .models import (
     AgentDefinitionCreate,
     AgentDefinitionUpdate,
@@ -22,39 +23,69 @@ from .models import (
     CriteriaType,
     RunStatus,
 )
+from .service import WorkbenchService
 
-agent_builder_bp = Blueprint("agent_builder", __name__)
+agent_builder_blueprint = Blueprint("agent_builder", __name__)
 
-# These will be set by configure_blueprint() at startup.
+# These will be set by configure_agent_builder_blueprint() at startup.
 _workbench_service = None
 _chat_service = None
-_get_operation = None
 _model_catalog_provider = None
 
 
-def configure_blueprint(
+def configure_agent_builder_blueprint(
     *,
-    workbench_service,
-    chat_service=None,
-    get_operation_fn=None,
+    tool_registry,
+    llm_factory,
+    repo,
     model_catalog_provider=None,
+    domain_context="",
+    system_prompt_builder=None,
+    recursion_limit=10,
 ):
     """
-    Wire services into the blueprint at startup.
+    Single-call setup for the agent builder blueprint.
 
-    Called once from app.py or agent_builder_integration.py before the app starts.
+    Creates WorkbenchService and ChatService internally.
+    Call once at startup, then register agent_builder_blueprint on your Quart app.
 
-    Args:
-        workbench_service: WorkbenchService instance
-        chat_service: Optional ChatService instance
-        get_operation_fn: Optional callable to look up Operation by name
-        model_catalog_provider: Optional ModelCatalogProvider callable for LLM config
+    Required:
+        tool_registry: ToolRegistry with your LangChain tools
+        llm_factory: LLMFactory callable (LLMConfig → BaseChatModel)
+        repo: RepositoryProtocol implementation (SqliteRepository, PostgresRepository, etc.)
+
+    Optional:
+        model_catalog_provider: callable returning model catalog dict (also used to derive default_model)
+        domain_context: domain description for schema suggestion prompts
+        system_prompt_builder: custom system prompt function for the chat agent
+        recursion_limit: max ReAct loop iterations (default: 10)
     """
-    global _workbench_service, _chat_service, _get_operation, _model_catalog_provider
-    _workbench_service = workbench_service
-    _chat_service = chat_service
-    _get_operation = get_operation_fn
+    global _workbench_service, _chat_service, _model_catalog_provider
+
+    # Derive default_model from catalog if available
+    default_model = ""
     _model_catalog_provider = model_catalog_provider
+    if model_catalog_provider:
+        try:
+            default_model = model_catalog_provider().get("default_model", "")
+        except Exception:
+            pass
+
+    _workbench_service = WorkbenchService(
+        tool_registry=tool_registry,
+        llm_factory=llm_factory,
+        repo=repo,
+        default_model=default_model,
+        domain_context=domain_context,
+        recursion_limit=recursion_limit,
+    )
+
+    _chat_service = ChatService(
+        tool_registry=tool_registry,
+        llm_factory=llm_factory,
+        default_model=default_model,
+        system_prompt_builder=system_prompt_builder,
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -74,7 +105,7 @@ def _error_response(exc, status=500):
 # Chat agent endpoint
 # ---------------------------------------------------------------------------
 
-@agent_builder_bp.route("/api/agents/run", methods=["POST"])
+@agent_builder_blueprint.route("/api/agents/run", methods=["POST"])
 async def rest_run_agent():
     """Run AI agent with OpenAI (simple chat interface)."""
     if _chat_service is None:
@@ -95,39 +126,9 @@ async def rest_run_agent():
 # Workbench UI config
 # ---------------------------------------------------------------------------
 
-_WORKBENCH_UI_OPERATION_NAMES = [
-    "workbench_list_tools",
-    "workbench_list_agents",
-    "workbench_create_agent",
-    "workbench_get_agent",
-    "workbench_update_agent",
-    "workbench_delete_agent",
-    "workbench_run_agent",
-    "workbench_list_agent_runs",
-    "workbench_list_runs",
-    "workbench_get_run",
-    "workbench_evaluate_run",
-    "workbench_get_evaluation",
-]
-
-
-@agent_builder_bp.route("/api/workbench/ui-config", methods=["GET"])
+@agent_builder_blueprint.route("/api/workbench/ui-config", methods=["GET"])
 async def workbench_ui_config():
     """Expose UI-friendly endpoint metadata and enums for Agent Fabric."""
-    endpoints: list[dict] = []
-    if _get_operation:
-        for op_name in _WORKBENCH_UI_OPERATION_NAMES:
-            op = _get_operation(op_name)
-            if op is None:
-                continue
-            endpoints.append({
-                "name": op.name,
-                "method": op.http_method,
-                "path": op.http_path,
-                "description": op.description,
-                "input_schema": op.get_mcp_input_schema(),
-            })
-
     llm_catalog = {
         "backend": "unknown",
         "provider": None,
@@ -142,6 +143,7 @@ async def workbench_ui_config():
         except Exception:
             pass
 
+    tools = _workbench_service.list_tools() if _workbench_service else []
     return jsonify({
         "module": "agent_fabric",
         "version": "2",
@@ -157,7 +159,7 @@ async def workbench_ui_config():
         "llm_config_fields": ["model", "temperature", "recursion_limit", "max_tokens", "output_instructions", "output_schema"],
         "llm": llm_catalog,
         "default_output_schema": DEFAULT_OUTPUT_SCHEMA,
-        "endpoints": endpoints,
+        "endpoints": [{"name": t["name"]} for t in tools],
     })
 
 
@@ -165,7 +167,7 @@ async def workbench_ui_config():
 # Tools
 # ---------------------------------------------------------------------------
 
-@agent_builder_bp.route("/api/workbench/tools", methods=["GET"])
+@agent_builder_blueprint.route("/api/workbench/tools", methods=["GET"])
 async def workbench_list_tools():
     """List all tools available for use in agent definitions."""
     return jsonify({"tools": _workbench_service.list_tools()})
@@ -175,7 +177,7 @@ async def workbench_list_tools():
 # Schema suggestion
 # ---------------------------------------------------------------------------
 
-@agent_builder_bp.route("/api/workbench/suggest-schema", methods=["POST"])
+@agent_builder_blueprint.route("/api/workbench/suggest-schema", methods=["POST"])
 async def workbench_suggest_schema():
     """Suggest a JSON Schema and tool selection based on agent definition."""
     try:
@@ -190,7 +192,7 @@ async def workbench_suggest_schema():
         return _error_response(exc)
 
 
-@agent_builder_bp.route("/api/workbench/improve-prompt", methods=["POST"])
+@agent_builder_blueprint.route("/api/workbench/improve-prompt", methods=["POST"])
 async def workbench_improve_prompt():
     """Improve a system prompt using LLM best practices."""
     try:
@@ -210,13 +212,13 @@ async def workbench_improve_prompt():
 # Agent CRUD
 # ---------------------------------------------------------------------------
 
-@agent_builder_bp.route("/api/workbench/agents", methods=["GET"])
+@agent_builder_blueprint.route("/api/workbench/agents", methods=["GET"])
 async def workbench_list_agents():
     agents = _workbench_service.list_agents()
     return jsonify({"agents": [a.to_dict() for a in agents]})
 
 
-@agent_builder_bp.route("/api/workbench/agents", methods=["POST"])
+@agent_builder_blueprint.route("/api/workbench/agents", methods=["POST"])
 async def workbench_create_agent():
     try:
         data = await request.get_json()
@@ -228,7 +230,7 @@ async def workbench_create_agent():
         return _error_response(exc)
 
 
-@agent_builder_bp.route("/api/workbench/agents/<agent_id>", methods=["GET"])
+@agent_builder_blueprint.route("/api/workbench/agents/<agent_id>", methods=["GET"])
 async def workbench_get_agent(agent_id: str):
     agent_def = _workbench_service.get_agent(agent_id)
     if agent_def is None:
@@ -236,7 +238,7 @@ async def workbench_get_agent(agent_id: str):
     return jsonify(agent_def.to_dict())
 
 
-@agent_builder_bp.route("/api/workbench/agents/<agent_id>", methods=["PUT"])
+@agent_builder_blueprint.route("/api/workbench/agents/<agent_id>", methods=["PUT"])
 async def workbench_update_agent(agent_id: str):
     try:
         data = await request.get_json()
@@ -250,7 +252,7 @@ async def workbench_update_agent(agent_id: str):
         return _error_response(exc)
 
 
-@agent_builder_bp.route("/api/workbench/agents/<agent_id>", methods=["DELETE"])
+@agent_builder_blueprint.route("/api/workbench/agents/<agent_id>", methods=["DELETE"])
 async def workbench_delete_agent(agent_id: str):
     if not _workbench_service.delete_agent(agent_id):
         return jsonify({"error": "Agent not found"}), 404
@@ -261,7 +263,7 @@ async def workbench_delete_agent(agent_id: str):
 # Runs
 # ---------------------------------------------------------------------------
 
-@agent_builder_bp.route("/api/workbench/agents/<agent_id>/runs", methods=["POST"])
+@agent_builder_blueprint.route("/api/workbench/agents/<agent_id>/runs", methods=["POST"])
 async def workbench_run_agent(agent_id: str):
     try:
         data = await request.get_json()
@@ -273,27 +275,27 @@ async def workbench_run_agent(agent_id: str):
         return _error_response(exc)
 
 
-@agent_builder_bp.route("/api/workbench/agents/<agent_id>/runs", methods=["GET"])
+@agent_builder_blueprint.route("/api/workbench/agents/<agent_id>/runs", methods=["GET"])
 async def workbench_list_agent_runs(agent_id: str):
     limit = request.args.get("limit", 50, type=int)
     runs = _workbench_service.list_runs(agent_id=agent_id, limit=limit)
     return jsonify({"runs": [r.to_dict() for r in runs]})
 
 
-@agent_builder_bp.route("/api/workbench/runs", methods=["GET"])
+@agent_builder_blueprint.route("/api/workbench/runs", methods=["GET"])
 async def workbench_list_all_runs():
     limit = request.args.get("limit", 50, type=int)
     runs = _workbench_service.list_runs(limit=limit)
     return jsonify({"runs": [r.to_dict() for r in runs]})
 
 
-@agent_builder_bp.route("/api/workbench/runs", methods=["DELETE"])
+@agent_builder_blueprint.route("/api/workbench/runs", methods=["DELETE"])
 async def workbench_delete_all_runs():
     count = _workbench_service.delete_all_runs()
     return jsonify({"deleted": count})
 
 
-@agent_builder_bp.route("/api/workbench/runs/<run_id>", methods=["GET"])
+@agent_builder_blueprint.route("/api/workbench/runs/<run_id>", methods=["GET"])
 async def workbench_get_run(run_id: str):
     run = _workbench_service.get_run(run_id)
     if run is None:
@@ -305,7 +307,7 @@ async def workbench_get_run(run_id: str):
 # SSE: Agent Activity Stream
 # ---------------------------------------------------------------------------
 
-@agent_builder_bp.route("/api/workbench/events", methods=["GET"])
+@agent_builder_blueprint.route("/api/workbench/events", methods=["GET"])
 async def workbench_event_stream():
     """Server-Sent Events endpoint for real-time agent activity.
 
@@ -358,7 +360,7 @@ async def workbench_event_stream():
 # Evaluation
 # ---------------------------------------------------------------------------
 
-@agent_builder_bp.route("/api/workbench/runs/<run_id>/evaluate", methods=["POST"])
+@agent_builder_blueprint.route("/api/workbench/runs/<run_id>/evaluate", methods=["POST"])
 async def workbench_evaluate_run(run_id: str):
     try:
         evaluation = await _workbench_service.evaluate_run(run_id)
@@ -369,7 +371,7 @@ async def workbench_evaluate_run(run_id: str):
         return _error_response(exc)
 
 
-@agent_builder_bp.route("/api/workbench/runs/<run_id>/evaluation", methods=["GET"])
+@agent_builder_blueprint.route("/api/workbench/runs/<run_id>/evaluation", methods=["GET"])
 async def workbench_get_evaluation(run_id: str):
     evaluation = _workbench_service.get_evaluation(run_id)
     if evaluation is None:
@@ -381,7 +383,7 @@ async def workbench_get_evaluation(run_id: str):
 # AG-UI: Conversational Agent Endpoint
 # ---------------------------------------------------------------------------
 
-@agent_builder_bp.route("/api/workbench/ag-ui", methods=["POST"])
+@agent_builder_blueprint.route("/api/workbench/ag-ui", methods=["POST"])
 async def workbench_ag_ui():
     """AG-UI protocol endpoint — SSE stream of typed events for conversational agent interaction."""
     try:
@@ -419,7 +421,7 @@ async def workbench_ag_ui():
 # Thread Management
 # ---------------------------------------------------------------------------
 
-@agent_builder_bp.route("/api/workbench/threads", methods=["GET"])
+@agent_builder_blueprint.route("/api/workbench/threads", methods=["GET"])
 async def workbench_list_threads():
     """List conversation threads, optionally filtered by agent_id."""
     agent_id = request.args.get("agent_id")
@@ -428,7 +430,7 @@ async def workbench_list_threads():
     return jsonify({"threads": [t.to_dict() for t in threads]})
 
 
-@agent_builder_bp.route("/api/workbench/threads/<thread_id>", methods=["GET"])
+@agent_builder_blueprint.route("/api/workbench/threads/<thread_id>", methods=["GET"])
 async def workbench_get_thread(thread_id: str):
     """Get thread details with messages."""
     thread = _workbench_service.get_thread(thread_id)
@@ -440,21 +442,21 @@ async def workbench_get_thread(thread_id: str):
     return jsonify(result)
 
 
-@agent_builder_bp.route("/api/workbench/threads/<thread_id>", methods=["DELETE"])
+@agent_builder_blueprint.route("/api/workbench/threads/<thread_id>", methods=["DELETE"])
 async def workbench_delete_thread(thread_id: str):
     if not _workbench_service.delete_thread(thread_id):
         return jsonify({"error": "Thread not found"}), 404
     return jsonify({"message": "Deleted"}), 200
 
 
-@agent_builder_bp.route("/api/workbench/threads/<thread_id>/messages", methods=["GET"])
+@agent_builder_blueprint.route("/api/workbench/threads/<thread_id>/messages", methods=["GET"])
 async def workbench_get_thread_messages(thread_id: str):
     """Get messages for a thread."""
     messages = _workbench_service.get_thread_messages(thread_id)
     return jsonify({"messages": [m.to_dict() for m in messages]})
 
 
-@agent_builder_bp.route("/api/workbench/threads/from-run/<run_id>", methods=["POST"])
+@agent_builder_blueprint.route("/api/workbench/threads/from-run/<run_id>", methods=["POST"])
 async def workbench_thread_from_run(run_id: str):
     """Create a conversation thread seeded from a completed run."""
     try:
