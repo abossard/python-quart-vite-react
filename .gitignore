@@ -55,3 +55,4 @@ screenshots/
 *.png
 .mcp.json
 notebooks/.ipynb_checkpoints/*
+backend/data/*.db*
