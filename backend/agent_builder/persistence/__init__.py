@@ -1,10 +1,13 @@
 """
 Agent Builder — Persistence
 
-Database engine setup and repository for agents, runs, evaluations.
+Repository protocol and implementations for agent builder storage.
 """
 
-from .database import build_engine
-from .repository import AgentRepository
+from .protocol import RepositoryProtocol
+from .sqlite import SqliteRepository
 
-__all__ = ["AgentRepository", "build_engine"]
+# Backward-compatible alias
+AgentRepository = SqliteRepository
+
+__all__ = ["AgentRepository", "RepositoryProtocol", "SqliteRepository"]

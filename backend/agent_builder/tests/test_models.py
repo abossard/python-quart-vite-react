@@ -68,7 +68,7 @@ class TestAgentDefinitionCreate:
 
 
 # ---------------------------------------------------------------------------
-# SQLModel JSON property roundtrips (non-obvious serialization behavior)
+# Pydantic field roundtrips (direct field assignment, no property magic)
 # ---------------------------------------------------------------------------
 
 class TestAgentDefinitionJsonProperties:

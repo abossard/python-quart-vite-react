@@ -1,6 +1,5 @@
 import { expect, test } from "@playwright/test";
-
-const APP_URL = process.env.E2E_APP_URL || "http://localhost:3001";
+import { APP_URL } from "./helpers.js";
 
 // The JSON payload the mocked agent "returns" embedded in markdown
 const JSON_PAYLOAD = JSON.stringify({

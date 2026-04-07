@@ -1,62 +1,17 @@
 import { expect, test } from "@playwright/test";
-
-const APP_URL = process.env.E2E_APP_URL || "http://localhost:3001";
-const BACKEND_URL = APP_URL.replace("3001", "5001");
+import {
+  APP_URL,
+  BACKEND_URL,
+  cleanupAgents,
+  closeDialogIfOpen,
+  createAgentViaAPI,
+} from "./helpers.js";
 
 test.describe.configure({ mode: "serial" });
 
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
-
-/** Delete all agents whose name contains "e2e-conv-" via API. */
-async function cleanupE2eConvAgents(page) {
-  const resp = await page.request.get(`${BACKEND_URL}/api/workbench/agents`);
-  for (const a of (await resp.json()).agents || []) {
-    if (a.name.includes("e2e-conv-")) {
-      // Delete threads for this agent first
-      const threadsResp = await page.request.get(
-        `${BACKEND_URL}/api/workbench/threads?agent_id=${a.id}`,
-      );
-      for (const t of (await threadsResp.json()).threads || []) {
-        await page.request.delete(
-          `${BACKEND_URL}/api/workbench/threads/${t.id}`,
-        );
-      }
-      await page.request.delete(
-        `${BACKEND_URL}/api/workbench/agents/${a.id}`,
-      );
-    }
-  }
-}
-
-/** Create agent via API for conversation tests. */
-async function createConvAgentViaAPI(page, name) {
-  const resp = await page.request.post(`${BACKEND_URL}/api/workbench/agents`, {
-    data: {
-      name,
-      description: "E2E conversation test agent",
-      system_prompt:
-        "Use csv_ticket_stats and report the total number of tickets. " +
-        "Keep your response short — one or two sentences.",
-      tool_names: ["csv_ticket_stats"],
-      output_schema: {},
-      requires_input: false,
-      required_input_description: "",
-      show_in_menu: false,
-    },
-  });
-  return resp.json();
-}
-
-/** Close any open dialog. */
-async function closeDialogIfOpen(page) {
-  const dialog = page.locator("[role=dialog]").last();
-  if (await dialog.isVisible({ timeout: 1000 }).catch(() => false)) {
-    await dialog.locator("button").first().click();
-    await expect(dialog).toBeHidden({ timeout: 5000 });
-  }
-}
 
 // ---------------------------------------------------------------------------
 // AG-UI Conversation Tests (mocked backend — fast, deterministic)
@@ -369,10 +324,10 @@ test.describe("Conversation Panel (mocked)", () => {
 
 test.describe("Thread API (live backend)", () => {
   test("creates thread, adds messages, retrieves them", async ({ page }) => {
-    await cleanupE2eConvAgents(page);
+    await cleanupAgents(page);
 
     const agentName = `e2e-conv-thread-api-${Date.now()}`;
-    const agent = await createConvAgentViaAPI(page, agentName);
+    const agent = await createAgentViaAPI(page, { name: agentName });
 
     // Create thread via API
     const createResp = await page.request.post(
@@ -402,10 +357,10 @@ test.describe("Thread API (live backend)", () => {
   });
 
   test("thread CRUD operations work", async ({ page }) => {
-    await cleanupE2eConvAgents(page);
+    await cleanupAgents(page);
 
     const agentName = `e2e-conv-crud-${Date.now()}`;
-    const agent = await createConvAgentViaAPI(page, agentName);
+    const agent = await createAgentViaAPI(page, { name: agentName });
 
     // Run the agent to get a completed run
     const runResp = await page.request.post(
@@ -473,10 +428,10 @@ test.describe("Conversation Panel (live)", () => {
     page,
   }) => {
     test.setTimeout(120_000);
-    await cleanupE2eConvAgents(page);
+    await cleanupAgents(page);
 
     const agentName = `e2e-conv-live-${Date.now()}`;
-    const agent = await createConvAgentViaAPI(page, agentName);
+    const agent = await createAgentViaAPI(page, { name: agentName });
 
     // Navigate to workbench
     await page.goto(`${APP_URL}/workbench`, { waitUntil: "load" });
@@ -517,7 +472,7 @@ test.describe("Conversation Panel (live)", () => {
     page,
   }) => {
     test.setTimeout(120_000);
-    await cleanupE2eConvAgents(page);
+    await cleanupAgents(page);
 
     const agentName = `e2e-conv-menu-${Date.now()}`;
 

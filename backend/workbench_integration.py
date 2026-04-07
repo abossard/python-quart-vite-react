@@ -28,12 +28,30 @@ def _build_llm_factory():
 
     This is the single place where LLM provider knowledge lives —
     the agent_builder module never imports any provider directly.
+
+    Set AGENT_BACKEND=fake for deterministic E2E testing (no real LLM calls).
     """
     def llm_factory(config: LLMConfig) -> Any:
-        force_openai = os.getenv("AGENT_BACKEND", "").strip().lower() == "openai"
+        backend = os.getenv("AGENT_BACKEND", "").strip().lower()
         api_key = config.api_key or os.getenv("OPENAI_API_KEY", "")
 
-        if force_openai and api_key:
+        if backend == "fake":
+            from langchain_core.language_models.fake_chat_models import FakeMessagesListChatModel
+            from langchain_core.messages import AIMessage
+
+            class _FakeWithTools(FakeMessagesListChatModel):
+                def bind_tools(self, tools, **kwargs):
+                    return self
+
+            return _FakeWithTools(responses=[
+                AIMessage(
+                    content="",
+                    tool_calls=[{"name": "csv_ticket_stats", "args": {}, "id": "fake-tc-1"}],
+                ),
+                AIMessage(content="**Fake LLM response.** Tool `csv_ticket_stats` was called successfully."),
+            ])
+
+        if backend == "openai" and api_key:
             from langchain_openai import ChatOpenAI
             kwargs: dict[str, Any] = {
                 "model": config.model or os.getenv("OPENAI_MODEL", "gpt-4o-mini"),

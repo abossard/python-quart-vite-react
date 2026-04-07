@@ -38,7 +38,7 @@ export default defineConfig({
   webServer: [
     {
       command:
-        "source .venv/bin/activate && cd backend && hypercorn app:app --bind 0.0.0.0:5001",
+        "source .venv/bin/activate && cd backend && AGENT_BACKEND=fake hypercorn app:app --bind 0.0.0.0:5001",
       port: 5001,
       reuseExistingServer: !process.env.CI,
     },

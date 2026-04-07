@@ -24,6 +24,7 @@ from .models import (
     RunStatus,
     SuccessCriteria,
 )
+from .persistence import RepositoryProtocol, SqliteRepository
 from .service import WorkbenchService
 from .tools import ToolRegistry
 
@@ -32,6 +33,9 @@ __all__ = [
     "ChatService",
     "WorkbenchService",
     "ToolRegistry",
+    # Persistence
+    "RepositoryProtocol",
+    "SqliteRepository",
     # LLM Protocol
     "LLMConfig",
     "LLMFactory",

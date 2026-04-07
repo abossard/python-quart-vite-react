@@ -5,14 +5,12 @@ Data definitions for multi-turn conversation threads.
 Pure data — no behavior, no I/O.
 """
 
-import json
 import uuid
 from datetime import datetime
 from enum import Enum
 from typing import Any, Optional
 
 from pydantic import BaseModel, Field
-from sqlmodel import Column, Field as SField, SQLModel, String
 
 
 class ThreadStatus(str, Enum):
@@ -27,16 +25,17 @@ class MessageRole(str, Enum):
     SYSTEM = "system"
 
 
-class ConversationThread(SQLModel, table=True):
+class ConversationThread(BaseModel):
     """A multi-turn conversation with an agent."""
-    __tablename__ = "workbench_threads"
 
-    id: str = SField(default_factory=lambda: str(uuid.uuid4()), primary_key=True)
-    agent_id: str = SField(foreign_key="workbench_agent_definitions.id", index=True)
-    title: str = SField(default="")
-    status: str = SField(default=ThreadStatus.ACTIVE.value)
-    created_at: datetime = SField(default_factory=datetime.now)
-    updated_at: datetime = SField(default_factory=datetime.now)
+    model_config = {"extra": "ignore"}
+
+    id: str = Field(default_factory=lambda: str(uuid.uuid4()))
+    agent_id: str
+    title: str = Field(default="")
+    status: str = Field(default=ThreadStatus.ACTIVE.value)
+    created_at: datetime = Field(default_factory=datetime.now)
+    updated_at: datetime = Field(default_factory=datetime.now)
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -49,33 +48,19 @@ class ConversationThread(SQLModel, table=True):
         }
 
 
-class ThreadMessage(SQLModel, table=True):
+class ThreadMessage(BaseModel):
     """One message in a conversation thread."""
-    __tablename__ = "workbench_thread_messages"
 
-    id: str = SField(default_factory=lambda: str(uuid.uuid4()), primary_key=True)
-    thread_id: str = SField(foreign_key="workbench_threads.id", index=True)
-    role: str = SField(default=MessageRole.USER.value)
-    content: str = SField(default="")
-    tool_call_id: Optional[str] = SField(default=None)
-    tool_name: Optional[str] = SField(default=None)
-    metadata_json: str = SField(
-        default="{}",
-        sa_column=Column(String, name="message_metadata"),
-    )
-    created_at: datetime = SField(default_factory=datetime.now)
+    model_config = {"extra": "ignore"}
 
-    @property
-    def message_metadata(self) -> dict[str, Any]:
-        try:
-            raw = json.loads(self.metadata_json)
-            return raw if isinstance(raw, dict) else {}
-        except (json.JSONDecodeError, TypeError):
-            return {}
-
-    @message_metadata.setter
-    def message_metadata(self, value: dict[str, Any]) -> None:
-        self.metadata_json = json.dumps(value)
+    id: str = Field(default_factory=lambda: str(uuid.uuid4()))
+    thread_id: str
+    role: str = Field(default=MessageRole.USER.value)
+    content: str = Field(default="")
+    tool_call_id: Optional[str] = Field(default=None)
+    tool_name: Optional[str] = Field(default=None)
+    message_metadata: dict[str, Any] = Field(default_factory=dict)
+    created_at: datetime = Field(default_factory=datetime.now)
 
     def to_dict(self) -> dict[str, Any]:
         return {

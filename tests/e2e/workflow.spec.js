@@ -1,12 +1,5 @@
 import { expect, test } from "@playwright/test";
-
-const APP_URL = process.env.E2E_APP_URL || "http://localhost:3001";
-
-async function visit(page, path = "/") {
-  const url = path === "/" ? APP_URL : `${APP_URL}${path}`;
-  await page.goto(url, { waitUntil: "load" });
-  await expect(page.getByText("CSV Ticket Viewer")).toBeVisible();
-}
+import { APP_URL, visit } from "./helpers.js";
 
 test.describe("Workflow page", () => {
   test("tab exists and navigates to workflow page", async ({ page }) => {

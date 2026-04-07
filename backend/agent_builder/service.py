@@ -45,7 +45,8 @@ from .models import (
     SuccessCriteria,
     ThreadMessage,
 )
-from .persistence import AgentRepository, build_engine
+from .persistence import SqliteRepository
+from .persistence.protocol import RepositoryProtocol
 from .tools import ToolRegistry
 
 logger = logging.getLogger(__name__)
@@ -192,6 +193,7 @@ class WorkbenchService:
         self,
         tool_registry: ToolRegistry,
         llm_factory: LLMFactory,
+        repo: Optional[RepositoryProtocol] = None,
         db_path: Optional[Path] = None,
         default_model: str = "",
         recursion_limit: int = 10,
@@ -202,11 +204,13 @@ class WorkbenchService:
         self._default_model = default_model
         self._recursion_limit = recursion_limit
         self._domain_context = domain_context
-        self._db_path = db_path or (
-            Path(__file__).resolve().parents[1] / "data" / "workbench.db"
-        )
-        self._engine = build_engine(self._db_path)
-        self._repo = AgentRepository(self._engine)
+        if repo is not None:
+            self._repo: RepositoryProtocol = repo
+        else:
+            self._db_path = db_path or (
+                Path(__file__).resolve().parents[1] / "data" / "workbench.db"
+            )
+            self._repo = SqliteRepository(self._db_path)
         self._llm: Any = None
 
     @property
@@ -679,11 +683,10 @@ class WorkbenchService:
                 status=final_status.value,
                 output=output,
                 completed_at=datetime.now(),
-                activity_log_json=json.dumps(activity_events),
+                activity_log=activity_events,
             )
             if updated:
-                updated.tools_used = tools_used
-                self._repo.update_run(run_id, tools_used_json=updated.tools_used_json)
+                self._repo.update_run(run_id, tools_used=tools_used)
 
         except Exception as exc:
             logger.exception("❌ Agent run_id=%s failed: %s", run_id, exc)
@@ -701,7 +704,7 @@ class WorkbenchService:
                 status=failed_status.value,
                 error=str(exc),
                 completed_at=datetime.now(),
-                activity_log_json=json.dumps(activity_events),
+                activity_log=activity_events,
             )
         finally:
             # Unsubscribe collector queue
@@ -1015,7 +1018,7 @@ class WorkbenchService:
         evaluation.criteria_results = results
         return self._repo.upsert_evaluation(
             run_id,
-            criteria_results_json=evaluation.criteria_results_json,
+            criteria_results=results,
             overall_passed=overall,
             score=score,
         )

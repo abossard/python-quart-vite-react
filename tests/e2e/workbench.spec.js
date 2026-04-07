@@ -1,23 +1,17 @@
 import { expect, test } from "@playwright/test";
-
-const APP_URL = process.env.E2E_APP_URL || "http://localhost:3001";
-const BACKEND_URL = APP_URL.replace("3001", "5001");
+import {
+  APP_URL,
+  BACKEND_URL,
+  cleanupAgents,
+  closeDialogIfOpen,
+  createAgentViaAPI,
+} from "./helpers.js";
 
 test.describe.configure({ mode: "serial" });
 
 // ---------------------------------------------------------------------------
 // Helpers (zero mocks — all live)
 // ---------------------------------------------------------------------------
-
-/** Delete all agents whose name contains "e2e-", closing any open dialogs first. */
-async function cleanupE2eAgents(page) {
-  const resp = await page.request.get(`${BACKEND_URL}/api/workbench/agents`);
-  for (const a of (await resp.json()).agents || []) {
-    if (a.name.includes("e2e-")) {
-      await page.request.delete(`${BACKEND_URL}/api/workbench/agents/${a.id}`);
-    }
-  }
-}
 
 function expectRunDetailToShowContent(runDetail) {
   return expect(runDetail).not.toContainText("No output", { timeout: 10000 });
@@ -91,38 +85,9 @@ async function createAgent(
   await expect(page.getByText(name)).toBeVisible({ timeout: 10000 });
 }
 
-/**
- * Create an agent via direct API POST (no UI interaction).
- * Returns the created agent object (with .id).
- */
-async function createAgentViaAPI(page, payload) {
-  const resp = await page.request.post(`${BACKEND_URL}/api/workbench/agents`, {
-    data: {
-      name: payload.name,
-      description: payload.description || "",
-      system_prompt: payload.systemPrompt || payload.system_prompt || "test",
-      tool_names: payload.tool_names || ["csv_ticket_stats"],
-      output_schema: payload.output_schema || {},
-      requires_input: payload.requires_input || false,
-      required_input_description: payload.required_input_description || "",
-      show_in_menu: payload.show_in_menu || false,
-    },
-  });
-  return resp.json();
-}
-
 /** Delete an agent via direct API DELETE. */
 async function deleteAgentViaAPI(page, agentId) {
   await page.request.delete(`${BACKEND_URL}/api/workbench/agents/${agentId}`);
-}
-
-/** Close the result dialog if it is currently open. */
-async function closeDialogIfOpen(page) {
-  const dialog = page.locator("[role=dialog]").last();
-  if (await dialog.isVisible({ timeout: 1000 }).catch(() => false)) {
-    await dialog.locator("button").first().click();
-    await expect(dialog).toBeHidden({ timeout: 5000 });
-  }
 }
 
 async function mockWorkbenchEditResponseFlow(page) {
@@ -285,7 +250,7 @@ test.describe("Agent Fabric UI (live)", () => {
   // ── 1. creates and deletes an agent ────────────────────────────────────
   test("creates and deletes an agent", async ({ page }) => {
     test.setTimeout(120_000);
-    await cleanupE2eAgents(page);
+    await cleanupAgents(page);
 
     const agentName = `e2e-crud-${Date.now()}`;
 
@@ -312,7 +277,7 @@ test.describe("Agent Fabric UI (live)", () => {
   // ── 2. runs agent and shows result in dialog ───────────────────────────
   test("runs agent and shows result in dialog", async ({ page }) => {
     test.setTimeout(120_000);
-    await cleanupE2eAgents(page);
+    await cleanupAgents(page);
 
     const agentName = `e2e-run-${Date.now()}`;
 
@@ -348,7 +313,7 @@ test.describe("Agent Fabric UI (live)", () => {
   // ── 3. requires input and forwards it ──────────────────────────────────
   test("requires input and forwards it", async ({ page }) => {
     test.setTimeout(120_000);
-    await cleanupE2eAgents(page);
+    await cleanupAgents(page);
 
     const agentName = `e2e-input-${Date.now()}`;
 
@@ -392,7 +357,7 @@ test.describe("Agent Fabric UI (live)", () => {
   // ── 4. suggest schema & tools populates form ──────────────────────────
   test("suggest schema & tools populates form", async ({ page }) => {
     test.setTimeout(120_000);
-    await cleanupE2eAgents(page);
+    await cleanupAgents(page);
 
     const agentName = `e2e-suggest-${Date.now()}`;
 
@@ -443,7 +408,7 @@ test.describe("Agent Fabric UI (live)", () => {
   // ── 5. suggest + run renders widgets from real output ──────────────────
   test("suggest + run renders widgets from real output", async ({ page }) => {
     test.setTimeout(120_000);
-    await cleanupE2eAgents(page);
+    await cleanupAgents(page);
 
     const agentName = `e2e-widget-live-${Date.now()}`;
 
@@ -512,7 +477,7 @@ test.describe("Agent Fabric UI (live)", () => {
     page,
   }) => {
     test.setTimeout(120_000);
-    await cleanupE2eAgents(page);
+    await cleanupAgents(page);
 
     const agentName = `e2e-lifecycle-${Date.now()}`;
     const initialPrompt =
@@ -705,7 +670,7 @@ test.describe("Agent Chat UI (live)", () => {
 test.describe("Show in Menu (live)", () => {
   test("show in menu agent appears as tab", async ({ page }) => {
     test.setTimeout(120_000);
-    await cleanupE2eAgents(page);
+    await cleanupAgents(page);
 
     const agentName = `e2e-menu-${Date.now()}`;
 

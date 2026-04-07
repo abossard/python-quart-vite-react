@@ -1,6 +1,5 @@
 import { expect, test } from "@playwright/test";
-
-const APP_URL = process.env.E2E_APP_URL || "http://localhost:3001";
+import { APP_URL } from "./helpers.js";
 
 async function goToCreateTab(page) {
   await page.goto(`${APP_URL}/workbench`, { waitUntil: "load" });

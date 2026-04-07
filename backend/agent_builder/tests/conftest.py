@@ -11,7 +11,7 @@ import pytest
 
 from agent_builder import WorkbenchService
 from agent_builder.llm_protocol import LLMConfig
-from agent_builder.persistence import AgentRepository, build_engine
+from agent_builder.persistence import SqliteRepository
 from agent_builder.tools import ToolRegistry
 
 
@@ -68,6 +68,5 @@ def workbench_service(tmp_db_path, tool_registry):
 
 @pytest.fixture
 def repo(tmp_db_path):
-    """AgentRepository backed by a temporary SQLite DB."""
-    engine = build_engine(tmp_db_path / "test.db")
-    return AgentRepository(engine)
+    """SqliteRepository backed by a temporary SQLite DB."""
+    return SqliteRepository(tmp_db_path / "test.db")

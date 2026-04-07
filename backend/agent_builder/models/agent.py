@@ -11,120 +11,74 @@ from datetime import datetime
 from typing import Any, Optional
 
 from pydantic import BaseModel, Field
-from sqlmodel import Column, Field as SField, SQLModel, String
 
 from .evaluation import SuccessCriteria
 
 
-class AgentDefinition(SQLModel, table=True):
+class AgentDefinition(BaseModel):
     """Persisted agent blueprint: system prompt + tools + success criteria."""
-    __tablename__ = "workbench_agent_definitions"
 
-    id: str = SField(default_factory=lambda: str(uuid.uuid4()), primary_key=True)
-    name: str = SField(index=True, description="Human-readable agent name")
-    description: str = SField(default="", description="Optional description")
-    system_prompt: str = SField(description="System prompt sent to the LLM")
-    requires_input: bool = SField(
+    model_config = {"extra": "ignore"}
+
+    id: str = Field(default_factory=lambda: str(uuid.uuid4()))
+    name: str = Field(description="Human-readable agent name")
+    description: str = Field(default="", description="Optional description")
+    system_prompt: str = Field(description="System prompt sent to the LLM")
+    requires_input: bool = Field(
         default=False,
         description="When true, runs must include required_input_value",
     )
-    required_input_description: str = SField(
+    required_input_description: str = Field(
         default="",
         description="Description shown to operators for required runtime input",
     )
-    # LLM configuration — per-agent overrides (empty = use service defaults)
-    model: str = SField(
+    model: str = Field(
         default="",
         description="LLM model name override (empty = service default)",
     )
-    temperature: float = SField(
+    temperature: float = Field(
         default=0.0,
         description="LLM temperature (0.0 = deterministic, 1.0 = creative)",
     )
-    recursion_limit: int = SField(
+    recursion_limit: int = Field(
         default=3,
         description="Max ReAct loop iterations before stopping",
     )
-    max_tokens: int = SField(
+    max_tokens: int = Field(
         default=4096,
         description="Max LLM response tokens",
     )
-    reasoning_effort: str = SField(
+    reasoning_effort: str = Field(
         default="low",
         description="Reasoning effort: low (fast), medium, high (deep thinking), default (model default)",
     )
-    output_instructions: str = SField(
+    output_instructions: str = Field(
         default="",
         description="Custom output format instructions (empty = default markdown)",
     )
-    # Structured output schema — JSON Schema stored as JSON string.
-    # When set, the LLM is constrained to produce output matching this schema.
-    # Example: {"type":"object","properties":{"breaches":{"type":"array","items":{"type":"object","properties":{"ticket_id":{"type":"string"},"breach_reason":{"type":"string"}}}}}}
-    output_schema_json: str = SField(
-        default="{}",
-        description="JSON Schema for structured output (empty object = no constraint)",
-        sa_column=Column(String, name="output_schema"),
+    output_schema: dict[str, Any] = Field(
+        default_factory=dict,
+        description="JSON Schema for structured output (empty dict = no constraint)",
     )
-    show_in_menu: bool = SField(
+    show_in_menu: bool = Field(
         default=False,
         description="When true, agent appears as a tab in the main navigation",
     )
-    tool_names_json: str = SField(
-        default="[]",
-        description="JSON-serialized list of tool names available to this agent",
-        sa_column=Column(String, name="tool_names"),
+    tool_names: list[str] = Field(
+        default_factory=list,
+        description="List of tool names available to this agent",
     )
-    success_criteria_json: str = SField(
-        default="[]",
-        description="JSON-serialized list of SuccessCriteria dicts",
-        sa_column=Column(String, name="success_criteria"),
+    success_criteria: list[SuccessCriteria] = Field(
+        default_factory=list,
+        description="List of SuccessCriteria for evaluating agent runs",
     )
-    created_at: datetime = SField(default_factory=datetime.now)
-    updated_at: datetime = SField(default_factory=datetime.now)
-
-    @property
-    def tool_names(self) -> list[str]:
-        try:
-            return json.loads(self.tool_names_json)
-        except (json.JSONDecodeError, TypeError):
-            return []
-
-    @tool_names.setter
-    def tool_names(self, value: list[str]) -> None:
-        self.tool_names_json = json.dumps(value)
-
-    @property
-    def success_criteria(self) -> list[SuccessCriteria]:
-        try:
-            raw = json.loads(self.success_criteria_json)
-            return [SuccessCriteria(**c) for c in raw]
-        except (json.JSONDecodeError, TypeError, Exception):
-            return []
-
-    @success_criteria.setter
-    def success_criteria(self, value: list[SuccessCriteria]) -> None:
-        self.success_criteria_json = json.dumps([c.model_dump() for c in value])
-
-    @property
-    def output_schema(self) -> dict[str, Any]:
-        """Parsed JSON Schema for structured output. Empty dict = no constraint."""
-        try:
-            raw = json.loads(self.output_schema_json)
-            if isinstance(raw, dict):
-                return raw
-            return {}
-        except (json.JSONDecodeError, TypeError):
-            return {}
-
-    @output_schema.setter
-    def output_schema(self, value: dict[str, Any]) -> None:
-        self.output_schema_json = json.dumps(value)
+    created_at: datetime = Field(default_factory=datetime.now)
+    updated_at: datetime = Field(default_factory=datetime.now)
 
     @property
     def has_output_schema(self) -> bool:
         """True when a non-empty output schema is configured."""
-        schema = self.output_schema
-        return bool(schema and schema.get("properties"))
+        return bool(self.output_schema and self.output_schema.get("properties"))
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -142,7 +96,7 @@ class AgentDefinition(SQLModel, table=True):
             "output_instructions": self.output_instructions,
             "output_schema": self.output_schema,
             "show_in_menu": self.show_in_menu,
-            "tool_names": self.tool_names,
+            "tool_names": list(self.tool_names),
             "success_criteria": [c.model_dump() for c in self.success_criteria],
             "created_at": self.created_at.isoformat(),
             "updated_at": self.updated_at.isoformat(),

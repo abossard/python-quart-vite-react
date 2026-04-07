@@ -1,8 +1,10 @@
 # Agent Builder
 
-A portable, config-driven LLM agent package built on LangGraph. Define agents (system prompt, tools, output schema) via API or UI, persist them in SQLite, and run them as ReAct agents with real-time SSE streaming.
+A portable, config-driven LLM agent package built on LangGraph. Define agents (system prompt, tools, output schema) via API or UI, persist them in any database, and run them as ReAct agents with real-time SSE streaming.
 
 **Zero provider coupling** — the host injects an LLM factory; the package never imports any LLM provider directly.
+
+**Pluggable storage** — persistence is behind a `RepositoryProtocol`. Ships with `SqliteRepository` (stdlib `sqlite3`, zero deps). Bring your own `PostgresRepository`, etc.
 
 ## Integration Checklist
 
@@ -11,8 +13,9 @@ A portable, config-driven LLM agent package built on LangGraph. Define agents (s
 ☐  2. Install dependencies (see below)
 ☐  3. Write an LLM factory function
 ☐  4. Create a ToolRegistry and register your tools
-☐  5. Instantiate WorkbenchService (and optionally ChatService)
-☐  6. Mount the Quart Blueprint (or call services directly)
+☐  5. Choose a repository backend (SQLite default, or custom)
+☐  6. Instantiate WorkbenchService (and optionally ChatService)
+☐  7. Mount the Quart Blueprint (or call services directly)
 ```
 
 ## Step-by-Step
@@ -22,11 +25,11 @@ A portable, config-driven LLM agent package built on LangGraph. Define agents (s
 ```
 langchain-core        # Tool types, callback base
 langgraph             # ReAct agent
-langgraph-prebuilt    # Pre-built agent executor
-sqlmodel              # SQLite persistence
 pydantic>=2           # Data models
 ag-ui-protocol        # AG-UI event types (optional)
 ```
+
+No ORM required — `SqliteRepository` uses Python's stdlib `sqlite3`.
 
 ### 2. Write an LLM Factory
 
@@ -64,12 +67,20 @@ Tools must be LangChain `StructuredTool` instances (or anything with a `.name` a
 ```python
 from agent_builder import WorkbenchService, ChatService
 
+# Option A: SQLite (default, zero config)
 workbench = WorkbenchService(
     tool_registry=registry,
     llm_factory=my_llm_factory,
     # db_path=Path("data/agents.db"),  # default: auto-created
-    # default_model="gpt-4o-mini",
-    # recursion_limit=10,
+)
+
+# Option B: Custom repository (PostgreSQL, etc.)
+from agent_builder import SqliteRepository  # or your own
+repo = SqliteRepository(Path("data/agents.db"))
+workbench = WorkbenchService(
+    tool_registry=registry,
+    llm_factory=my_llm_factory,
+    repo=repo,
 )
 
 # Optional: simple one-shot chat agent
@@ -79,9 +90,37 @@ chat = ChatService(
 )
 ```
 
-The database is auto-created and auto-migrated — no setup needed.
+### 5. Implement a Custom Repository (optional)
 
-### 5. Mount Routes (Quart)
+To use a different database, implement the `RepositoryProtocol`:
+
+```python
+from agent_builder.persistence.protocol import RepositoryProtocol
+from agent_builder.models import AgentDefinition, AgentRun, ...
+
+class PostgresRepository:
+    """Implements RepositoryProtocol using psycopg."""
+
+    def __init__(self, conn_factory):
+        self._conn_factory = conn_factory
+        self._setup_tables()
+
+    def create_agent(self, agent: AgentDefinition) -> AgentDefinition:
+        with self._conn_factory() as conn:
+            conn.execute("INSERT INTO ...", ...)
+        return agent
+
+    # ... implement all methods from RepositoryProtocol
+```
+
+The protocol requires these methods:
+- **Agents**: `create_agent`, `get_agent`, `list_agents`, `update_agent`, `delete_agent`
+- **Runs**: `create_run`, `get_run`, `list_runs`, `update_run`, `delete_all_runs`
+- **Evaluations**: `get_evaluation`, `upsert_evaluation`
+- **Threads**: `create_thread`, `get_thread`, `list_threads`, `update_thread`, `delete_thread`
+- **Messages**: `add_message`, `get_messages`
+
+### 6. Mount Routes (Quart)
 
 ```python
 from agent_builder.routes import agent_builder_bp, configure_blueprint
@@ -96,7 +135,7 @@ app.register_blueprint(agent_builder_bp)
 
 This exposes a full REST API under `/api/workbench/...` (see API Reference below).
 
-### 6. Or Call Services Directly
+### 7. Or Call Services Directly
 
 ```python
 from agent_builder import AgentDefinitionCreate, AgentRunCreate
@@ -125,7 +164,7 @@ agent_builder/
 ├── evaluator.py          # Success criteria evaluation
 ├── fsm.py                # RunStatus state machine
 ├── routes.py             # Quart Blueprint (optional)
-├── models/               # Pydantic/SQLModel data models
+├── models/               # Pure Pydantic data models (no ORM)
 │   ├── agent.py          # AgentDefinition, Create, Update
 │   ├── run.py            # AgentRun, RunStatus, RunCreate
 │   ├── evaluation.py     # AgentEvaluation, SuccessCriteria
@@ -137,9 +176,10 @@ agent_builder/
 │   ├── event_bus.py      # SSE event broadcasting
 │   ├── callbacks.py      # LangChain streaming callbacks
 │   └── ag_ui_events.py   # AG-UI protocol helpers
-├── persistence/          # SQLite storage (auto-created)
-│   ├── database.py       # Engine builder + migrations
-│   └── repository.py     # AgentRepository CRUD
+├── persistence/          # Pluggable storage layer
+│   ├── protocol.py       # RepositoryProtocol (abstract interface)
+│   ├── sqlite.py         # SqliteRepository (stdlib sqlite3)
+│   └── _json_helpers.py  # Safe JSON/datetime parsing
 └── tools/                # Tool management
     ├── registry.py       # ToolRegistry
     ├── mcp_adapter.py    # MCP → LangChain converter
