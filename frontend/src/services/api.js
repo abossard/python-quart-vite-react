@@ -7,7 +7,7 @@
  * - Clear interface for backend communication
  */
 
-import { subscribeSSE } from "./sseConnection";
+import { subscribeSSE } from "../agent-builder-ui";
 
 const API_BASE_URL = "/api";
 
@@ -76,7 +76,7 @@ export function connectToTimeStream(onMessage, onError) {
   };
 }
 
-export { SSE_STATE } from "./sseConnection";
+export { SSE_STATE } from "../agent-builder-ui";
 
 /**
  * Subscribe to the shared SSE connection for real-time agent activity.

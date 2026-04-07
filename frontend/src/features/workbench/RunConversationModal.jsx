@@ -32,7 +32,7 @@ import {
 import { Dismiss24Regular, Send24Regular } from '@fluentui/react-icons'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { createThreadFromRun } from '../../services/api'
-import { parseRunOutput } from './outputUtils'
+import { parseRunOutput } from '../../agent-builder-ui'
 import SchemaRenderer from './SchemaRenderer'
 import { SmartMessageRenderer } from './toolRenders'
 

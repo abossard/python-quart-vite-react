@@ -19,7 +19,7 @@ import {
     suggestOutputSchema,
     updateWorkbenchAgent,
 } from '../../services/api'
-import { buildModelOptions } from './modelOptions'
+import { buildModelOptions } from '../../agent-builder-ui'
 import SchemaEditor from './SchemaEditor'
 
 const useStyles = makeStyles({

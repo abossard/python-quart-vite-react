@@ -30,10 +30,10 @@ import { ArrowClockwise24Regular, Chat24Regular, Dismiss24Regular, Pulse20Regula
 import { useCallback, useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { createThreadFromRun, listAgentRuns } from '../../services/api'
-import { parseRunOutput } from './outputUtils'
+import { parseRunOutput } from '../../agent-builder-ui'
 import ConversationPanel from './ConversationPanel'
 import SchemaRenderer from './SchemaRenderer'
-import useRunManager from './useRunManager'
+import { useRunManager } from '../../agent-builder-ui'
 
 const useStyles = makeStyles({
   container: {

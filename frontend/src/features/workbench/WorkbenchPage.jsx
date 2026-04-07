@@ -21,7 +21,7 @@ import AgentCreateForm from './AgentCreateForm'
 import AgentEditDialog from './AgentEditDialog'
 import RunConversationModal from './RunConversationModal'
 import RunsSidePanel from './RunsSidePanel'
-import useRunManager from './useRunManager'
+import { useRunManager } from '../../agent-builder-ui'
 
 const useStyles = makeStyles({
   container: {
@@ -150,7 +150,7 @@ export default function WorkbenchPage() {
           <Subtitle1 data-testid="workbench-page-title">Agent Fabric</Subtitle1>
           <Caption1>
             {' '}Create, run, and manage AI agents.
-            {' '}Endpoints: {uiConfig?.endpoints?.length ?? 0}
+            {' '}Tools: {tools?.length ?? 0}
           </Caption1>
         </div>
       </div>

@@ -73,10 +73,19 @@ stateDiagram-v2
 ### Configuration
 
 ```javascript
-import { configureSSE, subscribeSSE, SSE_STATE } from './agent-builder-ui'
+import { configureAgentBuilder, subscribeSSE, SSE_STATE } from './agent-builder-ui'
 
-// Optional: change the SSE endpoint (default: /api/workbench/events)
-configureSSE('/my-custom/sse-endpoint')
+// Optional: configure both API base URL and SSE endpoint in one call
+configureAgentBuilder({
+  apiBase: '/api',                       // default: /api
+  sseUrl: '/api/workbench/events',       // default: /api/workbench/events
+})
+
+// Or configure individually:
+// import { configureApi } from './agent-builder-ui'
+// configureApi('/my-api')
+// import { configureSSE } from './agent-builder-ui'
+// configureSSE('/my-sse-endpoint')
 
 // Subscribe to events
 const unsubscribe = subscribeSSE({

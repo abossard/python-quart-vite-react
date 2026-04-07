@@ -5,7 +5,16 @@
  * Import this instead of reaching into services/api.js for workbench calls.
  */
 
-const API_BASE = "/api";
+let API_BASE = "/api";
+
+/**
+ * Configure the base URL for all agent builder API calls.
+ * Call before any API function if your backend is on a different path.
+ * @param {string} baseUrl - e.g. "/api" or "http://localhost:5001/api"
+ */
+export function configureApi(baseUrl) {
+  API_BASE = baseUrl.replace(/\/+$/, "");
+}
 
 async function fetchJSON(url, options = {}) {
   const response = await fetch(url, {

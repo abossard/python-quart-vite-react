@@ -15,7 +15,7 @@ import {
   tokens,
 } from '@fluentui/react-components'
 import { ArrowClockwise24Regular, Delete24Regular } from '@fluentui/react-icons'
-import { parseRunOutput } from './outputUtils'
+import { parseRunOutput } from '../../agent-builder-ui'
 
 const useStyles = makeStyles({
   panel: {
