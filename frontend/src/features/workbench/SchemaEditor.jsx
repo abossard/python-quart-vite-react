@@ -17,6 +17,7 @@ import {
     Input,
     Option,
     Text,
+    Textarea,
     makeStyles,
     tokens,
 } from '@fluentui/react-components'
@@ -117,7 +118,7 @@ function normalizeList(value) {
     return value.map((item) => String(item).trim()).filter(Boolean)
   }
   if (typeof value === 'string') {
-    return value.split(',').map((item) => item.trim()).filter(Boolean)
+    return value.split(/\n/).map((item) => item.trim()).filter(Boolean)
   }
   return []
 }
@@ -294,12 +295,14 @@ function PropertyRow({ index, property, onChange, onRemove }) {
       {(needsColumns || needsLabel || needsChartConfig) && (
         <div className={styles.widgetOptions}>
           {needsColumns && (
-            <Field label="Columns (comma-separated)" size="small">
-              <Input
+            <Field label="Columns (one per line)" size="small">
+              <Textarea
                 size="small"
-                value={normalizeList(property.widgetOptions.columns).join(', ')}
-                onChange={(_, d) => updateWidgetOption('columns', d.value.split(',').map((s) => s.trim()).filter(Boolean))}
-                placeholder="col1, col2, col3"
+                resize="vertical"
+                rows={3}
+                value={normalizeList(property.widgetOptions.columns).join('\n')}
+                onChange={(_, d) => updateWidgetOption('columns', d.value.split('\n').map((s) => s.trim()).filter(Boolean))}
+                placeholder={"col1\ncol2\ncol3"}
               />
             </Field>
           )}
@@ -323,11 +326,13 @@ function PropertyRow({ index, property, onChange, onRemove }) {
                   placeholder="e.g. status"
                 />
               </Field>
-              <Field label="Value keys (comma-separated)" size="small">
-                <Input
+              <Field label="Value keys (one per line)" size="small">
+                <Textarea
                   size="small"
-                  value={normalizeList(property.widgetOptions.keys).join(', ')}
-                  onChange={(_, d) => updateWidgetOption('keys', d.value.split(',').map((s) => s.trim()).filter(Boolean))}
+                  resize="vertical"
+                  rows={2}
+                  value={normalizeList(property.widgetOptions.keys).join('\n')}
+                  onChange={(_, d) => updateWidgetOption('keys', d.value.split('\n').map((s) => s.trim()).filter(Boolean))}
                   placeholder="e.g. count"
                 />
               </Field>

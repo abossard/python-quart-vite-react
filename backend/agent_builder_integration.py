@@ -18,7 +18,10 @@ import operations  # noqa: F401
 from agent_builder import ToolRegistry
 from agent_builder.llm_protocol import LLMConfig
 from agent_builder.persistence.sqlite import SqliteRepository
-from agent_builder.routes import agent_builder_blueprint, configure_agent_builder_blueprint
+from agent_builder.routes import (
+    agent_builder_blueprint,
+    configure_agent_builder_blueprint,
+)
 from api_decorators import get_langchain_tools
 
 # ============================================================================
@@ -38,7 +41,9 @@ def _build_llm_factory():
         api_key = config.api_key or os.getenv("OPENAI_API_KEY", "")
 
         if backend == "fake":
-            from langchain_core.language_models.fake_chat_models import FakeMessagesListChatModel
+            from langchain_core.language_models.fake_chat_models import (
+                FakeMessagesListChatModel,
+            )
             from langchain_core.messages import AIMessage
 
             class _FakeWithTools(FakeMessagesListChatModel):
@@ -123,13 +128,6 @@ def _build_model_catalog_provider():
             "source": "configured",
         }
     return provider
-
-
-def _default_model() -> str:
-    """Resolve the default model name from environment."""
-    if os.getenv("AGENT_BACKEND", "").strip().lower() == "openai":
-        return os.getenv("OPENAI_MODEL", "gpt-4o-mini")
-    return os.getenv("COPILOT_MODEL", "gpt-4o")
 
 
 # ============================================================================

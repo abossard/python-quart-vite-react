@@ -37,7 +37,7 @@ function normalizeStringList(value) {
     return value.map((item) => String(item).trim()).filter(Boolean)
   }
   if (typeof value === 'string') {
-    return value.split(',').map((item) => item.trim()).filter(Boolean)
+    return value.split(/[\n,]/).map((item) => item.trim()).filter(Boolean)
   }
   return []
 }
