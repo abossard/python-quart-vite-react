@@ -29,17 +29,37 @@ const useStyles = makeStyles({
     display: 'flex',
     flexDirection: 'column',
     gap: tokens.spacingVerticalL,
+    '@media (max-width: 768px)': {
+      padding: tokens.spacingVerticalM,
+      gap: tokens.spacingVerticalM,
+    },
+    '@media (max-width: 480px)': {
+      padding: tokens.spacingVerticalS,
+    },
   },
   header: {
     display: 'flex',
     alignItems: 'center',
     justifyContent: 'space-between',
+    gap: tokens.spacingHorizontalM,
+    flexWrap: 'wrap',
+  },
+  tabsScroller: {
+    overflowX: 'auto',
+    WebkitOverflowScrolling: 'touch',
+  },
+  tabList: {
+    minWidth: 'max-content',
   },
   agentsLayout: {
     display: 'flex',
     gap: tokens.spacingHorizontalL,
     alignItems: 'stretch',
     minHeight: '500px',
+    '@media (max-width: 1024px)': {
+      flexDirection: 'column',
+      minHeight: 'auto',
+    },
   },
   agentsMain: {
     flex: 1,
@@ -48,6 +68,9 @@ const useStyles = makeStyles({
   runsPanel: {
     width: '340px',
     flexShrink: 0,
+    '@media (max-width: 1024px)': {
+      width: '100%',
+    },
   },
 })
 
@@ -157,18 +180,21 @@ export default function WorkbenchPage() {
 
       {error && <Text style={{ color: tokens.colorPaletteRedForeground1 }}>{error}</Text>}
 
-      <TabList
-        selectedValue={activeTab}
-        onTabSelect={(_, data) => setActiveTab(data.value)}
-        data-testid="workbench-tabs"
-      >
-        <Tab value="agents" icon={<Apps24Regular />} data-testid="workbench-tab-agents">
-          Agents ({agents.length})
-        </Tab>
-        <Tab value="create" icon={<Add24Regular />} data-testid="workbench-tab-create">
-          Create Agent
-        </Tab>
-      </TabList>
+      <div className={styles.tabsScroller}>
+        <TabList
+          className={styles.tabList}
+          selectedValue={activeTab}
+          onTabSelect={(_, data) => setActiveTab(data.value)}
+          data-testid="workbench-tabs"
+        >
+          <Tab value="agents" icon={<Apps24Regular />} data-testid="workbench-tab-agents">
+            Agents ({agents.length})
+          </Tab>
+          <Tab value="create" icon={<Add24Regular />} data-testid="workbench-tab-create">
+            Create Agent
+          </Tab>
+        </TabList>
+      </div>
 
       {activeTab === 'agents' && (
         <div className={styles.agentsLayout}>

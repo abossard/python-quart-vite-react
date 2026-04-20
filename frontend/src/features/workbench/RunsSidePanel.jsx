@@ -27,6 +27,12 @@ const useStyles = makeStyles({
     backgroundColor: tokens.colorNeutralBackground2,
     height: '100%',
     overflow: 'hidden',
+    '@media (max-width: 1024px)': {
+      width: '100%',
+      minWidth: 0,
+      borderLeft: 'none',
+      borderTop: `1px solid ${tokens.colorNeutralStroke1}`,
+    },
   },
   header: {
     display: 'flex',
@@ -62,6 +68,7 @@ const useStyles = makeStyles({
     display: 'flex',
     alignItems: 'center',
     justifyContent: 'space-between',
+    gap: tokens.spacingHorizontalS,
   },
   agentName: {
     fontWeight: tokens.fontWeightSemibold,
@@ -70,6 +77,9 @@ const useStyles = makeStyles({
     textOverflow: 'ellipsis',
     whiteSpace: 'nowrap',
     maxWidth: '180px',
+    '@media (max-width: 480px)': {
+      maxWidth: '140px',
+    },
   },
   timestamp: {
     fontSize: tokens.fontSizeBase100,
