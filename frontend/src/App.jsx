@@ -9,24 +9,24 @@
 
 import {
   Button,
-    makeStyles,
+  makeStyles,
+  Subtitle1,
   Subtitle2,
-    Subtitle1,
-    Text,
-    tokens,
+  Text,
+  tokens,
 } from '@fluentui/react-components'
 import {
-    Bot24Regular,
+  Bot24Regular,
   ChevronLeft24Regular,
   ChevronRight24Regular,
-    DataHistogram24Regular,
-    DocumentEdit24Regular,
-    Flow24Regular,
-    Info24Regular,
-    Pulse24Regular,
-    Settings24Regular,
-    Table24Regular,
-    Wrench24Regular,
+  DataHistogram24Regular,
+  DocumentEdit24Regular,
+  Flow24Regular,
+  Info24Regular,
+  Pulse24Regular,
+  Settings24Regular,
+  Table24Regular,
+  Wrench24Regular,
 } from '@fluentui/react-icons'
 import { useEffect, useMemo, useState } from 'react'
 import { Navigate, Route, Routes, useLocation, useNavigate } from 'react-router-dom'
