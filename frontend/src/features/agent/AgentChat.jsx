@@ -41,6 +41,12 @@ const useStyles = makeStyles({
     height: '100%',
     display: 'flex',
     flexDirection: 'column',
+    '@media (max-width: 768px)': {
+      padding: tokens.spacingVerticalM,
+    },
+    '@media (max-width: 480px)': {
+      padding: tokens.spacingVerticalS,
+    },
   },
   card: {
     maxWidth: '1200px',
@@ -49,17 +55,27 @@ const useStyles = makeStyles({
     display: 'flex',
     flexDirection: 'column',
     height: 'calc(100vh - 200px)',
+    minHeight: '480px',
+    '@media (max-width: 768px)': {
+      height: 'calc(100vh - 160px)',
+    },
+    '@media (max-width: 480px)': {
+      height: 'calc(100vh - 120px)',
+      minHeight: '420px',
+    },
   },
   header: {
     display: 'flex',
     justifyContent: 'space-between',
     alignItems: 'center',
     gap: tokens.spacingHorizontalM,
+    flexWrap: 'wrap',
   },
   headerControls: {
     display: 'flex',
     gap: tokens.spacingHorizontalS,
     alignItems: 'center',
+    flexWrap: 'wrap',
   },
   messagesContainer: {
     flex: 1,
@@ -69,12 +85,19 @@ const useStyles = makeStyles({
     flexDirection: 'column',
     gap: tokens.spacingVerticalM,
     backgroundColor: tokens.colorNeutralBackground1,
+    '@media (max-width: 480px)': {
+      padding: tokens.spacingVerticalM,
+    },
   },
   message: {
     display: 'flex',
     gap: tokens.spacingHorizontalM,
     alignItems: 'flex-start',
     maxWidth: '85%',
+    '@media (max-width: 640px)': {
+      maxWidth: '100%',
+      gap: tokens.spacingHorizontalS,
+    },
   },
   userMessage: {
     alignSelf: 'flex-end',
@@ -91,6 +114,10 @@ const useStyles = makeStyles({
     height: '40px',
     borderRadius: tokens.borderRadiusCircular,
     flexShrink: 0,
+    '@media (max-width: 480px)': {
+      width: '32px',
+      height: '32px',
+    },
   },
   userIcon: {
     backgroundColor: tokens.colorBrandBackground,
@@ -165,14 +192,27 @@ const useStyles = makeStyles({
     display: 'flex',
     gap: tokens.spacingHorizontalM,
     backgroundColor: tokens.colorNeutralBackground1,
+    '@media (max-width: 640px)': {
+      flexDirection: 'column',
+      padding: tokens.spacingVerticalM,
+      gap: tokens.spacingVerticalS,
+    },
   },
   inputField: {
     flex: 1,
+  },
+  sendButton: {
+    '@media (max-width: 640px)': {
+      width: '100%',
+    },
   },
   emptyState: {
     textAlign: 'center',
     padding: tokens.spacingVerticalXXXL,
     color: tokens.colorNeutralForeground3,
+    '@media (max-width: 480px)': {
+      padding: tokens.spacingVerticalXL,
+    },
   },
   errorCard: {
     backgroundColor: tokens.colorPaletteRedBackground1,
@@ -386,6 +426,7 @@ export default function AgentChat() {
             />
           </Field>
           <Button
+            className={styles.sendButton}
             appearance="primary"
             icon={<Send24Regular />}
             onClick={handleSendMessage}

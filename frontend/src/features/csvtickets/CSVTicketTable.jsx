@@ -46,6 +46,12 @@ import { getCSVTicket, getCSVTicketFields, getCSVTickets, getCSVTicketStats } fr
 const useStyles = makeStyles({
   container: {
     padding: tokens.spacingVerticalL,
+    '@media (max-width: 768px)': {
+      padding: tokens.spacingVerticalM,
+    },
+    '@media (max-width: 480px)': {
+      padding: tokens.spacingVerticalS,
+    },
   },
   header: {
     display: 'flex',
@@ -63,6 +69,10 @@ const useStyles = makeStyles({
   },
   statCard: {
     minWidth: '120px',
+    flex: '1 1 180px',
+    '@media (max-width: 480px)': {
+      flexBasis: '100%',
+    },
   },
   filters: {
     display: 'flex',
@@ -70,15 +80,38 @@ const useStyles = makeStyles({
     alignItems: 'center',
     flexWrap: 'wrap',
     marginBottom: tokens.spacingVerticalM,
+    '@media (max-width: 640px)': {
+      alignItems: 'stretch',
+      gap: tokens.spacingVerticalS,
+    },
+  },
+  filterControl: {
+    minWidth: '180px',
+    flex: '1 1 220px',
+    '@media (max-width: 640px)': {
+      minWidth: 0,
+      width: '100%',
+      flexBasis: '100%',
+    },
+  },
+  resultsText: {
+    marginLeft: 'auto',
+    whiteSpace: 'nowrap',
+    '@media (max-width: 640px)': {
+      marginLeft: 0,
+      whiteSpace: 'normal',
+    },
   },
   tableWrapper: {
     overflowX: 'auto',
     backgroundColor: tokens.colorNeutralBackground1,
     borderRadius: tokens.borderRadiusMedium,
     boxShadow: tokens.shadow4,
+    WebkitOverflowScrolling: 'touch',
   },
   table: {
-    width: '100%',
+    width: 'max-content',
+    minWidth: '100%',
     borderCollapse: 'collapse',
     fontSize: tokens.fontSizeBase200,
   },
@@ -94,6 +127,9 @@ const useStyles = makeStyles({
     ':hover': {
       backgroundColor: tokens.colorNeutralBackground3Hover,
     },
+    '@media (max-width: 640px)': {
+      padding: `${tokens.spacingVerticalXS} ${tokens.spacingHorizontalS}`,
+    },
   },
   thContent: {
     display: 'flex',
@@ -107,6 +143,10 @@ const useStyles = makeStyles({
     overflow: 'hidden',
     textOverflow: 'ellipsis',
     whiteSpace: 'nowrap',
+    '@media (max-width: 640px)': {
+      padding: `${tokens.spacingVerticalXS} ${tokens.spacingHorizontalS}`,
+      maxWidth: '220px',
+    },
   },
   tr: {
     ':hover': {
@@ -125,10 +165,18 @@ const useStyles = makeStyles({
     alignItems: 'center',
     padding: tokens.spacingVerticalM,
     borderTop: `1px solid ${tokens.colorNeutralStroke1}`,
+    gap: tokens.spacingHorizontalM,
+    flexWrap: 'wrap',
+    '@media (max-width: 640px)': {
+      padding: tokens.spacingVerticalS,
+    },
   },
   paginationButtons: {
     display: 'flex',
     gap: tokens.spacingHorizontalS,
+    '@media (max-width: 480px)': {
+      width: '100%',
+    },
   },
   loading: {
     display: 'flex',
@@ -154,6 +202,9 @@ const useStyles = makeStyles({
     gridTemplateColumns: '1fr 1fr',
     gap: tokens.spacingVerticalS,
     marginTop: tokens.spacingVerticalM,
+    '@media (max-width: 640px)': {
+      gridTemplateColumns: '1fr',
+    },
   },
   detailField: {
     display: 'flex',
@@ -481,6 +532,7 @@ export default function CSVTicketTable() {
       <div className={styles.filters}>
         <Filter24Regular />
         <Dropdown
+          className={styles.filterControl}
           placeholder="Status"
           value={statusFilter || 'All Status'}
           onOptionSelect={(_, data) => {
@@ -497,6 +549,7 @@ export default function CSVTicketTable() {
         </Dropdown>
         
         <Dropdown
+          className={styles.filterControl}
           placeholder="Assignee"
           value={assigneeFilter || 'All Assignees'}
           onOptionSelect={(_, data) => {
@@ -509,7 +562,7 @@ export default function CSVTicketTable() {
           <Option value="unassigned">Unassigned</Option>
         </Dropdown>
         
-        <Text size={200} style={{ marginLeft: 'auto' }}>
+        <Text size={200} className={styles.resultsText}>
           Showing {tickets.length} of {total} tickets
         </Text>
       </div>
@@ -596,7 +649,7 @@ export default function CSVTicketTable() {
 
       {/* Ticket Detail Modal */}
       <Dialog open={detailOpen} onOpenChange={(_, data) => setDetailOpen(data.open)}>
-        <DialogSurface style={{ maxWidth: '700px' }}>
+        <DialogSurface style={{ width: 'min(700px, calc(100vw - 24px))', maxWidth: '700px' }}>
           <DialogBody>
             <DialogTitle
               action={

@@ -228,10 +228,40 @@ function renderCanvas(ctx, canvas, nodes, edges, selectedId, hoveredId, connecti
 // ============================================================================
 
 const useStyles = makeStyles({
-  container: { padding: tokens.spacingVerticalL, display: 'flex', flexDirection: 'column', gap: tokens.spacingVerticalM },
-  header: { display: 'flex', alignItems: 'center', justifyContent: 'space-between' },
+  container: {
+    padding: tokens.spacingVerticalL,
+    display: 'flex',
+    flexDirection: 'column',
+    gap: tokens.spacingVerticalM,
+    '@media (max-width: 768px)': {
+      padding: tokens.spacingVerticalM,
+    },
+    '@media (max-width: 480px)': {
+      padding: tokens.spacingVerticalS,
+    },
+  },
+  header: {
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: tokens.spacingHorizontalM,
+    flexWrap: 'wrap',
+  },
   toolbar: { display: 'flex', alignItems: 'center', gap: tokens.spacingHorizontalS, flexWrap: 'wrap' },
-  canvasWrap: { borderRadius: tokens.borderRadiusLarge, overflow: 'hidden', border: `1px solid ${tokens.colorNeutralStroke1}`, backgroundColor: '#f8fafc', cursor: 'default', position: 'relative' },
+  canvasWrap: {
+    borderRadius: tokens.borderRadiusLarge,
+    overflowX: 'auto',
+    overflowY: 'hidden',
+    border: `1px solid ${tokens.colorNeutralStroke1}`,
+    backgroundColor: '#f8fafc',
+    cursor: 'default',
+    position: 'relative',
+    WebkitOverflowScrolling: 'touch',
+  },
+  canvasInner: {
+    position: 'relative',
+    minWidth: '100%',
+  },
   wfBtn: { minWidth: '140px' },
   colorPicker: { display: 'flex', gap: '4px', alignItems: 'center' },
   colorDot: { width: '20px', height: '20px', borderRadius: '50%', cursor: 'pointer', border: '2px solid transparent', transition: 'transform 0.1s', ':hover': { transform: 'scale(1.2)' } },
@@ -240,7 +270,7 @@ const useStyles = makeStyles({
   legend: { display: 'flex', gap: tokens.spacingHorizontalL, flexWrap: 'wrap', padding: `${tokens.spacingVerticalXS} 0` },
   legendItem: { display: 'flex', alignItems: 'center', gap: '6px' },
   legendLine: { width: '24px', height: '6px', borderRadius: '3px' },
-  dialogSurface: { maxWidth: '500px' },
+  dialogSurface: { maxWidth: '500px', width: 'min(500px, calc(100vw - 24px))' },
 })
 
 // ============================================================================
@@ -267,6 +297,7 @@ export default function WorkflowPage() {
   const [canvasReady, setCanvasReady] = useState(0)
   const [connectMode, setConnectMode] = useState(false)
   const dragStartPos = useRef(null) // track if mouse actually moved (to distinguish click vs drag)
+  const canvasHeight = 460
 
   const switchWf = (key) => {
     const wf = WORKFLOWS[key]; if (!wf) return
@@ -276,11 +307,13 @@ export default function WorkflowPage() {
 
   const resize = useCallback(() => {
     const c = canvasRef.current, w = wrapRef.current; if (!c || !w) return
-    const dpr = window.devicePixelRatio || 1, ww = w.clientWidth
-    c.width = ww * dpr; c.height = 460 * dpr
-    c.style.width = ww + 'px'; c.style.height = '460px'
+    const dpr = window.devicePixelRatio || 1
+    const contentWidth = nodes.reduce((maxX, node) => Math.max(maxX, node.x), 0) + 160
+    const ww = Math.max(w.clientWidth, contentWidth)
+    c.width = ww * dpr; c.height = canvasHeight * dpr
+    c.style.width = ww + 'px'; c.style.height = `${canvasHeight}px`
     setCanvasReady((v) => v + 1)
-  }, [])
+  }, [nodes])
 
   useEffect(() => { resize(); window.addEventListener('resize', resize); return () => window.removeEventListener('resize', resize) }, [resize])
   useEffect(() => { const c = canvasRef.current; if (!c || !canvasReady) return; renderCanvas(c.getContext('2d'), c, nodes, edges, selectedId, hoveredId, connecting, mousePos, animProgress, connectMode) }, [nodes, edges, selectedId, hoveredId, connecting, mousePos, animProgress, canvasReady, connectMode])
@@ -377,20 +410,22 @@ export default function WorkflowPage() {
       </Card>
 
       <div className={styles.canvasWrap} ref={wrapRef}>
-        <canvas ref={canvasRef} onMouseDown={onDown} onMouseMove={onMove} onMouseUp={onUp}
-          onMouseLeave={() => { setDragging(null); setConnecting(null); setHoveredId(null) }}
-          onClick={onClick} onDoubleClick={onDbl}
-          onKeyDown={(e) => { if (e.key === 'Escape') { setConnectMode(false); setConnecting(null) } }}
-          tabIndex={0}
-          style={{ display: 'block', cursor: connectMode ? 'crosshair' : 'default', outline: 'none' }}
-          data-testid="workflow-canvas" />
-        {editing && (
-          <div className={styles.editOverlay} style={{ left: editing.x - 80, top: editing.y - 16 }}>
-            <Input autoFocus value={editText} onChange={(_, d) => setEditText(d.value)}
-              onKeyDown={(e) => { if (e.key === 'Enter') commitEdit(); if (e.key === 'Escape') setEditing(null) }}
-              onBlur={commitEdit} style={{ width: '160px' }} data-testid="workflow-edit-input" />
-          </div>
-        )}
+        <div className={styles.canvasInner} style={{ height: `${canvasHeight}px` }}>
+          <canvas ref={canvasRef} onMouseDown={onDown} onMouseMove={onMove} onMouseUp={onUp}
+            onMouseLeave={() => { setDragging(null); setConnecting(null); setHoveredId(null) }}
+            onClick={onClick} onDoubleClick={onDbl}
+            onKeyDown={(e) => { if (e.key === 'Escape') { setConnectMode(false); setConnecting(null) } }}
+            tabIndex={0}
+            style={{ display: 'block', cursor: connectMode ? 'crosshair' : 'default', outline: 'none' }}
+            data-testid="workflow-canvas" />
+          {editing && (
+            <div className={styles.editOverlay} style={{ left: editing.x - 80, top: editing.y - 16 }}>
+              <Input autoFocus value={editText} onChange={(_, d) => setEditText(d.value)}
+                onKeyDown={(e) => { if (e.key === 'Enter') commitEdit(); if (e.key === 'Escape') setEditing(null) }}
+                onBlur={commitEdit} style={{ width: '160px' }} data-testid="workflow-edit-input" />
+            </div>
+          )}
+        </div>
       </div>
 
       <div className={styles.legend}>

@@ -51,11 +51,20 @@ const useStyles = makeStyles({
     gap: tokens.spacingVerticalL,
     maxWidth: '800px',
     margin: '0 auto',
+    '@media (max-width: 768px)': {
+      padding: tokens.spacingVerticalM,
+      gap: tokens.spacingVerticalM,
+    },
+    '@media (max-width: 480px)': {
+      padding: tokens.spacingVerticalS,
+    },
   },
   header: {
     display: 'flex',
     alignItems: 'center',
     justifyContent: 'space-between',
+    gap: tokens.spacingHorizontalM,
+    flexWrap: 'wrap',
   },
   sortableItem: {
     display: 'flex',
@@ -70,6 +79,11 @@ const useStyles = makeStyles({
     userSelect: 'none',
     ':hover': {
       backgroundColor: tokens.colorNeutralBackground1Hover,
+    },
+    '@media (max-width: 640px)': {
+      flexWrap: 'wrap',
+      alignItems: 'flex-start',
+      gap: tokens.spacingHorizontalS,
     },
   },
   dragging: {
@@ -90,6 +104,7 @@ const useStyles = makeStyles({
     color: tokens.colorNeutralForeground4,
     fontFamily: 'monospace',
     fontSize: '12px',
+    overflowWrap: 'anywhere',
   },
   iconBtn: {
     minWidth: '32px',
@@ -108,11 +123,12 @@ const useStyles = makeStyles({
   },
   iconGrid: {
     display: 'grid',
-    gridTemplateColumns: 'repeat(8, 1fr)',
+    gridTemplateColumns: 'repeat(auto-fill, minmax(36px, 1fr))',
     gap: '4px',
     maxHeight: '300px',
     overflowY: 'auto',
     padding: tokens.spacingVerticalS,
+    width: 'min(320px, calc(100vw - 64px))',
   },
   iconGridItem: {
     width: '36px',
