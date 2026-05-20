@@ -28,10 +28,23 @@
 - Frontend: React 18, Vite, FluentUI components, feature-first structure under `frontend/src/features`
 - Tests: Playwright E2E (`tests/e2e/app.spec.js`)
 
+## 🚀 Deploy to Azure (5-10 minutes)
+
+Want to deploy this app to production? We've got you covered!
+
+**Quickest method**: `./azure-deploy.sh` - One command deploys everything to Azure Container Apps.
+
+📖 **[Complete Azure Deployment Guide](docs/DEPLOY_AZURE.md)** - Step-by-step instructions for:
+- Azure Container Apps (recommended)
+- Azure App Service
+- CI/CD with GitHub Actions
+- Environment configuration
+
 ## Documentation
 
 All deep-dive guides now live under `docs/` for easier discovery:
 
+- [🚀 **Azure Deployment**](docs/DEPLOY_AZURE.md) – **quickest way to deploy on Azure** (5-10 minutes)
 - [Ubuntu Installation Guide](docs/INSTALL_UBUNTU.md) – complete prerequisites installation for Ubuntu 22.04 LTS
 - [Quick Start](docs/QUICKSTART.md) – fastest path from clone to running servers
 - [Learning Guide](docs/LEARNING.md) – principles behind the architecture and code style
